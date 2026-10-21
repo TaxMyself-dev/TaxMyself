@@ -2395,12 +2395,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
       .pipe(
         finalize(() => this.allocationNumberLoading.set(false)),
         catchError((error) => {
-          const isAmbiguous = error?.status === 408 || error?.status === 0 || error?.status >= 500;
+          const code = error?.error?.code;
+          const isBlocked = code === 'ALLOCATION_OUTCOME_UNKNOWN'
+            || code === 'ALLOCATION_REQUEST_IN_PROGRESS';
           this.messageService.add({
             severity: 'error',
             summary: 'המסמך נשמר אך ההקצאה לא הושלמה',
-            detail: isAmbiguous
-              ? 'לא התקבלה תשובה ודאית משע״מ. אין לבקש מספר נוסף; יש לבצע אחזור מרשימת המסמכים.'
+            detail: isBlocked
+              ? (code === 'ALLOCATION_OUTCOME_UNKNOWN'
+                ? 'לא התקבלה תשובה ודאית משע״מ. אין לבקש מספר נוסף; נדרש בירור מנהל מול רשות המסים.'
+                : 'בקשת ההקצאה עדיין מתבצעת. אין לשלוח בקשה נוספת; יש להמתין.')
               : (error.error?.message || error.message || 'בקשת ההקצאה נכשלה.'),
             life: 8000,
             key: 'br'

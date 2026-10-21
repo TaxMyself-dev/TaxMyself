@@ -40,12 +40,13 @@ import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
 import { DocumentPdfClient } from './pdf/document-pdf-client';
 import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
+import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
 
 
 @Module({
   imports: [
     IdentityImagesModule,
-    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument]),
+    TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument, ShaamInvoiceAllocationAttempt]),
     MailModule,
     GoogleDriveModule,
     forwardRef(() => UsersModule),

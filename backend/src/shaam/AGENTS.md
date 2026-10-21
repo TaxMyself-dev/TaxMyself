@@ -1,6 +1,16 @@
 ## Purpose
 Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorization per business and invoice-approval ("חשבונית מס" allocation number) submission.
 
+## Invoice allocation safety
+
+- Supplier allocation uses `Invoices/v2/Approval` only. Customer-side Invoice
+  Information endpoints are not recovery endpoints for this flow.
+- Persist `PROCESSING` before the call. An expired lease becomes
+  `UNKNOWN_OUTCOME` and is never replayed automatically.
+- Save the allocation and `APPROVED` atomically before local finalization.
+- Only guarded admin endpoints resolve unknown outcomes with evidence. See
+  `docs/features/shaam-allocation-state-machine.md`.
+
 ## Key entities/files
 - `shaam-secure.controller.ts` — authenticated, business-scoped connection/status and allocation routes plus the state-bound OAuth callback. It never returns tokens.
 - `entities/shaam-connection.entity.ts` / `shaam-oauth-state.entity.ts` — product/environment-separated encrypted connections and hashed, durable, single-use OAuth state.

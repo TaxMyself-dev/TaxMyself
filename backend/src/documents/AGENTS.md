@@ -1,6 +1,12 @@
 ## Purpose
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
 
+## SHAAM allocation finalization
+
+`finalizeAllocation` rejects finalization without a stored allocation while
+the latest attempt is `PROCESSING` or `UNKNOWN_OUTCOME`. With a stored
+allocation, retries perform local work only and never call SHAAM again.
+
 ## PDF rendering and signing
 
 - `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler fonts via Chromium. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.

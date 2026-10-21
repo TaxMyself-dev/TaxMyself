@@ -22,7 +22,9 @@ import { Delegation } from '../delegation/delegation.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { Documents } from '../documents/documents.entity';
 import { DocumentsModule } from '../documents/documents.module';
-import { ShaamDocumentAllocationService } from './services/shaam-document-allocation.service';
+import { ShaamAllocationOrchestratorService } from './services/shaam-allocation-orchestrator.service';
+import { ShaamInvoiceAllocationAttempt } from './entities/shaam-invoice-allocation-attempt.entity';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -38,15 +40,17 @@ import { ShaamDocumentAllocationService } from './services/shaam-document-alloca
       User,
       Delegation,
       Documents,
+      ShaamInvoiceAllocationAttempt,
     ]),
     BusinessModule,
     DocumentsModule,
+    UsersModule,
   ],
   controllers: [ShaamSecureController],
   providers: [
     ShaamOauthService,
     ShaamInvoicesService,
-    ShaamDocumentAllocationService,
+    ShaamAllocationOrchestratorService,
     {
       provide: UNIFORM_FILE_OAUTH_CONFIG,
       useFactory: loadUniformFileOauthConfig,

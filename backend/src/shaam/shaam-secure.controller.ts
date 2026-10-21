@@ -6,6 +6,8 @@ import {
   HttpException,
   HttpStatus,
   Inject,
+  Param,
+  ParseIntPipe,
   Post,
   Query,
   Req,
@@ -18,7 +20,7 @@ import {
 import { Response } from 'express';
 import { BusinessService } from '../business/business.service';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
-import { ShaamDocumentAllocationDto } from './dto/shaam-document-allocation.dto';
+import { ShaamAllocationResolutionDto, ShaamDocumentAllocationDto } from './dto/shaam-document-allocation.dto';
 import {
   isShaamTsandboxInvoiceBusinessAllowed,
   ShaamEnvironment,
@@ -28,7 +30,8 @@ import { ShaamProduct } from './entities/shaam.enums';
 import { ShaamConnectionService } from './services/shaam-connection.service';
 import { ShaamOauthStateService } from './services/shaam-oauth-state.service';
 import { ShaamOauthService } from './services/shaam-oauth.service';
-import { ShaamDocumentAllocationService } from './services/shaam-document-allocation.service';
+import { ShaamAllocationOrchestratorService } from './services/shaam-allocation-orchestrator.service';
+import { AdminGuard } from '../guards/admin.guard';
 import {
   UNIFORM_FILE_OAUTH_CONFIG,
   UniformFileOauthConfig,
@@ -43,7 +46,7 @@ export class ShaamSecureController {
     private readonly connections: ShaamConnectionService,
     private readonly allocationOauth: ShaamOauthService,
     private readonly uniformOauth: UniformFileOauthService,
-    private readonly documentAllocation: ShaamDocumentAllocationService,
+    private readonly documentAllocation: ShaamAllocationOrchestratorService,
     @Inject(UNIFORM_FILE_OAUTH_CONFIG)
     private readonly uniformConfig: UniformFileOauthConfig,
   ) {}
@@ -151,41 +154,47 @@ export class ShaamSecureController {
     return this.documentAllocation.requestAndFinalize(
       token,
       request.user.firebaseId,
+      request.user.actorFirebaseId ?? request.user.firebaseId,
       business.businessNumber,
       dto.docNumber,
       dto.docType,
     );
   }
 
-  @Post('invoices/allocation/recover')
+  @Get('invoices/allocation/status')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async recoverApproval(
+  async allocationStatus(
     @Req() request: any,
     @Query('businessNumber') businessNumber: string,
-    @Body() dto: ShaamDocumentAllocationDto,
+    @Query() dto: ShaamDocumentAllocationDto,
   ) {
     const business = await this.resolveBusiness(request, businessNumber);
-    const environment = this.environmentFor(ShaamProduct.INVOICE_ALLOCATION);
-    this.assertSandboxInvoiceBusinessAllowed(
-      business.businessNumber,
-      ShaamProduct.INVOICE_ALLOCATION,
-      environment,
-    );
-    const token = await this.connections.getValidAccessToken(
-      business.id,
-      ShaamProduct.INVOICE_ALLOCATION,
-      environment,
-    );
-    if (!token) {
-      throw new HttpException('SHAAM connection is required', HttpStatus.PRECONDITION_REQUIRED);
-    }
-    return this.documentAllocation.recoverAndFinalize(
-      token,
-      request.user.firebaseId,
+    return this.documentAllocation.getStatus(
       business.businessNumber,
       dto.docNumber,
       dto.docType,
+    );
+  }
+
+  @Get('admin/invoices/allocation/unknown')
+  @UseGuards(FirebaseAuthGuard, AdminGuard)
+  async listUnknownAllocationAttempts() {
+    return this.documentAllocation.listUnknownAttempts();
+  }
+
+  @Post('admin/invoices/allocation/:attemptId/resolve')
+  @UseGuards(FirebaseAuthGuard, AdminGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async resolveUnknownAllocation(
+    @Req() request: any,
+    @Param('attemptId', ParseIntPipe) attemptId: number,
+    @Body() dto: ShaamAllocationResolutionDto,
+  ) {
+    return this.documentAllocation.resolveUnknown(
+      attemptId,
+      request.user.actorFirebaseId ?? request.user.firebaseId,
+      dto,
     );
   }
 

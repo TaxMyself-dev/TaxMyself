@@ -1,5 +1,5 @@
 import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
-import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
@@ -38,6 +38,8 @@ import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
 import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { DocumentPdfModel } from './pdf/document-pdf.template';
 import { ImageStorageService } from '../identity-images/image-storage.service';
+import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
+import { ShaamInvoiceAllocationAttemptState } from '../shaam/entities/shaam.enums';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 /**
@@ -196,6 +198,8 @@ export class DocumentsService {
     private expenseRepo: Repository<Expense>,
     @InjectRepository(ImportedDocument)
     private importedDocumentRepo: Repository<ImportedDocument>,
+    @InjectRepository(ShaamInvoiceAllocationAttempt)
+    private shaamAllocationAttemptRepo: Repository<ShaamInvoiceAllocationAttempt>,
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
@@ -1489,6 +1493,47 @@ ${finalOwnerName}`;
 
     if (!doc) {
       throw new NotFoundException('Document not found');
+    }
+
+    if (!doc.allocationNum) {
+      const latestAllocationAttempt = await this.shaamAllocationAttemptRepo.findOne({
+        where: { documentId: doc.id },
+        order: { attemptNumber: 'DESC' },
+      });
+      if (
+        latestAllocationAttempt?.state === ShaamInvoiceAllocationAttemptState.PROCESSING &&
+        (!latestAllocationAttempt.leaseExpiresAt || latestAllocationAttempt.leaseExpiresAt.getTime() <= Date.now())
+      ) {
+        latestAllocationAttempt.state = ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME;
+        latestAllocationAttempt.unknownSince = new Date();
+        latestAllocationAttempt.completedAt = new Date();
+        latestAllocationAttempt.leaseExpiresAt = null;
+        latestAllocationAttempt.failureCategory = 'lease_expired';
+        await this.shaamAllocationAttemptRepo.save(latestAllocationAttempt);
+        this.logger.warn('SHAAM allocation lease expired during local finalization check', {
+          operation: 'invoice_allocation',
+          stage: 'lease_expired',
+          requestId: latestAllocationAttempt.requestId,
+          attemptId: latestAllocationAttempt.id,
+          fromState: ShaamInvoiceAllocationAttemptState.PROCESSING,
+          toState: ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME,
+          environment: latestAllocationAttempt.environment,
+        });
+      }
+      if (
+        latestAllocationAttempt &&
+        [
+          ShaamInvoiceAllocationAttemptState.PROCESSING,
+          ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME,
+        ].includes(latestAllocationAttempt.state)
+      ) {
+        throw new ConflictException({
+          code: latestAllocationAttempt.state === ShaamInvoiceAllocationAttemptState.PROCESSING
+            ? 'ALLOCATION_REQUEST_IN_PROGRESS'
+            : 'ALLOCATION_OUTCOME_UNKNOWN',
+          message: 'Cannot finalize while the Tax Authority allocation outcome is unresolved',
+        });
+      }
     }
 
     // PENDING means the doc was never finalized — full PDF generation + journal

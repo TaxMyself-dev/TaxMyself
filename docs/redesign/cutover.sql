@@ -2495,3 +2495,42 @@ ALTER TABLE user_source_sync_state MODIFY sourceRecordId int NOT NULL,
 ALTER TABLE full_transactions_cache ADD CONSTRAINT FK_cache_source_record
   FOREIGN KEY (sourceRecordId) REFERENCES source(id) ON DELETE RESTRICT;
 -- Verify zero broken links; opaque externalTransactionId and slim state are unchanged.
+
+-- SECTION 25 (2026-10-21): durable SHAAM invoice-allocation attempts (KT-085).
+-- Prepared only. Do not deploy the application until this table exists.
+CREATE TABLE IF NOT EXISTS `shaam_invoice_allocation_attempt` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `document_id` INT NOT NULL,
+  `attempt_number` INT UNSIGNED NOT NULL,
+  `request_id` CHAR(36) NOT NULL,
+  `actor_firebase_id` VARCHAR(255) NOT NULL,
+  `effective_firebase_id` VARCHAR(255) NOT NULL,
+  `environment` VARCHAR(16) NOT NULL,
+  `state` VARCHAR(32) NOT NULL,
+  `payload_sha256` CHAR(64) NOT NULL,
+  `lease_expires_at` DATETIME NULL DEFAULT NULL,
+  `provider_http_status` SMALLINT UNSIGNED NULL DEFAULT NULL,
+  `failure_category` VARCHAR(64) NULL DEFAULT NULL,
+  `provider_error_code` VARCHAR(128) NULL DEFAULT NULL,
+  `submitted_at` DATETIME NOT NULL,
+  `unknown_since` DATETIME NULL DEFAULT NULL,
+  `completed_at` DATETIME NULL DEFAULT NULL,
+  `resolution_action` VARCHAR(32) NULL DEFAULT NULL,
+  `resolution_evidence` VARCHAR(100) NULL DEFAULT NULL,
+  `resolved_by_firebase_id` VARCHAR(255) NULL DEFAULT NULL,
+  `resolved_at` DATETIME NULL DEFAULT NULL,
+  `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_shaam_allocation_attempt_number` (`document_id`, `attempt_number`),
+  UNIQUE KEY `ux_shaam_allocation_request_id` (`request_id`),
+  KEY `ix_shaam_allocation_document_state` (`document_id`, `state`, `created_at`),
+  KEY `ix_shaam_allocation_state_created` (`state`, `created_at`),
+  CONSTRAINT `fk_shaam_allocation_attempt_document`
+    FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- Verification: must return 1 before deploying KT-085.
+-- SELECT COUNT(*) FROM information_schema.TABLES
+-- WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='shaam_invoice_allocation_attempt';

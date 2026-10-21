@@ -6,6 +6,30 @@ import { environment } from 'src/environments/environment';
 export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
   'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
 
+export interface ShaamAllocationStatus {
+  state: string;
+  canRequest: boolean;
+  canFinalizeLocally: boolean;
+  requiresAdminResolution: boolean;
+  requestId: string | null;
+  updatedAt: string | null;
+}
+
+export interface ShaamUnknownAllocationAttempt {
+  attemptId: number;
+  requestId: string;
+  issuerBusinessNumber: string;
+  docNumber: string;
+  docType: string;
+  state: string;
+  environment: string;
+  submittedAt: string;
+  unknownSince: string | null;
+  httpStatus: number | null;
+  failureCategory: string | null;
+  providerErrorCode: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -66,15 +90,29 @@ export class ShaamService {
     return this.http.post(url, { docNumber, docType });
   }
 
-  /** Recover an allocation after a timeout/lost response without submitting a
-   * second approval request. */
-  recoverInvoiceAllocation(
+  getInvoiceAllocationStatus(
     businessNumber: string,
     docNumber: string,
     docType: string,
-  ): Observable<any> {
-    const url = `${environment.apiUrl}shaam/invoices/allocation/recover?businessNumber=${encodeURIComponent(businessNumber)}`;
-    return this.http.post(url, { docNumber, docType });
+  ): Observable<ShaamAllocationStatus> {
+    const url = `${environment.apiUrl}shaam/invoices/allocation/status?businessNumber=${encodeURIComponent(businessNumber)}&docNumber=${encodeURIComponent(docNumber)}&docType=${encodeURIComponent(docType)}`;
+    return this.http.get<ShaamAllocationStatus>(url);
+  }
+
+  listUnknownAllocationAttempts(): Observable<ShaamUnknownAllocationAttempt[]> {
+    return this.http.get<ShaamUnknownAllocationAttempt[]>(`${environment.apiUrl}shaam/admin/invoices/allocation/unknown`);
+  }
+
+  resolveUnknownAllocationAttempt(
+    attemptId: number,
+    action: 'CONFIRMED_NOT_ACCEPTED' | 'CONFIRMED_APPROVED',
+    evidenceReference: string,
+    allocationNumber?: string,
+  ): Observable<{ state: string }> {
+    return this.http.post<{ state: string }>(
+      `${environment.apiUrl}shaam/admin/invoices/allocation/${attemptId}/resolve`,
+      { action, evidenceReference, allocationNumber },
+    );
   }
 
   /**

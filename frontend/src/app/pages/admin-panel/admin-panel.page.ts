@@ -17,6 +17,7 @@ import { AdminDocumentationComponent } from './admin-documentation.component';
 import { SharedModule } from '../../shared/shared.module';
 import { AdminTaxFileComponent } from './admin-tax-file.component';
 import { AdminContentComponent } from './admin-content.component';
+import { AdminShaamAllocationsComponent } from './admin-shaam-allocations.component';
 
 
 @Component({
@@ -37,12 +38,14 @@ import { AdminContentComponent } from './admin-content.component';
       AdminDocumentationComponent,
       AdminContentComponent,
       AdminTaxFileComponent,
+      AdminShaamAllocationsComponent,
     ],
     providers: [ConfirmationService],
 })
 export class AdminPanelPage implements OnInit {
 
   tabs = [
+    { label: 'הקצאות שע״מ', value: 'shaam-allocations', component: AdminShaamAllocationsComponent },
     //{ label: 'סטטוס תשלומים', value: 'status-payments', component: StatusPaymentsComponent },
     { label: 'לוח בקרה - לקוחות', value: 'clients-dashboard', component: ClientsDashboardComponent },
     { label: 'תיק המס שלי', value: 'tax-file', component: AdminTaxFileComponent },

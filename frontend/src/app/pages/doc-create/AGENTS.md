@@ -1,6 +1,12 @@
 ## Purpose
 Page for creating and managing SHAAM-compliant business documents (receipts, tax invoices, tax invoice-receipts, transaction invoices, credit invoices, price quotes, work orders) — including line items, payment details, drafts, PDF preview/generation, and the SHAAM allocation-number flow.
 
+## Allocation requests
+
+Persist the document as `PENDING_ALLOCATION` before supplier Approval.
+`ALLOCATION_REQUEST_IN_PROGRESS` and `ALLOCATION_OUTCOME_UNKNOWN` are blocking
+UI states, not retry prompts.
+
 ## Key entities/files
 - `doc-create.page.ts` — main component: doc-type selection, general/user/payment forms, line items (add/edit/delete), totals calculation, draft save/load, PDF preview & create, persisted-document SHAAM allocation flow, "opposite document" flow (e.g. credit invoice generated from a tax invoice).
 - `doc-create-builder.service.ts` — builds form field configs, line-item table columns, summary rows, currency/card-company option lists.

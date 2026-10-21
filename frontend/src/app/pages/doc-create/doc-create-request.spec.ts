@@ -241,12 +241,12 @@ describe('voluntary SHAAM allocation', () => {
     );
   });
 
-  it('does not repeat an Approval request after an ambiguous timeout', () => {
+  it('does not repeat an Approval request after an unknown outcome', () => {
     const page = Object.create(DocCreatePage.prototype) as any;
     page.allocationNumberLoading = signal(false);
     page.shaamService = {
       requestInvoiceAllocation: jasmine.createSpy().and.returnValue(
-        throwError(() => ({status: 408})),
+        throwError(() => ({status: 409, error: {code: 'ALLOCATION_OUTCOME_UNKNOWN'}})),
       ),
     };
     page.messageService = {add: jasmine.createSpy()};

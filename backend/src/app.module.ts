@@ -100,6 +100,7 @@ import { AssetDepreciationPosting } from './depreciation/asset-depreciation-post
 import { ShaamConnection } from './shaam/entities/shaam-connection.entity';
 import { ShaamOauthState } from './shaam/entities/shaam-oauth-state.entity';
 import { UniformFileSubmission } from './shaam/entities/uniform-file-submission.entity';
+import { ShaamInvoiceAllocationAttempt } from './shaam/entities/shaam-invoice-allocation-attempt.entity';
 
 
 // Boot-time safety valve (added 2026-07-12 after an accidental synchronize
@@ -181,7 +182,7 @@ new Logger('Bootstrap').log(
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
-        ShaamConnection, ShaamOauthState, UniformFileSubmission,
+        ShaamConnection, ShaamOauthState, UniformFileSubmission, ShaamInvoiceAllocationAttempt,
         ],
       synchronize: isSynchronizeEnabled,
       timezone: 'Z',

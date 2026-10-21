@@ -1,5 +1,6 @@
-import { IsEnum, IsString, Matches } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { DocumentType } from '../../enum';
+import { ShaamInvoiceAllocationResolutionAction } from '../entities/shaam.enums';
 
 export class ShaamDocumentAllocationDto {
   @IsString()
@@ -8,6 +9,21 @@ export class ShaamDocumentAllocationDto {
 
   @IsEnum(DocumentType)
   docType: DocumentType;
+}
+
+export class ShaamAllocationResolutionDto {
+  @IsEnum(ShaamInvoiceAllocationResolutionAction)
+  action: ShaamInvoiceAllocationResolutionAction;
+
+  @IsString()
+  @Matches(/^[A-Za-z0-9._:-]{1,100}$/)
+  evidenceReference: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,50}$/)
+  @MaxLength(50)
+  allocationNumber?: string;
 }
 
 export interface ShaamConfirmationLookupDto {

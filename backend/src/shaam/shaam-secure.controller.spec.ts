@@ -90,6 +90,7 @@ describe('ShaamSecureController', () => {
     expect(documentAllocation.requestAndFinalize).toHaveBeenCalledWith(
       'server-token',
       'effective-owner',
+      'real-actor',
       DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
       '20000',
       'TAX_INVOICE',

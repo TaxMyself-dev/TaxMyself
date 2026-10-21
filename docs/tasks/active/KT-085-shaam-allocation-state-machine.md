@@ -1,11 +1,11 @@
 # KT-085 - SHAAM allocation state machine
 
-- Status: `APPROVED`
+- Status: `COMPLETE`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt085\taxmyself-dev`
 - Branch: `codex/kt085-shaam-allocation-state-machine`
-- Base commit: `6c025dc9`
+- Base commit: `7b21a63c`
 
 ## Business outcome
 
@@ -15,34 +15,34 @@ ambiguous outcome, and explains each state clearly to users and operators.
 
 ## Acceptance criteria
 
-- [ ] Remove customer-side Invoice Information recovery from the supplier
+- [x] Remove customer-side Invoice Information recovery from the supplier
       allocation path; a first request calls only `Invoices/v2/Approval`.
-- [ ] Persist a per-document attempt history before each external submission,
+- [x] Persist a per-document attempt history before each external submission,
       including an opaque request id, payload hash, state, lease, bounded HTTP
       status/failure metadata, timestamps and initiating actor.
-- [ ] Enforce one active/ambiguous attempt per document. A live lease reports
+- [x] Enforce one active/ambiguous attempt per document. A live lease reports
       in-progress; an expired lease becomes `UNKNOWN_OUTCOME`; neither state
       submits another Approval automatically.
-- [ ] Persist a successful allocation number and terminal attempt state in one
+- [x] Persist a successful allocation number and terminal attempt state in one
       database transaction before PDF/journal finalization. A finalization
       retry must never call SHAAM again.
-- [ ] Map provider rejection, deterministic client/auth/validation errors and
+- [x] Map provider rejection, deterministic client/auth/validation errors and
       ambiguous transport/server/malformed outcomes to distinct safe states.
-- [ ] Provide admin-only, audited resolution for an unknown outcome:
+- [x] Provide admin-only, audited resolution for an unknown outcome:
       confirmed-not-accepted permits an exact same-document retry; a confirmed
       allocation number is stored before local finalization. Normal users
       cannot resolve unknown attempts.
-- [ ] Expose sanitized allocation status to the document UI and present clear
+- [x] Expose sanitized allocation status to the document UI and present clear
       actions/messages for ready, processing, unknown, rejected/failed,
       allocated and local-finalization states.
-- [ ] Emit structured stage/state-transition logs without tokens, request or
+- [x] Emit structured stage/state-transition logs without tokens, request or
       response bodies, VAT/business/customer numbers, document references,
       allocation numbers, dates or monetary values.
-- [ ] Add an idempotent schema section to `docs/redesign/cutover.sql`, but do
+- [x] Add an idempotent schema section to `docs/redesign/cutover.sql`, but do
       not execute it against any database.
-- [ ] Document the Tax Authority supplier/customer boundary and include a
+- [x] Document the Tax Authority supplier/customer boundary and include a
       Mermaid flow diagram covering every outcome.
-- [ ] Focused backend and frontend tests plus Nest and Angular production builds
+- [x] Focused backend and frontend tests plus Nest and Angular production builds
       pass.
 
 ## Scope and constraints
@@ -63,7 +63,15 @@ ambiguous outcome, and explains each state clearly to users and operators.
 
 ## Handoff
 
-- Result: pending
+- Result: implemented in the isolated task worktree.
+- Schema: Section 25 appended to `docs/redesign/cutover.sql`; not executed.
+- Backend verification: 16 controller/orchestrator/admin-guard tests passed;
+  six focused state-machine tests passed; Nest build passed.
+- Frontend verification: 29 focused allocation tests passed with
+  `tsconfig.shaam-allocation.spec.json`; Angular production build passed with
+  the repository's existing bundle/style/CommonJS warnings.
+- No live SHAAM call, database mutation, production access or deployment was
+  performed.
 
 ## Integration
 

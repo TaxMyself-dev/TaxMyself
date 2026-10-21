@@ -1,4 +1,5 @@
 import { IncomesPage } from './incomes.page';
+import { of } from 'rxjs';
 
 describe('pending allocation confirmation', () => {
   function setup() {
@@ -33,6 +34,28 @@ describe('pending allocation confirmation', () => {
     expect((page as any).confirmationService.confirm).not.toHaveBeenCalled();
     expect((page as any).resumeAutomaticAllocation).not.toHaveBeenCalled();
     expect((page as any).messageService.add).toHaveBeenCalledWith(
+      jasmine.objectContaining({ severity: 'error' }),
+    );
+  });
+
+  it('does not submit Approval when the durable status is unknown', () => {
+    const page = Object.create(IncomesPage.prototype) as any;
+    page.messageService = { add: jasmine.createSpy('add') };
+    page.selectedBusinessNumber = () => '123456789';
+    page.resolveDocType = () => 'TAX_INVOICE';
+    page.gs = { getLoader: () => of(null), updateLoaderMessage: () => undefined, dismissLoader: () => undefined };
+    page.shaamService = {
+      getInvoiceAllocationStatus: jasmine.createSpy().and.returnValue(of({
+        state: 'UNKNOWN_OUTCOME', canRequest: false, canFinalizeLocally: false,
+        requiresAdminResolution: true, requestId: 'request-id', updatedAt: null,
+      })),
+      requestInvoiceAllocation: jasmine.createSpy(),
+    };
+
+    page.resumeAutomaticAllocation({ issuerBusinessNumber: '123456789', docNumber: '20000' });
+
+    expect(page.shaamService.requestInvoiceAllocation).not.toHaveBeenCalled();
+    expect(page.messageService.add).toHaveBeenCalledWith(
       jasmine.objectContaining({ severity: 'error' }),
     );
   });

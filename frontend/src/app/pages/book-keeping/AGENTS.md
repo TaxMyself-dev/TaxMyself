@@ -1,6 +1,12 @@
 ## Purpose
 Container page + tab shell for day-to-day bookkeeping: issued documents (incomes), expenses, clients, suppliers, and (currently hidden) tasks — each a lazy-loaded child route/module under `book-keeping/`.
 
+## Pending allocation documents
+
+The incomes page reads the sanitized allocation status before acting. It never
+calls customer-side recovery. `PROCESSING` and `UNKNOWN_OUTCOME` block resend
+and finalization without an allocation; a stored allocation resumes local work.
+
 ## Key entities/files
 - `book-keeping.page.ts` — `BookKeepingPage`; renders the current PrimeNG `Tabs` navigation for child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL. Do not reintroduce deprecated `TabMenu`: in PrimeNG 19 it collides with legacy `TabView` dynamic styles under the shared `tabs` style key.
 - `book-keeping-routing.module.ts` — lazy-loads child modules: `incomes`, `expenses`, `clients`, `suppliers`, `archived-documents`, `tasks` (client-tasks); `incomes`/`expenses` are gated by `ModuleAccessGuard`.
