@@ -68,4 +68,4 @@ businesses, two bank accounts, and three credit cards from January 2026 onward.
   to `7236477f4999bcfac0d196cf8f43aa8641deaa36` after push.
 - User-visible run instructions: from the admin demo-data screen, create
   `partner-candidate-couple`; then sign in as
-  `shani-partner-demo@keepintax.co.il` / `PartnerDemo!2026`.
+  `shani-demo@keepintax.co.il` / `Shani-demo2026`.

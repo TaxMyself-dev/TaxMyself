@@ -1,6 +1,6 @@
 # KT-084 - Shani demo credentials
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt084\taxmyself-dev`
@@ -37,7 +37,7 @@ Elazar.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): worker `f598773b`; integrated `8631e4d8`.
 - Changed files: partner-candidate profile, its focused spec, and this task
   record.
 - Tests and exact results: focused Jest profile suite passed (1 suite / 5
@@ -51,4 +51,14 @@ Elazar.
 
 ## Integration
 
-- Pending.
+- Reviewed by: Codex primary integration manager; the complete diff,
+  `git show --check`, exact credentials, and unchanged permission boundaries
+  were reviewed.
+- Combined verification: focused Jest profile suite passed (1 suite / 5 tests)
+  and the Nest backend build passed on the clean integration candidate.
+- Code delivery: local `main`, `origin/main`, and
+  `codex/integration-kt084` reached `8631e4d8`.
+- User-visible run instructions: create `partner-candidate-couple` from the
+  admin demo-data screen, then sign in as `shani-demo@keepintax.co.il` with
+  password `Shani-demo2026`.
+- No production deployment or live Firebase/DB mutation was performed.

@@ -1,5 +1,17 @@
 # Primary manager state
 
+## KT-084 Shani demo credential update — 2026-10-21
+
+The `partner-candidate-couple` fixture now uses
+`shani-demo@keepintax.co.il` / `Shani-demo2026`, with focused assertions for
+both exact values. The profile remains REGULAR-only and its roles, permissions,
+synthetic banking data, and Feezback protections are unchanged. Integrated code
+`8631e4d8` passed the focused Jest profile suite (5 tests) and the Nest build;
+local main, `origin/main`, and `codex/integration-kt084` reached that code
+commit. No Firebase/DB profile was created or changed, and no schema,
+production-data, provider, accounting, authorization, or deployment action
+occurred.
+
 ## SHAAM sandbox status copy delivery - 2026-10-20
 
 KT-082 distinguishes the expected Tax Authority sandbox business restriction
