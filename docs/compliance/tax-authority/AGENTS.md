@@ -15,6 +15,9 @@ registration. It is engineering evidence, not legal or accounting advice.
 - `gaps-and-roadmap.md` — prioritized gaps and approval gates.
 - `testing-and-certification.md` — verification and official-registration path.
 - `shaam-reconciliation.md` — reconciliation with the earlier SHAAM audit.
+- `shaam-integration-lessons.md` — current engineering and operational
+  invariants learned from OAuth scopes, token lifecycle, allocation recovery,
+  observability, and the separate Uniform File Daily Token integration.
 
 ## Main flow
 
