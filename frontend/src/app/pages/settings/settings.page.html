@@ -413,17 +413,18 @@
                   <span class="shaam-status"
                     [class.shaam-status-connected]="shaamConnectionStatus(business.businessNumber) === 'connected'"
                     [class.shaam-status-muted]="shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked'"
-                    [class.shaam-status-error]="shaamConnectionStatus(business.businessNumber) === 'error'">
+                    [class.shaam-status-error]="shaamConnectionStatus(business.businessNumber) === 'error' || shaamConnectionStatus(business.businessNumber) === 'reauth-required'">
                     @switch (shaamConnectionStatus(business.businessNumber)) {
                       @case ('loading') { בודק חיבור... }
                       @case ('connected') { מחובר }
                       @case ('disconnected') { לא מחובר }
+                      @case ('reauth-required') { נדרשת הרשאה חדשה מרשות המסים }
                       @case ('sandbox-blocked') { סביבת הבדיקות מוגבלת לעסק הדמו של רשות המסים }
                       @case ('error') { לא ניתן לבדוק את החיבור }
                     }
                   </span>
                   <app-p-button
-                    [buttonText]="shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked' ? 'חיבור לא זמין בסביבת הבדיקות' : (shaamConnectionStatus(business.businessNumber) === 'connected' ? 'חיבור מחדש' : 'חיבור לרשות המסים')"
+                    [buttonText]="shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked' ? 'חיבור לא זמין בסביבת הבדיקות' : ((shaamConnectionStatus(business.businessNumber) === 'connected' || shaamConnectionStatus(business.businessNumber) === 'reauth-required') ? 'חיבור מחדש לרשות המסים' : 'חיבור לרשות המסים')"
                     [buttonColor]="buttonColor.WHITE_BORDER"
                     [buttonSize]="buttonSize.SMALL"
                     [isLoading]="connectingShaamBusinessNumber() === business.businessNumber"

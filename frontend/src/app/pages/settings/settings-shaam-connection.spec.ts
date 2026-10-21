@@ -1,10 +1,10 @@
 import { signal } from '@angular/core';
-import { throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SettingsPage } from './settings.page';
 import { SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED } from 'src/app/services/shaam.service';
 
 describe('settings SHAAM connection management', () => {
-  function setup(status: 'connected' | 'disconnected' = 'connected') {
+  function setup(status: 'connected' | 'disconnected' | 'reauth-required' = 'connected') {
     const page = Object.create(SettingsPage.prototype) as SettingsPage;
     page.shaamConnectionStatuses = signal({ '515000000': status });
     page.connectingShaamBusinessNumber = signal<string | null>(null);
@@ -41,6 +41,34 @@ describe('settings SHAAM connection management', () => {
       '515000000',
       jasmine.any(Function),
     );
+  });
+
+  it('starts a fresh authorization immediately when reauthorization is required', () => {
+    const page = setup('reauth-required');
+
+    page.connectShaam('515000000');
+
+    expect(page.confirmationService.confirm).not.toHaveBeenCalled();
+    expect((page as any).shaamService.initiateOAuthFlow).toHaveBeenCalledWith(
+      '515000000',
+      jasmine.any(Function),
+    );
+  });
+
+  it('maps the backend reauthorization flag to the dedicated reconnect state', () => {
+    const page = setup('disconnected');
+    page.businesses = signal<any[]>([{ businessNumber: '515000000' }]);
+    (page as any).shaamService.getConnectionStatus = jasmine
+      .createSpy('getConnectionStatus')
+      .and.returnValue(of({
+        connected: false,
+        expiresAt: null,
+        requiresReauthorization: true,
+      }));
+
+    (page as any).loadShaamConnectionStatuses();
+
+    expect(page.shaamConnectionStatus('515000000')).toBe('reauth-required');
   });
 
   it('maps the expected sandbox restriction to a dedicated disabled state', () => {

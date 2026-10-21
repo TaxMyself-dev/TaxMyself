@@ -30,9 +30,11 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 - `GET /shaam/connection-status` — resolves/refreshes the server-held invoice
   allocation access token when necessary, then returns only safe connection
   metadata. An expired access token alone must not trigger browser reauthorization.
-  Only an explicit OAuth `invalid_grant`/`invalid_token` response marks the
-  connection `REAUTH_REQUIRED`; timeouts, network failures, server failures and
-  configuration errors are surfaced without discarding the existing grant.
+  Only an explicit OAuth `invalid_grant`/`invalid_token`/`invalid_scope`
+  response marks the connection `REAUTH_REQUIRED`; `invalid_scope` means the
+  saved grant cannot be upgraded through refresh and a new authorization is
+  required. Timeouts, network failures, server failures and configuration
+  errors are surfaced without discarding the existing grant.
   When a successful refresh omits a replacement refresh token, the previously
   encrypted refresh token is preserved.
 - `POST /shaam/invoices/allocation?businessNumber=...` — accepts only `docNumber` + `docType`, resolves the server-held token, attempts official recovery first, and only when that succeeds without an existing number submits Approval before finalizing the persisted invoice. An ambiguous recovery error blocks Approval.

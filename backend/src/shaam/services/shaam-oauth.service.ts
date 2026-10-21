@@ -213,7 +213,9 @@ export class ShaamOauthService {
       });
       if (
         error.response?.status === 400 &&
-        (oauthError === 'invalid_grant' || oauthError === 'invalid_token')
+        (oauthError === 'invalid_grant' ||
+          oauthError === 'invalid_token' ||
+          oauthError === 'invalid_scope')
       ) {
         throw new ShaamReauthorizationRequiredError();
       }

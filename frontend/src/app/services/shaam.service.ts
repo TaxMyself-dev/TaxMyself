@@ -74,9 +74,17 @@ export class ShaamService {
    * @param businessNumber - Business number
    * @returns Observable with access token and expiresIn, or null if no connection exists
    */
-  getConnectionStatus(businessNumber: string, product = 'INVOICE_ALLOCATION'): Observable<{ connected: boolean; expiresAt: string | null }> {
+  getConnectionStatus(businessNumber: string, product = 'INVOICE_ALLOCATION'): Observable<{
+    connected: boolean;
+    expiresAt: string | null;
+    requiresReauthorization: boolean;
+  }> {
     const url = `${environment.apiUrl}shaam/connection-status?businessNumber=${encodeURIComponent(businessNumber)}&product=${encodeURIComponent(product)}`;
-    return this.http.get<{ connected: boolean; expiresAt: string | null }>(url);
+    return this.http.get<{
+      connected: boolean;
+      expiresAt: string | null;
+      requiresReauthorization: boolean;
+    }>(url);
   }
 
   /** Request allocation for an already-persisted invoice. The backend builds

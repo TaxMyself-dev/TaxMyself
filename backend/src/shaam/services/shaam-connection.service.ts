@@ -49,7 +49,11 @@ export class ShaamConnectionService {
     businessId: number,
     product: ShaamProduct,
     environment: ShaamEnvironment,
-  ): Promise<{ connected: boolean; expiresAt: Date | null }> {
+  ): Promise<{
+    connected: boolean;
+    expiresAt: Date | null;
+    requiresReauthorization: boolean;
+  }> {
     // Connection status is also the pre-flight used by the document UI. Resolve
     // a usable token here so an expired short-lived access token is refreshed
     // before the browser decides that a new three-month authorization is needed.
@@ -64,6 +68,8 @@ export class ShaamConnectionService {
     return {
       connected: !!accessToken,
       expiresAt: row?.expiresAt ?? null,
+      requiresReauthorization:
+        row?.status === ShaamConnectionStatus.REAUTH_REQUIRED,
     };
   }
 

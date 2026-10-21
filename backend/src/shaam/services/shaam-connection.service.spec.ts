@@ -56,6 +56,7 @@ describe('ShaamConnectionService', () => {
     );
 
     expect(status.connected).toBe(true);
+    expect(status.requiresReauthorization).toBe(false);
     expect(status.expiresAt).toBe(row.expiresAt);
     expect(status.expiresAt!.getTime()).toBeGreaterThan(Date.now());
     expect(oauth.refreshAccessToken).toHaveBeenCalledWith('r');
@@ -78,7 +79,11 @@ describe('ShaamConnectionService', () => {
         ShaamProduct.INVOICE_ALLOCATION,
         ShaamEnvironment.TSANDBOX,
       ),
-    ).resolves.toEqual({ connected: false, expiresAt: row.expiresAt });
+    ).resolves.toEqual({
+      connected: false,
+      expiresAt: row.expiresAt,
+      requiresReauthorization: true,
+    });
 
     expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
     expect(repo.save).toHaveBeenCalledWith(
@@ -150,7 +155,11 @@ describe('ShaamConnectionService', () => {
         ShaamProduct.INVOICE_ALLOCATION,
         ShaamEnvironment.TSANDBOX,
       ),
-    ).resolves.toEqual({ connected: false, expiresAt: row.expiresAt });
+    ).resolves.toEqual({
+      connected: false,
+      expiresAt: row.expiresAt,
+      requiresReauthorization: true,
+    });
 
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: ShaamConnectionStatus.REAUTH_REQUIRED }),

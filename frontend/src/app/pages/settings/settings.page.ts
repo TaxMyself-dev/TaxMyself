@@ -43,6 +43,7 @@ type ShaamConnectionViewStatus =
   | 'loading'
   | 'connected'
   | 'disconnected'
+  | 'reauth-required'
   | 'sandbox-blocked'
   | 'error';
 
@@ -363,9 +364,13 @@ export class SettingsPage implements OnInit {
     ));
     businessNumbers.forEach((businessNumber) => {
       this.shaamService.getConnectionStatus(businessNumber).pipe(take(1)).subscribe({
-        next: ({ connected }) => this.shaamConnectionStatuses.update((statuses) => ({
+        next: ({ connected, requiresReauthorization }) => this.shaamConnectionStatuses.update((statuses) => ({
           ...statuses,
-          [businessNumber]: connected ? 'connected' : 'disconnected',
+          [businessNumber]: connected
+            ? 'connected'
+            : requiresReauthorization
+              ? 'reauth-required'
+              : 'disconnected',
         })),
         error: (error) => this.shaamConnectionStatuses.update((statuses) => ({
           ...statuses,
