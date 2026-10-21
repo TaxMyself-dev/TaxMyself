@@ -54,6 +54,42 @@ lookup. Its provider id is unique per terminal. CONFIRM_NOT_REFUNDED releases on
 after the operator confirms the original request is definitively not pending.
 The dialog labels both actions accordingly. Records and evidence stay auditable.
 
+## Provider diagnostics and read-only check (2026-10-21 follow-up)
+
+Refund responses now append mandatory REFUND_RESOLUTION audit rows with
+metadata.kind=PROVIDER_REFUND_RESPONSE, numeric code and a bounded/redacted
+Description, atomically with the outcome. Both normal responses and HTTP error
+bodies retain only those whitelisted diagnostics; transport exception configs,
+credentials, card numbers and tokens are never stored. The admin context/dialog
+shows the code and description. Older requests explicitly show that their
+description was not saved; it cannot be reconstructed by re-submitting a refund.
+No schema change is needed.
+
+POST admin/billing/subscriptions/:id/refunds/:attemptId/check-provider is admin-only
+and read-only. It calls official Transactions/ListTransactions (TranStatus=All,
+terminal-restricted, paginated and bounded) for the original payment and request
+date windows, each expanded by a day to tolerate provider date boundaries. It first
+verifies the original id, charge flag, terminal, currency, amount and nonempty Uid.
+It then returns only refunds sharing that Uid, terminal, currency and requested
+amount. CardCom documents the same Uid for an original transaction and its refund.
+The response is a minimal candidate list (id/code/description/date), never tokens,
+customer identity or raw transactions. Partial scans are labeled.
+
+Candidates are evidence for the operator, not proof of which request caused the
+refund: the documented list response does not expose ExternalRefundDealId, and
+multiple partial refunds may have the same amount. The check therefore performs
+no status/balance/document writes and never calls RefundByTransactionId. Missing
+results never release balance or imply no refund. Existing evidence-based resolve
+actions remain the final decision. No live account lookup was performed during
+implementation; public spec was read and adapter/service/UI tested with mocks.
+
+The submission endpoint is POST admin/billing/subscriptions/:id/refunds. Its
+server-side adapter calls Transactions/RefundByTransactionId synchronously. A
+successful direct response (ResponseCode=0 plus NewTranzactionId) confirms the
+refund independently of ngrok. LowProfile payment webhooks are a different flow;
+the refund request schema has no per-request WebHookUrl field. Uncertain results
+remain reserved regardless of whether any external notification later arrives.
+
 Existing mail delivery semantics are retained: a crash after the mail provider
 accepts a message but before the sent flag commits can produce a duplicate email;
 it cannot produce another refund or credit document. No claim of exactly-once

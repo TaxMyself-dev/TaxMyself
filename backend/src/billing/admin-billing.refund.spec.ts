@@ -2,7 +2,7 @@ import { AdminBillingController } from './admin-billing.controller';
 import { ForbiddenException } from '@nestjs/common';
 
 describe('Admin refund authorization', () => {
-  it.each(['refundContext', 'createRefund', 'resolveRefund'])( 'rejects a non-admin actor for %s even when impersonating an admin subject', async method => {
+  it.each(['refundContext', 'createRefund', 'resolveRefund', 'checkRefundProvider'])( 'rejects a non-admin actor for %s even when impersonating an admin subject', async method => {
     const users = { isAdmin: jest.fn().mockResolvedValue(false) };
     const refunds = { context: jest.fn(), create: jest.fn(), resolve: jest.fn() };
     const controller = new AdminBillingController({} as any, users as any, undefined, refunds as any);

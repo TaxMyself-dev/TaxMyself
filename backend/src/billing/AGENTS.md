@@ -1,6 +1,12 @@
 ## Purpose
 Admin refunds (2026-10-21): BillingRefundService owns admin-only refund context,
-reservation and operator resolution. It reuses billing_attempt with operation=REFUND
+reservation and operator resolution.
+The follow-up check-provider action uses read-only paginated ListTransactions
+and verifies source id/UID, terminal/currency and refund amount; it returns evidence
+only, never changes financial state or treats absence as no refund. Response
+code/Description are bounded/redacted and saved in existing REFUND_RESOLUTION
+metadata (PROVIDER_REFUND_RESPONSE); old missing descriptions remain missing.
+It reuses billing_attempt with operation=REFUND
 and source_payment_event_id, including legacy successful events without a source
 attempt. No subscription/debt writes are allowed on this path. Existing charge
 reconciliation/admin/renewal paths exclude refunds. A durable request UUID and

@@ -128,6 +128,37 @@ describe('Refund lifecycle including legacy payments', () => {
     expect(f.rows.get(BillingEvent).filter(e => e.eventType === E.REFUND_SUCCESS)).toHaveLength(0);
   });
 
+  it('persists sanitized provider descriptions in existing audit events and exposes them on reload without changing UNKNOWN', async () => {
+    const f = fixture(); f.cardcom.refundTransaction.mockResolvedValue({ ResponseCode: 671, Description: 'Provider refusal explanation', NewTranzactionId: undefined } as any);
+    const result = await f.service.create(7, 'admin', f.dto);
+    expect(result).toMatchObject({ status: S.UNKNOWN, providerResponseCode: 671, providerDescription: 'Provider refusal explanation' });
+    const context = await f.service.context(7);
+    expect(context.refunds[0].providerDescription).toBe('Provider refusal explanation');
+    expect(f.rows.get(BillingEvent)).toContainEqual(expect.objectContaining({ eventType: E.REFUND_RESOLUTION,
+      metadata: expect.objectContaining({ kind: 'PROVIDER_REFUND_RESPONSE', responseCode: 671, description: 'Provider refusal explanation' }) }));
+  });
+
+  it('checks original UID and refund amount read-only and never infers no refund from missing results', async () => {
+    const f = fixture(); f.cardcom.refundTransaction.mockRejectedValue(Error('timeout'));
+    const unknown = await f.service.create(7, 'admin', f.dto);
+    const list = jest.fn().mockResolvedValueOnce({ complete: true, transactions: [{ transactionId: 1234567,
+      uid: 'original-uid', responseCode: 0, isRefund: false, coinId: 1, terminal: 1000, amount: 118 }] })
+      .mockResolvedValueOnce({ complete: true, transactions: [
+        { transactionId: 987, uid: 'original-uid', responseCode: 0, isRefund: true, coinId: 1, terminal: 1000, amount: -118 },
+        { transactionId: 988, uid: 'other-uid', responseCode: 0, isRefund: true, coinId: 1, terminal: 1000, amount: -118 },
+      ] });
+    (f.cardcom as any).listRefundEvidence = list;
+    const savedBefore = f.m.save.mock.calls.length;
+    const check = await f.service.checkProvider(7, unknown.attemptId);
+    expect(check.originalVerified).toBe(true); expect(check.candidates.map(c => c.transactionId)).toEqual(['987']);
+    expect(f.m.save.mock.calls.length).toBe(savedBefore); expect(f.rows.get(BillingAttempt)[0].status).toBe(S.UNKNOWN);
+    expect(f.cardcom.refundTransaction).toHaveBeenCalledTimes(1);
+    list.mockResolvedValue({ complete: true, transactions: [] });
+    const empty = await f.service.checkProvider(7, unknown.attemptId);
+    expect(empty.candidates).toEqual([]); expect(empty.message).toContain('אינה הוכחה');
+    expect(f.rows.get(BillingAttempt)[0].status).toBe(S.UNKNOWN);
+  });
+
   it('recovers PDF failure after confirmed refund, reusing the document and negative event without another provider call', async () => {
     const f = fixture(); f.receipts.finalizeBillingReceiptPdfs.mockRejectedValueOnce(Error('signer unavailable'));
     const first = await f.service.create(7, 'admin', f.dto);

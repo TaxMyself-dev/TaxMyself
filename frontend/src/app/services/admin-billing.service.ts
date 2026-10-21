@@ -226,6 +226,11 @@ export interface GenerateReceiptResponse {
 export interface AdminRefund {
   attemptId: number; paymentEventId: number; amountAgorot: number; status: string;
   stateVersion: number; createdAt: string; transactionId: string | null; receiptDocId: number | null; reason: string;
+  providerResponseCode?: number | null; providerDescription?: string | null;
+}
+export interface RefundProviderCheck {
+  originalVerified: boolean; complete: boolean; checkedAt: string; message: string;
+  candidates: Array<{ transactionId: string; responseCode: number; description: string | null; date: string }>;
 }
 export interface RefundPayment {
   paymentEventId: number; date: string; transactionId: string | null; amountAgorot: number;
@@ -241,6 +246,10 @@ export class AdminBillingService {
 
   getRefundContext(id: number): Observable<RefundContext> {
     return this.http.get<RefundContext>(`${this.base}/subscriptions/${id}/refunds`);
+  }
+
+  checkRefundProvider(id: number, attemptId: number): Observable<RefundProviderCheck> {
+    return this.http.post<RefundProviderCheck>(`${this.base}/subscriptions/${id}/refunds/${attemptId}/check-provider`, {});
   }
 
   createRefund(id: number, payload: { requestId: string; paymentEventId: number; amountAgorot: number; reason: string }): Observable<AdminRefund> {

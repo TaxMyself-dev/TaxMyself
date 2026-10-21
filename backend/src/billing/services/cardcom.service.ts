@@ -1,6 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
+import { sanitizeCardcomDescription } from '../utils/cardcom-description';
 
 /** LowProfile operations we use. ChargeAndCreateToken = paid checkout;
  * CreateTokenOnly = replace saved card without charging. */
@@ -521,7 +522,7 @@ export class CardcomService implements OnModuleInit {
   /** Official v11 RefundByTransactionIdReq. No transport retries: its external
    * refund id has no documented exactly-once guarantee. Only call after a durable reservation. */
   async refundTransaction(input: { transactionId: string; amountAgorot: number; requestId: string }): Promise<{
-    ResponseCode: number; NewTranzactionId?: number;
+    ResponseCode: number; NewTranzactionId?: number; Description?: string | null;
   }> {
     const id = Number(input.transactionId);
     if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(input.amountAgorot) || input.amountAgorot <= 0) {
@@ -535,10 +536,39 @@ export class CardcomService implements OnModuleInit {
           CancelOnly: false, AllowMultipleRefunds: true,
           ExternalRefundDealId: input.requestId,
         }, { timeout: 30_000, maxRedirects: 0 }));
-      return { ResponseCode: data?.ResponseCode, NewTranzactionId: data?.NewTranzactionId };
-    } catch {
+      return { ResponseCode: data?.ResponseCode, NewTranzactionId: data?.NewTranzactionId,
+        Description: sanitizeCardcomDescription(data?.Description, [this.apiName, this.apiPassword]) };
+    } catch (error) {
+      const body = error?.response?.data;
+      if (body && typeof body === 'object') return {
+        ResponseCode: Number.isInteger(body.ResponseCode) && body.ResponseCode !== 0 ? body.ResponseCode : undefined,
+        Description: sanitizeCardcomDescription(body.Description, [this.apiName, this.apiPassword]),
+      };
       // Never propagate axios config/credentials or assume a transport failure means no refund.
       throw new CardcomApiError('Refund result is unknown');
     }
+  }
+
+  /** Read-only official ListTransactions. Return a whitelist; tokens/card data never escape. */
+  async listRefundEvidence(from: Date, to: Date) {
+    const date = (d: Date) => `${String(d.getUTCDate()).padStart(2, '0')}${String(d.getUTCMonth() + 1).padStart(2, '0')}${d.getUTCFullYear()}`;
+    const transactions: Array<{ transactionId: number; uid: string; amount: number; responseCode: number;
+      description: string | null; isRefund: boolean; coinId: number; terminal: number; date: string }> = [];
+    for (let page = 1; page <= 10; page++) {
+      let data;
+      try { ({ data } = await firstValueFrom(this.http.post(
+        'https://secure.cardcom.solutions/api/v11/Transactions/ListTransactions', {
+          ApiName: this.apiName, ApiPassword: this.apiPassword, FromDate: date(from), ToDate: date(to),
+          TranStatus: 'All', Page: page, Page_size: 2000, LimitForTerminal: parseInt(this.terminalNumber, 10),
+        }, { timeout: 30_000, maxRedirects: 0 }))); }
+      catch { throw new CardcomApiError('Read-only CardCom refund lookup failed'); }
+      if (data?.ResponseCode !== 0 || !Array.isArray(data.Tranzactions)) throw new CardcomApiError('Read-only CardCom refund lookup not confirmed');
+      for (const row of data.Tranzactions) transactions.push({ transactionId: row.TranzactionId, uid: row.Uid,
+        amount: row.Amount, responseCode: row.ResponseCode, isRefund: row.IsRefund,
+        coinId: row.CoinId, terminal: row.TerminalNumber, date: row.CreateDate,
+        description: sanitizeCardcomDescription(row.Description, [this.apiName, this.apiPassword]) });
+      if (data.Tranzactions.length < 2000) return { transactions, complete: true };
+    }
+    return { transactions, complete: false };
   }
 }

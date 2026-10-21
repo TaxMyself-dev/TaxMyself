@@ -13,7 +13,7 @@ describe('Admin refund dialog', () => {
   }
   beforeEach(() => {
     api = { getRefundContext: jasmine.createSpy().and.returnValue(of(context)),
-      createRefund: jasmine.createSpy(), resolveRefund: jasmine.createSpy() };
+      createRefund: jasmine.createSpy(), resolveRefund: jasmine.createSpy(), checkRefundProvider: jasmine.createSpy() };
     TestBed.configureTestingModule({ imports: [BillingRefundDialogComponent, NoopAnimationsModule],
       providers: [{ provide: AdminBillingService, useValue: api }] });
   });
@@ -52,6 +52,28 @@ describe('Admin refund dialog', () => {
     expect(fixture.nativeElement.textContent).toContain('המנוי והחיובים העתידיים יישארו ללא שינוי');
     expect(fixture.nativeElement.querySelector('select[name="payment"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('button[type="submit"]').disabled).toBeTrue();
+    fixture.destroy();
+  });
+  it('runs the dedicated provider check without creating or resolving a refund', () => {
+    const c = component();
+    api.checkRefundProvider.and.returnValue(of({ originalVerified: true, complete: true, checkedAt: '2026-10-21', candidates: [], message: 'לא נמצאו תוצאות' }));
+    c.checkProvider({ attemptId: 22 } as any);
+    expect(api.checkRefundProvider).toHaveBeenCalledWith(7, 22);
+    expect(api.createRefund).not.toHaveBeenCalled(); expect(api.resolveRefund).not.toHaveBeenCalled();
+    expect(c.providerChecks()[22].message).toBe('לא נמצאו תוצאות');
+  });
+  it('shows the stored provider code/description and explains missing legacy descriptions', async () => {
+    api.getRefundContext.and.returnValue(of({ ...context, refunds: [
+      { attemptId: 22, amountAgorot: 4000, status: 'UNKNOWN', providerResponseCode: 671,
+        providerDescription: 'סיבת סירוב מסוננת', createdAt: '2026-10-21', reason: 'בדיקה' },
+      { attemptId: 23, amountAgorot: 100, status: 'UNKNOWN', providerResponseCode: 671,
+        providerDescription: null, createdAt: '2026-10-21', reason: 'בדיקה ישנה' },
+    ] }));
+    const fixture = TestBed.createComponent(BillingRefundDialogComponent);
+    fixture.componentInstance.subscriptionId = 7; fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('671');
+    expect(fixture.nativeElement.textContent).toContain('סיבת סירוב מסוננת');
+    expect(fixture.nativeElement.textContent).toContain('תיאור התשובה לא נשמר בבקשה זו');
     fixture.destroy();
   });
 });

@@ -33,6 +33,19 @@ Source main was fast-forwarded under explicit permission while leaving the
 untracked app-mapping folder untouched. Feature branch fast-forwarded to same base.
 
 ## Handoff
+
+Follow-up requested by Elazar after the first real dev request: persist/display
+provider error descriptions and add computerized lookup evidence. Implemented
+without schema changes: sanitized descriptions are in existing refund audit
+metadata; admin-only check-provider reads ListTransactions and returns candidates
+matched by original UID/terminal/currency/amount, never financial-state writes.
+Legacy attempt #10's lost description is not fabricated or recovered via another
+refund request. All live account/provider checks remain user-triggered in the UI.
+Follow-up validation: 22 backend tests across refund service, provider adapter
+and admin authorization passed; 7 frontend refund tests passed in ChromeHeadless.
+Backend and frontend builds passed (frontend reports budget/CommonJS warnings).
+No account lookup, money operation, schema change or existing refund-state change
+was performed by these mocked tests. git diff --check passed.
 - Result: complete, local dev feature branch only; not integrated/pushed/deployed.
 - Commit: see this task's local feature commit (includes this record).
 - Tests:

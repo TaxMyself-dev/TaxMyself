@@ -14,6 +14,7 @@ import { REFUND_RESERVED_STATUSES, refundBreakdown } from '../domain/billing-ref
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { CardcomService } from './cardcom.service';
+import { sanitizeCardcomDescription } from '../utils/cardcom-description';
 
 const SUCCESS = [E.PAYMENT_SUCCESS, E.RENEWAL_SUCCESS];
 const LEASE_MS = 10 * 60_000;
@@ -67,10 +68,18 @@ export class BillingRefundService {
       status: In(REFUND_RESERVED_STATUSES) } });
   }
 
-  private view(a: BillingAttempt) {
+  private view(a: BillingAttempt, description: string | null = null) {
     return { attemptId: a.id, paymentEventId: a.sourcePaymentEventId, amountAgorot: a.amountAgorot,
       status: a.status, stateVersion: a.stateVersion, createdAt: a.createdAt,
-      transactionId: a.cardcomTransactionId, receiptDocId: a.receiptDocId, reason: a.refundReason };
+      transactionId: a.cardcomTransactionId, receiptDocId: a.receiptDocId, reason: a.refundReason,
+      providerResponseCode: a.providerResponseCode ?? null, providerDescription: description };
+  }
+
+  private async details(a: BillingAttempt) {
+    const events = await this.db.manager.find(BillingEvent, { where: { billingAttemptId: a.id,
+      eventType: E.REFUND_RESOLUTION }, order: { id: 'DESC' } });
+    const response = events.find(e => e.metadata?.kind === 'PROVIDER_REFUND_RESPONSE');
+    return this.view(a, sanitizeCardcomDescription(response?.metadata?.description));
   }
 
   private async successEvent(m: EntityManager, a: BillingAttempt, source: BillingEvent) {
@@ -103,7 +112,7 @@ export class BillingRefundService {
         amountAgorot: event.amountAgorot, remainingAgorot: Math.max(0, (event.amountAgorot ?? 0) - reservedAgorot), blockedReason });
     }
     const history = events.length ? await m.find(BillingAttempt, { where: { operation: 'REFUND', sourcePaymentEventId: In(events.map(e => e.id)) }, order: { id: 'DESC' } }) : [];
-    return { payments: payments.reverse(), refunds: history.map(a => this.view(a)) };
+    return { payments: payments.reverse(), refunds: await Promise.all(history.map(a => this.details(a))) };
   }
 
   async create(subscriptionId: number, actor: string, dto: CreateRefundDto) {
@@ -141,8 +150,8 @@ export class BillingRefundService {
         metadata: { actorFirebaseId: actor, sourcePaymentEventId: source.id, reason: dto.reason.trim() } }));
       return { attempt, submit: true, sourceTransactionId: source.cardcomDealNumber };
     });
-    if (!reservation.submit) return this.view(reservation.attempt);
-    let response: { ResponseCode: number; NewTranzactionId?: number };
+    if (!reservation.submit) return this.details(reservation.attempt);
+    let response: { ResponseCode: number; NewTranzactionId?: number; Description?: string | null };
     try { response = await this.cardcom.refundTransaction({ transactionId: reservation.sourceTransactionId,
       amountAgorot: reservation.attempt.amountAgorot, requestId: dto.requestId }); }
     catch { response = { ResponseCode: undefined }; }
@@ -157,13 +166,18 @@ export class BillingRefundService {
       } else { a.status = S.UNKNOWN; a.unknownSince = new Date(); a.failureCategory = 'REFUND_RESULT_UNCONFIRMED'; }
       a.leaseOwner = null; a.leaseExpiresAt = null; a.stateVersion++;
       await m.save(BillingAttempt, a);
+      const source = await m.findOneByOrFail(BillingEvent, { id: a.sourcePaymentEventId });
+      await m.save(BillingEvent, m.create(BillingEvent, { firebaseId: source.firebaseId,
+        subscriptionId: source.subscriptionId, billingAttemptId: a.id, eventType: E.REFUND_RESOLUTION,
+        metadata: { kind: 'PROVIDER_REFUND_RESPONSE', responseCode: a.providerResponseCode,
+          description: sanitizeCardcomDescription(response.Description) } }));
       if (a.status === S.CAPTURED) await this.successEvent(m, a,
         await m.findOneByOrFail(BillingEvent, { id: a.sourcePaymentEventId }));
     });
     // If a unique provider-id/DB failure occurs above, PROCESSING stays reserved;
     // expiry converts it to UNKNOWN. Never catch it as a reason to submit again.
     await this.complete(reservation.attempt.id);
-    return this.view(await this.db.manager.findOneByOrFail(BillingAttempt, { id: reservation.attempt.id }));
+    return this.details(await this.db.manager.findOneByOrFail(BillingAttempt, { id: reservation.attempt.id }));
   }
 
   async complete(attemptId: number) {
@@ -242,7 +256,37 @@ export class BillingRefundService {
         metadata: { action: dto.action, evidence: dto.evidence.trim(), actorFirebaseId: actor, transactionId: dto.transactionId } }));
     });
     await this.complete(id);
-    return this.view(await this.db.manager.findOneByOrFail(BillingAttempt, { id }));
+    return this.details(await this.db.manager.findOneByOrFail(BillingAttempt, { id }));
+  }
+
+  /** Read-only evidence gathering. A match helps an operator, but missing/ambiguous
+   * results never release balance or send another refund. No money/document writes. */
+  async checkProvider(subscriptionId: number, id: number) {
+    const sub = await this.subscription(this.db.manager, subscriptionId);
+    const attempt = await this.db.manager.findOne(BillingAttempt, { where: { id, operation: 'REFUND' } });
+    if (!attempt) throw new NotFoundException('הזיכוי לא נמצא');
+    const source = await this.payment(this.db.manager, sub, attempt.sourcePaymentEventId);
+    const range = (value: Date) => ({ from: new Date(new Date(value).getTime() - 86400000), to: new Date(new Date(value).getTime() + 86400000) });
+    const originalRange = range(source.createdAt);
+    let originalResult, refundResult;
+    try {
+      originalResult = await this.cardcom.listRefundEvidence(originalRange.from, originalRange.to);
+      const requestRange = range(attempt.submittedAt ?? attempt.createdAt);
+      refundResult = await this.cardcom.listRefundEvidence(requestRange.from, requestRange.to);
+    } catch { throw new BadRequestException('הבדיקה מול קארדקום לא הושלמה. מצב הזיכוי והיתרה לא שונו.'); }
+    const terminal = Number(attempt.providerTerminalRef);
+    const original = originalResult.transactions.find(t => String(t.transactionId) === source.cardcomDealNumber &&
+      t.responseCode === 0 && t.isRefund === false && t.coinId === 1 && t.terminal === terminal &&
+      Number.isFinite(t.amount) && Math.round(t.amount * 100) === source.amountAgorot);
+    const candidates = original?.uid ? refundResult.transactions.filter(t => t.uid === original.uid &&
+      t.isRefund === true && t.coinId === 1 && t.terminal === terminal && Number.isFinite(t.amount) &&
+      Math.round(Math.abs(t.amount) * 100) === attempt.amountAgorot && Number.isSafeInteger(t.transactionId) && t.transactionId > 0 &&
+      String(t.transactionId) !== source.cardcomDealNumber).map(t => ({ transactionId: String(t.transactionId),
+        responseCode: t.responseCode, description: t.description, date: t.date })) : [];
+    return { originalVerified: !!original?.uid, complete: originalResult.complete && refundResult.complete,
+      candidates, checkedAt: new Date().toISOString(),
+      message: candidates.length ? 'נמצאו רשומות זיכוי תואמות למקור ולסכום. קוד 0 מציין הצלחה; יש לאמת את התוצאה ואת השיוך לבקשה לפני אישור.' :
+        'לא נמצא זיכוי תואם שניתן לאמת. זו אינה הוכחה שלא בוצע החזר; יש להמשיך בירור.' };
   }
 
   @Cron('*/1 * * * *', { timeZone: 'Asia/Jerusalem' })

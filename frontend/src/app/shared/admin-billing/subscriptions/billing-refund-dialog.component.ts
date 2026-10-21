@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DialogModule } from 'primeng/dialog';
 import { finalize } from 'rxjs/operators';
-import { AdminBillingService, AdminRefund, RefundContext, RefundPayment } from 'src/app/services/admin-billing.service';
+import { AdminBillingService, AdminRefund, RefundContext, RefundPayment, RefundProviderCheck } from 'src/app/services/admin-billing.service';
 
 @Component({
   selector: 'app-billing-refund-dialog', standalone: true,
@@ -58,12 +58,24 @@ import { AdminBillingService, AdminRefund, RefundContext, RefundPayment } from '
             <article>
               <strong>−{{ r.amountAgorot / 100 | number:'1.2-2' }} ₪ · {{ labels[r.status] ?? r.status }}</strong>
               <p>{{ r.createdAt | date:'dd/MM/yyyy HH:mm' }} · {{ r.reason }}</p>
+              @if (r.providerResponseCode != null) {
+                <p>קוד תשובת קארדקום: {{ r.providerResponseCode }}</p>
+                <p>{{ r.providerDescription ?? 'תיאור התשובה לא נשמר בבקשה זו.' }}</p>
+              } @else if (r.status === 'UNKNOWN') { <p>לא נשמרה תשובת API תקינה לבקשה זו.</p> }
               @if (r.transactionId) { <p>מספר עסקת זיכוי: {{ r.transactionId }}</p> }
               @if (r.status === 'CAPTURED') {
                 <p>ההחזר אושר. אפשר להשלים מסמך ושליחה בלי לזכות שוב.</p>
                 <button type="button" [disabled]="busy()" (click)="resolve(r, 'COMPLETE')">השלמת מסמך ושליחה</button>
               }
               @if (r.status === 'UNKNOWN' || r.status === 'MANUAL_REVIEW') {
+                <button type="button" [disabled]="busy()" (click)="checkProvider(r)">בדיקה מול קארדקום — ללא זיכוי נוסף</button>
+                @if (providerChecks()[r.attemptId]; as check) {
+                  <p>{{ check.message }}</p>
+                  @if (!check.complete) { <p>הסריקה חלקית; לא כל התוצאות נבדקו.</p> }
+                  @for (candidate of check.candidates; track candidate.transactionId) {
+                    <p>עסקת זיכוי {{ candidate.transactionId }} · קוד {{ candidate.responseCode }} · {{ candidate.description ?? '' }} · {{ candidate.date | date:'dd/MM/yyyy HH:mm' }}</p>
+                  }
+                }
                 <p>תוצאת ההחזר אינה ידועה. יש לבדוק בקארדקום את עסקת המקור לפני הכרעה. הפעולות הבאות מתעדות את הבדיקה ואינן שולחות זיכוי חדש.</p>
                 <label>תיעוד ואסמכתה לבדיקה (ללא פרטי כרטיס)<textarea [name]="'evidence'+r.attemptId" [(ngModel)]="evidence[r.attemptId]" maxlength="500"></textarea></label>
                 <label>מספר עסקת הזיכוי בקארדקום<input [name]="'transaction'+r.attemptId" [(ngModel)]="transactionIds[r.attemptId]" inputmode="numeric" /></label>
@@ -88,6 +100,7 @@ export class BillingRefundDialogComponent implements OnInit {
   readonly context = signal<RefundContext | null>(null);
   readonly loading = signal(false); readonly busy = signal(false);
   readonly error = signal(''); readonly message = signal('');
+  readonly providerChecks = signal<Record<number, RefundProviderCheck>>({});
   paymentId: number | null = null; amount = ''; reason = ''; confirmed = false;
   evidence: Record<number, string> = {}; transactionIds: Record<number, string> = {};
   reviewConfirmed: Record<number, boolean> = {};
@@ -119,6 +132,14 @@ export class BillingRefundDialogComponent implements OnInit {
       .pipe(finalize(() => { this.busy.set(false); this.confirmed = false; this.load(); }))
       .subscribe({ next: r => this.message.set(this.labels[r.status] ?? 'הבקשה נשמרה'),
         error: err => this.error.set(err?.error?.message ?? 'לא התקבלה תוצאה סופית. יש לבדוק את מצב הזיכוי לפני ניסיון נוסף.') });
+  }
+  checkProvider(r: AdminRefund) {
+    if (this.busy()) return;
+    this.busy.set(true); this.error.set('');
+    this.providerChecks.update(checks => { const next = { ...checks }; delete next[r.attemptId]; return next; });
+    this.api.checkRefundProvider(this.subscriptionId, r.attemptId).pipe(finalize(() => this.busy.set(false)))
+      .subscribe({ next: result => this.providerChecks.update(checks => ({ ...checks, [r.attemptId]: result })),
+        error: err => this.error.set(err?.error?.message ?? 'הבדיקה לא הושלמה; מצב הזיכוי לא שונה.') });
   }
   resolve(r: AdminRefund, action: 'COMPLETE' | 'CONFIRM_REFUNDED' | 'CONFIRM_NOT_REFUNDED') {
     if (this.busy()) return;

@@ -64,6 +64,14 @@ export class AdminBillingController {
     return this.refunds!.resolve(id, attemptId, request.user?.actorFirebaseId ?? request.user!.firebaseId, dto);
   }
 
+  @Post('subscriptions/:id/refunds/:attemptId/check-provider')
+  @HttpCode(HttpStatus.OK)
+  async checkRefundProvider(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number,
+    @Param('attemptId', ParseIntPipe) attemptId: number) {
+    await this.assertAdmin(request);
+    return this.refunds!.checkProvider(id, attemptId);
+  }
+
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
   @Get('plans')

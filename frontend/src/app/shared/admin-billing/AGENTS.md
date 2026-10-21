@@ -1,5 +1,8 @@
 ## Purpose
 Subscriptions expose a refund row action opening BillingRefundDialogComponent.
+Refund history shows saved provider code/description (or an explicit legacy-missing
+description). UNKNOWN/manual review also offers a separate read-only provider
+check; it shows UID/amount-matched candidates without auto-resolving or re-refunding.
 The dialog lists original successful payments (including legacy events), available
 balance, reason and explicit refund confirmation. Uncertain refunds are blocked
 from re-submission and show evidence-based manual resolution; confirmed refunds
