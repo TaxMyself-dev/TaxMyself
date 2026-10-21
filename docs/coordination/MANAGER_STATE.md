@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-085 SHAAM allocation state machine — 2026-10-21
+
+Supplier-side invoice allocation now uses `Invoices/v2/Approval` without the
+customer-authorized Invoice Information recovery call. Durable attempt rows,
+leases and payload hashes block automatic replay of `PROCESSING` and
+`UNKNOWN_OUTCOME`; successful allocations are committed before local
+PDF/journal finalization. Admin-only audited resolution supports externally
+confirmed non-acceptance or a verified allocation number. Sanitized UI states,
+structured non-identifying logs, an admin tab, cutover SQL and a Mermaid flow
+document were added. Sixteen focused backend tests, 29 focused frontend tests,
+the Nest build and Angular production build passed. Delivery `27b28afe` was
+pushed and verified on local/remote `main` and `codex/integration-kt085`.
+Section 25 of `docs/redesign/cutover.sql` is prepared but was not executed; no
+live SHAAM call, database mutation, production access or deployment occurred.
+
 ## KT-084 Shani demo credential update — 2026-10-21
 
 The `partner-candidate-couple` fixture now uses
