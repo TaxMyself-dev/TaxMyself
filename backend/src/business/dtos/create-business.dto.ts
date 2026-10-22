@@ -1,5 +1,6 @@
 import { IsIsraeliPhone } from 'src/shared/israeli-phone';
-import { IsNumber, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Matches, Min, Max } from 'class-validator';
+import { BusinessProprietorRole } from 'src/enum';
 
 // Header-safe (ISO-8859-1) and digits-only — AuthInterceptor forwards this
 // value verbatim as the `businessnumber` HTTP header on every request while
@@ -10,6 +11,9 @@ const BUSINESS_NUMBER_PATTERN = /^\d*$/;
 const BUSINESS_NUMBER_MESSAGE = 'מספר עסק חייב להכיל ספרות בלבד';
 
 export class CreateBusinessDto {
+  @IsEnum(BusinessProprietorRole)
+  proprietorRole: BusinessProprietorRole;
+
   @IsOptional()
   @IsString()
   businessName?: string;

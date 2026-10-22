@@ -11,7 +11,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { RegisterFormControls, RegisterFormModules } from './regiater.enum';
 import { catchError, EMPTY, finalize, map, startWith, Subject, takeUntil, tap } from 'rxjs';
 import { cloneDeep } from 'lodash';
-import { businessTypeOptionsList, companyBusinessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
+import { BusinessProprietorRole, businessTypeOptionsList, companyBusinessTypeOptionsList, EmploymentType, employmentTypeOptionsList, familyStatusOptionsList } from 'src/app/shared/enums';
 import { FamilyStatus, FormTypes } from 'src/app/shared/enums';
 import { inputsSize } from 'src/app/shared/enums';
 import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
@@ -405,10 +405,15 @@ matchRegisterImage = computed(() => {
 
 
 
-  addBusiness(title?: string, required = true): void {
+  addBusiness(
+    title?: string,
+    required = true,
+    proprietorRole: BusinessProprietorRole = BusinessProprietorRole.PRIMARY,
+  ): void {
     this.businessArray.push(
       this.formBuilder.group({
         title: new FormControl(title || ''),
+        proprietorRole: new FormControl(proprietorRole, { nonNullable: true }),
         [RegisterFormControls.BUSINESSNAME]: new FormControl('', required && this.requierdField ? Validators.required : null),
         [RegisterFormControls.BUSINESSNUMBER]: new FormControl(
           '', required && this.requierdField ? [Validators.required, Validators.pattern(/^\d+$/)] : null
@@ -423,12 +428,12 @@ matchRegisterImage = computed(() => {
     this.businessArray.clear();
 
     if (this.isIndependent()) {
-      this.addBusiness('פרטי עסק משתמש/ת ראשי', true);
+      this.addBusiness('פרטי עסק משתמש/ת ראשי', true, BusinessProprietorRole.PRIMARY);
     }
 
     // Spouse business is optional — no required validators
     if (this.isSpouseIndependent()) {
-      this.addBusiness('פרטי עסק בן/בת הזוג', false);
+      this.addBusiness('פרטי עסק בן/בת הזוג', false, BusinessProprietorRole.SPOUSE);
     }
   }
   
@@ -554,6 +559,7 @@ matchRegisterImage = computed(() => {
       };
       formData.business = {
         businessArray: [{
+          proprietorRole: BusinessProprietorRole.PRIMARY,
           businessName: companyData?.fName,
           businessNumber: companyData?.businessNumber,
           businessType: companyData?.businessType,

@@ -20,7 +20,7 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, BusinessProprietorRole, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize, take } from 'rxjs';
@@ -38,6 +38,7 @@ import {
   SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
   ShaamService,
 } from 'src/app/services/shaam.service';
+import { getBusinessProprietorOptions } from './business-proprietor';
 
 type ShaamConnectionViewStatus =
   | 'loading'
@@ -144,6 +145,10 @@ export class SettingsPage implements OnInit {
   /** Business-type dropdown options differ for company vs. private users, same split as registration. */
   businessTypeOptions() {
     return this.isCompany() ? companyBusinessTypeOptionsList : businessTypeOptionsList;
+  }
+
+  proprietorOptions() {
+    return getBusinessProprietorOptions(this.userData);
   }
 
   // ─── Reactive Forms ───
@@ -822,6 +827,7 @@ export class SettingsPage implements OnInit {
     }
     this.addingBusiness.set(true);
     const payload = {
+      proprietorRole:   this.isCompany() ? BusinessProprietorRole.PRIMARY : v.proprietorRole,
       businessName:      v.businessName?.trim() || undefined,
       businessNumber:    v.businessNumber?.trim() || undefined,
       businessAddress:   v.businessAddress?.trim() || undefined,
@@ -989,6 +995,7 @@ export class SettingsPage implements OnInit {
     try {
       await this.genericService.updateBusiness({
         id,
+        proprietorRole:   this.isCompany() ? BusinessProprietorRole.PRIMARY : v.proprietorRole,
         businessNumber:      businessNumber || undefined,
         advanceTaxPercent,
         businessName:        (v.businessName as string)?.trim()    || biz?.businessName    || undefined,
@@ -1153,6 +1160,7 @@ export class SettingsPage implements OnInit {
 
   buildAddBusinessForm() {
     return this.fb.group({
+      proprietorRole:   this.fb.nonNullable.control(BusinessProprietorRole.PRIMARY, Validators.required),
       businessName:      this.fb.nonNullable.control('', Validators.required),
       businessNumber:    this.fb.nonNullable.control('', Validators.required),
       businessAddress:   this.fb.nonNullable.control(''),
@@ -1192,6 +1200,10 @@ export class SettingsPage implements OnInit {
   /** Builds a single-business FormGroup. Pass no argument for an empty (new) business row. */
   buildBusinessForm(business?: Partial<Business>) {
     return this.fb.group({
+      proprietorRole:     this.fb.nonNullable.control<BusinessProprietorRole>(
+        business?.proprietorRole ?? BusinessProprietorRole.PRIMARY,
+        Validators.required,
+      ),
       businessNumber:      this.fb.nonNullable.control(business?.businessNumber ?? ''),
       businessName:        this.fb.nonNullable.control(business?.businessName ?? ''),
       businessEmail:       this.fb.nonNullable.control(business?.businessEmail ?? '', Validators.email),
@@ -1243,6 +1255,7 @@ export class SettingsPage implements OnInit {
   /** Resets the add-business form to empty state (called on modal open). */
   private patchAddBusinessForm(): void {
     this.addBusinessFormGroup.reset({
+      proprietorRole:   BusinessProprietorRole.PRIMARY,
       businessName:      '',
       businessNumber:    '',
       businessAddress:   '',

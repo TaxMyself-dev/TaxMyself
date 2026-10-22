@@ -13,7 +13,7 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
 - KT-053: signup forces hasOpenBanking=false, and profile updates strip this
   field. Only provider-verified discovery (or explicit demo seeding) sets it;
   it is not a user-editable billing permission.
-- `POST /signup` — creates a `User` (+ associated `Business`/`Child` rows), ensures a trial `UserModuleSubscription`.
+- `POST /signup` — creates a `User` (+ associated `Business`/`Child` rows), ensures a trial `UserModuleSubscription`. Each private-account business must declare `proprietorRole=PRIMARY|SPOUSE`; spouse ownership requires saved spouse identity. Company accounts force `PRIMARY`, while private accounts continue to reject company/partnership business types. Legacy signed-in primary/spouse business fields are selected by proprietor role, never row order.
 - `GET /signin` — loads user by `firebaseId`, rolls `lastLoginAt` → `previousLoginAt`.
 - `PATCH /update-user`, `/children` — profile edits.
 - Drive provisioning: `provisionDriveStructure`/`auditDriveShares`/`revokeAccountantDriveAccess`/`getDriveProvisioningStatus` — creates and audits the per-user Google Drive folder structure and accountant sharing.

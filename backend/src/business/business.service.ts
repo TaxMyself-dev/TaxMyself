@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Business } from './business.entity';
 import { EntityManager, Repository } from 'typeorm';
 import { UsersService } from 'src/users/users.service';
-import { BusinessType, ExpenseApprovalStatus, isBusinessTypeAllowedForUser, isExemptBusinessType, VATReportingType } from 'src/enum';
+import { BusinessProprietorRole, BusinessType, ExpenseApprovalStatus, isBusinessTypeAllowedForUser, isExemptBusinessType, VATReportingType } from 'src/enum';
 import { SharedService } from 'src/shared/shared.service';
 import { Expense } from 'src/expenses/expenses.entity';
 import { JournalEntry } from 'src/bookkeeping/jouranl-entry.entity';
@@ -55,7 +55,7 @@ export class BusinessService {
 
   async updateBusiness(
     firebaseId: string,
-    dto: { id?: number; businessNumber?: string; advanceTaxPercent?: number; businessName?: string; businessAddress?: string; businessPhone?: string; businessEmail?: string; businessType?: string; businessField?: string; vatReportingType?: string; taxReportingType?: string; nationalInsRequired?: boolean },
+    dto: { id?: number; proprietorRole?: BusinessProprietorRole; businessNumber?: string; advanceTaxPercent?: number; businessName?: string; businessAddress?: string; businessPhone?: string; businessEmail?: string; businessType?: string; businessField?: string; vatReportingType?: string; taxReportingType?: string; nationalInsRequired?: boolean },
   ): Promise<Business> {
     let business: Business | null;
     if (dto.id != null) {
@@ -94,6 +94,9 @@ export class BusinessService {
     if (dto.businessType !== undefined) {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
     }
+    if (dto.proprietorRole !== undefined) {
+      await this.assertProprietorRoleAllowed(firebaseId, dto.proprietorRole);
+    }
     const previousBusinessType = business.businessType as BusinessType | null;
     const previousVatReportingType = business.vatReportingType;
     const nextBusinessType = (dto.businessType ?? business.businessType) as BusinessType | null;
@@ -103,6 +106,7 @@ export class BusinessService {
       requestedVatReportingType ?? business.vatReportingType,
     );
     if (dto.advanceTaxPercent !== undefined) business.advanceTaxPercent = dto.advanceTaxPercent;
+    if (dto.proprietorRole !== undefined) business.proprietorRole = dto.proprietorRole;
     if (dto.businessName !== undefined) business.businessName = dto.businessName;
     if (dto.businessAddress !== undefined) business.businessAddress = dto.businessAddress;
     if (dto.businessPhone !== undefined) business.businessPhone = dto.businessPhone;
@@ -280,6 +284,7 @@ export class BusinessService {
     firebaseId: string,
     dto?: {
       businessName?: string;
+      proprietorRole?: BusinessProprietorRole;
       businessNumber?: string;
       businessAddress?: string;
       businessPhone?: string;
@@ -293,6 +298,8 @@ export class BusinessService {
     if (dto?.businessType !== undefined) {
       await this.assertBusinessTypeAllowed(firebaseId, dto.businessType as BusinessType | null);
     }
+    const proprietorRole = dto?.proprietorRole ?? BusinessProprietorRole.PRIMARY;
+    await this.assertProprietorRoleAllowed(firebaseId, proprietorRole);
     const vatReportingType = this.resolveVatReportingType(
       dto?.businessType as BusinessType | null | undefined,
       dto?.vatReportingType as VATReportingType | null | undefined,
@@ -305,6 +312,7 @@ export class BusinessService {
     }
     const business = this.businessRepo.create({
       firebaseId,
+      proprietorRole,
       businessName: dto?.businessName ?? null,
       businessNumber: dto?.businessNumber ?? null,
       businessAddress: dto?.businessAddress ?? null,
@@ -361,6 +369,16 @@ export class BusinessService {
     const user = await this.usersService.findByFirebaseId(firebaseId);
     if (!isBusinessTypeAllowedForUser(!!user?.isCompany, businessType)) {
       throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${businessType}`);
+    }
+  }
+
+  private async assertProprietorRoleAllowed(
+    firebaseId: string,
+    proprietorRole: BusinessProprietorRole,
+  ): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (proprietorRole === BusinessProprietorRole.SPOUSE && (user?.isCompany || !user?.spouseId)) {
+      throw new BadRequestException('לא ניתן לשייך את העסק לבן/בת זוג ללא פרטי בן/בת זוג בחשבון פרטי');
     }
   }
 

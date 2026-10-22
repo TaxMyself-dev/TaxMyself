@@ -1,11 +1,11 @@
 # KT-091 - Explicit business proprietor
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt091-worker`
 - Branch: `codex/kt091-business-proprietor`
-- Base commit: `2834a739cb48cacd0ddc411d1cb08f4008b7329d`
+- Base commit: `3980983c`
 
 ## Business outcome
 
@@ -17,25 +17,25 @@ companies or partnerships.
 
 ## Acceptance criteria
 
-- [ ] `business` stores a validated proprietor role (`PRIMARY` or `SPOUSE`).
-- [ ] Private-account signup assigns each generated business to the person
+- [x] `business` stores a validated proprietor role (`PRIMARY` or `SPOUSE`).
+- [x] Private-account signup assigns each generated business to the person
       whose business section produced it.
-- [ ] Adding or editing a business in Settings lets a private married account
+- [x] Adding or editing a business in Settings lets a private married account
       choose the primary user or spouse; a missing spouse cannot be selected.
-- [ ] Company accounts assign their business to the primary account identity
+- [x] Company accounts assign their business to the primary account identity
       without presenting a spouse selector.
-- [ ] Backend create/update/signup validation rejects invalid proprietor roles
+- [x] Backend create/update/signup validation rejects invalid proprietor roles
       and continues rejecting company/partnership business types for private
       accounts.
-- [ ] P&L screen/PDF resolves `businessOwnerName` from the business's stored
+- [x] P&L screen/PDF resolves `businessOwnerName` from the business's stored
       proprietor role; business-name display continues to use `businessName`.
-- [ ] Legacy primary/spouse compatibility fields are mapped by proprietor role,
+- [x] Legacy primary/spouse compatibility fields are mapped by proprietor role,
       not business row order.
-- [ ] Existing rows are backfilled deterministically: an unambiguous match to
+- [x] Existing rows are backfilled deterministically: an unambiguous match to
       `user.spouseId` becomes `SPOUSE`; all other rows remain `PRIMARY` to
       preserve current behavior.
-- [ ] Focused backend/frontend tests and both production builds pass.
-- [ ] Topic documentation and cumulative cutover SQL describe the new invariant.
+- [x] Focused backend/frontend tests and both production builds pass.
+- [x] Topic documentation and cumulative cutover SQL describe the new invariant.
 
 ## Scope and constraints
 
@@ -53,14 +53,31 @@ companies or partnerships.
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
+- Result: Added explicit primary/spouse proprietor ownership across persistence,
+  signup, Settings CRUD, compatibility mapping, demo/delegation creation,
+  implicit import routing, and P&L owner-name display.
+- Commit hash(es): pending worker commit.
+- Changed files: business/users/reports/delegation/demo backend paths; register,
+  settings, shared frontend contracts; migration/cutover SQL; focused tests and
+  topic documentation.
 - Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+  - Backend Jest: 4 suites, 20 tests passed.
+  - Frontend focused ChromeHeadless (no-GPU launcher): 2 tests passed.
+  - Frontend focused TypeScript check: passed.
+  - Nest production build: passed.
+  - Angular production build: passed with existing size/CommonJS warnings.
+- Known pre-existing failures: default ChromeHeadless launcher crashes its GPU
+  process in this Windows sandbox; the same compiled bundle passes with GPU and
+  software rasterization disabled.
+- Schema / production / security / accounting / external impact: adds the
+  non-null `business.proprietorRole` enum and deterministic legacy backfill.
+  Appended to `docs/redesign/cutover.sql`; not executed against any database.
+  No report totals or accounting calculations changed.
+- Risks and manual checks: ambiguous legacy rows deliberately remain PRIMARY.
+  After cutover, manually confirm the proprietor selector and one spouse-owned
+  P&L header against representative production data.
+- Documentation updated: business, users, reports, demo-data, Settings, and
+  registration topic AGENTS plus cumulative cutover SQL.
 
 ## Integration
 

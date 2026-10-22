@@ -12,7 +12,7 @@ Multi-step signup wizard (personal → spouse → children → business, or a sh
 - Step progression driven by `selectedFormModule` signal + an `effect()` that sets title/subtitle/step index per module; branches on family status (single/married/divorced) and self-employment flags (`isIndependent`/`isSpouseIndependent`) to decide which steps are shown/skipped.
 - Company toggle (`toggleCompanyMode`) swaps the PERSONAL step between the private-individual form and a dedicated company form, resetting the unused one.
 - Dynamic children rows auto-append a new blank row once the last one is filled (`handleChildRowChange`), and validation ignores a trailing empty row.
-- Dynamic business rows are pre-seeded from `prepareBusinessLines()` based on independence flags before the BUSINESS step is shown.
+- Dynamic business rows are pre-seeded from `prepareBusinessLines()` based on independence flags before the BUSINESS step is shown. The primary and spouse sections stamp `proprietorRole=PRIMARY` and `SPOUSE` respectively; the company path always stamps `PRIMARY`.
 - `handleFormRegister()` clones the form value, reshapes company data into the personal/business payload, strips empty child/business rows, converts dates to `YYYY-MM-DD`, and calls `authService.SignUp(formData)`; on success navigates to `/login` (passing email/password in router state), on error shows a toast via `AuthService.getSignupErrorMessage`.
 - Dev-only `fillDevDefaults()` pre-fills the personal form outside production builds.
 

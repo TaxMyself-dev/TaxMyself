@@ -6,6 +6,11 @@
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessName'"
       [labelText]="'שם העסק'" [placeholder]="'שם העסק'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+    @if (!isCompany()) {
+      <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'proprietorRole'"
+        [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+        [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+    }
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessNumber'"
       [labelText]="'מספר עסק'" [placeholder]="'מספר עסק'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
@@ -265,6 +270,13 @@
             <div class="business-details details-container details-container-fixed">
               <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->
               <div class="detail-row three-fields">
+                @if (!isCompany()) {
+                  <div class="detail-field">
+                    <app-input-select [parentForm]="bizGroup" [controlName]="'proprietorRole'"
+                      [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+                      [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+                  </div>
+                }
                 <div class="detail-field">
                   <app-input-text [parentForm]="bizGroup" [controlName]="'businessNumber'"
                     [labelText]="'מספר עסק'" [placeholder]="'מספר עסק'"

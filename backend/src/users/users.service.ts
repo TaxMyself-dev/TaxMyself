@@ -3,7 +3,7 @@ import { Any, DataSource, EntityManager, Repository } from 'typeorm';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
+import { UserRole, BusinessProprietorRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -164,11 +164,26 @@ export class UsersService {
       ? business.businessArray
       : [];
 
-    // Reject a businessType that doesn't match the registration kind
+    // Reject a businessType/proprietor that doesn't match the registration kind.
     // (e.g. a company picking EXEMPT, or a private user picking LIMITED_COMPANY).
     for (const biz of newBusinesses) {
+      if (!biz?.businessName && !biz?.businessNumber && !biz?.businessType) continue;
       if (!isBusinessTypeAllowedForUser(isCompany, biz?.businessType as BusinessType | null | undefined)) {
         throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${biz?.businessType}`);
+      }
+      const proprietorRole = biz.proprietorRole as BusinessProprietorRole | undefined;
+      if (isCompany) {
+        if (proprietorRole && proprietorRole !== BusinessProprietorRole.PRIMARY) {
+          throw new BadRequestException('חשבון חברה אינו יכול לשייך עסק לבן/בת זוג');
+        }
+        biz.proprietorRole = BusinessProprietorRole.PRIMARY;
+      } else if (
+        proprietorRole !== BusinessProprietorRole.PRIMARY &&
+        proprietorRole !== BusinessProprietorRole.SPOUSE
+      ) {
+        throw new BadRequestException('יש לבחור בעל/ת עוסק עבור כל עסק');
+      } else if (proprietorRole === BusinessProprietorRole.SPOUSE && !safeSpouse?.spouseId) {
+        throw new BadRequestException('לא ניתן לשייך עסק לבן/בת זוג ללא פרטי בן/בת זוג');
       }
     }
 
@@ -250,6 +265,9 @@ export class UsersService {
 
         const newBusiness = businessRepo.create({
           ...biz,
+          proprietorRole: isCompany
+            ? BusinessProprietorRole.PRIMARY
+            : biz.proprietorRole,
           logoPath: null,
           firebaseId: personal.firebaseId,
         });
@@ -269,15 +287,9 @@ export class UsersService {
           }
         }
 
-        // Fill null business fields from personal or spouse data
-        // Check if businessNumber matches personal.id or spouse.id
-        const businessNumber = newBusiness.businessNumber;
-        const personalId = personal?.id;
-        const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
-
-        if (!isCompany && businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
-          // Determine source: personal or spouse
-          const isPersonalMatch = businessNumber === personalId;
+        // Fill null business fields from the explicitly selected proprietor.
+        if (!isCompany) {
+          const isPersonalMatch = newBusiness.proprietorRole === BusinessProprietorRole.PRIMARY;
 
           // Fill null business fields from source
           if (!newBusiness.businessPhone) {
@@ -472,12 +484,26 @@ export class UsersService {
 
       // Enrich with businessNumber(s) from Business table so the frontend
       // always has the correct value in userData (localStorage).
-      const businesses = await this.business_repo.find({ where: { firebaseId } });
-      const [primary, spouse] = businesses.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+      const businesses = await this.business_repo.find({
+        where: { firebaseId },
+        order: { id: 'ASC' },
+      });
+      const primary = businesses.find(
+        (business) => business.proprietorRole === BusinessProprietorRole.PRIMARY,
+      );
+      const spouseBusiness = businesses.find(
+        (business) => business.proprietorRole === BusinessProprietorRole.SPOUSE,
+      );
       return {
         ...user,
         businessNumber: primary?.businessNumber ?? null,
-        spouseBusinessNumber: spouse?.businessNumber ?? null,
+        businessName: primary?.businessName ?? null,
+        businessAddress: primary?.businessAddress ?? null,
+        businessType: primary?.businessType ?? null,
+        spouseBusinessNumber: spouseBusiness?.businessNumber ?? null,
+        spouseBusinessName: spouseBusiness?.businessName ?? null,
+        spouseBusinessAddress: spouseBusiness?.businessAddress ?? null,
+        spouseBusinessType: spouseBusiness?.businessType ?? null,
         // General demo identity and narrowly scoped demo capabilities are
         // intentionally separate. The frontend persists both on every sign-in.
         isDemo: isDemoEmail(user.email),

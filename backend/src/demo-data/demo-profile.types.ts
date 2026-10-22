@@ -1,5 +1,6 @@
 import {
   BusinessFieldType,
+  BusinessProprietorRole,
   BusinessType,
   DocumentType,
   EmploymentType,
@@ -187,6 +188,8 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
+  /** Explicit owner; when omitted the seeder derives it from the two IDs. */
+  proprietorRole?: BusinessProprietorRole;
   /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: BusinessFieldType;

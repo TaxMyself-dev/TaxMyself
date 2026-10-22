@@ -12,6 +12,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import {
   BusinessStatus,
+  BusinessProprietorRole,
   BusinessType,
   DocumentType,
   TaxReportingType,
@@ -1398,6 +1399,11 @@ export class DemoDataService {
           firebaseId,
           businessName: b.businessName,
           businessNumber: b.businessNumber,
+          proprietorRole:
+            b.proprietorRole ??
+            (data.spouse && b.businessNumber === data.spouse.id
+              ? BusinessProprietorRole.SPOUSE
+              : BusinessProprietorRole.PRIMARY),
           businessType: b.businessType,
           businessField: b.businessField ?? null,
           businessAddress: b.businessAddress ?? null,
