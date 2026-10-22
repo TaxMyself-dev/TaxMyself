@@ -2662,3 +2662,15 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
 - Delivery verified at `abb2e4bc` on local main, `origin/main`, and
   `origin/codex/integration-kt091` before the final delivery-record commit. No
   production SQL or deployment was performed.
+
+## 2026-10-22 — Business proprietor Settings UI polish
+
+- The proprietor selector now shows only the primary user's and spouse's full
+  names. Missing names use the neutral `שם חסר` fallback instead of account-role
+  terms.
+- Existing-business fields now use an auto-fitting 220px-minimum grid and
+  collapse to one column on mobile, preventing the overlap visible in the
+  previous fixed-width row.
+- No backend, schema, data, report, tax-law, production, or deployment change.
+  Focused TypeScript validation and Karma tests (3/3) passed, and the Angular
+  production build passed with the existing budget/CommonJS warnings.
