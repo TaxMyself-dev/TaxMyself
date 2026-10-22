@@ -2651,8 +2651,11 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
   routing also use the explicit role.
 - Added idempotent schema SQL and deterministic legacy backfill to
   `docs/redesign/cutover.sql`: an unambiguous spouse-ID match becomes SPOUSE;
-  ambiguous and unmatched rows remain PRIMARY. No database SQL or production
-  deployment was executed.
+  ambiguous and unmatched rows remain PRIMARY. After delivery, Elazar
+  explicitly requested applying it to `keepintax-dev`: 36 businesses resolved
+  to 33 PRIMARY / 3 SPOUSE, with zero invalid spouse assignments. The verifier
+  also reported nine pre-existing orphan Business rows; they were not deleted
+  or otherwise modified. Production was not accessed or deployed.
 - Verification: backend Jest 4 suites / 20 tests; focused frontend tests 2/2;
   focused frontend TypeScript check; Nest and Angular production builds. All
   passed; Angular retains existing size/CommonJS warnings.

@@ -71,8 +71,12 @@ companies or partnerships.
   software rasterization disabled.
 - Schema / production / security / accounting / external impact: adds the
   non-null `business.proprietorRole` enum and deterministic legacy backfill.
-  Appended to `docs/redesign/cutover.sql`; not executed against any database.
-  No report totals or accounting calculations changed.
+  Appended to `docs/redesign/cutover.sql`. On 2026-10-22 Elazar explicitly
+  requested execution against `keepintax-dev`: the migration completed with
+  36 businesses (33 PRIMARY, 3 SPOUSE) and zero invalid spouse assignments.
+  Nine pre-existing orphan Business rows were reported and deliberately left
+  unchanged. Production was not accessed. No report totals or accounting
+  calculations changed.
 - Risks and manual checks: ambiguous legacy rows deliberately remain PRIMARY.
   After cutover, manually confirm the proprietor selector and one spouse-owned
   P&L header against representative production data.
