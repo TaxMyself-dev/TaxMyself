@@ -1,6 +1,6 @@
 # KT-093 - Sync business number to selected proprietor
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt093-worker`
@@ -50,4 +50,5 @@ automatically fills the business number with that person's identity number.
 - Integrated commit: `a7cb674a`.
 - Combined verification: focused TypeScript check passed; focused Karma passed
   5/5; Angular production build passed with existing budget/CommonJS warnings.
-- `origin/main` verification: pending push.
+- `origin/main` verification: `8632cda1` confirmed on both `origin/main` and
+  `origin/codex/integration-kt093` before this final delivery-record commit.
