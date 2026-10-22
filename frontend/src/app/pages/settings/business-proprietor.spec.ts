@@ -16,12 +16,22 @@ describe('business proprietor options', () => {
       BusinessProprietorRole.PRIMARY,
       BusinessProprietorRole.SPOUSE,
     ]);
-    expect(options[1].name).toContain('Noam Levi');
+    expect(options.map((option) => option.name)).toEqual([
+      'Dana Levi',
+      'Noam Levi',
+    ]);
   });
 
   it('does not offer a spouse when no spouse identity exists', () => {
     expect(getBusinessProprietorOptions({ fName: 'Dana' } as IUserData)).toEqual([
-      { value: BusinessProprietorRole.PRIMARY, name: 'Dana — משתמש/ת ראשי/ת' },
+      { value: BusinessProprietorRole.PRIMARY, name: 'Dana' },
+    ]);
+  });
+
+  it('uses a neutral fallback instead of an account-role label', () => {
+    expect(getBusinessProprietorOptions({ spouseId: '123456789' } as IUserData)).toEqual([
+      { value: BusinessProprietorRole.PRIMARY, name: 'שם חסר' },
+      { value: BusinessProprietorRole.SPOUSE, name: 'שם חסר' },
     ]);
   });
 });

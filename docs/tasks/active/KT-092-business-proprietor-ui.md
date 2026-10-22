@@ -1,11 +1,11 @@
 # KT-092 - Business proprietor UI polish
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt092-worker`
 - Branch: `codex/kt092-business-proprietor-ui`
-- Base commit: `ef97d758`
+- Base commit: `0db387a6`
 
 ## Business outcome
 
@@ -15,12 +15,12 @@ than account-role terminology.
 
 ## Acceptance criteria
 
-- [ ] Proprietor options show only the primary and spouse names when present.
+- [x] Proprietor options show only the primary and spouse names when present.
 - [ ] Missing-name fallback does not use “primary user” or “secondary user”.
-- [ ] Existing-business fields use a responsive layout without overlap on
+- [x] Existing-business fields use a responsive layout without overlap on
       desktop, tablet, or mobile widths.
 - [ ] Focused frontend tests and the Angular production build pass.
-- [ ] Settings topic documentation describes the presentation rule.
+- [x] Settings topic documentation describes the presentation rule.
 
 ## Scope and constraints
 
@@ -33,12 +33,16 @@ than account-role terminology.
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Risks and manual checks:
-- Documentation updated:
+- Result: Name-only proprietor options and a responsive business-field grid
+  are implemented.
+- Commit hash(es): pending worker commit
+- Changed files: proprietor option helper/spec, Settings template/styles,
+  Settings topic documentation, and this task file.
+- Tests and exact results: deferred to manager integration because this clean
+  worker worktree has no local npm executable or dependencies.
+- Risks and manual checks: the 220px grid minimum matches the existing Settings
+  control width; the grid collapses to one column at 768px.
+- Documentation updated: `frontend/src/app/pages/settings/AGENTS.md`.
 
 ## Integration
 

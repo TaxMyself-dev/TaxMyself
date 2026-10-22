@@ -4,17 +4,19 @@ import { BusinessProprietorRole } from 'src/app/shared/enums';
 export function getBusinessProprietorOptions(
   user: IUserData | null | undefined,
 ): ISelectItem[] {
-  const primaryName = [user?.fName, user?.lName].filter(Boolean).join(' ').trim();
+  const fullName = (...parts: Array<string | null | undefined>) =>
+    parts.map((part) => part?.trim()).filter(Boolean).join(' ');
+  const primaryName = fullName(user?.fName, user?.lName);
   const options: ISelectItem[] = [{
     value: BusinessProprietorRole.PRIMARY,
-    name: primaryName ? `${primaryName} — משתמש/ת ראשי/ת` : 'משתמש/ת ראשי/ת',
+    name: primaryName || 'שם חסר',
   }];
 
   if (user?.spouseId) {
-    const spouseName = [user.spouseFName, user.spouseLName].filter(Boolean).join(' ').trim();
+    const spouseName = fullName(user.spouseFName, user.spouseLName);
     options.push({
       value: BusinessProprietorRole.SPOUSE,
-      name: spouseName ? `${spouseName} — בן/בת הזוג` : 'בן/בת הזוג',
+      name: spouseName || 'שם חסר',
     });
   }
 

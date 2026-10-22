@@ -330,8 +330,21 @@
   gap: 12px;
 
   &.details-container {
-    width: fit-content;
+    width: 100%;
     max-width: 100%;
+  }
+}
+
+.section-businesses-wrapper .business-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+  gap: 20px;
+  width: 100%;
+
+  .detail-field {
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -840,10 +853,15 @@
    =================================================================== */
 @media (max-width: 768px) {
   .section-businesses-wrapper {
-    .detail-row.three-fields,
+    .detail-row.three-fields:not(.business-fields-grid),
     .detail-row.two-fields {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    .business-fields-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
     }
   }
 }

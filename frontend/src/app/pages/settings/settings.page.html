@@ -268,8 +268,8 @@
               <app-account-image [editable]="true" label="לוגו העסק" [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId" (imageChanged)="onLogoChanged($index, $event)"></app-account-image>
             }
             <div class="business-details details-container details-container-fixed">
-              <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->
-              <div class="detail-row three-fields">
+              <!-- פרטי העסק נפרסים לגריד רספונסיבי כדי למנוע חפיפה -->
+              <div class="detail-row three-fields business-fields-grid">
                 @if (!isCompany()) {
                   <div class="detail-field">
                     <app-input-select [parentForm]="bizGroup" [controlName]="'proprietorRole'"
@@ -310,7 +310,7 @@
                 </div>
               </div>
               <!-- שורה 2: ביטוח לאומי, מע"מ (תלוי בסוג), מקדמות, אחוז מקדמות -->
-              <div class="detail-row three-fields">
+              <div class="detail-row three-fields business-fields-grid">
                 <div class="detail-field">
                   <app-input-select [parentForm]="bizGroup" [controlName]="'nationalInsRequired'"
                     [items]="nationalInsOptions" [labelText]="'ביטוח לאומי'" [placeholder]="'בחר/י'"
