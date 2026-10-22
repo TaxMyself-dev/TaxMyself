@@ -36,9 +36,7 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   recovery window), using existing read-only provider endpoints; errors are
   isolated per user. Source discovery itself persists flag/source metadata.
 - Pending provider work: when a paid downgrade to a plan without OPEN_BANKING
-  becomes effective, or subscription cancellation takes effect, delete the
-  provider user/registration through Feezback's future endpoint. No such endpoint
-  is implemented or called here; stopping local access does not stop provider cost.
+  becomes effective, or subscription cancellation takes effect, revoke provider consents through the explicit owner/admin disconnection flow. Automatic subscription-triggered provider cancellation is not implemented; stopping local access does not stop provider cost.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.
 - Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` trigger `refreshUserSources` + full sync; `ConsentStatusChanged` clears stale consent IDs on terminal states.
@@ -78,3 +76,15 @@ The existing primary identity remains Firebase UID + _sub. Only explicit checkbo
 Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Source.connectionRole stores primary/spouse identity once; sync and cached transactions reference the permanent Source.id through sourceRecordId. Account labels have no spouse suffix. Individual retries resolve the owned source ID and role to the appropriate SUB. Opaque normalized transaction IDs retain their deterministic _spouse suffix for import idempotency. No additional identity mapping table is used.
 
 Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.
+
+## Consent termination and full disconnection (2026-10-22)
+
+`GET /feezback/disconnection-targets` and `POST /feezback/disconnect` use Firebase authentication without subscription gating so customers can revoke after losing module entitlement. Only the owner or a server-verified administrator actor may operate; accountant delegation is insufficient. Optional firebaseId targets require verifying the real actor as admin. POST accepts scope all or consent, with consentId + connectionRole for a single permission.
+
+The disconnection service probes both primary/spouse identities with withInvalid=true, including pending spouse onboarding before its historical flag is set (only a FeezbackHttpError GET 404 attributed to the exact owned consent-list pathname proves an absent identity; token-endpoint and unattributed errors remain uncertain), includes pending/suspended/unknown statuses, terminates provider-owned consents through authenticated DELETE with reason=clientDisconnectedFromDigital, and verifies fresh consent state before reporting success. Failed reads, failed DELETEs and asynchronous termination remain partial/pending. hasOpenBanking follows current valid provider consent/source proof; uncertainty preserves prior state. A complete absence of nonterminal permissions clears it. The historical spouse identity flag is preserved. Only a verified full disconnection clears the pending consent-initiation timestamp; partial/single cancellation leaves unrelated onboarding state intact. No automatic billing cancellation or fee guarantee is implied.
+
+Only sync-state consent pointers are cleared after verified termination, including stale pointers on an already-terminal retry. Shared sources are first rebound to a remaining valid, unexpired permission through metadata-only upserts. Discovery only prepopulates retry pointers from provider-verified valid sources, using copied source metadata with a verified valid/unexpired direct consent or the first valid related consent (raw provider diagnostics are unchanged), so a late data-ready webhook cannot restore terminal consent IDs. Source rows and IDs, account/card bill mappings, slim transaction classifications, rules and approved expenses are retained; normal 03:00 cache cleanup remains unchanged. Reconnection uses permanent source identity keys rather than provider consent/resource IDs.
+
+Discovery and disconnection share a per-user in-process operation queue to prevent an older discovery from overwriting a completed termination. Later webhooks still require fresh provider proof. This queue is not a cross-process lock; multi-instance consistency remains subject to provider propagation and the existing discovery architecture. Tests use mocks only; no live provider, database or application startup is required.
+
+Synthetic open-banking demo profiles are rejected with SYNTHETIC_OPEN_BANKING before provider reads, source reads or connection-flag writes, preserving their demo connection state.

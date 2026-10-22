@@ -52,3 +52,13 @@ Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses 
 
 ## Disconnected payment sources
 DELETE /transactions/sources/:sourceRecordId uses FirebaseAuthGuard and effective user ownership. A transaction locks the owned source and its sync state, refuses any nonempty consentId with SOURCE_HAS_ACTIVE_CONSENT (409), detaches historical cache references, deletes sync metadata, then deletes only that source. Bills, slim transactions, cache history, expenses and provider consents are retained. No schema changes or provider API calls. Settings sources include records without a sync state.
+
+## Consent rotation during an in-flight pull
+
+For existing sync rows, updateSourceResults writes outcome fields only. Discovery
+owns consent/resource rotation. Results with older identifiers are ignored; an
+atomic identifier predicate prevents a pull finishing after termination or
+reconnection from resurrecting old consent metadata. Permanent sources, bill
+associations, classifications, rules, slim rows and approved expenses are retained.
+Reconnection and empty-cache rebuild regression tests cover stable source IDs,
+identity/currency separation, one-time classifications and confirmed states.

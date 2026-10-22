@@ -1,4 +1,5 @@
 import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { OpenBankingManagementComponent } from 'src/app/components/open-banking-management/open-banking-management.component';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
@@ -53,6 +54,7 @@ type ShaamConnectionViewStatus =
   styleUrls: ['./settings.page.scss', '../../shared/shared-styling.scss'],
   standalone: true,
   imports: [AccountImageComponent,
+    OpenBankingManagementComponent,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
@@ -440,6 +442,10 @@ export class SettingsPage implements OnInit {
       default:
         return 'חיבור חשבון Google נכשל. נסה שוב.';
     }
+  }
+
+  onBankingConnectionChanged(): void {
+    if (this.hasOpenBankingAccess()) this.fetchAccountSources();
   }
 
   private fetchAccountSources(): void {

@@ -44,4 +44,35 @@ describe('Feezback persisted connection state', () => {
     await expect(service.refreshUserSources('owner', 'test')).rejects.toThrow('unavailable');
     expect(user.hasOpenBanking).toBe(true); expect(enrollment.connectionVerified).not.toHaveBeenCalled();
   });
+  it('late data-ready webhook cannot restore a terminated consent from stale provider sources', async () => {
+    user.hasOpenBanking = false;
+    api.getUserConsents.mockResolvedValue({ consents: [{ resourceId: 'c1', consentStatus: 'terminatedByTpp' }] });
+    api.getUserAccounts.mockResolvedValue({ accounts: [{ iban: 'IL1234567', resourceId: 'bank1', consentId: 'c1' }] });
+    await service.refreshUserSources('owner', 'UserDataIsAvailable');
+    expect((service as any).prePopulateSourceResults).toHaveBeenCalledWith('owner', [], []);
+    expect(user.hasOpenBanking).toBe(false);
+    expect(enrollment.connectionVerified).not.toHaveBeenCalled();
+  });
+
+  it('late shared-consent discovery keeps bank and card retry pointers on the remaining valid permission', async () => {
+    const bank = { iban: 'IL1234567', resourceId: 'bank1', consentId: 'c1',
+      relatedConsents: [{ resourceId: 'pending' }, { resourceId: 'c2' }] };
+    const card = { maskedPan: '1234', resourceId: 'card1', consentId: 'c1',
+      relatedConsents: [{ resourceId: 'expired' }, { resourceId: 'c2' }] };
+    api.getUserConsents.mockResolvedValue({ consents: [
+      { resourceId: 'c1', consentStatus: 'terminatedByTpp' },
+      { resourceId: 'pending', consentStatus: 'received' },
+      { resourceId: 'expired', consentStatus: 'valid', validUntil: '2000-01-01' },
+      { resourceId: 'c2', consentStatus: 'valid' },
+    ] });
+    api.getUserAccounts.mockResolvedValue({ accounts: [bank] });
+    api.getUserCards.mockResolvedValue({ cards: [card] });
+    await service.refreshUserSources('owner', 'UserDataIsAvailable');
+    expect((service as any).prePopulateSourceResults).toHaveBeenCalledWith('owner',
+      [expect.objectContaining({ resourceId: 'bank1', consentId: 'c2' })],
+      [expect.objectContaining({ resourceId: 'card1', consentId: 'c2' })]);
+    expect(user.hasOpenBanking).toBe(true);
+    expect(bank.consentId).toBe('c1'); expect(card.consentId).toBe('c1');
+  });
+
 });

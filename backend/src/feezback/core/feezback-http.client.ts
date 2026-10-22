@@ -27,7 +27,7 @@ export interface FeezbackDebugHttpCall {
   receivedAt?: string;
   durationMs?: number;
   status?: number;
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'DELETE';
   url: string;
   attempt: number;
   maxAttempts: number;
@@ -56,6 +56,10 @@ export class FeezbackHttpClient {
     return this.request<T>('POST', path, body, options);
   }
 
+  async delete<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+    return this.request<T>('DELETE', path, undefined, options);
+  }
+
   /** Capture the exact provider HTTP calls made by one async operation. */
   async withDebugTrace<T>(
     operation: () => Promise<T>,
@@ -66,7 +70,7 @@ export class FeezbackHttpClient {
   }
 
   private async request<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     path: string,
     body: unknown,
     options: RequestOptions,
@@ -98,7 +102,7 @@ export class FeezbackHttpClient {
         const response: AxiosResponse<T> = await firstValueFrom(
           method === 'GET'
             ? this.http.get<T>(url, config)
-            : this.http.post<T>(url, body, config),
+            : method === 'DELETE' ? this.http.delete<T>(url, config) : this.http.post<T>(url, body, config),
         );
 
         const durationMs = Date.now() - sentAt;
@@ -165,7 +169,7 @@ export class FeezbackHttpClient {
   }
 
   private buildRedactedCurl(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     url: string,
     headers: Record<string, string>,
     body: unknown,

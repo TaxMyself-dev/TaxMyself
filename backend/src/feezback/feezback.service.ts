@@ -1,6 +1,7 @@
+import { connectionOperation } from './consent/connection-operation';
 import { BadRequestException, BadGatewayException, forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { OpenBankingEnrollmentService } from '../billing/services/open-banking-enrollment.service';
-import { validConnectedSources } from './consent/open-banking-connection';
+import { validConnectedSources, connectedSourcesWithCurrentConsent } from './consent/open-banking-connection';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { feezbackSub, subForSource, SPOUSE_TRANSACTION_SUFFIX } from './utils/feezback-identity';
 import { Cron } from '@nestjs/schedule';
@@ -668,6 +669,10 @@ export class FeezbackService {
    * /transactions/post-consent-sync endpoint. Does NOT trigger transaction sync.
    */
   async refreshUserSources(firebaseId: string, eventLabel: string): Promise<void> {
+    return connectionOperation(firebaseId, () => this.refreshUserSourcesUnlocked(firebaseId, eventLabel));
+  }
+
+  private async refreshUserSourcesUnlocked(firebaseId: string, eventLabel: string): Promise<void> {
     const results = await Promise.allSettled((await this.userSubs(firebaseId)).map(sub =>
       this.identityScope.run(sub, () => this.refreshIdentitySources(firebaseId, eventLabel, sub))));
     const connected = results.some(r => r.status === 'fulfilled' && r.value.connected);
@@ -840,7 +845,7 @@ export class FeezbackService {
     // resolve before resourceId/consentId are written, and the follow-up
     // retrySource would wrongly see "resourceId not found in DB" (a race).
     // .catch keeps a write failure non-fatal, same as before.
-    await this.prePopulateSourceResults(firebaseId, accounts, cards)
+    await this.prePopulateSourceResults(firebaseId, connectedSourcesWithCurrentConsent(consents, accounts), connectedSourcesWithCurrentConsent(consents, cards))
       .catch(err => this.logger.warn(`${prefix} prePopulateSourceResults failed | ${err?.message}`));
 
     // Stamp the freshness marker — at least one of bank/card succeeded, so the

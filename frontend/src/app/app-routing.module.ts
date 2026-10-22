@@ -21,6 +21,11 @@ import { AppRoute } from './shared/access-control';
  */
 const appRoutes: Routes = [
   {
+    path: 'billing/open-banking/manage',
+    canActivate: [AuthGuard],
+    loadComponent: () => import('./components/open-banking-management/open-banking-management.page').then(m => m.OpenBankingManagementPage),
+  },
+  {
     path: 'billing/open-banking',
     canActivate: [AuthGuard],
     loadComponent: () => import('./pages/billing/open-banking/open-banking.page').then(m => m.OpenBankingPage),
