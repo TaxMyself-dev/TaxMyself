@@ -1,5 +1,28 @@
 # Primary manager state
 
+## Admin Cardcom refunds source delivery — 2026-10-22
+
+Elazar explicitly authorized merging the refund feature into main and pushing,
+excluding deployment and production SQL. Feature was rebased without conflicts
+on current origin/main 4dc1306d. The tested code tip 3f5f1163 was fast-forwarded
+to primary main and atomically pushed with codex/integration-admin-refunds;
+both remote refs were verified with ls-remote. Existing untracked app-mapping
+was preserved as authorized. Other integration worktrees were not changed.
+
+Validation: 45 backend suites/556 tests (billing, credit journal, SHAAM), 32
+focused frontend regression tests, 9 rollback-only real dev schema checks,
+backend and production frontend builds passed. Latest user history preview
+additionally passed 10 focused history/cancellation tests and a frontend build.
+No executable change followed these checks. Document-only delivery bookkeeping
+follows the verified code tip. Feature worktree is retained for pending release
+review and dev follow-up.
+
+Refund schema was applied only in dev earlier. Standalone production
+preflight/apply/verify SQL and docs/features/admin-refunds-release.md remain
+pending owner approval; the apply approval marker is unchanged. New SQL was
+reviewed statically, not executed/rehearsed. No production access, provider call,
+SQL, runtime/config change or deployment occurred during source delivery.
+
 ## KT-085 SHAAM allocation state machine — 2026-10-21
 
 Supplier-side invoice allocation now uses `Invoices/v2/Approval` without the

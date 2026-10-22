@@ -1,11 +1,34 @@
 # Admin refunds
 
-- Status: `WORKER_COMPLETE` (release preparation complete; owner approval pending; no main merge/push/deploy)
+- Status: `PUSHED` (source delivered to main; production SQL/deployment still not approved or executed)
 - Task manager: Codex
 - Worktree: C:\Users\user\Keepintax\TaxMyself-admin-refunds
 - Branch: codex/admin-refunds
 - Current base commit: 4dc1306d208fe2bed3ab4a7a973701c5f9f7a227
 - Original feature base: 09beebab9181d23b47ef449a801fc6279c701120
+
+## Main source delivery — 2026-10-22
+
+Elazar explicitly authorized fast-forward integration to main and GitHub push,
+with no deployment or production SQL. Refreshed origin/main remained 4dc1306d;
+feature was already rebased and verified on that base. The latest user document
+preview change passed 10 isolated frontend tests and the production frontend
+build, after the broader 45-suite/556-test backend, 32-test frontend and real
+9-check dev schema verification recorded below. No new executable changes were
+needed for integration; no repeated tests asserted.
+
+Reviewed clean feature tip 3f5f11639a2665693e6df1b6b1ed9d23a69e67d3 was staged at
+codex/integration-admin-refunds. Primary main fast-forwarded to this exact tested
+tree. Atomic normal push succeeded; git ls-remote verified main and the new
+integration reference at that same commit. Existing untracked main/app-mapping
+was preserved under the owner's standing instruction. Unrelated integration
+worktrees were not modified. Feature worktree retained for pending release SQL
+review/dev follow-up. This delivery record is documentation only.
+
+Production schema/configuration/runtime were not accessed, changed or deployed.
+The standalone release SQL approval marker remains PENDING_OWNER_APPROVAL;
+preflight, isolated rehearsal, backup and writer pause are still required before
+any future approved production execution. Source delivery is not deployment.
 
 ## Business outcome
 Admin can refund a captured customer payment from Cardcom/subscriptions without changing subscription state. A signed credit document is issued and emailed; user history shows a negative amount.
