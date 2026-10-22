@@ -1,10 +1,11 @@
 # Admin refunds
 
-- Status: `WORKER_COMPLETE` (local feature delivery; dev only)
+- Status: `WORKER_COMPLETE` (release preparation complete; owner approval pending; no main merge/push/deploy)
 - Task manager: Codex
 - Worktree: C:\Users\user\Keepintax\TaxMyself-admin-refunds
 - Branch: codex/admin-refunds
-- Base commit: 09beebab9181d23b47ef449a801fc6279c701120
+- Current base commit: 4dc1306d208fe2bed3ab4a7a973701c5f9f7a227
+- Original feature base: 09beebab9181d23b47ef449a801fc6279c701120
 
 ## Business outcome
 Admin can refund a captured customer payment from Cardcom/subscriptions without changing subscription state. A signed credit document is issued and emailed; user history shows a negative amount.
@@ -72,6 +73,49 @@ was performed by these mocked tests. git diff --check passed.
 - Documentation: docs/features/admin-refunds.md; nearest billing/documents/admin
   topic instructions; commented dev-only cumulative DDL in docs/redesign/cutover.sql.
 # Follow-up 2026-10-22: document completion diagnostics
+
+## Release preparation requested 2026-10-22 (complete, awaiting approval)
+
+Owner explicitly requested: update only the refund feature branch from current
+main; rerun verification; prepare production SQL/runbook for approval. No merge
+to main, push, production connectivity or deployment. Existing worktree retained.
+Fetch found origin/main 4dc1306d208fe2bed3ab4a7a973701c5f9f7a227 (3 SHAAM commits
+after the original base). Rebased all 5 local feature commits without conflict;
+new feature tip before release docs is 7e5081ec3986b94802bbd080bdc9020404d9ac14.
+Local main remains 09beebab9181d23b47ef449a801fc6279c701120; app-mapping untouched.
+Standalone preflight/apply/verify SQL and admin-refunds-release.md are review
+artifacts only. The draft does not loosen the dev runner's database allowlist.
+
+Integrated verification on the rebased branch (all exit 0):
+- Backend `npm test -- --runInBand --silent billing documents-journal.service.spec shaam`:
+  45 suites, 556 tests passed (684.767 s); providers mocked, no live operations.
+- Backend `npm run build`: passed.
+- Frontend `npm exec ng test -- --watch=false --browsers=ChromeHeadless
+  --ts-config=tsconfig.billing-resolution.spec.json
+  --include=src/app/shared/admin-billing/subscriptions/*.spec.ts
+  --include=src/app/pages/billing/billing-recovery.page.spec.ts`: 24 passed.
+- SHAAM settings/callback frontend specs from newly integrated main: 8 passed
+  using an isolated temporary tsconfig and matching explicit include filters;
+  temporary config removed after execution.
+- Frontend `npm run build -- --configuration production`: passed; existing
+  Angular budget/CommonJS warnings, no compilation failure.
+- Existing dev migration inspection: pendingStatements=0 on MySQL 8.0.37-google.
+- Real dev constraint checks: 9 passed, syntheticRowsRolledBack=true, attempts=11
+  and events=94 unchanged. First connection reset (ECONNRESET); retry passed.
+- Static review: all 4 release trigger bodies match approved dev DDL; apply has
+  pending approval guard and no business DML/destructive table changes; preflight
+  and verify contain only USE/SELECT/SHOW CREATE TABLE; 6 local Markdown links pass.
+  These are static checks, NOT execution/syntax rehearsal of the new release SQL.
+- Remote refreshed again after tests: origin/main unchanged at 4dc1306d; no
+  missing upstream commits (0 behind / 5 feature commits before release docs).
+
+Release risk/manual gate: production baseline and runtime configuration were
+not accessed. New one-shot SQL has not been run in any database. Before execution,
+the owner/operator must approve the exact files, inspect preflight, rehearse on
+an isolated matching schema, take backup and pause all writers. No automatic
+schema rollback; backend versions predating refunds are unsafe after REFUND rows
+exist. See docs/features/admin-refunds-release.md for the full operator procedure.
+No tracked ENV, secrets, dependency changes or generated builds are included.
 
 Additional requested admin credit document access: popup view/download actions
 use a Firebase/admin-authorized PDF route with subscription/source ownership and

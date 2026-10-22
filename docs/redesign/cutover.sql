@@ -2618,3 +2618,15 @@ BEGIN
 END$$
 DELIMITER ;
 */
+
+-- 2026-10-22 Admin refunds production release preparation (REVIEW ONLY).
+-- Owner requested SQL/runbook for approval, NOT execution, merge or deployment.
+-- The approved dev-only delta above is unchanged. Do not execute the cumulative
+-- cutover to release refunds. Standalone one-shot package preserves existing
+-- enum values/order and includes approval/baseline guards plus four triggers:
+-- backend/scripts/migrations/2026-10-22_admin_refunds_preflight.sql (read only)
+-- backend/scripts/migrations/2026-10-22_admin_refunds_apply.sql (pending approval)
+-- backend/scripts/migrations/2026-10-22_admin_refunds_verify.sql (read only)
+-- Operator order, paused writers/backup, configuration and rollback limits:
+-- docs/features/admin-refunds-release.md
+-- No production access or DDL execution was performed during this preparation.

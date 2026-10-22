@@ -1,5 +1,10 @@
 # Admin refunds — dev implementation
 
+Production SQL and operator instructions are prepared **for approval only** in
+[admin-refunds-release.md](admin-refunds-release.md). The feature branch was
+rebased on fetched origin/main 4dc1306d on 2026-10-22; main remains unchanged.
+This does not authorize production access, merge, push or deployment.
+
 ## Scope and approvals
 
 Elazar approved reuse of billing tables and the explicit schema proposal on
