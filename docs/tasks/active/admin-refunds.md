@@ -10,6 +10,22 @@
 ## Business outcome
 Admin can refund a captured customer payment from Cardcom/subscriptions without changing subscription state. A signed credit document is issued and emailed; user history shows a negative amount.
 
+## User history document preview follow-up (2026-10-22)
+
+Owner requested a preview action beside the existing download in the user's
+charge/refund history. Added a unified table eye action using the existing
+owner-authenticated getReceiptBlob and FilesService.previewFile3, reserving the
+tab before async HTTP. Shared busy guard prevents duplicate reads; popup blocking
+and missing PDF failures are handled without money/document writes. No backend,
+schema, credentials or production change. Release SQL/runbook remain pending
+owner approval, with no main merge/push/deploy.
+Validation: 10 ChromeHeadless tests across user history document actions, dates
+and subscription cancellation passed using tsconfig.billing-history.spec.json.
+Initial run found a new test row-id type mismatch; corrected and reran successfully.
+Frontend production build passed with existing budget/CommonJS warnings.
+git diff --check passed. Browser popup/PDF rendering itself is reused unchanged
+from FilesService.previewFile3 and mocked in this focused test run.
+
 ## Acceptance criteria
 - [x] Admin refund action opens accessible RTL dialog with original payment, amount and reason.
 - [x] Server validates owner/payment and remaining refundable balance under locks.

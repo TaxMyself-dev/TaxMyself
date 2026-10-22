@@ -1,5 +1,10 @@
 # Admin refunds — dev implementation
 
+User settings / My Subscription history offers both document preview (separate
+tab) and download for charge and negative refund rows. Both use the existing
+authenticated owner-scoped receipt endpoint. Missing PDFs show an error; these
+actions do not generate documents or submit refunds.
+
 Production SQL and operator instructions are prepared **for approval only** in
 [admin-refunds-release.md](admin-refunds-release.md). The feature branch was
 rebased on fetched origin/main 4dc1306d on 2026-10-22; main remains unchanged.
