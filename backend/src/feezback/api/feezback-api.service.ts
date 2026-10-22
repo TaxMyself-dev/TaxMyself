@@ -37,8 +37,12 @@ export class FeezbackApiService {
       // endpoint/configuration 404s must remain uncertain, never prove revocation.
       if (withInvalid && error instanceof FeezbackHttpError && error.status === 404 && error.method === 'GET') {
         try {
-          const pathname = decodeURIComponent(new URL(error.url, 'https://feezback.invalid').pathname);
-          if (pathname === `/tpp/v1/users/${this.buildUserIdentifier(sub)}/consents`) return { consents: [] };
+          const base = this.authService.getTppApiUrl().replace(/\/+$/, '');
+          const expected = new URL(`${base}/tpp/v1/users/${encodeURIComponent(this.buildUserIdentifier(sub))}/consents`);
+          const actual = new URL(error.url);
+          if (actual.origin === expected.origin && decodeURIComponent(actual.pathname) === decodeURIComponent(expected.pathname)) {
+            return { consents: [] };
+          }
         } catch { /* Malformed URL cannot prove the identity is absent. */ }
       }
       throw error;

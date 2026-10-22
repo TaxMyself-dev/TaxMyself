@@ -1,45 +1,68 @@
-<section dir="rtl" aria-label="ניהול חיבור לבנקאות פתוחה" [attr.aria-busy]="loading() || busy()">
-  <h3>החיבור לבנקאות פתוחה</h3>
-  <p>ביטול הרשאה מפסיק עדכונים דרך אותה הרשאה. התנתקות מלאה מבטלת את כל ההרשאות, כולל של בן או בת הזוג.</p>
-  <p>פרטי החשבונות והכרטיסים, הסיווגים, השיוכים וההוצאות שאושרו נשמרים לחיבור מחדש. תנועות זמניות כפופות לניקוי הלילי הקיים ב־03:00.</p>
+<section dir="rtl" aria-label="ניהול חיבור לבנקאות פתוחה" [class.embedded]="embedded" [attr.aria-busy]="loading() || busy()">
+  @if (!embedded) {
+    <h3>ניהול חשבונות בבנקאות פתוחה</h3>
+    @if (rows().length) {
+      <app-generic-table [dataTable]="rows()" [columnsTitle]="$any(columns)" [actions]="rowActions"
+        [mobileCardConfig]="mobileConfig" [tableHeight]="'auto'"></app-generic-table>
+    } @else if (!loading()) { <p>לא נמצאו אמצעים עם הרשאה נוכחית.</p> }
+  }
   @if (!canManage()) { <p>ניהול החיבור זמין לבעל החשבון. מנהל יכול לנהל אותו דרך לוח הלקוחות.</p> }
   @else {
-    <div class="actions">
-      <button type="button" (click)="load()" [disabled]="loading() || busy()">{{ loading() ? 'בודק הרשאות…' : 'רענון מצב הרשאות' }}</button>
-      @if (!firebaseId && !synthetic()) { <button type="button" (click)="reconnect()" [disabled]="busy() || loading()">חיבור מחדש</button> }
-    </div>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (message()) { <p class="success" role="status">{{ message() }}</p> }
     @if (targets(); as state) {
-      @if (!state.complete) { <p class="error" role="alert">לא ניתן לאמת את כל ההרשאות. הרשימה עשויה להיות חלקית; אין אישור לניתוק מלא.</p> }
-      @else if (!state.hasOpenBanking && state.consents.length === 0) { <p role="status">בנקאות פתוחה מנותקת</p> }
-      @else { <p role="status">{{ state.hasOpenBanking ? 'קיים חיבור לבנקאות פתוחה' : 'נמצאו הרשאות לניהול' }}</p> }
-      @for (consent of state.consents; track consent.connectionRole + ':' + consent.consentId) {
-        <article>
-          <strong>הרשאת {{ consent.connectionRole === 'spouse' ? 'בן / בת הזוג' : 'בעל החשבון' }}</strong>
-          <p>מצב הרשאה: <bdi>{{ consentStatusLabel(consent.status) }}</bdi></p>
-          <ul>@for (source of consent.sources; track source.sourceRecordId) { <li>{{ source.sourceType === 'BANK_ACCOUNT' ? 'חשבון בנק' : 'כרטיס' }} <bdi>{{ source.sourceName }}</bdi></li> } @empty { <li>אין פרטי מקורות מקומיים להרשאה זו.</li> }</ul>
-          <button type="button" (click)="confirmation.set(consent)" [disabled]="busy() || loading()">ביטול הרשאה זו</button>
-        </article>
-      }
-      @if (state.consents.length || state.hasOpenBanking || !state.complete) { <button class="danger" type="button" (click)="confirmation.set('all')" [disabled]="busy() || loading()">התנתקות מבנקאות פתוחה</button> }
+      @if (!state.complete) {
+        <div class="error" role="alert">
+          <p>בדיקת ההרשאות לא הושלמה. יש לרענן את הבדיקה לפני אישור ביטול או ניתוק.</p>
+          <ul>@for (diagnostic of diagnosticMessages(); track diagnostic) { <li>{{ diagnostic }}</li> }</ul>
+        </div>
+      } @else if (!state.hasOpenBanking && state.consents.length === 0) { <p role="status">בנקאות פתוחה מנותקת</p> }
     }
+    <div class="actions banking-footer">
+      <button class="danger" type="button" (click)="openFullDisconnect()"
+        [disabled]="busy() || loading() || externalBusy || synthetic() || (targets()?.complete && targets()?.consents?.length === 0)">
+        התנתקות מלאה מבנקאות פתוחה
+      </button>
+      <button type="button" (click)="load()" [disabled]="loading() || busy() || externalBusy">{{ loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות' }}</button>
+      @if (!embedded && !firebaseId && !synthetic()) {
+        <button type="button" (click)="reconnect()" [disabled]="busy() || loading() || externalBusy">חיבור מחדש</button>
+      }
+    </div>
   }
 </section>
-<p-dialog [header]="confirmation() === 'all' ? 'התנתקות מבנקאות פתוחה' : 'ביטול הרשאה'"
-  [visible]="confirmation() !== null" (visibleChange)="!$event && !busy() && confirmation.set(null)"
-  [modal]="true" [closable]="!busy()" [closeOnEscape]="!busy()" [style]="{ width: '32rem', maxWidth: '95vw' }">
+<p-dialog [header]="choices() ? 'בחירת הרשאה לביטול' : confirmation() === 'all' ? 'התנתקות מלאה מבנקאות פתוחה' : 'ביטול הרשאה'"
+  [visible]="confirmation() !== null || choices() !== null" (visibleChange)="!$event && closePreview()"
+  [modal]="true" [closable]="!busy()" [closeOnEscape]="!busy()" [style]="{ width: '36rem', maxWidth: '95vw' }">
   <div dir="rtl">
-    <p>{{ confirmation() === 'all' ? 'כל ההרשאות יבוטלו, כולל של בן או בת הזוג, ומשיכת מידע חדש תיפסק.' : 'ההרשאה תבוטל עבור כל החשבונות והכרטיסים המשויכים אליה. הרשאות אחרות יישארו בתוקף.' }}</p>
-    @for (consent of affectedConsents(); track consent.connectionRole + ':' + consent.consentId) {
-      <strong>{{ consent.connectionRole === 'spouse' ? 'בן / בת הזוג' : 'בעל החשבון' }}</strong>
-      <ul>@for (source of consent.sources; track source.sourceRecordId) { <li><bdi>{{ source.sourceName }}</bdi></li> } @empty { <li>אין פרטי מקורות מקומיים; הביטול חל על ההרשאה כולה.</li> }</ul>
+    @if (choices(); as candidates) {
+      <p>האמצעי משויך ליותר מהרשאה אחת. יש לבחור איזו הרשאה לבטל ולבדוק את כל האמצעים הכלולים בה.</p>
+      @for (consent of candidates; track consentKey(consent); let index = $index) {
+        <article>
+          <strong>הרשאה {{ index + 1 }} — {{ consentStatusLabel(consent.status) }}</strong>
+          <ul>@for (source of consent.sources; track source.sourceRecordId ?? source.resourceId ?? $index) {
+            <li>{{ sourceTypeLabel(source.sourceType) }} <bdi>{{ source.sourceName }}</bdi></li>
+          } @empty { <li>אין אמצעי תשלום מזוהים להרשאה זו.</li> }</ul>
+          <button type="button" (click)="selectConsent(consent)" [disabled]="busy() || externalBusy">בחירת הרשאה זו</button>
+        </article>
+      }
+    } @else {
+      <p>{{ confirmation() === 'all' ? 'כל ההרשאות יבוטלו, כולל של בן או בת הזוג, ומשיכת מידע חדש תיפסק.' : 'ביטול הרשאה זו יפסיק עדכונים לכל האמצעים המופיעים להלן, גם אם בחרת בשורה אחת בלבד. הרשאות אחרות יישארו בתוקף.' }}</p>
+      @for (consent of affectedConsents(); track consentKey(consent)) {
+        <strong>{{ consent.connectionRole === 'spouse' ? 'בן / בת הזוג' : 'בעל החשבון' }}</strong>
+        <ul>@for (source of consent.sources; track source.sourceRecordId ?? source.resourceId ?? $index) {
+          <li>{{ sourceTypeLabel(source.sourceType) }} <bdi>{{ source.sourceName }}</bdi></li>
+        } @empty { <li>אין אמצעי תשלום מזוהים להרשאה זו. הביטול חל על ההרשאה כולה.</li> }</ul>
+      }
+      @if (!targets()?.complete) { <p class="error" role="alert">לא ניתן לאמת את הרשימה המלאה כרגע. סגור את החלון ורענן את בדיקת ההרשאות לפני אישור.</p> }
+      <p>פרטי החשבונות והכרטיסים, הסיווגים, השיוכים וההוצאות שאושרו נשמרים. חזרה לשירות דורשת הרשאה מחדש. הפעולה אינה משנה את המנוי.</p>
     }
-    @if (!targets()?.complete) { <p class="error">הרשימה חלקית. נדרש אימות מול ספק הבנקאות להשלמת הניתוק.</p> }
-    <p>החשבונות, הכרטיסים, הסיווגים, השיוכים וההוצאות שאושרו יישמרו. חזרה לשירות דורשת מתן הרשאה מחדש. הפעולה אינה משנה את המנוי.</p>
     <div class="actions">
-      <button type="button" (click)="confirmation.set(null)" [disabled]="busy()">חזרה</button>
-      <button class="danger" type="button" (click)="confirm()" [disabled]="busy()">{{ busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה') }}</button>
+      <button type="button" (click)="closePreview()" [disabled]="busy()">חזרה</button>
+      @if (!choices()) {
+        <button class="danger" type="button" (click)="confirm()" [disabled]="!canConfirm()">
+          {{ busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה') }}
+        </button>
+      }
     </div>
   </div>
 </p-dialog>

@@ -3,6 +3,7 @@ import { FeezbackDisconnectionService } from './feezback-disconnection.service';
 import { FeezbackController } from './feezback.controller';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { FeezbackHttpError } from './core/feezback-errors';
 
 describe('Feezback disconnection', () => {
   let api: any, users: any, sources: any, sync: any, service: FeezbackDisconnectionService, user: any;
@@ -22,7 +23,7 @@ describe('Feezback disconnection', () => {
       { id: 11, userId: 'owner', connectionRole: 'primary', sourceName: '1234567', sourceType: 'BANK_ACCOUNT', bill: { id: 99 } },
     ]) };
     sync = { getSourceResults: jest.fn().mockResolvedValue([
-      { sourceRecordId: 11, sourceId: '1234567', consentId: 'c1', connectionRole: 'primary' },
+      { sourceRecordId: 11, sourceId: '1234567', resourceId: 'a1', consentId: 'c1', connectionRole: 'primary' },
     ]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined), upsertSourceConsents: jest.fn().mockResolvedValue(undefined), clearConsentOnSources: jest.fn().mockResolvedValue(1) };
     service = new FeezbackDisconnectionService(api, users, sources, sync);
   });
@@ -42,6 +43,26 @@ describe('Feezback disconnection', () => {
     expect(preview.consents).toHaveLength(3);
     expect(preview.consents[0].sources).toEqual([{ sourceRecordId: 11, sourceName: '1234567', sourceType: 'BANK_ACCOUNT' }]);
     expect(api.getUserConsents).toHaveBeenCalledWith('owner_sub_spouse', true);
+  });
+  it('previews every provider-linked instrument, including ones absent from permanent sources', async () => {
+    api.getUserAccounts.mockResolvedValue({ accounts: [
+      { resourceId: 'a1', consentId: 'c1', iban: 'IL000001234567' },
+      { resourceId: 'a2', relatedConsents: [{ resourceId: 'c1' }], iban: 'IL000007654321', currency: 'USD' },
+    ] });
+    api.getUserCards.mockResolvedValue({ cards: [
+      { resourceId: 'card1', consentId: 'c1', maskedPan: '************9876' },
+      { resourceId: 'card2', consentId: 'c1' },
+    ] });
+    const preview = await service.targets('owner');
+    expect(preview.consents[0].sources).toEqual([
+      { sourceRecordId: 11, sourceName: '1234567', sourceType: 'BANK_ACCOUNT' },
+      { sourceRecordId: null, resourceId: 'a2', sourceName: '•••7654321 USD', sourceType: 'BANK_ACCOUNT' },
+      { sourceRecordId: null, resourceId: 'card1', sourceName: '•••9876', sourceType: 'CREDIT_CARD' },
+      { sourceRecordId: null, resourceId: 'card2', sourceName: 'אמצעי תשלום נוסף', sourceType: 'CREDIT_CARD' },
+    ]);
+    expect(JSON.stringify(preview.consents[0].sources)).not.toContain('IL00000');
+    expect(api.terminateConsent).not.toHaveBeenCalled();
+    expect(sync.upsertSourceConsents).not.toHaveBeenCalled();
   });
   it('terminates every identity, verifies state and changes no retained source data', async () => {
     const snapshot = JSON.stringify(await sources.find());
@@ -124,6 +145,33 @@ describe('Feezback disconnection', () => {
     api.getUserConsents.mockRejectedValue({ status: 404 });
     expect((await service.disconnect('owner', { scope: 'all' })).status).toBe('partial');
     expect(user.hasOpenBanking).toBe(true);
+  });
+  it.each([
+    ['POST', 'https://proxy.test/proxy/feezback/token', 'authentication', 401],
+    ['GET', 'https://proxy.test/proxy/feezback/tpp/v1/users/private-id/consents', 'provider', 503],
+  ])('reports safe %s read diagnostics without exposing provider data', async (method, url, stage, httpStatus) => {
+    api.getUserConsents.mockImplementation(async sub => {
+      if (sub.endsWith('spouse')) throw new FeezbackHttpError({ method, url, status: httpStatus,
+        message: 'secret-message', responseBody: { token: 'secret-token', account: 'private-account' } });
+      return { consents: [] };
+    });
+    const result = await service.targets('owner');
+    expect(result).toMatchObject({ complete: false, hasOpenBanking: true });
+    expect(result.errors).toEqual([{ connectionRole: 'spouse', code: 'consents_unavailable', operation: 'consents', stage, httpStatus }]);
+    expect(JSON.stringify(result.errors)).not.toMatch(/secret|private|https/);
+    expect(users.update).not.toHaveBeenCalled();
+    expect(api.terminateConsent).not.toHaveBeenCalled();
+  });
+  it('identifies malformed and failed source reads without treating the preview as complete', async () => {
+    api.getUserAccounts.mockResolvedValue({ accounts: [{}] });
+    api.getUserCards.mockRejectedValue(new FeezbackHttpError({ method: 'GET', url: 'https://proxy.test/cards', status: 403, message: 'secret' }));
+    const result = await service.targets('owner');
+    expect(result.complete).toBe(false);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      { connectionRole: 'primary', code: 'accounts_unavailable', operation: 'accounts', stage: 'response' },
+      { connectionRole: 'primary', code: 'cards_unavailable', operation: 'cards', stage: 'provider', httpStatus: 403 },
+    ]));
+    expect(users.update).not.toHaveBeenCalled();
   });
   it('clears stale consent pointers on already-terminal no-op disconnect', async () => {
     permissions.owner_sub = [{ resourceId: 'c1', consentStatus: 'terminatedByTpp' }];

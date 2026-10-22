@@ -69,7 +69,12 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
 
 ## Open-banking payment source deletion
-The permissions tab also hosts `OpenBankingManagementComponent` outside the
+The permissions tab embeds `OpenBankingManagementComponent` directly below its
+existing account-source table. Owner row actions preview cancellation of the
+whole consent (all associated accounts/cards) or start reconnect for a disconnected
+source; full disconnection and discovery refresh are below the table. Discovery
+and mutations share guards with existing source pull/delete actions. Active-consent
+rows expose cancellation instead of source deletion. The embedded footer stays outside the
 OPEN_BANKING entitlement gate, so an owner can revoke consent after losing module
 access. It previews server-reported consents and every associated source, supports
 single-consent revocation separately from full primary/spouse disconnection,
@@ -83,6 +88,6 @@ page, linked directly from the global billing-block dialog. Existing Settings
 billing guards remain unchanged. The billing-route dialog exemption keeps consent
 management usable without unlocking other protected pages.
 
-Each source has a delete action identified by sourceRecordId (including spouse sources with matching numbers). Active consent shows a popup explaining that Feezback requires a new consent with the desired accounts/cards. Disconnected sources require confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the explanation. Historical transactions are retained.
+Disconnected sources retain an explicit delete action identified by sourceRecordId (including spouse sources with matching numbers). Active-consent rows instead offer consent cancellation with a complete affected-source preview. Deletion requires confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the existing explanation. Historical transactions are retained.
 
 Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.

@@ -12,13 +12,13 @@ export interface BankingConsent {
   consentId: string;
   connectionRole: 'primary' | 'spouse';
   status: string;
-  sources: { sourceRecordId: number; sourceName: string; sourceType: 'BANK_ACCOUNT' | 'CREDIT_CARD' }[];
+  sources: { sourceRecordId: number | null; resourceId?: string; sourceName: string; sourceType: 'BANK_ACCOUNT' | 'CREDIT_CARD' }[];
 }
 export interface BankingTargets {
   consents: BankingConsent[];
   complete: boolean;
   hasOpenBanking: boolean;
-  errors: { connectionRole: string; code: string }[];
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
 }
 export interface BankingDisconnectRequest {
   firebaseId?: string;
@@ -31,7 +31,7 @@ export interface BankingDisconnectResult {
   remainingConsents: BankingConsent[];
   complete: boolean;
   hasOpenBanking: boolean;
-  errors: { connectionRole: string; code: string }[];
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
   results: { consentId: string; connectionRole: string; status: 'terminated' | 'failed' | 'pending' }[];
 }
 

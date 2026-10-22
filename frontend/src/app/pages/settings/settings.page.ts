@@ -2,7 +2,7 @@ import { AccountImageComponent } from 'src/app/components/account-image/account-
 import { OpenBankingManagementComponent } from 'src/app/components/open-banking-management/open-banking-management.component';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
@@ -162,6 +162,7 @@ export class SettingsPage implements OnInit {
   revokingPermissionId = signal<number | null>(null);
 
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
+  @ViewChild('bankingManagement') bankingManagement?: OpenBankingManagementComponent;
   accountSourcesLoading = signal(false);
   accountSources = signal<
     { sourceRecordId?: number; connectionRole?: 'primary' | 'spouse'; sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
@@ -177,6 +178,7 @@ export class SettingsPage implements OnInit {
       id: s.sourceRecordId?.toString() ?? s.sourceName,
       sourceRecordId: s.sourceRecordId,
       sourceName: s.sourceName,
+      hasConsent: s.hasConsent,
       connectionRoleLabel: s.connectionRole === 'spouse' ? 'בן/בת הזוג' : 'ראשי',
       sourceTypeLabel: this.getSourceTypeLabel(s.sourceType, s.isDirect),
       billName: s.billName || 'לא משויך',
@@ -208,11 +210,24 @@ export class SettingsPage implements OnInit {
   accountSourcesRowActions: IGenericTableAction[] = [
     {
       name: 'deleteSource', icon: 'pi pi-trash', title: 'מחק אמצעי תשלום',
-      showWhen: () => this.deletingSourceId() === null && !this.retryingSourceId(),
+      showWhen: row => row!['hasConsent'] !== true && this.deletingSourceId() === null && !this.retryingSourceId(),
+      isLoading: () => this.bankingActionLoading(),
       action: (_, row) => {
         const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
         if (source) this.onDeleteSource(source);
       },
+    },
+    {
+      name: 'cancelConsent', icon: 'pi pi-ban', title: 'ביטול הרשאה',
+      showWhen: row => row!['hasConsent'] === true && !this.authService.isViewingAsClient(),
+      isLoading: () => this.bankingActionLoading(),
+      action: (_, row) => this.openSourceConsent(row),
+    },
+    {
+      name: 'reconnectSource', icon: 'pi pi-link', title: 'חיבור מחדש',
+      showWhen: row => row!['hasConsent'] !== true && !this.authService.isViewingAsClient(),
+      isLoading: () => this.bankingActionLoading(),
+      action: (_, row) => this.reconnectSource(row),
     },
     {
       name: 'pullSource',
@@ -223,13 +238,39 @@ export class SettingsPage implements OnInit {
       // refuses the pull anyway (skipped_direct).
       showWhen: (row) => this.deletingSourceId() === null && row!['isDirect'] !== true &&
         (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
-      isLoading: () => !!this.retryingSourceId(),
+      isLoading: () => this.bankingActionLoading(),
       action: (_, row) => {
         const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
         if (source) this.onPullSource(source);
       },
     },
   ];
+
+  bankingActionLoading(): boolean {
+    return this.accountSourcesLoading() || this.retryingSourceId() !== null ||
+      this.deletingSourceId() !== null || !!this.bankingManagement?.loading() ||
+      !!this.bankingManagement?.busy();
+  }
+
+  private canManageSourceConsent(): boolean {
+    return !this.authService.isViewingAsClient() && !!this.bankingManagement &&
+      this.bankingManagement.canManage() && !this.bankingManagement.synthetic() &&
+      !this.bankingActionLoading();
+  }
+
+  openSourceConsent(row?: IRowDataTable): void {
+    if (!this.canManageSourceConsent() || !row) return;
+    const source = this.accountSources().find(s => s.sourceRecordId === row['sourceRecordId']);
+    if (!source?.hasConsent || source.sourceRecordId == null) return;
+    this.bankingManagement!.openSourceConsent(source.sourceRecordId);
+  }
+
+  reconnectSource(row?: IRowDataTable): void {
+    if (!this.canManageSourceConsent() || !row) return;
+    const source = this.accountSources().find(s => s.sourceRecordId === row['sourceRecordId']);
+    if (!source || source.hasConsent || source.sourceRecordId == null) return;
+    this.bankingManagement!.reconnect();
+  }
 
   private showSourceConsentExplanation(sourceName: string): void {
     this.confirmationService.confirm({
@@ -241,7 +282,7 @@ export class SettingsPage implements OnInit {
   }
 
   onDeleteSource(source: { sourceRecordId?: number; sourceName: string; hasConsent: boolean }): void {
-    if (this.deletingSourceId() !== null || source.sourceRecordId == null) return;
+    if (this.bankingActionLoading() || source.sourceRecordId == null) return;
     if (source.hasConsent) { this.showSourceConsentExplanation(source.sourceName); return; }
     this.confirmationService.confirm({
       key: 'payment-source',
@@ -249,7 +290,7 @@ export class SettingsPage implements OnInit {
       message: `למחוק את אמצעי התשלום ${source.sourceName}? האמצעי יוסר מהמערכת. התנועות ההיסטוריות יישמרו.`,
       icon: 'pi pi-exclamation-triangle', acceptLabel: 'מחק', rejectLabel: 'ביטול', rejectVisible: true,
       accept: () => {
-        if (this.deletingSourceId() !== null) return;
+        if (this.bankingActionLoading()) return;
         this.deletingSourceId.set(source.sourceRecordId!);
         this.transactionsService.deleteSource(source.sourceRecordId!)
           .pipe(finalize(() => this.deletingSourceId.set(null)))
@@ -476,7 +517,7 @@ export class SettingsPage implements OnInit {
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
   onPullSource(s: { sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
-    if (this.retryingSourceId() || this.deletingSourceId() !== null) return; // one at a time
+    if (this.bankingActionLoading()) return; // one operation at a time
     if (s.isDirect === true) {
       // Direct card — nothing to pull from the card feed (bank feed covers it).
       this.messageService.add({

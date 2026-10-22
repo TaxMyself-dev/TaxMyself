@@ -74,3 +74,15 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - Combined verification: focused tests and both builds above; legacy document failures independently reproduced on base.
 - origin/main verification: feature not pushed or merged.
 - User-visible entry points: Settings > permissions/accounts; Admin > clients > banking management; /billing/open-banking/manage for owners without an active subscription.
+
+## Approved table and warning follow-up (2026-10-22)
+
+- Settings uses cancellation/reconnection row actions on its existing source table, identified by stable Source record ID. Complete disconnect and permission refresh follow that table. Disconnected records keep existing manual deletion as a separate action.
+- Every cancellation refreshes the owned consent list before showing a modal. The modal shows all linked bank accounts/cards, including masked provider-only instruments absent from stored Sources. Such entries are preview-only and never create, rebind or delete Sources.
+- If a source belongs to multiple permissions, the user explicitly chooses one. Incomplete reads prevent confirmation. Admin/standalone views use the shared table with a fallback row for pending permissions without identified instruments.
+- Table loading, pulls, deletion, discovery and termination cannot overlap through these controls. A deferred initial check retries after the parent source table loads. Reconnection continues through the existing enrollment flow; retention and stable-source reconciliation remain unchanged.
+- Confirmed static warning defect: absent-identity GET 404 recognition omitted the configured proxy prefix. Matching now uses the exact configured endpoint origin/path and owned identity; unrelated/token/wrong-origin errors remain uncertain. Mock reproduction confirms the fix, but the actual warning seen by the user is unconfirmed without the runtime failed response.
+- Safe diagnostics now identify role, operation, stage and optional HTTP status without exposing raw errors, URLs, credentials or financial response bodies. UI explains which identity/read failed.
+- Backend verification: 2 focused suites / 43 tests passed, Nest build passed. Frontend final focused selection: shared component + Settings row routing + existing source deletion, 32 ChromeHeadless tests passed. Independent read-only review found two UI gaps; both corrected and covered by regressions.
+- No application servers, real provider calls, real disconnections, database changes, pushes or integration performed during this follow-up.
+- Final follow-up Angular production build passed (hash 110508ec7fa41d00); existing size/CommonJS warnings remain. git diff --check passed.

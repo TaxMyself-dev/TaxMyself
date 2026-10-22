@@ -9,18 +9,25 @@ import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { feezbackSub } from './utils/feezback-identity';
 import { validConnectedSources } from './consent/open-banking-connection';
 import { connectionOperation } from './consent/connection-operation';
+import { FeezbackHttpError } from './core/feezback-errors';
 
 export interface DisconnectionConsent {
   consentId: string;
   connectionRole: ConnectionRole;
   status: string;
-  sources: Array<{ sourceRecordId: number; sourceName: string; sourceType: string }>;
+  sources: Array<{ sourceRecordId: number | null; sourceName: string; sourceType: string; resourceId?: string }>;
 }
 export interface DisconnectionTargets {
   consents: DisconnectionConsent[];
   complete: boolean;
   hasOpenBanking: boolean;
-  errors: Array<{ connectionRole: ConnectionRole; code: string }>;
+  errors: Array<{
+    connectionRole: ConnectionRole;
+    code: string;
+    operation?: 'consents' | 'accounts' | 'cards';
+    stage?: 'authentication' | 'provider' | 'response' | 'unknown';
+    httpStatus?: number;
+  }>;
 }
 export interface DisconnectRequest {
   scope: 'all' | 'consent';
@@ -28,6 +35,25 @@ export interface DisconnectRequest {
   connectionRole?: ConnectionRole;
 }
 const terminal = new Set(['terminatedbytpp', 'revokedbypsu', 'expired', 'rejected', 'noanswer']);
+
+// Return only allowlisted operational metadata: provider errors can contain
+// identity-bearing URLs, echoed credentials and financial response bodies.
+function readFailure(connectionRole: ConnectionRole, operation: 'consents' | 'accounts' | 'cards', error: unknown): DisconnectionTargets['errors'][number] {
+  const diagnostic: DisconnectionTargets['errors'][number] = {
+    connectionRole, code: `${operation}_unavailable`, operation, stage: 'unknown',
+  };
+  if (error instanceof FeezbackHttpError) {
+    diagnostic.stage = 'provider';
+    try {
+      if (/\/token\/?$/.test(new URL(error.url).pathname)) diagnostic.stage = 'authentication';
+    } catch { /* No URL or error text is exposed. */ }
+    if (Number.isInteger(error.status) && error.status! >= 100 && error.status! <= 599) diagnostic.httpStatus = error.status;
+  } else if (error instanceof Error && ['Malformed consents', 'Malformed sources',
+    'Invalid Feezback consent response', 'Invalid Feezback cards response'].includes(error.message)) {
+    diagnostic.stage = 'response';
+  }
+  return diagnostic;
+}
 
 @Injectable()
 export class FeezbackDisconnectionService {
@@ -68,8 +94,8 @@ export class FeezbackDisconnectionService {
         const response = await this.api.getUserConsents(sub, true);
         if (!Array.isArray(response?.consents) || response.consents.some(c => typeof c?.resourceId !== 'string' || !c.resourceId.trim())) throw new Error('Malformed consents');
         providerConsents = response.consents;
-      } catch {
-        errors.push({ connectionRole, code: 'consents_unavailable' });
+      } catch (error) {
+        errors.push(readFailure(connectionRole, 'consents', error));
         connectionComplete = false;
         continue;
       }
@@ -83,14 +109,20 @@ export class FeezbackDisconnectionService {
         reads.forEach((read, index) => {
           const key = index === 0 ? 'accounts' : 'cards';
           if (read.status === 'fulfilled' && Array.isArray(read.value?.[key]) &&
-            read.value[key].every((source: any) => typeof source?.resourceId === 'string' && source.resourceId.trim())) providerSources.push(...read.value[key]);
-          else { connectionComplete = false; errors.push({ connectionRole, code: `${key}_unavailable` }); }
+            read.value[key].every((source: any) => typeof source?.resourceId === 'string' && source.resourceId.trim())) providerSources.push(...read.value[key].map((source: any) => ({
+              ...source, __previewSourceType: index === 0 ? 'BANK_ACCOUNT' : 'CREDIT_CARD',
+            })));
+          else {
+            connectionComplete = false;
+            errors.push(readFailure(connectionRole, key, read.status === 'rejected' ? read.reason : new Error('Malformed sources')));
+          }
         });
         connected ||= validConnectedSources(providerConsents, providerSources).length > 0;
       }
       for (const consent of active) {
-        const ids = new Set(providerSources.filter(source => source.consentId === consent.resourceId ||
-          source.relatedConsents?.some((c: any) => c.resourceId === consent.resourceId)).map(source => source.resourceId));
+        const linkedProviderSources = providerSources.filter(source => source.consentId === consent.resourceId ||
+          source.relatedConsents?.some((c: any) => c.resourceId === consent.resourceId));
+        const ids = new Set(linkedProviderSources.map(source => source.resourceId));
         const matchingRows = rows.filter(row => (row.connectionRole ?? 'primary') === connectionRole &&
           (row.consentId === consent.resourceId || (row.resourceId && ids.has(row.resourceId))));
         const usableIds = new Set(validConnectedSources([consent], providerSources).map(source => source.resourceId));
@@ -98,11 +130,24 @@ export class FeezbackDisconnectionService {
           (row.connectionRole ?? 'primary') === connectionRole && row.resourceId && usableIds.has(row.resourceId) &&
           stored.some(source => source.id === row.sourceRecordId && (source.connectionRole ?? 'primary') === connectionRole))
           .map(row => row.sourceRecordId!)));
-        consents.push({ consentId: consent.resourceId, connectionRole, status: consent.consentStatus ?? 'unknown',
-          sources: stored.filter(source => (source.connectionRole ?? 'primary') === connectionRole &&
+        const preview: DisconnectionConsent['sources'] = stored.filter(source => (source.connectionRole ?? 'primary') === connectionRole &&
             (matchingRows.some(row => row.sourceRecordId === source.id))).map(source => ({
               sourceRecordId: source.id, sourceName: source.sourceName, sourceType: source.sourceType,
-            })),
+            }));
+        const representedResources = new Set(matchingRows.filter(row => preview.some(source => source.sourceRecordId === row.sourceRecordId))
+          .map(row => row.resourceId).filter(Boolean));
+        for (const source of linkedProviderSources) {
+          if (representedResources.has(source.resourceId)) continue;
+          representedResources.add(source.resourceId);
+          const masked = source.__previewSourceType === 'BANK_ACCOUNT'
+            ? typeof source.iban === 'string' ? source.iban.replace(/\s/g, '').slice(-7) : ''
+            : typeof source.maskedPan === 'string' ? source.maskedPan.match(/(\d{4})$/)?.[1] ?? '' : '';
+          const currency = typeof source.currency === 'string' && /^[A-Z]{3}$/.test(source.currency) ? source.currency : '';
+          preview.push({ sourceRecordId: null, resourceId: source.resourceId, sourceType: source.__previewSourceType,
+            sourceName: masked ? `•••${masked}${currency ? ` ${currency}` : ''}` : 'אמצעי תשלום נוסף' });
+        }
+        consents.push({ consentId: consent.resourceId, connectionRole, status: consent.consentStatus ?? 'unknown',
+          sources: preview,
         });
       }
     }
