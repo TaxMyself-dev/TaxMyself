@@ -1,0 +1,55 @@
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "<message_time>2026-10-04, 12:01 Asia/Jerusalem</message_time>"
+      },
+      {
+        "type": "text",
+        "text": "Create a task to call the accountant"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool-call",
+        "toolCallId": "call-a1",
+        "toolName": "createTrackingTask",
+        "input": {
+          "sentence": "Find an accountant"
+        }
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "type": "tool-result",
+        "toolCallId": "call-a1",
+        "toolName": "createTrackingTask",
+        "output": {
+          "type": "error-text",
+          "value": "interrupted: the action's outcome is unknown; check its current state before doing anything again"
+        }
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "<message_time>2026-10-04, 12:01 Asia/Jerusalem</message_time>"
+      },
+      {
+        "type": "text",
+        "text": "I stopped you, what happened?"
+      }
+    ]
+  }
+]

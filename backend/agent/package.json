@@ -1,0 +1,60 @@
+{
+  "name": "keepintax-agent",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "generate-i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy preferredLanguage baseLocale",
+    "postinstall": "node scripts/patch-deepeval.ts && npm run generate-i18n",
+    "build": "npm run generate-i18n && node scripts/build-agent.ts",
+    "worker:tasks": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local backend/worker/task-worker.ts",
+    "typecheck": "tsc --noEmit",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "test": "vitest run --project unit",
+    "eval": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/runner/run-agent-evals.ts",
+    "harness": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/harnessing/run-agent-harnessing.ts",
+    "prepare": "effect-tsgo patch --typescript --oxlint"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "4.0.99",
+    "@effect/platform-node": "4.0.5",
+    "@firecrawl/anydoc": "0.2.4",
+    "@langfuse/otel": "^6.0.1",
+    "@langfuse/tracing": "^6.0.1",
+    "@langfuse/vercel-ai-sdk": "^6.0.1",
+    "@opentelemetry/sdk-trace-node": "^2.12.0",
+    "@supabase/supabase-js": "2.118.0",
+    "ai": "7.0.148",
+    "effect": "4.0.5",
+    "mysql2": "^3.11.0",
+    "posthog-node": "^5.56.4"
+  },
+  "devDependencies": {
+    "@effect/tsgo": "0.56.0",
+    "@effect/vitest": "4.0.5",
+    "@inlang/paraglide-js": "^2.29.1",
+    "@types/node": "^26.6.5",
+    "@typesafe-ai/sdk": "0.7.0",
+    "@typescript/native": "npm:typescript@7.1.0-beta",
+    "deepeval": "0.9.23",
+    "esbuild": "^0.28.0",
+    "eslint-plugin-github": "6.1.2",
+    "eslint-plugin-jsdoc": "^65.4.0",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "eslint-plugin-tsdoc": "^0.5.4",
+    "oxfmt": "^0.74.0",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "tsx": "^4.19.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "ultracite": "8.0.1",
+    "vite": "^8.3.5",
+    "vitest": "5.0.5"
+  },
+  "overrides": {
+    "@opentelemetry/api": "1.10.0"
+  }
+}

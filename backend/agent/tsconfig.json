@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/@effect/tsgo/schema.json",
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "paths": {
+      "#/*": ["./src/*"],
+      "@/*": ["./src/*"]
+    },
+    "lib": ["ES2022", "ES2023.Array", "ES2024.Promise", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+
+    /* Bundler mode: esbuild builds the server bundle (scripts/build-agent.mjs),
+       tsx runs the worker and the eval scripts, vitest the tests. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    // paraglide compiles the app's messages to JavaScript (src/paraglide).
+    "allowJs": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    /* Linting */
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // Effect's diagnostics run in this type-check (`effect-tsgo patch` in
+        // prepare): errors and warnings fail it. v4 marks modules such as
+        // HttpClient and FileSystem unstable (their API may change in a minor
+        // release); they are the documented v4 imports, so their use is not
+        // flagged.
+        "diagnosticSeverity": { "unstableApiUsage": "off" }
+      }
+    ]
+  }
+}

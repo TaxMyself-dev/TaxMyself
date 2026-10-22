@@ -89,6 +89,13 @@ async function bootstrap() {
       return next();
     }
 
+    // The agent harness (/api/agent, KT-089) reads its own request body as a
+    // stream, with its own size limit (a chat message with attachments), so
+    // it is left unparsed here.
+    if (req.path?.startsWith('/api/agent/')) {
+      return next();
+    }
+
     return bodyParser.json({
       limit: '50mb',
       verify: (req2: any, _res, buf) => {
