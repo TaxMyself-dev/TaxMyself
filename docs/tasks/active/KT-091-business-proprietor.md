@@ -1,6 +1,6 @@
 # KT-091 - Explicit business proprietor
 
-- Status: `WORKER_COMPLETE`
+- Status: `VERIFIED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt091-worker`
@@ -56,7 +56,7 @@ companies or partnerships.
 - Result: Added explicit primary/spouse proprietor ownership across persistence,
   signup, Settings CRUD, compatibility mapping, demo/delegation creation,
   implicit import routing, and P&L owner-name display.
-- Commit hash(es): pending worker commit.
+- Commit hash(es): worker `7b68281f`; integration `29d32ff6`.
 - Changed files: business/users/reports/delegation/demo backend paths; register,
   settings, shared frontend contracts; migration/cutover SQL; focused tests and
   topic documentation.
@@ -81,8 +81,15 @@ companies or partnerships.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
+- Reviewed by: Codex primary integration manager; scope/diff, validation,
+  deterministic backfill, documentation, and non-production boundary reviewed.
+- Integrated commit: `29d32ff6` on `codex/integration-kt091`.
+- Combined verification: Backend Jest 4 suites / 20 tests passed; focused
+  frontend TypeScript check passed; Nest and Angular production builds passed.
+  The focused frontend ChromeHeadless run already passed 2/2 on the identical
+  worker commit with a no-GPU launcher. Angular emitted existing
+  bundle-size/CommonJS warnings only.
 - `origin/main` verification:
-- User-visible run instructions:
+- User-visible run instructions: apply the appended KT-091 section in
+  `docs/redesign/cutover.sql` during the approved cutover before starting this
+  application version; no SQL was executed by this task.

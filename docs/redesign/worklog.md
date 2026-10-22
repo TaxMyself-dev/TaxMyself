@@ -2635,3 +2635,24 @@ Prior approved user/source/FK SQL is included but was not executed during
 integration. No production access, provider calls or deployment occurred.
 
 Delivery verified: 461885a2 on local main, origin/main and both integration refs; both requested feature tips are included. Task records archived after delivery. No production deployment.
+
+## 2026-10-22 — Explicit proprietor for each private-account business
+
+- Added `business.proprietorRole` (`PRIMARY` / `SPOUSE`) so each sole
+  proprietorship is linked to one household member rather than inferred from
+  row order or business number.
+- Registration assigns the primary/spouse business sections explicitly.
+  Settings requires the proprietor on private-account create/edit and only
+  offers an existing spouse. Company accounts remain primary-only. Existing
+  private-account restrictions continue to reject company and partnership
+  business types at both UI and backend boundaries.
+- P&L owner-name output now uses the stored proprietor; the trade name remains
+  `businessName`. Legacy signed-in compatibility fields and implicit import
+  routing also use the explicit role.
+- Added idempotent schema SQL and deterministic legacy backfill to
+  `docs/redesign/cutover.sql`: an unambiguous spouse-ID match becomes SPOUSE;
+  ambiguous and unmatched rows remain PRIMARY. No database SQL or production
+  deployment was executed.
+- Verification: backend Jest 4 suites / 20 tests; focused frontend tests 2/2;
+  focused frontend TypeScript check; Nest and Angular production builds. All
+  passed; Angular retains existing size/CommonJS warnings.
