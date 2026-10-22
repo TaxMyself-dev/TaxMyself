@@ -163,11 +163,24 @@ describe('Refund lifecycle including legacy payments', () => {
     const f = fixture(); f.receipts.finalizeBillingReceiptPdfs.mockRejectedValueOnce(Error('signer unavailable'));
     const first = await f.service.create(7, 'admin', f.dto);
     expect(first.status).toBe(S.CAPTURED);
+    expect(first.completionError).toMatchObject({ stage: 'PDF_SIGN_UPLOAD', message: 'signer unavailable' });
+    expect(f.receipts.sendReceiptEmailForPaymentEvent).not.toHaveBeenCalled();
     f.rows.get(BillingAttempt)[0].nextActionAt = new Date(0);
     await f.service.recover();
     expect(f.rows.get(BillingAttempt)[0].status).toBe(S.COMPLETED);
+    expect((await f.service.context(7)).refunds[0].completionError).toBeNull();
     expect(f.cardcom.refundTransaction).toHaveBeenCalledTimes(1);
     expect(f.documentService.createDoc).toHaveBeenCalledTimes(1);
+    expect(f.rows.get(BillingEvent).filter(e => e.eventType === E.REFUND_SUCCESS)).toHaveLength(1);
+  });
+
+  it('persists a sanitized email error without repeating the refund and exposes it after reload', async () => {
+    const f = fixture();
+    f.receipts.sendReceiptEmailForPaymentEvent.mockResolvedValueOnce({ sent: false, error: 'mail unavailable token=secret' } as any);
+    await f.service.create(7, 'admin', f.dto);
+    const result = (await f.service.context(7)).refunds[0];
+    expect(result.completionError).toMatchObject({ stage: 'EMAIL', message: 'mail unavailable [redacted]' });
+    expect(f.cardcom.refundTransaction).toHaveBeenCalledTimes(1);
     expect(f.rows.get(BillingEvent).filter(e => e.eventType === E.REFUND_SUCCESS)).toHaveLength(1);
   });
 

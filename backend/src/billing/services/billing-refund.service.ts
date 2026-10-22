@@ -79,7 +79,12 @@ export class BillingRefundService {
     const events = await this.db.manager.find(BillingEvent, { where: { billingAttemptId: a.id,
       eventType: E.REFUND_RESOLUTION }, order: { id: 'DESC' } });
     const response = events.find(e => e.metadata?.kind === 'PROVIDER_REFUND_RESPONSE');
-    return this.view(a, sanitizeCardcomDescription(response?.metadata?.description));
+    const failure = events.find(e => e.metadata?.kind === 'REFUND_COMPLETION_FAILED');
+    return { ...this.view(a, sanitizeCardcomDescription(response?.metadata?.description)),
+      completionError: a.status === S.CAPTURED && failure ? {
+        stage: failure.metadata.stage, message: sanitizeCardcomDescription(failure.metadata.message),
+        occurredAt: failure.createdAt,
+      } : null };
   }
 
   private async successEvent(m: EntityManager, a: BillingAttempt, source: BillingEvent) {
@@ -190,13 +195,16 @@ export class BillingRefundService {
       return m.save(BillingAttempt, a);
     });
     if (!attempt) return;
+    let stage = 'SOURCE_DOCUMENT';
     try {
       const source = await this.db.manager.findOneByOrFail(BillingEvent, { id: attempt.sourcePaymentEventId });
       const { issuer } = await this.originalDocument(this.db.manager, source);
+      stage = 'CREATE_CREDIT';
       const doc = await this.documents.createBillingSystemCredit({ issuer,
         sourceDocId: source.receiptDocId, billingAttemptId: attempt.id,
         amountAgorot: attempt.amountAgorot, amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
         vatAmountAgorot: attempt.vatAmountAgorot, reason: attempt.refundReason });
+      stage = 'LINK_CREDIT';
       const success = await this.db.transaction(async m => {
         const a = await m.findOne(BillingAttempt, { where: { id: attemptId }, lock: { mode: 'pessimistic_write' } });
         if (a.leaseOwner !== owner) throw new ConflictException('זיכוי בטיפול אחר');
@@ -206,13 +214,16 @@ export class BillingRefundService {
         event.receiptDocId = doc.receiptDocId;
         return m.save(BillingEvent, event);
       });
+      stage = 'PDF_SIGN_UPLOAD';
       await this.receipts.finalizeBillingReceiptPdfs(doc.receiptDocId, issuer, source.firebaseId);
+      stage = 'EMAIL';
       const fresh = await this.db.manager.findOneByOrFail(BillingAttempt, { id: attemptId });
       if (fresh.leaseOwner !== owner || fresh.leaseExpiresAt <= new Date()) throw new ConflictException('Refund finalization lease expired');
       if (!success.receiptEmailSent) {
         const sent = await this.receipts.sendReceiptEmailForPaymentEvent(success.id, issuer.issuerName);
-        if (!sent.sent) throw new Error('Refund document email pending');
+        if (!sent.sent) throw new Error(sent.error || 'Refund document email pending');
       }
+      stage = 'FINALIZE';
       await this.db.transaction(async m => {
         const a = await m.findOne(BillingAttempt, { where: { id: attemptId }, lock: { mode: 'pessimistic_write' } });
         if (a.leaseOwner !== owner) throw new ConflictException('זיכוי בטיפול אחר');
@@ -221,10 +232,25 @@ export class BillingRefundService {
         a.leaseOwner = null; a.leaseExpiresAt = null; a.stateVersion++;
         await m.save(BillingAttempt, a);
       });
-    } catch {
-      await this.db.manager.update(BillingAttempt, { id: attemptId, operation: 'REFUND', leaseOwner: owner },
-        { leaseOwner: null, leaseExpiresAt: null, failureCategory: 'REFUND_DOCUMENT_PENDING',
-          nextActionAt: new Date(Date.now() + Math.min(24 * 60 * 60_000, 60_000 * 2 ** Math.min(attempt.reconciliationAttempts, 10))) });
+    } catch (error) {
+      // Never persist the raw exception, stack, HTTP body or request configuration.
+      const credentials = this.cardcom.getApiCredentials();
+      const message = sanitizeCardcomDescription(error instanceof Error ? error.message : null,
+        [credentials.apiName, credentials.apiPassword]) || 'Refund document completion failed';
+      await this.db.transaction(async m => {
+        const a = await m.findOne(BillingAttempt, { where: { id: attemptId, operation: 'REFUND' }, lock: { mode: 'pessimistic_write' } });
+        if (!a || a.leaseOwner !== owner) return;
+        const source = await m.findOneByOrFail(BillingEvent, { id: a.sourcePaymentEventId });
+        await m.save(BillingEvent, m.create(BillingEvent, {
+          firebaseId: source.firebaseId, subscriptionId: source.subscriptionId,
+          eventType: E.REFUND_RESOLUTION, billingAttemptId: a.id,
+          currency: a.currency, metadata: { kind: 'REFUND_COMPLETION_FAILED', stage, message },
+        }));
+        a.leaseOwner = null; a.leaseExpiresAt = null; a.failureCategory = 'REFUND_DOCUMENT_PENDING';
+        a.nextActionAt = new Date(Date.now() + Math.min(24 * 60 * 60_000, 60_000 * 2 ** Math.min(attempt.reconciliationAttempts, 10)));
+        await m.save(BillingAttempt, a);
+      });
+      this.logger.warn(`Refund ${attemptId} completion failed at ${stage}: ${message}`);
     }
   }
 

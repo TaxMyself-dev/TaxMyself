@@ -62,6 +62,18 @@ describe('Admin refund dialog', () => {
     expect(api.createRefund).not.toHaveBeenCalled(); expect(api.resolveRefund).not.toHaveBeenCalled();
     expect(c.providerChecks()[22].message).toBe('לא נמצאו תוצאות');
   });
+  it('renders the saved completion error and retry action for an approved refund', async () => {
+    api.getRefundContext.and.returnValue(of({ ...context, refunds: [{ attemptId: 22,
+      amountAgorot: 3500, status: 'CAPTURED', createdAt: '2026-10-22', reason: 'בדיקה',
+      completionError: { stage: 'PDF_SIGN_UPLOAD', message: 'signer unavailable', occurredAt: '2026-10-22' } }] }));
+    const fixture = TestBed.createComponent(BillingRefundDialogComponent);
+    fixture.componentInstance.subscriptionId = 7; fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('signer unavailable');
+    expect(fixture.nativeElement.textContent).toContain('הפקת PDF, חתימה והעלאה');
+    expect(fixture.nativeElement.textContent).toContain('השלמת מסמך ושליחה');
+    expect(api.createRefund).not.toHaveBeenCalled(); fixture.destroy();
+  });
+
   it('shows the stored provider code/description and explains missing legacy descriptions', async () => {
     api.getRefundContext.and.returnValue(of({ ...context, refunds: [
       { attemptId: 22, amountAgorot: 4000, status: 'UNKNOWN', providerResponseCode: 671,

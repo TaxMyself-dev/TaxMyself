@@ -227,6 +227,7 @@ export interface AdminRefund {
   attemptId: number; paymentEventId: number; amountAgorot: number; status: string;
   stateVersion: number; createdAt: string; transactionId: string | null; receiptDocId: number | null; reason: string;
   providerResponseCode?: number | null; providerDescription?: string | null;
+  completionError?: { stage: string; message: string | null; occurredAt: string } | null;
 }
 export interface RefundProviderCheck {
   originalVerified: boolean; complete: boolean; checkedAt: string; message: string;

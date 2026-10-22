@@ -144,3 +144,14 @@ Frontend isolated tests cover confirmation, exact agorot, click suppression,
 retry request identity, invalid balance and completion-only recovery.
 
 Official contract checked: https://secure.cardcom.solutions/swagger/v11/swagger.json
+# Completion error diagnostics (dev follow-up, 2026-10-22)
+
+Document completion failures persist a bounded, redacted message, stage and event
+timestamp in existing REFUND_RESOLUTION metadata (REFUND_COMPLETION_FAILED).
+Saving this event and releasing the finalization lease/backoff are atomic and
+guarded by lease ownership. The admin dialog shows the latest error while the
+refund is CAPTURED; successful completion hides it but retains the audit record.
+Stages distinguish source validation, credit creation/linking, PDF/sign/upload,
+email and final status persistence. Raw exceptions, stacks and HTTP bodies are
+not saved. Existing failures cannot be reconstructed; the next completion attempt
+records a new diagnostic. No schema changes or additional provider refunds.

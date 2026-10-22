@@ -64,6 +64,13 @@ import { AdminBillingService, AdminRefund, RefundContext, RefundPayment, RefundP
               } @else if (r.status === 'UNKNOWN') { <p>לא נשמרה תשובת API תקינה לבקשה זו.</p> }
               @if (r.transactionId) { <p>מספר עסקת זיכוי: {{ r.transactionId }}</p> }
               @if (r.status === 'CAPTURED') {
+                @if (r.completionError; as failure) {
+                  <div class="refund-error" role="alert">
+                    <p>שגיאה בהשלמת המסמך — {{ completionStages[failure.stage] ?? failure.stage }}</p>
+                    <p>{{ failure.message }}</p>
+                    <p>{{ failure.occurredAt | date:'dd/MM/yyyy HH:mm' }}</p>
+                  </div>
+                }
                 <p>ההחזר אושר. אפשר להשלים מסמך ושליחה בלי לזכות שוב.</p>
                 <button type="button" [disabled]="busy()" (click)="resolve(r, 'COMPLETE')">השלמת מסמך ושליחה</button>
               }
@@ -105,6 +112,9 @@ export class BillingRefundDialogComponent implements OnInit {
   evidence: Record<number, string> = {}; transactionIds: Record<number, string> = {};
   reviewConfirmed: Record<number, boolean> = {};
   private lastRequest: { signature: string; id: string } | null = null;
+  readonly completionStages: Record<string, string> = { SOURCE_DOCUMENT: 'בדיקת מסמך המקור',
+    CREATE_CREDIT: 'יצירת מסמך זיכוי', LINK_CREDIT: 'קישור המסמך לזיכוי',
+    PDF_SIGN_UPLOAD: 'הפקת PDF, חתימה והעלאה', EMAIL: 'שליחת אימייל', FINALIZE: 'עדכון סיום התהליך' };
   readonly labels: Record<string, string> = { PROCESSING: 'נשלח לקארדקום', UNKNOWN: 'נדרש בירור מול קארדקום',
     MANUAL_REVIEW: 'נדרשת בדיקה', CAPTURED: 'הכסף הוחזר — המסמך או השליחה ממתינים', COMPLETED: 'הזיכוי והמסמך הושלמו',
     DECLINED: 'נסגר לאחר אישור שלא בוצע החזר', CREATED: 'ממתין לביצוע' };

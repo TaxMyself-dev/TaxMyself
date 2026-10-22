@@ -71,3 +71,16 @@ was performed by these mocked tests. git diff --check passed.
   document numbering and admin actor authorization reused; no entitlement/debt change.
 - Documentation: docs/features/admin-refunds.md; nearest billing/documents/admin
   topic instructions; commented dev-only cumulative DDL in docs/redesign/cutover.sql.
+# Follow-up 2026-10-22: document completion diagnostics
+
+Requested by Elazar: save and display errors from successful refunds whose credit
+PDF/email completion fails. Added stage/message/time audit metadata and admin
+display, retaining CAPTURED recovery and no-repeat-money behavior. No schema or
+production changes; no live provider operation or manual financial-state update.
+Focused tests cover persisted PDF and email failure, sanitization, reload,
+successful recovery hiding the old error, and rendered admin error/retry UI.
+Validation: 14 backend refund tests and 8 isolated ChromeHeadless dialog tests
+passed; Nest and Angular production builds passed. Initial frontend invocation
+omitted Angular's include filter and failed test discovery; corrected isolated
+invocation passed. git diff --check passed. Local port 4200 serves completionError
+and completionStages; backend compiled output includes the new diagnostic.
