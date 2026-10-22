@@ -7,13 +7,20 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
-import { Readable } from 'stream';
+import { Readable, Transform } from 'stream';
+import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeWebReadableStream } from 'stream/web';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
 import { AgentHarnessService, AgentHarnessUser } from './agent-harness.service';
+
+// The chat reads its own body with its own limit (a message with up to five
+// 10 MB attachments, readAgentChatRequest); every other agent route takes a
+// small JSON body, capped here before the agent reads it.
+const agentChatPath = '/api/agent/chat';
+const agentBodyLimitBytes = 1024 * 1024;
 
 /**
  * Every agent request (/api/agent/*: the chat, its stream, stop, steer and
@@ -42,6 +49,18 @@ export class AgentHarnessController {
     @Req() req: AuthenticatedRequest,
     @Res() res: ExpressResponse,
   ): Promise<void> {
+    // The client left while the guard ran: nothing to serve.
+    if (req.destroyed || res.destroyed) {
+      return;
+    }
+
+    if (exceedsBodyLimit(req)) {
+      res.status(413).json({
+        error: { code: 'AGENT_INVALID_INPUT', message: 'The request is too large.' },
+      });
+      return;
+    }
+
     const user: AgentHarnessUser = {
       actorFirebaseId: req.user.actorFirebaseId ?? req.user.firebaseId,
       firebaseId: req.user.firebaseId,
@@ -69,7 +88,7 @@ export class AgentHarnessController {
       );
     } catch (error) {
       this.logger.error(
-        'AGENT_REQUEST_FAILED',
+        'AGENT_UNAVAILABLE',
         error instanceof Error ? error.stack : String(error),
       );
       res.status(503).json({
@@ -84,6 +103,30 @@ export class AgentHarnessController {
     await sendWebResponse(response, res);
   }
 }
+
+const isChatRequest = (req: AuthenticatedRequest) =>
+  req.path === agentChatPath;
+
+// A declared body past the limit, on a route other than the chat.
+const exceedsBodyLimit = (req: AuthenticatedRequest) =>
+  !isChatRequest(req) &&
+  Number(req.headers['content-length'] ?? 0) > agentBodyLimitBytes;
+
+// The body as it streams, failing once it passes the limit (a body sent
+// without its length, or with a false one).
+const limitBody = (limit: number) => {
+  let received = 0;
+
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      received += chunk.length;
+      callback(
+        received > limit ? new Error('AGENT_BODY_TOO_LARGE') : null,
+        chunk,
+      );
+    },
+  });
+};
 
 // The Express request as a web Request: the URL the agent's routes match
 // (/api/agent/...), the headers, and the unparsed body stream.
@@ -102,20 +145,25 @@ const toWebRequest = (req: AuthenticatedRequest, signal: AbortSignal) => {
 
   const url = `${req.protocol}://${req.get('host') ?? 'localhost'}${req.originalUrl}`;
   const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+  const body = isChatRequest(req)
+    ? req
+    : req.pipe(limitBody(agentBodyLimitBytes));
 
   return new Request(url, {
     method: req.method,
     headers,
     signal,
     ...(hasBody && {
-      body: Readable.toWeb(req) as unknown as ReadableStream<Uint8Array>,
+      body: Readable.toWeb(body) as unknown as ReadableStream<Uint8Array>,
       duplex: 'half',
     }),
   } as RequestInit);
 };
 
 // The agent's web Response, streamed to the Express response as it comes
-// (the chat answer streams for minutes; nothing is buffered).
+// (the chat answer streams for minutes; nothing is buffered). A client that
+// leaves ends the copy: the agent's own reader stops following, while the
+// answer itself goes on.
 const sendWebResponse = async (response: Response, res: ExpressResponse) => {
   res.status(response.status);
   response.headers.forEach((value, name) => {
@@ -129,18 +177,15 @@ const sendWebResponse = async (response: Response, res: ExpressResponse) => {
 
   res.flushHeaders();
 
-  await new Promise<void>((resolve) => {
-    const body = Readable.fromWeb(
-      response.body as unknown as NodeWebReadableStream<Uint8Array>,
+  try {
+    await pipeline(
+      Readable.fromWeb(
+        response.body as unknown as NodeWebReadableStream<Uint8Array>,
+      ),
+      res,
     );
-    body.on('error', () => {
-      res.destroy();
-      resolve();
-    });
-    res.on('close', () => {
-      body.destroy();
-      resolve();
-    });
-    body.pipe(res);
-  });
+  } catch {
+    // The client left or the stream failed mid-way: the response is over.
+    res.destroy();
+  }
 };

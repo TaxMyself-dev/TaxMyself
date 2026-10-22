@@ -4,3 +4,6 @@ node_modules
 npm-debug.log
 dist
 .env
+# The agent package (KT-089) installs and builds its own dependencies.
+agent/node_modules
+agent/dist

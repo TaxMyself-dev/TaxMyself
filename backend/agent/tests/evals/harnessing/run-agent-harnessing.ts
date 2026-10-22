@@ -30,7 +30,7 @@ import {
 } from "./harness-selection";
 import type { HarnessTaskRun } from "./harness-stage";
 
-// Agent harnessing, on demand only (bun run harness), after Harness² (arXiv
+// Agent harnessing, on demand only (npm run harness), after Harness² (arXiv
 // 2610.14224): for each eval case that failed in an earlier run, adapt the
 // agent's harness (its instructions and tool descriptions) by
 // Propose-Probe-Compose, select a final blind, reflect into the area's
@@ -38,12 +38,12 @@ import type { HarnessTaskRun } from "./harness-stage";
 // rerun --reps times. Nothing is adopted into the code: report.md and each
 // case's adopted.diff wait for a person's approval.
 //
-//   bun run harness --from bench-luna --budget 10
-//   bun run harness --case "agent/x.eval.ts > d > t" --k 2 --mode seq
+//   npm run harness -- --from bench-luna --budget 10
+//   npm run harness -- --case "agent/x.eval.ts > d > t" --k 2 --mode seq
 //
 // The proposer is Claude Code's CLI (harness-proposer.ts), capped at
 // --budget dollars across the run; the agent and the judges run as in
-// bun run eval. A run resumes: finished rollouts and proposer sessions are
+// npm run eval. A run resumes: finished rollouts and proposer sessions are
 // reused from .eval/agent/harnessing/<tag>/.
 
 const projectRoot = path.resolve(import.meta.dirname, "../../..");

@@ -12,12 +12,12 @@ import {
 } from "./eval-run-records";
 import { summarizeEvalRun } from "./eval-run-summary";
 
-// Runs the evals as one recorded, resumable run (bun run eval), following
+// Runs the evals as one recorded, resumable run (npm run eval), following
 // the eval-skills toolkit (.eval/agent, .agents/skills/eval-run):
 //
-//   bun run eval --variant baseline --reps 3
-//   bun run eval --variant baseline --reps 3 -t "approvals"        # some cases
-//   bun run eval --variant prompt-v2 --reps 3 --compare baseline
+//   npm run eval -- --variant baseline --reps 3
+//   npm run eval -- --variant baseline --reps 3 -t "approvals"        # some cases
+//   npm run eval -- --variant prompt-v2 --reps 3 --compare baseline
 //
 // 1. Indexes the cases (vitest list) into .eval/agent/dataset/goldens.jsonl,
 //    with their source from case-sources.json.
@@ -94,14 +94,21 @@ const buildEvalGoldens = () => {
   )(readFileSync(path.join(evalRoot, "dataset/case-sources.json"), "utf-8"));
 
   const goldens = listed.map((test) => {
-    const id = `${path.relative(evalsRoot, test.file)} > ${test.name}`;
+    // A case id names its file with forward slashes on every system (on
+    // Windows path.relative answers with backslashes), so ids, hashes and
+    // case-sources.json keys agree across machines.
+    const file = path.relative(evalsRoot, test.file).replaceAll(path.sep, "/");
+    const id = `${file} > ${test.name}`;
 
     const golden = {
       id,
       // Each case is its own conversation and fixtures, so its own group.
       group_id: id,
-      input: { file: path.relative(projectRoot, test.file), test: test.name },
-      tags: [path.relative(evalsRoot, test.file).replace(/\.eval\.ts$/u, "")],
+      input: {
+        file: path.relative(projectRoot, test.file).replaceAll(path.sep, "/"),
+        test: test.name,
+      },
+      tags: [file.replace(/\.eval\.ts$/u, "")],
       source: sources.cases[id] ?? sources.default,
     };
 
@@ -210,7 +217,7 @@ const runAgentEvals = (runVariant: string) => {
     reps,
     compareTo,
   });
-  // The report script uses Node's standard library only; the Bun running the
+  // The report script uses Node's standard library only; the Node running the
   // evals (process.execPath) runs it, not a node found on PATH.
   execFileSync(
     process.execPath,

@@ -95,6 +95,23 @@ const fieldJson = (value: AgentSqlValue, key: string) => {
   return field === undefined ? null : JSON.stringify(field);
 };
 
+const uuidPattern =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
+
+// A uuid argument as Postgres takes one: checked (22P02) and lowercase.
+const uuidArgument = (value: AgentSqlValue | undefined) => {
+  const text = textOf(value);
+
+  if (text === null || !uuidPattern.test(text)) {
+    throw raise(
+      `invalid input syntax for type uuid: "${String(text)}"`,
+      "22P02"
+    );
+  }
+
+  return text.toLowerCase();
+};
+
 const timestampOf = (value: AgentSqlValue | undefined) => {
   const read = postgrestValue("timestamp", value);
 
@@ -160,11 +177,11 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
   args
 ) => {
   const userId = userIdOf(scope, "claim_agent_chat_answer");
-  const chatId = textOf(args.chat_id);
-  const streamId = textOf(args.answer_stream_id);
+  const chatId = uuidArgument(args.chat_id);
+  const streamId = uuidArgument(args.answer_stream_id);
   const leaseSeconds = integerOf(args.lease_seconds);
 
-  if (chatId === null || streamId === null || leaseSeconds === null) {
+  if (leaseSeconds === null) {
     throw raise("claim_agent_chat_answer: invalid arguments", "22023");
   }
 
@@ -181,7 +198,7 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
       ]
     );
 
-    await executor.query(
+    const claimed = await executor.query(
       `UPDATE agent_chat_conversations
        SET answering_until = NOW(6) + INTERVAL ? SECOND, active_stream_id = ?
        WHERE id = ? AND user_id = ?
@@ -190,8 +207,7 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
     );
 
     const { rows } = await executor.query(
-      `SELECT answering_until, active_stream_id
-       FROM agent_chat_conversations WHERE id = ? AND user_id = ?`,
+      "SELECT answering_until FROM agent_chat_conversations WHERE id = ? AND user_id = ?",
       [chatId, userId]
     );
 
@@ -201,9 +217,8 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
       return [{ status: "missing", answering_until: null }];
     }
 
-    // The lease is this answer's when its stream is the one just marked;
-    // another answer's lease leaves the conversation as it was.
-    return conversation.active_stream_id === streamId
+    // The update took the lease only when no live lease held it.
+    return claimed.affectedRows > 0
       ? [
           {
             status: "claimed",
@@ -364,23 +379,47 @@ const claimInRange = (claimLimit: number | null) =>
 
 // The due tasks this worker takes: active, not claimed, retry or interval
 // come, oldest first, skipping rows another worker holds.
-const lockDueTasks = async (executor: AgentSqlExecutor, claimLimit: number) =>
-  await executor.query(
-    `SELECT task.id, task.user_id, task.sentence, task.details, task.location,
-       task.budget, task.sources, task.alerts, task.last_scanned_at
-     FROM tracking_tasks AS task
-     WHERE task.status = 'active'
+// A task is due: active, not claimed, its retry time come or, with no
+// retry pending, its interval passed since its last scan.
+const dueCondition = `task.status = 'active'
        AND (task.scan_claimed_until IS NULL OR task.scan_claimed_until < NOW(6))
        AND CASE
          WHEN task.scan_retry_at IS NOT NULL THEN task.scan_retry_at <= NOW(6)
          ELSE task.last_scanned_at IS NULL
            OR ${afterScanInterval("task.last_scanned_at", "task.scan_frequency")} <= NOW(6)
-       END
-     ORDER BY (COALESCE(task.scan_retry_at, task.last_scanned_at) IS NULL) DESC,
-       COALESCE(task.scan_retry_at, task.last_scanned_at) ASC
-     LIMIT ${claimLimit}
-     FOR UPDATE SKIP LOCKED`
+       END`;
+
+const dueOrder = `(COALESCE(task.scan_retry_at, task.last_scanned_at) IS NULL) DESC,
+       COALESCE(task.scan_retry_at, task.last_scanned_at) ASC`;
+
+// The due tasks this worker takes, oldest first, skipping rows another
+// worker holds. InnoDB locks every row a sorted locking read scans, so the
+// due tasks are found first without locks, and only those are then locked
+// (and checked again): Postgres' FOR UPDATE SKIP LOCKED locks only the rows
+// it returns.
+const lockDueTasks = async (executor: AgentSqlExecutor, claimLimit: number) => {
+  const { rows: candidates } = await executor.query(
+    `SELECT task.id FROM tracking_tasks AS task
+     WHERE ${dueCondition}
+     ORDER BY ${dueOrder}
+     LIMIT ${claimLimit * 4}`
   );
+
+  if (candidates.length === 0) {
+    return { rows: [], affectedRows: 0 };
+  }
+
+  return await executor.query(
+    `SELECT task.id, task.user_id, task.sentence, task.details, task.location,
+       task.budget, task.sources, task.alerts, task.last_scanned_at
+     FROM tracking_tasks AS task
+     WHERE task.id IN (${marks(candidates.length)}) AND ${dueCondition}
+     ORDER BY ${dueOrder}
+     LIMIT ${claimLimit}
+     FOR UPDATE SKIP LOCKED`,
+    candidates.map((row) => sqlText(row.id))
+  );
+};
 
 const claimedTask = (runId: string, task: AgentSqlRow) => ({
   run_id: runId,
@@ -640,6 +679,35 @@ const recordScanScores = async (
 // The matches, each new one with an in-app alert when the task's alerts are
 // on; how many were new. Each gets an id first, so the ones the insert kept
 // (not repeats of an existing match) are the ids found after it.
+// A match as record_task_source_scan casts it: Postgres fails the scan on
+// a missing intent or reason, an invalid time or a score that is not a
+// whole number.
+const assertMatch = (item: AgentSqlValue) => {
+  const score = fieldOf(item, "score");
+  const postedAt = fieldText(item, "postedAt");
+
+  if (
+    fieldText(item, "intent") === null ||
+    fieldText(item, "reason") === null
+  ) {
+    throw raise("null value in a match's intent or reason", "23502");
+  }
+
+  if (!Predicate.isNumber(score) || !Number.isInteger(score)) {
+    throw raise(
+      `invalid input syntax for type smallint: ${JSON.stringify(score ?? null)}`,
+      "22P02"
+    );
+  }
+
+  if (postedAt !== null && postedAtParameter(postedAt) === null) {
+    throw raise(
+      `invalid input syntax for type timestamp: "${postedAt}"`,
+      "22007"
+    );
+  }
+};
+
 const recordScanMatches = async (
   executor: AgentSqlExecutor,
   task: AgentSqlRow,
@@ -647,6 +715,10 @@ const recordScanMatches = async (
 ) => {
   if (opportunities.length === 0) {
     return 0;
+  }
+
+  for (const item of opportunities) {
+    assertMatch(item);
   }
 
   const ownerId = sqlText(task.user_id);

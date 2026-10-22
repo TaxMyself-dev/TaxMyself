@@ -9,7 +9,7 @@ import { evalShortHash, readEvalJsonLines } from "../runner/eval-run-records";
 
 // One rollout of an eval case under a harness, for agent harnessing
 // (Harness² BenchmarkAdapter.execute, trajectory, delivered): the case runs
-// through vitest exactly as bun run eval runs it, into its own run
+// through vitest exactly as npm run eval runs it, into its own run
 // directory, with AGENT_HARNESS_DIR naming the harness (none for the base).
 // What the method reads back is the trace (the user's messages, every
 // model step and tool call, the answer); the run's results.jsonl holds the
@@ -24,7 +24,7 @@ const vitestEntry = path.join(projectRoot, "node_modules/vitest/vitest.mjs");
 const evalsRoot = path.join(projectRoot, "tests/evals");
 
 /**
- * The dataset rollouts read their case from (bun run eval writes it).
+ * The dataset rollouts read their case from (npm run eval writes it).
  */
 export const agentEvalDatasetPath = path.join(
   projectRoot,

@@ -13,7 +13,7 @@ What is not here yet: the chat UI (its spec is pending; the template's React UI 
 3. Put the agent's keys in `backend/.env` beside the backend's own (see `.env.example`): `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `AGENT_APP_ORIGINS`, and the Langfuse keys.
 4. `npm run build`: the bundle the Nest backend loads (`dist/agent-http.mjs`) and the worker (`dist/task-worker.mjs`).
 5. Start the backend as usual; the agent answers under `/api/agent/*`. Run the task worker beside it: `npm run worker:tasks` (or `node dist/task-worker.mjs`).
-6. Check it: `npm run typecheck`, `npm run check` (lint and format), `npm test` (unit tests). `npm run eval` calls the real model and costs money.
+6. Check it: `npm run typecheck`, `npm run check` (lint and format), `npm test` (unit tests). `npm run eval -- --variant <name> --reps 3` calls the real model and costs money (npm needs the `--` before the runner's flags; the same for `npm run harness -- ...`). The real-chat scripts run as `npx tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/traces/<script>.ts`.
 
 ## How a request reaches the agent
 
@@ -55,13 +55,25 @@ The server functions are the template's own (`*-persistence.ts`): the session (`
 | Supabase auth (cookies, `auth.getClaims()`) | Firebase, verified by the Nest backend's `FirebaseAuthGuard`; the agent maps each Firebase uid to its own user id (`agent_users`), so every id the template treats as a uuid stays one | `src/server/runtime/supabase-client.ts`, `agent-request-identity.ts`, `agent-request-context.ts`, `backend/shared/mysql/mysql-agent-clients.ts` |
 | Supabase Postgres with row level security and SQL functions | KeepInTax's MySQL 8, through a gateway that answers supabase-js's PostgREST requests: the template's queries and typed tables are unchanged; the policies and grants become code (every user query scoped to the user's rows, new rows written as theirs, conversations checked, upserts never take over another user's row, column grants); the Postgres functions become MySQL transactions with the same locks (`FOR UPDATE SKIP LOCKED`, fencing) | `backend/shared/mysql/*`, `backend/shared/supabase/supabase-service-database.ts`, `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql` |
 | Same-origin pages | The Angular app calls the API from another origin: `AGENT_APP_ORIGINS` lists the app's origins for the cross-site guard | `src/server/runtime/app-same-origin-request.ts` |
-| paraglide URL strategy (`/he`) | `preferredLanguage` then `baseLocale` (the request's Accept-Language); the chat's own language still comes with each chat request | `package.json` (`generate-i18n`) |
+| paraglide URL strategy (`/he`) | `baseLocale`: server routes carried no `/he` in the template either, so server text was English there too; the chat's language comes with each chat request | `package.json` (`generate-i18n`) |
 | `bun patch` of deepeval | the same patch (delete the stale `dist/telemetry.js`) after `npm install` | `scripts/patch-deepeval.ts` |
 | Vite bundling | esbuild bundles the server entry and the worker | `scripts/build-agent.ts` |
 | macOS paths in the eval scripts (`/usr/bin/git`, `.bin/vitest`, `~/.local/bin/claude`) | the same on macOS and Linux, and Windows' equivalents | `tests/evals/runner`, `tests/evals/harnessing` |
 | `@opentelemetry/api` as Bun resolves it | pinned to 1.10.0 (`overrides`), which Langfuse's exporters need under npm | `package.json` |
 
-Not ported, with reason: the React UI, its client state and its tests (`src/components`, `src/lib/**/*-atoms.ts`, the chat's client queue, the e2e journeys) wait for the UI spec; Supabase sign-in and sign-up (`src/lib/auth/auth-session.ts`) are Firebase's in KeepInTax; the Postgres migration is replaced by the MySQL one.
+Not ported, with reason:
+
+- The React UI and everything only the browser runs wait for the UI spec: `src/components`, `src/styles`, the pages' routes, `src/hooks`, the client state (`src/lib/**/*-atoms.ts`, `src/lib/atoms/*`), the server functions' client wrappers (`*-server-calls.ts`), browser analytics (`src/lib/analytics/*`), `src/lib/dates/*`, `src/lib/theme/*`, `src/lib/interaction/*`, the client i18n helpers (`app-direction.ts`, `app-locale-switch-atom.ts`, `typed-text-direction.ts`), `src/lib/perf/journey-timing-report.ts`, the UI's labels and views (`tracking-task-labels.ts`, `tracking-task-view.ts`, `agent-action-labels.ts`, `settings-dialog-section.ts`, `task-opportunity-filters.ts`), `user-state-writes.ts`, `split-text-graphemes.ts`, the chat's client code (`agent-chat-attachments.ts`, `agent-chat-conversation-actions.ts`, `agent-chat-conversation-markdown.ts`, `agent-chat-queue.ts`, the dictation's client files), the client auth helpers, the e2e journeys, and the two tests of the dropped client code (`agent-chat-conversation-list.test.ts`, `agent-chat-queue.test.ts`). The shadcn lint preset and the TanStack and react-doctor lint plugins go with them (`oxlint.config.ts`).
+- Supabase sign-in, sign-up and its email-link callback (`src/lib/auth/auth-session.ts`, `src/routes/auth/callback.ts`) are Firebase's in KeepInTax; `readAgentSession` gives the pages the user's agent id instead.
+- The Postgres migration is replaced by the MySQL one. Each SQL statement is capped at 30 seconds, as the template capped its service client's requests.
+- `src/server/agent-ports.server.ts` gains two lint directives on its example stubs (their `Error` failures are the template's port contract).
+
+## Open decisions before production
+
+- The Docker image uses Node 18 and does not build the agent; the agent needs Node 22+, `npm ci --omit=dev` in `backend/agent` and `npm run build` (with dev dependencies) in the build stage.
+- The agent's data belongs to the actor; once domain tools exist, scope conversations and memory to (actor, data owner) so an accountant's chats about one client never reach another. `businessNumber` comes from a request header the guard does not check.
+- `agent_users` is not linked to KeepInTax's users: deleting an account does not delete its agent data yet.
+- Behind a TLS proxy, set Express's `trust proxy` or rely on `AGENT_APP_ORIGINS` for the origin check.
 
 ## The database
 

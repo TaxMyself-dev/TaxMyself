@@ -6,8 +6,8 @@
     "#/*": "./src/*"
   },
   "scripts": {
-    "generate-i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy preferredLanguage baseLocale",
-    "postinstall": "node scripts/patch-deepeval.ts && npm run generate-i18n",
+    "generate-i18n": "paraglide-js compile --project ./project.inlang --outdir ./src/paraglide --strategy baseLocale",
+    "postinstall": "node scripts/postinstall.ts",
     "build": "npm run generate-i18n && node scripts/build-agent.ts",
     "worker:tasks": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local backend/worker/task-worker.ts",
     "typecheck": "tsc --noEmit",

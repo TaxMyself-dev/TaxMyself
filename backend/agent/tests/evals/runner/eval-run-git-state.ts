@@ -6,7 +6,6 @@ import { evalShortHash } from "./eval-run-records";
 
 // The working tree an eval run fingerprints (run-agent-evals.ts).
 
-// The system's git, at its fixed path, not one found on PATH.
 // git at its system path, not one found on PATH; on Windows, Git for
 // Windows puts git.exe on PATH (there is no /usr/bin).
 const gitExecutable = process.platform === "win32" ? "git" : "/usr/bin/git";

@@ -1,6 +1,7 @@
-import { Option, Predicate, Schema } from "effect";
+import { Predicate } from "effect";
 
 import type { AgentSqlParameter, AgentSqlValue } from "./mysql-agent-database";
+import { PostgrestGatewayError } from "./mysql-agent-errors";
 import type { AgentColumnKind } from "./mysql-agent-tables";
 
 // Values between the JSON PostgREST speaks and MySQL's columns: each kind
@@ -84,6 +85,45 @@ export const postgresTimestamp = (value: string) => {
 const jsonText = (value: AgentSqlValue) =>
   Predicate.isString(value) ? value : JSON.stringify(value);
 
+const uuidPattern =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu;
+
+// Text Postgres would refuse for a column's type (22P02).
+const invalidInput = (type: string, text: string) =>
+  new PostgrestGatewayError(
+    400,
+    "22P02",
+    `invalid input syntax for type ${type}: "${text}"`
+  );
+
+// A uuid as Postgres keeps one: checked, and lowercase, so ids compare as
+// they would there.
+const uuidText = (text: string) => {
+  if (!uuidPattern.test(text)) {
+    throw invalidInput("uuid", text);
+  }
+
+  return text.toLowerCase();
+};
+
+const trueTexts = new Set(["true", "t", "1", "yes", "on"]);
+const falseTexts = new Set(["false", "f", "0", "no", "off"]);
+
+// A boolean as Postgres reads one, or its refusal.
+const booleanFlag = (value: AgentSqlValue) => {
+  const text = jsonText(value).toLowerCase();
+
+  if (value === true || trueTexts.has(text)) {
+    return 1;
+  }
+
+  if (value === false || falseTexts.has(text)) {
+    return 0;
+  }
+
+  throw invalidInput("boolean", text);
+};
+
 /**
  * A value from a request (a row's JSON field) as the parameter its column
  * takes: JSON columns as JSON text, booleans as 1 or 0, times as DATETIME(6)
@@ -108,7 +148,7 @@ export const mysqlParameter = (
     }
 
     case "boolean": {
-      return value === true || value === "true" || value === 1 ? 1 : 0;
+      return booleanFlag(value);
     }
 
     case "integer": {
@@ -121,7 +161,10 @@ export const mysqlParameter = (
       return mysqlTimestamp(text) ?? text;
     }
 
-    case "uuid":
+    case "uuid": {
+      return uuidText(jsonText(value));
+    }
+
     case "text": {
       return jsonText(value);
     }
@@ -146,7 +189,7 @@ export const mysqlFilterParameter = (
 ): AgentSqlParameter => {
   switch (kind) {
     case "boolean": {
-      return text === "true" || text === "t" ? 1 : 0;
+      return booleanFlag(text);
     }
 
     case "integer": {
@@ -157,7 +200,10 @@ export const mysqlFilterParameter = (
       return mysqlTimestamp(text) ?? text;
     }
 
-    case "uuid":
+    case "uuid": {
+      return uuidText(text);
+    }
+
     case "text":
     case "json":
     case "array": {
@@ -169,17 +215,6 @@ export const mysqlFilterParameter = (
     }
   }
 };
-
-// A JSON column's value as JSON: mysql2 parses JSON columns, but a JSON
-// value a query computes (JSON_EXTRACT) can come back as text.
-const decodeJsonText = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.Json)
-);
-
-const parsedJson = (value: AgentSqlValue): AgentSqlValue =>
-  Predicate.isString(value)
-    ? Option.getOrElse(decodeJsonText(value), () => value)
-    : value;
 
 /**
  * A column's value read back from MySQL as PostgREST's JSON writes it.
@@ -211,7 +246,8 @@ export const postgrestValue = (
 
     case "json":
     case "array": {
-      return parsedJson(value);
+      // mysql2 parses JSON columns; a top-level JSON string stays a string.
+      return value;
     }
 
     case "uuid":

@@ -26,6 +26,9 @@ async function bootstrap() {
     app.use(startupTiming.firstRequestMiddleware());
   }
   app.useGlobalFilters(new HttpExceptionFilter());
+  // Runs modules' shutdown hooks on SIGTERM/SIGINT: the agent harness
+  // disposes its runtime there (final telemetry flush, its MySQL pool).
+  app.enableShutdownHooks();
   app.use(require('cors')('*'));
 
   // Mailgun posts route notifications as urlencoded data when there are no

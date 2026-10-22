@@ -14,7 +14,7 @@ import {
 } from "./mysql-agent-errors";
 import { agentDatabaseFunction } from "./mysql-agent-functions";
 import type { AgentGatewayScope } from "./mysql-agent-scope";
-import { agentTable } from "./mysql-agent-tables";
+import { agentTable, agentTableUniqueKeys } from "./mysql-agent-tables";
 import type { AgentTable, AgentTableRelation } from "./mysql-agent-tables";
 import { mysqlParameter, postgrestValue } from "./mysql-agent-values";
 import {
@@ -86,6 +86,9 @@ const mysqlErrorCodes: ReadonlyMap<string, readonly [number, string]> = new Map(
     ["ER_INVALID_JSON_TEXT", [400, "22P02"]],
     ["ER_LOCK_DEADLOCK", [409, "40P01"]],
     ["ER_LOCK_WAIT_TIMEOUT", [409, "55P03"]],
+    ["ER_TRUNCATED_WRONG_VALUE_FOR_FIELD", [400, "22P02"]],
+    ["ER_WARN_DATA_OUT_OF_RANGE", [400, "22003"]],
+    ["ER_DATA_OUT_OF_RANGE", [400, "22003"]],
   ]
 );
 
@@ -211,6 +214,21 @@ const keyOfRow = (table: AgentTable, row: JsonRow | AgentSqlRow) =>
     mysqlParameter(columnKindOf(table, column), row[column])
   );
 
+const ownerIdOf = (scope: AgentGatewayScope) =>
+  scope.role === "user" ? scope.userId : null;
+
+// Whether the user's grant covers every changed column.
+const updateAllowed =
+  (changed: readonly string[]) => (access: AgentTable["user"]) => {
+    const { update } = access;
+
+    return (
+      update === true ||
+      (Array.isArray(update) &&
+        changed.every((column) => update.includes(column)))
+    );
+  };
+
 // The primary keys of the rows a query's filters match, locked for the
 // change that follows.
 const lockMatchingKeys = async (
@@ -231,8 +249,7 @@ const lockMatchingKeys = async (
 // return=representation.
 const readRowsByKey = async (
   executor: AgentSqlExecutor,
-  name: string,
-  table: AgentTable,
+  request: TableRequest,
   columns: readonly SelectedColumn[],
   keys: readonly (readonly AgentSqlParameter[])[]
 ) => {
@@ -240,11 +257,21 @@ const readRowsByKey = async (
     return [];
   }
 
+  const { name, table, scope } = request;
   const condition = primaryKeyCondition(table, keys);
 
+  // A user's change returns only their rows, as Postgres' policies would.
+  const owned = scope.role === "user" && table.owner !== null;
+
+  const ownerSql = owned
+    ? ` AND ${quoteIdentifier(table.owner ?? "")} = ?`
+    : "";
+
+  const ownerParams = owned ? [ownerIdOf(scope)] : [];
+
   const { rows } = await executor.query(
-    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(name)} WHERE ${condition.sql}`,
-    condition.params
+    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(name)} WHERE ${condition.sql}${ownerSql}`,
+    [...condition.params, ...ownerParams]
   );
 
   return rows.map((row) => postgrestRow(table, columns, row));
@@ -300,9 +327,6 @@ interface TableRequest {
   readonly headers: Headers;
   readonly scope: AgentGatewayScope;
 }
-
-const ownerIdOf = (scope: AgentGatewayScope) =>
-  scope.role === "user" ? scope.userId : null;
 
 const assertUserAccess = (
   request: TableRequest,
@@ -603,19 +627,26 @@ const conflictColumnsOf = (request: TableRequest) => {
     .map((column) => column.replaceAll('"', "").trim())
     .filter((column) => column !== "");
 
-  const columns = named.length > 0 ? named : [...table.primaryKey];
-
-  for (const column of columns) {
-    if (!Object.hasOwn(table.columns, column)) {
-      throw new PostgrestGatewayError(
-        400,
-        "42703",
-        `column ${name}.${column} does not exist`
-      );
-    }
+  if (named.length === 0) {
+    return [...table.primaryKey];
   }
 
-  return columns;
+  // PostgREST takes only a unique key for on_conflict (Postgres' 42P10).
+  const key = agentTableUniqueKeys(table).find(
+    (unique) =>
+      unique.length === named.length &&
+      unique.every((column) => named.includes(column))
+  );
+
+  if (key === undefined) {
+    throw new PostgrestGatewayError(
+      400,
+      "42P10",
+      `there is no unique or exclusion constraint on ${name} matching the ON CONFLICT specification`
+    );
+  }
+
+  return [...key];
 };
 
 // The INSERT's VALUES list and parameters: a row that leaves a column out
@@ -688,10 +719,35 @@ const upsertResolution = (prefer: ReadonlySet<string>) => {
 
 // An upsert takes over no other user's row: Postgres' policies would refuse
 // its update.
+// The rows matching any of the given rows on one of the table's unique
+// keys: where MySQL's ON DUPLICATE KEY would land.
+const uniqueKeyCondition = (
+  table: AgentTable,
+  rows: readonly JsonRow[]
+): SqlCondition => {
+  const conditions = agentTableUniqueKeys(table).map((key) => {
+    const tuple = `(${key.map(() => "?").join(", ")})`;
+    const columns = key.map(quoteIdentifier).join(", ");
+
+    return {
+      sql: `(${columns}) IN (${rows.map(() => tuple).join(", ")})`,
+      params: rows.flatMap((row) =>
+        key.map((column) =>
+          mysqlParameter(columnKindOf(table, column), row[column])
+        )
+      ),
+    };
+  });
+
+  return {
+    sql: conditions.map((condition) => `(${condition.sql})`).join(" OR "),
+    params: conditions.flatMap((condition) => condition.params),
+  };
+};
+
 const assertNoTakeover = async (
   executor: AgentSqlExecutor,
   request: TableRequest,
-  conflictColumns: readonly string[],
   rows: readonly JsonRow[]
 ) => {
   const { name, table, scope } = request;
@@ -700,19 +756,11 @@ const assertNoTakeover = async (
     return;
   }
 
-  const tuples = rows.map((row) =>
-    conflictColumns.map((column) =>
-      mysqlParameter(columnKindOf(table, column), row[column])
-    )
-  );
-
-  const tuple = `(${conflictColumns.map(() => "?").join(", ")})`;
-  const columns = conflictColumns.map(quoteIdentifier).join(", ");
-  const list = tuples.map(() => tuple).join(", ");
+  const existing = uniqueKeyCondition(table, rows);
 
   const { rows: taken } = await executor.query(
-    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${columns}) IN (${list}) AND ${quoteIdentifier(table.owner)} <> ? LIMIT 1`,
-    [...tuples.flat(), scope.userId]
+    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${existing.sql}) AND ${quoteIdentifier(table.owner)} <> ? LIMIT 1 FOR UPDATE`,
+    [...existing.params, scope.userId]
   );
 
   if (taken.length > 0) {
@@ -738,6 +786,20 @@ const insertRows = async (
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const conflictColumns = conflictColumnsOf(request);
   const keys = rows.map((row) => keyOfRow(table, row));
+
+  // A merge updates the rows it meets, so it needs the update grant on the
+  // columns it changes too (Postgres' ON CONFLICT DO UPDATE).
+  if (resolution === "merge") {
+    assertUserAccess(
+      request,
+      updateAllowed(
+        columns.filter(
+          (column) =>
+            !conflictColumns.includes(column) && column !== table.owner
+        )
+      )
+    );
+  }
 
   const { values, params } = insertValues(
     table,
@@ -766,7 +828,7 @@ const insertRows = async (
     }
 
     if (resolution !== null) {
-      await assertNoTakeover(executor, request, conflictColumns, rows);
+      await assertNoTakeover(executor, request, rows);
     }
 
     await executor.query(
@@ -777,8 +839,7 @@ const insertRows = async (
     return prefer.has(returnRepresentation)
       ? await readRowsByKey(
           executor,
-          name,
-          table,
+          request,
           parseSelect(name, table, url.searchParams.get("select")),
           keys
         )
@@ -789,18 +850,6 @@ const insertRows = async (
     ? emptyResponse(201)
     : rowsResponse(request, 201, returned);
 };
-
-// Whether the user's grant covers every changed column.
-const updateAllowed =
-  (changed: readonly string[]) => (access: AgentTable["user"]) => {
-    const { update } = access;
-
-    return (
-      update === true ||
-      (Array.isArray(update) &&
-        changed.every((column) => update.includes(column)))
-    );
-  };
 
 const updateRows = async (
   database: AgentSqlDatabase,
@@ -862,8 +911,7 @@ const updateRows = async (
     return preferences(headers).has(returnRepresentation)
       ? await readRowsByKey(
           executor,
-          name,
-          table,
+          request,
           parseSelect(name, table, url.searchParams.get("select")),
           keys
         )
@@ -889,8 +937,7 @@ const deleteRows = async (
     const deleted = preferences(headers).has(returnRepresentation)
       ? await readRowsByKey(
           executor,
-          name,
-          table,
+          request,
           parseSelect(name, table, url.searchParams.get("select")),
           keys
         )

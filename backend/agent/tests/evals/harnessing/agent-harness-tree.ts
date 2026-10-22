@@ -45,7 +45,6 @@ const toolsDir = "tools";
 const instructionsBudget = 20_000;
 const upFrontToolsBudget = 20_000;
 
-// The system's git, at its fixed path, not one found on PATH.
 // git at its system path, not one found on PATH; on Windows, Git for
 // Windows puts git.exe on PATH (there is no /usr/bin).
 const gitExecutable = process.platform === "win32" ? "git" : "/usr/bin/git";

@@ -75,7 +75,7 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
   - `npm run check` (Ultracite: Oxlint type-aware + Oxfmt): exit 0.
   - `npm run build` (esbuild bundles): exit 0.
   - `vitest --project unit` with `AGENT_TEST_DATABASE_URL` on a local MySQL
-    8.0.40: 273 tests, 262 passed, 11 failed (all 11 are the template's own
+    8.0.40: 274 tests, 263 passed, 11 failed (all 11 are the template's own
     stale tests, see below). New: 8 gateway integration tests on real MySQL
     (lease, messages, cross-user refusals, list/search, steers, memory,
     settings, tasks, opportunities, the monitor's claim/record/finish), 3
@@ -110,6 +110,15 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
   and `TYPESAFE_API_KEY` and cost money); a real chat answer with the model
   was not exercised; apply the SQL to the development database and run one
   chat with keys; decide the Docker/Node upgrade before production.
+- Review: four read-only subagents checked file coverage, the MySQL gateway,
+  the runtime and Nest edge, and the eval tooling against the template; their
+  findings were fixed (upsert permission and takeover checks on every unique
+  key, uuid and boolean validation, binary collation, strict SQL mode, due-task
+  claims locking only claimed rows, scan input validated as Postgres casts it,
+  logged background failures with a scoped rejection guard, body limits,
+  shutdown hooks, route failures recorded as 500, Windows-safe eval case ids,
+  a CLAUDE_CLI_PATH override, a production-safe postinstall). Open decisions
+  are listed in backend/agent/GUIDE.md.
 - Documentation updated: `backend/agent/GUIDE.md`, `backend/agent/AGENTS.md`,
   `backend/src/agent-harness/AGENTS.md`, root `AGENTS.md`, this file.
 

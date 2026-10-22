@@ -1,4 +1,4 @@
-import { Option, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 
 import { respondToAgentChat } from "@/agent/chat/turn/agent-chat-endpoint.server";
 import {
@@ -49,6 +49,7 @@ import { writeUserPageState } from "@/lib/user-state/user-page-state";
 import { runInAgentRequest } from "@/server/runtime/agent-request-context";
 import type { AgentRequestUser } from "@/server/runtime/agent-request-identity";
 import {
+  appRuntime,
   recordAppRequestEnd,
   runAppRequest,
 } from "@/server/runtime/app-runtime.server";
@@ -246,15 +247,22 @@ export const handleAgentHttpRequest = async (
 ): Promise<Response> => {
   const started = performance.now();
 
-  const response = await runInAgentRequest(
-    request,
-    user,
-    async () =>
-      await paraglideMiddleware(
+  const response = await runInAgentRequest(request, user, async () => {
+    try {
+      return await paraglideMiddleware(
         request,
         async () => await routeAgentRequest(request)
-      )
-  );
+      );
+    } catch (error) {
+      // A route that fails is a server error, recorded like any other
+      // response (the template's response hook counted it).
+      await appRuntime.runPromise(
+        Effect.logError("AGENT_REQUEST_FAILED", error)
+      );
+
+      return jsonError(500, "AGENT_REQUEST_FAILED", "The agent failed.");
+    }
+  });
 
   runInAgentRequest(request, user, () => {
     recordAppRequestEnd(

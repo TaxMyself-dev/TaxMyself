@@ -12,7 +12,7 @@
     "lib": ["ES2022", "ES2023.Array", "ES2024.Promise", "DOM", "DOM.Iterable"],
     "types": ["node"],
 
-    /* Bundler mode: esbuild builds the server bundle (scripts/build-agent.mjs),
+    /* Bundler mode: esbuild builds the server bundle (scripts/build-agent.ts),
        tsx runs the worker and the eval scripts, vitest the tests. */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

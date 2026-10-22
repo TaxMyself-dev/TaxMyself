@@ -87,11 +87,22 @@ const canKeepAppRequestAlive = (
   Predicate.hasProperty(request, "waitUntil") &&
   Predicate.isFunction(request.waitUntil);
 
+// Work that runs on after its response and fails is logged: in the Nest
+// backend nothing else awaits it, and an unhandled rejection would stop the
+// whole backend (Nitro logged such failures for the template).
+const logUnfinishedWork = async (work: Promise<unknown>) => {
+  try {
+    await work;
+  } catch (error) {
+    appRuntime.runFork(Effect.logError("AGENT_BACKGROUND_WORK_FAILED", error));
+  }
+};
+
 /**
  * Keeps the function running after its response until `work` settles: on a
  * serverless host the platform's waitUntil is on the request; in the Nest
  * backend (a long-lived Node process), the dev server and the evals there
- * is none and the work just runs.
+ * is none and the work just runs, its failure logged.
  *
  * @param request - The incoming request.
  * @param work - The work to wait for.
@@ -102,7 +113,11 @@ export const keepAppRequestAlive = (
 ) => {
   if (canKeepAppRequestAlive(request)) {
     request.waitUntil(work);
+
+    return;
   }
+
+  void logUnfinishedWork(work);
 };
 
 /**

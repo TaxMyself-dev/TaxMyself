@@ -49,13 +49,16 @@ const fakeDatabase = (
 };
 
 const userId = "11111111-1111-4111-8111-111111111111";
+const chatId = "22222222-2222-4222-8222-222222222222";
+const rowId = "33333333-3333-4333-8333-333333333333";
+const streamId = "44444444-4444-4444-8444-444444444444";
 
 describe("mysql postgrest gateway", () => {
   it("scopes a user's read to their rows and translates filters, order and paging", async () => {
     const { database, statements } = fakeDatabase(() => ({
       rows: [
         {
-          id: "a",
+          id: chatId,
           name: "Plumbers",
           pinned: 1,
           created_at: "2026-10-22 13:30:51.235123",
@@ -68,7 +71,7 @@ describe("mysql postgrest gateway", () => {
     const { data, error } = await supabase
       .from("agent_chat_conversations")
       .select("id, name, pinned, created_at")
-      .in("id", ["a", "b,c"])
+      .in("name", ["Plumbers", "b,c"])
       .is("answering_until", null)
       .order("created_at", { ascending: false })
       .range(10, 19);
@@ -76,7 +79,7 @@ describe("mysql postgrest gateway", () => {
     assert.isNull(error);
     assert.deepStrictEqual(data, [
       {
-        id: "a",
+        id: chatId,
         name: "Plumbers",
         pinned: true,
         created_at: "2026-10-22T13:30:51.235123+00:00",
@@ -86,9 +89,9 @@ describe("mysql postgrest gateway", () => {
     const [read] = statements;
     assert.strictEqual(
       read?.sql,
-      "SELECT `id` AS `id`, `name` AS `name`, `pinned` AS `pinned`, `created_at` AS `created_at` FROM `agent_chat_conversations` WHERE (`user_id` = ?) AND (`id` IN (?, ?)) AND (`answering_until` IS NULL) ORDER BY (`created_at` IS NULL) DESC, `created_at` DESC LIMIT 10 OFFSET 10"
+      "SELECT `id` AS `id`, `name` AS `name`, `pinned` AS `pinned`, `created_at` AS `created_at` FROM `agent_chat_conversations` WHERE (`user_id` = ?) AND (`name` IN (?, ?)) AND (`answering_until` IS NULL) ORDER BY (`created_at` IS NULL) DESC, `created_at` DESC LIMIT 10 OFFSET 10"
     );
-    assert.deepStrictEqual(read?.params, [userId, "a", "b,c"]);
+    assert.deepStrictEqual(read?.params, [userId, "Plumbers", "b,c"]);
   });
 
   it("answers single() with one row, or PGRST116", async () => {
@@ -98,7 +101,7 @@ describe("mysql postgrest gateway", () => {
     const none = await supabase
       .from("agent_memories")
       .select("id")
-      .eq("id", "x")
+      .eq("id", rowId)
       .single();
 
     assert.strictEqual(none.error?.code, "PGRST116");
@@ -106,7 +109,7 @@ describe("mysql postgrest gateway", () => {
     const maybe = await supabase
       .from("agent_memories")
       .select("id")
-      .eq("id", "x")
+      .eq("id", rowId)
       .maybeSingle();
 
     assert.isNull(maybe.error);
@@ -135,15 +138,18 @@ describe("mysql postgrest gateway", () => {
   it("writes a user's new rows as theirs and refuses rows written as someone else", async () => {
     const { database, statements } = fakeDatabase(({ sql }) =>
       sql.startsWith("SELECT id FROM agent_chat_conversations")
-        ? { rows: [{ id: "c1" }] }
+        ? { rows: [{ id: chatId }] }
         : {}
     );
 
     const supabase = createUserDatabaseClient(database, userId);
 
-    const inserted = await supabase
-      .from("agent_chat_steers")
-      .insert({ id: "s1", conversation_id: "c1", stream_id: "t1", text: "hi" });
+    const inserted = await supabase.from("agent_chat_steers").insert({
+      id: rowId,
+      conversation_id: chatId,
+      stream_id: streamId,
+      text: "hi",
+    });
 
     assert.isNull(inserted.error);
 
@@ -152,9 +158,9 @@ describe("mysql postgrest gateway", () => {
     assert.include(insert?.params ?? [], userId);
 
     const forged = await supabase.from("agent_chat_steers").insert({
-      id: "s2",
-      conversation_id: "c1",
-      stream_id: "t1",
+      id: "55555555-5555-4555-8555-555555555555",
+      conversation_id: chatId,
+      stream_id: streamId,
       text: "hi",
       user_id: "22222222-2222-4222-8222-222222222222",
     });
@@ -166,9 +172,12 @@ describe("mysql postgrest gateway", () => {
     const { database } = fakeDatabase(() => ({ rows: [] }));
     const supabase = createUserDatabaseClient(database, userId);
 
-    const { error } = await supabase
-      .from("agent_chat_messages")
-      .upsert({ id: "m1", conversation_id: "theirs", role: "user", parts: [] });
+    const { error } = await supabase.from("agent_chat_messages").upsert({
+      id: rowId,
+      conversation_id: "66666666-6666-4666-8666-666666666666",
+      role: "user",
+      parts: [],
+    });
 
     assert.strictEqual(error?.code, "42501");
   });
@@ -180,7 +189,7 @@ describe("mysql postgrest gateway", () => {
     const score = await supabase
       .from("task_opportunities")
       .update({ score: 100 })
-      .eq("id", "o1");
+      .eq("id", rowId);
 
     assert.strictEqual(score.error?.code, "42501");
 
@@ -230,6 +239,19 @@ describe("mysql postgrest gateway", () => {
       statements[0]?.sql,
       "SELECT COUNT(*) AS count FROM `agent_memories` WHERE (`user_id` = ?)"
     );
+  });
+
+  it("refuses text that is not a uuid for a uuid column, as Postgres does", async () => {
+    const { database, statements } = fakeDatabase();
+    const supabase = createUserDatabaseClient(database, userId);
+
+    const { error } = await supabase
+      .from("agent_memories")
+      .select("id")
+      .eq("id", "not-a-uuid");
+
+    assert.strictEqual(error?.code, "22P02");
+    assert.strictEqual(statements.length, 0);
   });
 
   it("converts times both ways without shifting them", () => {

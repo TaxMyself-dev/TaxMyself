@@ -52,19 +52,22 @@ export interface HarnessProposerReply {
   readonly failure: string;
 }
 
+const claudeCli =
+  process.env.CLAUDE_CLI_PATH ??
+  path.join(
+    homedir(),
+    process.platform === "win32" ? ".local/bin/claude.exe" : ".local/bin/claude"
+  );
+
 const runClaudeSession = async (
   cwd: string,
   mission: string,
   maxBudgetUsd: number
 ) => {
   const child = spawn(
-    // Where Claude Code's installer puts the CLI, not one found on PATH.
-    path.join(
-      homedir(),
-      process.platform === "win32"
-        ? ".local/bin/claude.exe"
-        : ".local/bin/claude"
-    ),
+    // Where Claude Code's installer puts the CLI, not one found on PATH;
+    // CLAUDE_CLI_PATH names another (an npm install's claude.exe).
+    claudeCli,
     [
       "-p",
       "--output-format",

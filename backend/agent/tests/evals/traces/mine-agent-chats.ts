@@ -1,7 +1,7 @@
 // Mines real agent conversations for eval cases, as love, coffee keeps whole
 // conversations from real chats (LC:tests/evals/assistant/real-chats):
 //
-//   bun tests/evals/traces/mine-agent-chats.ts
+//   npx tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/traces/mine-agent-chats.ts
 //
 // Reads the conversations of the users listed in AGENT_EVAL_MINE_USER_IDS
 // (.env.local, comma-separated: the owner, test accounts, or users who

@@ -4,7 +4,7 @@ import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 // Two projects: the app's unit tests (every Effect test on @effect/vitest,
-// bun run test) and the agent evals (bun run eval, through DeepEval). Evals
+// npm test) and the agent evals (npm run eval, through DeepEval). Evals
 // call the real models with the keys in .env.local, so they run on demand,
 // never with the unit tests.
 

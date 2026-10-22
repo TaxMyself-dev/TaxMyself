@@ -184,7 +184,13 @@ if (runDir) {
   beforeEach((context: TestContext) => {
     // The case id is the eval file and the test's name, as goldens.jsonl
     // lists it.
-    const caseId = `${path.relative(evalsRoot, context.task.file.filepath)} > ${evalTestName(context.task)}`;
+    // Forward slashes on every system, as the runner writes case ids
+    // (run-agent-evals.ts).
+    const caseFile = path
+      .relative(evalsRoot, context.task.file.filepath)
+      .replaceAll(path.sep, "/");
+
+    const caseId = `${caseFile} > ${evalTestName(context.task)}`;
 
     if (finishedEvalSlot(caseId)) {
       context.skip();

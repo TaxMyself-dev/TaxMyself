@@ -13,7 +13,7 @@ import { readAgentTraces, writeAgentTraceScores } from "./agent-trace-langfuse";
 // Judges real agent answers in Langfuse, one failure per judge, drawn from
 // the failures we saw in real chats (add one judge per failure you see):
 //
-//   bun --env-file=.env.local tests/evals/traces/judge-agent-traces.ts \
+//   npx tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/traces/judge-agent-traces.ts \
 //     [--environment development] [--since 2026-10-07T00:00:00Z] \
 //     [--limit 50] [--write-scores] [--label-file .eval/agent/judge-labels.md]
 //

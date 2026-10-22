@@ -71,6 +71,11 @@ export interface AgentSqlDatabase extends AgentSqlExecutor {
   ) => Promise<A>;
 }
 
+// The longest one statement may run, as the template capped each database
+// request of its service client (AbortSignal.timeout(30_000)): a hung query
+// fails instead of holding the worker or a request.
+const agentSqlTimeoutMs = 30_000;
+
 const decodeAgentSqlRow = Schema.decodeUnknownSync(
   Schema.Record(Schema.String, Schema.Json)
 );
@@ -96,7 +101,7 @@ const connectionExecutor = (
 ): AgentSqlExecutor => ({
   query: async (sql, params = []) => {
     const [result] = await connection.query<RowDataPacket[] | ResultSetHeader>(
-      sql,
+      { sql, timeout: agentSqlTimeoutMs },
       [...params]
     );
 
@@ -140,11 +145,25 @@ export const mysqlAgentSqlDatabase = (pool: Pool): AgentSqlDatabase => ({
   },
 });
 
+// The session settings every agent connection runs with (createAgentMysqlPool).
+const setUpAgentSession = async (session: Pick<PoolConnection, "query">) => {
+  try {
+    await session.query(
+      "SET time_zone = '+00:00', sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'"
+    );
+  } catch (error) {
+    console.error(
+      "AGENT_DB_SESSION_SETUP_FAILED",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+};
+
 /**
- * A pool on the agent's database: utf8mb4, every session in UTC, DATETIME
- * read as text (so CURRENT_TIMESTAMP(6) and NOW(6) write UTC times, as
- * Postgres' now() does for a timestamptz, and nothing shifts a time on the
- * way back).
+ * A pool on the agent's database: utf8mb4, every session in UTC and strict
+ * mode, DATETIME read as text (so CURRENT_TIMESTAMP(6) and NOW(6) write UTC
+ * times, as Postgres' now() does for a timestamptz, and nothing shifts a
+ * time on the way back).
  *
  * @param connection - Where the database is and how to sign in.
  * @returns The pool.
@@ -166,8 +185,13 @@ export const createAgentMysqlPool = (connection: {
     waitForConnections: true,
   });
 
+  // Every session in UTC, and in MySQL 8's strict mode whatever the server
+  // defaults to: a value too long or invalid fails as Postgres fails it,
+  // never silently truncated. Queued first, so it runs before any statement
+  // on the connection; a failure is logged and the statement after it runs
+  // on the server's defaults.
   created.pool.on("connection", (session) => {
-    session.query("SET time_zone = '+00:00'");
+    void setUpAgentSession(session.promise());
   });
 
   return created;

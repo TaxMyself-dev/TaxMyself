@@ -56,6 +56,9 @@ export interface AgentTableRelation {
 export interface AgentTable {
   readonly columns: Readonly<Record<string, AgentColumnKind>>;
   readonly primaryKey: readonly string[];
+  // The table's other unique keys: an upsert's on_conflict must name one of
+  // its unique keys, and MySQL's ON DUPLICATE KEY fires on any of them.
+  readonly uniqueKeys?: readonly (readonly string[])[];
   // The column every user query is scoped to (RLS's user_id = auth.uid()).
   readonly owner: "user_id" | null;
   // A conversation_id a user's row names must be one of theirs (the
@@ -308,6 +311,7 @@ export const agentTables = {
       updated_at: "timestamp",
     },
     primaryKey: ["id"],
+    uniqueKeys: [["task_id", "source", "item_id", "comment_id"]],
     owner: "user_id",
     ownedConversation: false,
     generatedUuid: ["id"],
@@ -372,6 +376,17 @@ export const agentTables = {
 const agentTablesByName: ReadonlyMap<string, AgentTable> = new Map(
   Object.entries(agentTables)
 );
+
+/**
+ * Every unique key of a table: its primary key first, then the others.
+ *
+ * @param table - The table.
+ * @returns The keys, each as its columns.
+ */
+export const agentTableUniqueKeys = (table: AgentTable) => [
+  table.primaryKey,
+  ...(table.uniqueKeys ?? []),
+];
 
 /**
  * The table by name, or undefined for a name the gateway does not serve.
