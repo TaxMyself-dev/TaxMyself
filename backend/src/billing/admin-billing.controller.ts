@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
   UsePipes,
   ValidationPipe,
@@ -29,6 +30,7 @@ import { AdminBillingResolutionService } from './services/admin-billing-resoluti
 import { Optional } from '@nestjs/common';
 import { BillingRefundService } from './services/billing-refund.service';
 import { CreateRefundDto, ResolveRefundDto } from './dtos/admin/refund.dto';
+import { Response } from 'express';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -44,6 +46,17 @@ export class AdminBillingController {
   async refundContext(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
     await this.assertAdmin(request);
     return this.refunds!.context(id);
+  }
+
+  @Get('subscriptions/:id/refunds/:attemptId/document')
+  async refundDocument(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number,
+    @Param('attemptId', ParseIntPipe) attemptId: number, @Res() res: Response) {
+    await this.assertAdmin(request);
+    const doc = await this.refunds!.document(id, attemptId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="credit-${attemptId}.pdf"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.send(doc.buffer);
   }
 
   @Post('subscriptions/:id/refunds')

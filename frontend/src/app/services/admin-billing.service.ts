@@ -249,6 +249,10 @@ export class AdminBillingService {
     return this.http.get<RefundContext>(`${this.base}/subscriptions/${id}/refunds`);
   }
 
+  getRefundDocument(id: number, attemptId: number): Observable<Blob> {
+    return this.http.get(`${this.base}/subscriptions/${id}/refunds/${attemptId}/document`, { responseType: 'blob' });
+  }
+
   checkRefundProvider(id: number, attemptId: number): Observable<RefundProviderCheck> {
     return this.http.post<RefundProviderCheck>(`${this.base}/subscriptions/${id}/refunds/${attemptId}/check-provider`, {});
   }

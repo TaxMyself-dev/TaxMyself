@@ -146,6 +146,15 @@ retry request identity, invalid balance and completion-only recovery.
 Official contract checked: https://secure.cardcom.solutions/swagger/v11/swagger.json
 # Completion error diagnostics (dev follow-up, 2026-10-22)
 
+Admin refund history includes view/download credit PDF actions. The authenticated
+admin-only GET subscriptions/:id/refunds/:attemptId/document verifies the refund's
+source belongs to the selected subscription/user, and the document is that
+refund's CREDIT_INVOICE with an available PDF. It streams the existing file
+through the backend with no-store caching; no public storage URL is exposed.
+Missing PDFs explain that document completion is still needed. Viewing opens
+a separate tab; download saves the PDF locally. Neither action creates documents
+or refunds.
+
 Document completion failures persist a bounded, redacted message, stage and event
 timestamp in existing REFUND_RESOLUTION metadata (REFUND_COMPLETION_FAILED).
 Saving this event and releasing the finalization lease/backoff are atomic and

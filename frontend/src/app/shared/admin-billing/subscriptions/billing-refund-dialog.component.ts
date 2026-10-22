@@ -63,6 +63,12 @@ import { AdminBillingService, AdminRefund, RefundContext, RefundPayment, RefundP
                 <p>{{ r.providerDescription ?? 'תיאור התשובה לא נשמר בבקשה זו.' }}</p>
               } @else if (r.status === 'UNKNOWN') { <p>לא נשמרה תשובת API תקינה לבקשה זו.</p> }
               @if (r.transactionId) { <p>מספר עסקת זיכוי: {{ r.transactionId }}</p> }
+              @if (r.receiptDocId) {
+                <div class="refund-actions">
+                  <button type="button" [disabled]="busy()" (click)="openDocument(r, false)">צפייה במסמך זיכוי</button>
+                  <button type="button" [disabled]="busy()" (click)="openDocument(r, true)">הורדת מסמך זיכוי</button>
+                </div>
+              }
               @if (r.status === 'CAPTURED') {
                 @if (r.completionError; as failure) {
                   <div class="refund-error" role="alert">
@@ -154,6 +160,22 @@ export class BillingRefundDialogComponent implements OnInit {
     this.api.checkRefundProvider(this.subscriptionId, r.attemptId).pipe(finalize(() => this.busy.set(false)))
       .subscribe({ next: result => this.providerChecks.update(checks => ({ ...checks, [r.attemptId]: result })),
         error: err => this.error.set(err?.error?.message ?? 'הבדיקה לא הושלמה; מצב הזיכוי לא שונה.') });
+  }
+  openDocument(r: AdminRefund, download: boolean) {
+    if (this.busy()) return;
+    const viewer = download ? null : window.open('about:blank', '_blank');
+    if (viewer) viewer.opener = null;
+    this.busy.set(true); this.error.set('');
+    this.api.getRefundDocument(this.subscriptionId, r.attemptId).pipe(finalize(() => this.busy.set(false)))
+      .subscribe({ next: blob => {
+        const url = URL.createObjectURL(blob);
+        if (download) {
+          const link = document.createElement('a'); link.href = url; link.download = `credit-${r.attemptId}.pdf`;
+          link.click();
+        } else if (viewer) { viewer.location.href = url; }
+        else { this.error.set('יש לאפשר פתיחת חלונות לצפייה במסמך, או לבחור הורדה.'); }
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }, error: () => { viewer?.close(); this.error.set('לא ניתן לטעון את מסמך הזיכוי. ייתכן שהפקת ה־PDF טרם הושלמה; יש לרענן או להשלים מסמך ושליחה.'); } });
   }
   resolve(r: AdminRefund, action: 'COMPLETE' | 'CONFIRM_REFUNDED' | 'CONFIRM_NOT_REFUNDED') {
     if (this.busy()) return;

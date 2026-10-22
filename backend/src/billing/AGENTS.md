@@ -1,4 +1,8 @@
 ## Purpose
+Admin refund PDF access: GET subscriptions/:id/refunds/:attemptId/document is
+admin-only, validates source subscription/user and linked credit document attempt
+provenance, then streams the existing PDF with no-store. Never bypass ownership
+checks with an arbitrary document id or expose a public storage URL.
 Admin refunds (2026-10-21): BillingRefundService owns admin-only refund context,
 reservation and operator resolution.
 The follow-up check-provider action uses read-only paginated ListTransactions

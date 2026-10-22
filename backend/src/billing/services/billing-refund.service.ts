@@ -120,6 +120,19 @@ export class BillingRefundService {
     return { payments: payments.reverse(), refunds: await Promise.all(history.map(a => this.details(a))) };
   }
 
+  async document(subscriptionId: number, attemptId: number) {
+    const sub = await this.subscription(this.db.manager, subscriptionId);
+    const attempt = await this.db.manager.findOne(BillingAttempt, { where: { id: attemptId, operation: 'REFUND' } });
+    if (!attempt) throw new NotFoundException('הזיכוי לא נמצא');
+    await this.payment(this.db.manager, sub, attempt.sourcePaymentEventId);
+    if (!attempt.receiptDocId) throw new NotFoundException('מסמך הזיכוי עדיין אינו זמין');
+    const doc = await this.db.manager.findOne(Documents, { where: { id: attempt.receiptDocId } });
+    if (!doc || doc.billingAttemptId !== attempt.id || doc.docType !== DocumentType.CREDIT_INVOICE || !doc.file) {
+      throw new NotFoundException('מסמך הזיכוי עדיין אינו זמין');
+    }
+    return this.documents.getBillingReceiptPdf(doc.id);
+  }
+
   async create(subscriptionId: number, actor: string, dto: CreateRefundDto) {
     dto.requestId = dto.requestId.toLowerCase();
     if (!dto.reason.trim() || dto.reason.trim().length < 3) throw new BadRequestException('נדרשת סיבת זיכוי');

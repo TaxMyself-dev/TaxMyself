@@ -13,7 +13,8 @@ describe('Admin refund dialog', () => {
   }
   beforeEach(() => {
     api = { getRefundContext: jasmine.createSpy().and.returnValue(of(context)),
-      createRefund: jasmine.createSpy(), resolveRefund: jasmine.createSpy(), checkRefundProvider: jasmine.createSpy() };
+      createRefund: jasmine.createSpy(), resolveRefund: jasmine.createSpy(), checkRefundProvider: jasmine.createSpy(),
+      getRefundDocument: jasmine.createSpy() };
     TestBed.configureTestingModule({ imports: [BillingRefundDialogComponent, NoopAnimationsModule],
       providers: [{ provide: AdminBillingService, useValue: api }] });
   });
@@ -23,6 +24,16 @@ describe('Admin refund dialog', () => {
     api.createRefund.and.returnValue(of({ status: 'COMPLETED' })); c.submit();
     expect(api.createRefund).toHaveBeenCalledWith(7, jasmine.objectContaining({ paymentEventId: 10, amountAgorot: 1180, reason: 'החזר חלקי' }));
     expect(c.message()).toContain('הושלמו');
+  });
+  it('closes the preview and explains when the refund PDF is unavailable without issuing money operations', () => {
+    const viewer = { opener: {}, close: jasmine.createSpy() };
+    spyOn(window, 'open').and.returnValue(viewer as any);
+    api.getRefundDocument.and.returnValue(throwError(() => ({})));
+    const c = component(); c.openDocument({ attemptId: 13 } as any, false);
+    expect(api.getRefundDocument).toHaveBeenCalledWith(7, 13);
+    expect(viewer.close).toHaveBeenCalled();
+    expect(c.error()).toContain('לא ניתן לטעון'); expect(c.busy()).toBeFalse();
+    expect(api.createRefund).not.toHaveBeenCalled(); expect(api.resolveRefund).not.toHaveBeenCalled();
   });
   it('suppresses double clicks and keeps the same request id when a transport error is retried', () => {
     const c = component(); c.selectPayment(10); c.reason = 'בקשת לקוח'; c.confirmed = true;

@@ -73,6 +73,16 @@ was performed by these mocked tests. git diff --check passed.
   topic instructions; commented dev-only cumulative DDL in docs/redesign/cutover.sql.
 # Follow-up 2026-10-22: document completion diagnostics
 
+Additional requested admin credit document access: popup view/download actions
+use a Firebase/admin-authorized PDF route with subscription/source ownership and
+credit document provenance checks. Existing PDF download service reused; no DB,
+schema, provider or accounting mutations. Missing PDFs return a clear UI error.
+Validation: 21 backend tests across refund lifecycle and admin controller passed;
+9 isolated ChromeHeadless dialog tests passed. Both builds passed (existing Angular
+budget/CommonJS warnings). git diff --check passed. Runtime UI smoke lookup on
+localhost:4200 was unavailable because no server accepted the connection; real
+storage download/browser PDF rendering were not exercised by these mocked tests.
+
 Refund payment options now show `(זוכה: 35 ₪)` next to the original amount when
 confirmed refunds exist. Sum only CAPTURED/COMPLETED refunds linked to that
 payment; pending/unknown reservations must not be described as refunded money.

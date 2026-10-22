@@ -73,6 +73,18 @@ function fixture() {
 }
 
 describe('Refund lifecycle including legacy payments', () => {
+  it('downloads only the linked credit document for the selected subscription, and rejects missing PDFs', async () => {
+    const f = fixture();
+    const refund = await f.service.create(7, 'admin', f.dto);
+    f.documentService.getBillingReceiptPdf = jest.fn().mockResolvedValue({ buffer: Buffer.from('pdf') });
+    await expect(f.service.document(7, refund.attemptId)).resolves.toEqual({ buffer: Buffer.from('pdf') });
+    f.rows.get(Subscription).push({ ...f.sub, id: 8, firebaseId: 'other-user' });
+    await expect(f.service.document(8, refund.attemptId)).rejects.toThrow();
+    const credit = f.rows.get(Documents).find(d => d.billingAttemptId === refund.attemptId);
+    credit.file = null;
+    await expect(f.service.document(7, refund.attemptId)).rejects.toThrow('אינו זמין');
+    expect(f.documentService.getBillingReceiptPdf).toHaveBeenCalledTimes(1);
+  });
   it('uses a historical 17% receipt rather than repricing the refund at the current VAT rate', async () => {
     const f = fixture(); f.source.amountAgorot = 11700; f.original.sumAftDisWithVAT = '117.00';
     f.original.vatSum = '17.00'; f.original.docVatRate = 17;

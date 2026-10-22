@@ -1,4 +1,7 @@
 ## Purpose
+Refund history offers PDF view/download for linked credit documents through an
+authenticated admin endpoint. Missing PDFs show an actionable completion message;
+view/download never triggers credit creation or money operations.
 Subscriptions expose a refund row action opening BillingRefundDialogComponent.
 Refund history shows saved provider code/description (or an explicit legacy-missing
 description). UNKNOWN/manual review also offers a separate read-only provider
