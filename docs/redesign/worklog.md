@@ -2656,3 +2656,6 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
 - Verification: backend Jest 4 suites / 20 tests; focused frontend tests 2/2;
   focused frontend TypeScript check; Nest and Angular production builds. All
   passed; Angular retains existing size/CommonJS warnings.
+- Delivery verified at `abb2e4bc` on local main, `origin/main`, and
+  `origin/codex/integration-kt091` before the final delivery-record commit. No
+  production SQL or deployment was performed.

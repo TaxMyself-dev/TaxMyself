@@ -1,6 +1,6 @@
 # KT-091 - Explicit business proprietor
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt091-worker`
@@ -89,7 +89,9 @@ companies or partnerships.
   The focused frontend ChromeHeadless run already passed 2/2 on the identical
   worker commit with a no-GPU launcher. Angular emitted existing
   bundle-size/CommonJS warnings only.
-- `origin/main` verification:
+- `origin/main` verification: `abb2e4bc660f42f1e926f8ad2820676104830ea6`
+  confirmed by `git ls-remote`; `origin/codex/integration-kt091` matched the
+  same SHA before this final delivery-record commit.
 - User-visible run instructions: apply the appended KT-091 section in
   `docs/redesign/cutover.sql` during the approved cutover before starting this
   application version; no SQL was executed by this task.
