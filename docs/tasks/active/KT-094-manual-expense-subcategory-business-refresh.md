@@ -1,6 +1,6 @@
 # KT-094 - Refresh manual-expense sub-categories per business
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary integration manager (single-agent task)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -31,7 +31,7 @@ businesses.
 
 - Result: the sub-category resource now waits for a selected business and
   reloads whenever the business changes, even when the category is unchanged.
-- Commit hash(es): local task commit reported in the delivery message.
+- Commit hash(es): `38944207`.
 - Changed files: manual-expense service/spec/topic documentation and this task file.
 - Tests and exact results: focused TypeScript compilation passed; Angular
   production build passed.
@@ -46,9 +46,10 @@ businesses.
 ## Integration
 
 - Reviewed by: Codex primary integration manager.
-- Integrated commit: local task commit reported in the delivery message.
+- Integrated commit: `38944207`.
 - Combined verification: focused TypeScript compilation and Angular production build passed.
-- `origin/main` verification: not pushed from this dirty user checkout.
+- `origin/main` verification: `38944207` confirmed on `origin/main` before
+  this final delivery-record commit.
 - User-visible run instructions: restart/reload the dev frontend, open manual
   expense entry, select either business, enable fixed assets, and open the
   sub-category picker.
