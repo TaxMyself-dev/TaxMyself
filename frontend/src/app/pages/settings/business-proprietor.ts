@@ -1,6 +1,17 @@
 import { IUserData, ISelectItem } from 'src/app/shared/interface';
 import { BusinessProprietorRole } from 'src/app/shared/enums';
 
+export function getBusinessNumberForProprietor(
+  user: IUserData | null | undefined,
+  proprietorRole: BusinessProprietorRole,
+): string {
+  const businessNumber = proprietorRole === BusinessProprietorRole.SPOUSE
+    ? user?.spouseId
+    : user?.id;
+
+  return businessNumber?.trim() ?? '';
+}
+
 export function getBusinessProprietorOptions(
   user: IUserData | null | undefined,
 ): ISelectItem[] {

@@ -9,6 +9,7 @@
     @if (!isCompany()) {
       <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'proprietorRole'"
         [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+        (onChangeInputSelect)="syncBusinessNumberToProprietor(addBusinessFormGroup, $event)"
         [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
     }
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessNumber'"
@@ -274,6 +275,7 @@
                   <div class="detail-field">
                     <app-input-select [parentForm]="bizGroup" [controlName]="'proprietorRole'"
                       [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+                      (onChangeInputSelect)="syncBusinessNumberToProprietor(bizGroup, $event)"
                       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
                   </div>
                 }

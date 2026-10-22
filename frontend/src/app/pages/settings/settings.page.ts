@@ -38,7 +38,10 @@ import {
   SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
   ShaamService,
 } from 'src/app/services/shaam.service';
-import { getBusinessProprietorOptions } from './business-proprietor';
+import {
+  getBusinessNumberForProprietor,
+  getBusinessProprietorOptions,
+} from './business-proprietor';
 
 type ShaamConnectionViewStatus =
   | 'loading'
@@ -149,6 +152,23 @@ export class SettingsPage implements OnInit {
 
   proprietorOptions() {
     return getBusinessProprietorOptions(this.userData);
+  }
+
+  syncBusinessNumberToProprietor(
+    form: FormGroup,
+    proprietorRole: string | boolean,
+  ): void {
+    if (
+      this.isCompany() ||
+      (proprietorRole !== BusinessProprietorRole.PRIMARY &&
+        proprietorRole !== BusinessProprietorRole.SPOUSE)
+    ) {
+      return;
+    }
+
+    form.get('businessNumber')?.setValue(
+      getBusinessNumberForProprietor(this.userData, proprietorRole),
+    );
   }
 
   // ─── Reactive Forms ───
@@ -1257,7 +1277,9 @@ export class SettingsPage implements OnInit {
     this.addBusinessFormGroup.reset({
       proprietorRole:   BusinessProprietorRole.PRIMARY,
       businessName:      '',
-      businessNumber:    '',
+      businessNumber:    this.isCompany()
+        ? ''
+        : getBusinessNumberForProprietor(this.userData, BusinessProprietorRole.PRIMARY),
       businessAddress:   '',
       businessPhone:     '',
       businessEmail:     '',
