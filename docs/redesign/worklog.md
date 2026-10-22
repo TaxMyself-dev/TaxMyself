@@ -2674,3 +2674,16 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
 - No backend, schema, data, report, tax-law, production, or deployment change.
   Focused TypeScript validation and Karma tests (3/3) passed, and the Angular
   production build passed with the existing budget/CommonJS warnings.
+
+## 2026-10-22 — Business number follows the selected proprietor
+
+- In private-account Settings, selecting the primary user or spouse as the
+  proprietor now immediately replaces the form's business number with that
+  person's identity number. New-business forms default to the primary user and
+  primary identity number.
+- Company-account behavior is unchanged. Existing business forms are not
+  rewritten merely by loading the page; the replacement occurs on an explicit
+  proprietor selection.
+- No backend, schema, data, report, tax-law, production, or deployment change.
+  Focused TypeScript validation and Karma tests (5/5) passed, and the Angular
+  production build passed with the existing budget/CommonJS warnings.
