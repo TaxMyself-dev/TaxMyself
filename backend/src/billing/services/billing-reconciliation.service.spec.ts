@@ -71,6 +71,7 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
   };
 
   const attempt = (overrides: Record<string, unknown> = {}): any => ({
+    operation: 'CHARGE',
     id: 1,
     obligationId: 10,
     attemptNumber: 1,
@@ -189,6 +190,14 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
     });
   });
   afterEach(() => jest.useRealTimers());
+
+  it('never picks REFUND attempts for charge reconciliation or resubmission', async () => {
+    const { service, cardcom } = build([attempt({ operation: 'REFUND', obligationId: null })]);
+    const result = await service.reconcileDueAttempts();
+    expect(result.due).toBe(0);
+    expect(cardcom.getTransactionByExternalUniqTran).not.toHaveBeenCalled();
+    neverCharged(cardcom);
+  });
 
   it.each([
     [

@@ -9,6 +9,12 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 
 ## Main flows
 
+- User payment history has view and download document actions for charge and
+  refund rows. Preview reserves a tab during the click, fetches the existing
+  owner-authorized receipt Blob, and passes it to FilesService.previewFile3.
+  Popup blocking/missing PDFs show friendly messages; document reads share a
+  busy guard. No public storage URL, document issuance or financial action.
+
 - Account sources, subscription history, classification rules and category
   tables use unified generic-table `actions`. Mobile menus inherit their
   existing showWhen predicates and show loading state; no mobile override is

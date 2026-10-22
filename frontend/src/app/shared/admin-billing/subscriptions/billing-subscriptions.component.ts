@@ -1,4 +1,5 @@
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
+import { BillingRefundDialogComponent } from './billing-refund-dialog.component';
 import {
   Component,
   computed,
@@ -87,6 +88,7 @@ export const STATUS_LABELS: Record<string, string> = {
   templateUrl: './billing-subscriptions.component.html',
   styleUrls: ['./billing-subscriptions.component.scss'],
   imports: [
+    BillingRefundDialogComponent,
     CommonModule,
     ReactiveFormsModule,
     DrawerModule,
@@ -130,6 +132,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   subscriptions = signal<AdminSubscription[]>([]);
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
+  refundSub = signal<AdminSubscription | null>(null);
   showDrawer = signal(false);
   /** Read-only billing exceptions of the open drawer's subscription, loaded lazily on open. */
   exceptionAttempts = signal<AdminUnresolvedBillingAttempt[]>([]);
@@ -228,6 +231,11 @@ export class BillingSubscriptionsComponent implements OnInit {
   ]);
 
   readonly rowActions: IGenericTableAction[] = [
+    {
+      name: 'refund', icon: 'pi pi-undo', title: 'זיכוי',
+      action: (_: any, row: IRowDataTable) => this.refundSub.set(
+        this.subscriptions().find(s => s.subscriptionId === row['subscriptionId']) ?? null),
+    },
     {
       name: 'edit',
       icon: 'pi pi-pencil',

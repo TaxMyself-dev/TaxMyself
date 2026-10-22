@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "types": ["jasmine", "node"] },
+  "include": ["src/app/shared/admin-billing/subscriptions/billing-refund-dialog.component.spec.ts", "src/**/*.d.ts"]
+}

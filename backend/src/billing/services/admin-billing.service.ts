@@ -403,7 +403,7 @@ export class AdminBillingService {
         .addSelect("MAX(FIELD(a.status, 'AWAITING_CUSTOMER', 'CREATED', 'PROCESSING', 'CAPTURED', 'UNKNOWN', 'MANUAL_REVIEW'))", 'statusRank')
         .from(BillingAttempt, 'a')
         .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
-        .where('a.status IN (:...unresolved)', { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
+        .where("a.operation = 'CHARGE' AND a.status IN (:...unresolved)", { unresolved: UNRESOLVED_ATTEMPT_STATUSES })
         .setParameter('manualReview', BillingAttemptStatus.MANUAL_REVIEW)
         .groupBy('o.subscriptionId')
         .getRawMany();
@@ -462,7 +462,7 @@ export class AdminBillingService {
       .addSelect('a.cardcomLowProfileId', 'cardcomLowProfileId')
       .from(BillingAttempt, 'a')
       .innerJoin(BillingObligation, 'o', 'o.id = a.obligationId')
-      .where('o.subscriptionId = :subscriptionId', { subscriptionId })
+      .where("a.operation = 'CHARGE' AND o.subscriptionId = :subscriptionId", { subscriptionId })
       .orderBy('a.createdAt', 'DESC')
       .addOrderBy('a.id', 'DESC')
       .getRawMany();

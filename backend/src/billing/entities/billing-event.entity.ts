@@ -20,6 +20,8 @@ import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.enti
  * transactional operational records; their persistence failure must roll back.
  */
 @Entity('billing_event')
+@Index('ux_billing_event_refund_success', ['refundSuccessAttemptId'], { unique: true })
+// Refund success sign/provenance is enforced by migration INSERT/UPDATE triggers.
 @Index('ix_billing_event_subscription', ['subscriptionId', 'createdAt'])
 @Index('ix_billing_event_user', ['firebaseId', 'createdAt'])
 @Index('ix_billing_event_type', ['eventType'])
@@ -28,6 +30,10 @@ import { PaymentMethodUpdateAttempt } from './payment-method-update-attempt.enti
 @Index('ix_billing_event_attempt', ['billingAttemptId', 'createdAt'])
 @Index('ix_billing_event_payment_method_update', ['paymentMethodUpdateAttemptId', 'createdAt'])
 export class BillingEvent {
+  @Column({ name: 'refund_success_attempt_id', type: 'int', nullable: true,
+    asExpression: "CASE WHEN `event_type` = 'REFUND_SUCCESS' THEN `billing_attempt_id` ELSE NULL END",
+    generatedType: 'VIRTUAL', insert: false, update: false })
+  refundSuccessAttemptId: number | null;
   @PrimaryGeneratedColumn()
   id: number;
 

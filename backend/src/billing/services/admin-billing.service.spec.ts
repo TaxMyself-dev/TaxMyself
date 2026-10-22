@@ -346,7 +346,7 @@ describe('AdminBillingService unresolved billing attempts (read-only)', () => {
     const result = await makeService(dataSource, subscriptionRepo).findUnresolvedBillingAttempts(42);
 
     const attemptsQuery = builders.find(b => b.entity === BillingAttempt) as (typeof builders)[number];
-    expect(attemptsQuery.wheres[0]).toEqual(['o.subscriptionId = :subscriptionId', { subscriptionId: 42 }]);
+    expect(attemptsQuery.wheres[0]).toEqual(["a.operation = 'CHARGE' AND o.subscriptionId = :subscriptionId", { subscriptionId: 42 }]);
     expect(attemptsQuery.wheres).toHaveLength(1); // history includes resolved attempts, scoped to this subscription
     expect(attemptsQuery.selects.join(' ')).not.toMatch(/token|response|leaseOwner|ExternalUniq|cardNumber/i);
     expect(result.map(a => a.attemptId)).toEqual([11, 9]);

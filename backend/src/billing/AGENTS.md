@@ -1,4 +1,27 @@
 ## Purpose
+Admin refund PDF access: GET subscriptions/:id/refunds/:attemptId/document is
+admin-only, validates source subscription/user and linked credit document attempt
+provenance, then streams the existing PDF with no-store. Never bypass ownership
+checks with an arbitrary document id or expose a public storage URL.
+Admin refunds (2026-10-21): BillingRefundService owns admin-only refund context,
+reservation and operator resolution.
+The follow-up check-provider action uses read-only paginated ListTransactions
+and verifies source id/UID, terminal/currency and refund amount; it returns evidence
+only, never changes financial state or treats absence as no refund. Response
+code/Description are bounded/redacted and saved in existing REFUND_RESOLUTION
+metadata (PROVIDER_REFUND_RESPONSE); old missing descriptions remain missing.
+It reuses billing_attempt with operation=REFUND
+and source_payment_event_id, including legacy successful events without a source
+attempt. No subscription/debt writes are allowed on this path. Existing charge
+reconciliation/admin/renewal paths exclude refunds. A durable request UUID and
+subscription lock reserve balance before CardCom; uncertain outcomes never replay.
+Confirmed refunds reuse UNIQUE document attempt provenance and existing credit-note
+accounting/signing/email; REFUND_SUCCESS is negative in user history. The minute
+refund recovery cron completes documents with backoff only, never submits refunds.
+Dev schema requires scripts/migrate-admin-refunds.js (refuses non-dev DB); do not
+rely on synchronize because MySQL-compatible invariant triggers are required.
+See docs/features/admin-refunds.md for approvals, manual recovery and test limits.
+
 The standalone `backend/scripts/migrations/2026-10-09_billing_canonical_release.sql` selects keepintax-prod explicitly and includes billing cutover sections 20/21 plus additive enum completion (cumulative section 22). It preserves existing enum order/values and ends with table, column and attempt-membership verification. It does not trigger provider charges. Its manual production execution and basic verification were reported by the owner; Codex did not access production.
 Integration with main preserves STANDARD-only conditional trial expiry and activates verified banking enrollments before expiry. Activated trials are not counted as expired; concurrent complimentary grants cannot be overwritten. Billing cutover DDL is Section 20, multi-obligation links Section 21, following main's Finsite retirement Section 19.
 Local billing backend uses port 3000, frontend 4200. Use `npm run start:watch` from billing backend with its local `.env`; the optional start:billing wrapper pins 3000 and preserves existing terminal env values rather than overriding them.

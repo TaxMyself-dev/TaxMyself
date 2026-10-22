@@ -1,4 +1,18 @@
 ## Purpose
+Refund history offers PDF view/download for linked credit documents through an
+authenticated admin endpoint. Missing PDFs show an actionable completion message;
+view/download never triggers credit creation or money operations.
+Subscriptions expose a refund row action opening BillingRefundDialogComponent.
+Refund history shows saved provider code/description (or an explicit legacy-missing
+description). UNKNOWN/manual review also offers a separate read-only provider
+check; it shows UID/amount-matched candidates without auto-resolving or re-refunding.
+The dialog lists original successful payments (including legacy events), available
+balance, reason and explicit refund confirmation. Uncertain refunds are blocked
+from re-submission and show evidence-based manual resolution; confirmed refunds
+offer document-only completion. UI never changes the subscription. Request UUID
+is retained across in-dialog transport retries; server reservations remain the
+authority across reloads and admins. Isolated tests: tsconfig.billing-refund.spec.json.
+
 Admin-panel tab that hosts billing administration, split into two sub-tabs: plan management and subscription management.
 
 ## Key entities/files
