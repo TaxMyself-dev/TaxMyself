@@ -73,6 +73,10 @@ was performed by these mocked tests. git diff --check passed.
   topic instructions; commented dev-only cumulative DDL in docs/redesign/cutover.sql.
 # Follow-up 2026-10-22: document completion diagnostics
 
+Refund payment options now show `(זוכה: 35 ₪)` next to the original amount when
+confirmed refunds exist. Sum only CAPTURED/COMPLETED refunds linked to that
+payment; pending/unknown reservations must not be described as refunded money.
+
 Requested by Elazar: save and display errors from successful refunds whose credit
 PDF/email completion fails. Added stage/message/time audit metadata and admin
 display, retaining CAPTURED recovery and no-repeat-money behavior. No schema or

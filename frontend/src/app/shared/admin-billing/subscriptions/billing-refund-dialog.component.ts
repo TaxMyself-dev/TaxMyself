@@ -37,7 +37,7 @@ import { AdminBillingService, AdminRefund, RefundContext, RefundPayment, RefundP
             <select name="payment" [ngModel]="paymentId" (ngModelChange)="selectPayment($event)" [disabled]="busy()">
               <option [ngValue]="null">בחירת תשלום</option>
               @for (p of ctx.payments; track p.paymentEventId) {
-                <option [ngValue]="p.paymentEventId">{{ p.date | date:'dd/MM/yyyy' }} — {{ p.amountAgorot / 100 | number:'1.2-2' }} ₪ — עסקה {{ p.transactionId ?? 'חסרה' }}</option>
+                <option [ngValue]="p.paymentEventId">{{ p.date | date:'dd/MM/yyyy' }} — {{ p.amountAgorot / 100 | number:'1.2-2' }} ₪ @if (creditedAgorot(p) > 0) { (זוכה: {{ creditedAgorot(p) / 100 | number:'1.0-2' }} ₪) } — עסקה {{ p.transactionId ?? 'חסרה' }}</option>
               }
             </select>
           </label>
@@ -125,6 +125,10 @@ export class BillingRefundDialogComponent implements OnInit {
       next: ctx => this.context.set(ctx), error: () => { this.context.set(null); this.error.set('לא ניתן לטעון תשלומים. יש לרענן.'); } });
   }
   selectedPayment(): RefundPayment | undefined { return this.context()?.payments.find(p => p.paymentEventId === this.paymentId); }
+  creditedAgorot(payment: RefundPayment): number {
+    return (this.context()?.refunds ?? []).filter(r => r.paymentEventId === payment.paymentEventId &&
+      (r.status === 'CAPTURED' || r.status === 'COMPLETED')).reduce((total, r) => total + r.amountAgorot, 0);
+  }
   selectPayment(id: number | null) { this.paymentId = id; this.amount = ((this.selectedPayment()?.remainingAgorot ?? 0) / 100).toFixed(2); this.confirmed = false; }
   amountAgorot() { return /^\d+(\.\d{1,2})?$/.test(this.amount.trim()) ? Math.round(Number(this.amount) * 100) : 0; }
   canSubmit() {
