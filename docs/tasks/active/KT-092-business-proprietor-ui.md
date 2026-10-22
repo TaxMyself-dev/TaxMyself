@@ -1,6 +1,6 @@
 # KT-092 - Business proprietor UI polish
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (single-agent isolated worktree)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt092-worker`
@@ -50,4 +50,5 @@ than account-role terminology.
 - Integrated commit: `9fd51ce3`.
 - Combined verification: focused TypeScript check passed; focused Karma passed
   3/3; Angular production build passed with existing budget/CommonJS warnings.
-- `origin/main` verification: pending push.
+- `origin/main` verification: `e2c5e56e` confirmed on both `origin/main` and
+  `origin/codex/integration-kt092` before this final delivery-record commit.
