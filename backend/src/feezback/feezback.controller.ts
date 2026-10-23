@@ -68,7 +68,19 @@ export class FeezbackController {
   @Get('connection-options')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async connectionOptions(@Req() req: AuthenticatedRequest) {
-    return this.feezbackService.getConnectionOptions(req.user!.firebaseId);
+    const firebaseId = req.user!.firebaseId;
+    try {
+      // Reconcile stale connection flags before deciding whether to offer the
+      // spouse choice. This only reads provider state; it never revokes consent.
+      await this.disconnection!.targets(firebaseId);
+    } catch (error) {
+      const response = error instanceof BadRequestException ? error.getResponse() : null;
+      // Synthetic demos intentionally have local connection flags and no live
+      // provider registration. Preserve that existing behavior, not other errors.
+      if (!response || typeof response !== 'object' ||
+        (response as { code?: string }).code !== 'SYNTHETIC_OPEN_BANKING') throw error;
+    }
+    return this.feezbackService.getConnectionOptions(firebaseId);
   }
 
   @Post('consent-link')

@@ -102,3 +102,12 @@ Customers and administrators can cancel a specific provider consent or disconnec
 
 - Final Nest build passed. Owner-profile request generations also invalidate on Firebase session transitions, preventing old responses after logout and same-UID relogin. Final code review resolved the spouse verification blocker; no further blockers found.
 - Final Angular production build passed on the final session-invalidation source state; existing CommonJS/style/initial-size warnings remain, with no budget/config changes. git diff --check passed.
+
+## Actual runtime diagnosis and options reconciliation (2026-10-23)
+
+- User explicitly authorized inspecting running checkout and their database flags, and fixing the stale spouse dialog without another termination.
+- Windows listeners: frontend4200 process41004 points at feature frontend Angular CLI; backend3000 process41816 points at feature backend/dist/main. Compiled reset present. Feature environment targets keepintax-dev; canonical watch launcher disables schema synchronize.
+- Matched the unique account from the active dashboard identity. Targeted read-only SQL confirmed hasOpenBanking=0 and hasSpouseFeezbackIdentity=1. No unrelated rows read and no direct SQL writes.
+- Normal Settings permission discovery (GET only) verified full disconnection and changed both flags to0 through the existing reset service. Targeted SQL recheck confirmed both0; browser shows disconnected status and yellow dashboard banner. No consent creation/termination or DELETE invoked.
+- Root cause: connection-options read stored flags without authoritative discovery, so stale flags persisted until the user opened permission management. Reconcile before returning connection-options; preserve partial/pending states and synthetic demo behavior. No schema or unrelated profile/business changes.
+- Follow-up verification: 4 focused backend suites /64 tests passed, Nest build passed, independent review found no blockers, diff check passed. Provider discovery adds its existing read/retry latency to connection-options. Frontend unchanged. Screenshot of verified yellow dashboard banner retained outside Git in task workspace.
