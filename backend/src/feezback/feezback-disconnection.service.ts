@@ -71,7 +71,12 @@ export class FeezbackDisconnectionService {
     });
   }
 
-  private async readTargets(firebaseId: string): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>> }> {
+  private async resetDisconnectedFlags(firebaseId: string): Promise<void> {
+    await this.users.update({ firebaseId }, { hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
+    await this.sync.clearConsentInitiated(firebaseId);
+  }
+
+  private async readTargets(firebaseId: string, resetFullyDisconnected = true): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>> }> {
     const user = await this.users.findOne({ where: { firebaseId } });
     if (!user) throw new BadRequestException('User not found');
     if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({
@@ -154,7 +159,11 @@ export class FeezbackDisconnectionService {
     // A complete consent read proving no active permission clears the flag even
     // when stale provider accounts still exist. Partial reads never clear it.
     let hasOpenBanking = user.hasOpenBanking;
-    if (connected || (connectionComplete && errors.length === 0)) {
+    const fullyDisconnected = connectionComplete && errors.length === 0 && consents.length === 0;
+    if (fullyDisconnected && resetFullyDisconnected) {
+      await this.resetDisconnectedFlags(firebaseId);
+      hasOpenBanking = false;
+    } else if (connected || (connectionComplete && errors.length === 0)) {
       hasOpenBanking = connected;
       await this.users.update({ firebaseId }, { hasOpenBanking });
     }
@@ -167,7 +176,7 @@ export class FeezbackDisconnectionService {
       throw new BadRequestException('consentId and connectionRole are required');
     }
     return connectionOperation(firebaseId, async () => {
-      const before = await this.readTargets(firebaseId);
+      const before = await this.readTargets(firebaseId, false);
       const targets = request.scope === 'all' ? before.consents : before.consents.filter(c =>
         c.consentId === request.consentId && c.connectionRole === request.connectionRole);
       if (request.scope === 'consent' && !targets.length) throw new BadRequestException('Consent is not an active permission owned by this user');
@@ -177,7 +186,7 @@ export class FeezbackDisconnectionService {
           return { ...target, failed: false };
         } catch { return { ...target, failed: true }; }
       }));
-      const after = await this.readTargets(firebaseId);
+      const after = await this.readTargets(firebaseId, false);
       const results: Array<{ consentId: string; connectionRole: ConnectionRole; status: 'terminated' | 'failed' | 'pending' }> = [];
       for (const attempt of attempts) {
         const identityReadFailed = after.errors.some(error => error.connectionRole === attempt.connectionRole && error.code === 'consents_unavailable');
@@ -211,7 +220,7 @@ export class FeezbackDisconnectionService {
       const success = after.complete && results.every(r => r.status === 'terminated') &&
         (request.scope !== 'all' || after.consents.length === 0) &&
         !before.errors.some(e => e.code === 'consents_unavailable');
-      if (success && request.scope === 'all') await this.sync.clearConsentInitiated(firebaseId);
+      if (success && after.consents.length === 0) await this.resetDisconnectedFlags(firebaseId);
       return { status: success ? 'success' as const : 'partial' as const, results,
         remainingConsents: after.consents, complete: after.complete,
         hasOpenBanking: after.hasOpenBanking, errors: [...before.errors, ...after.errors] };

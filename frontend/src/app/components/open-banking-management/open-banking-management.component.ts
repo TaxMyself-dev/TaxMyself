@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogModule } from 'primeng/dialog';
-import { finalize } from 'rxjs';
+import { finalize, map, of, switchMap } from 'rxjs';
 import { AuthService } from 'src/app/services/auth.service';
 import { BankingConsent, BankingTargets, FeezbackService } from 'src/app/services/feezback.service';
 import { GenericTableComponent } from '../generic-table/generic-table.component';
@@ -111,8 +111,12 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   load(onLoaded?: () => void): void {
     if (!this.canManage() || this.busy() || this.loading() || this.externalBusy) return;
     this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false);
-    this.service.disconnectionTargets(this.firebaseId).pipe(finalize(() => this.loading.set(false))).subscribe({
-      next: data => { this.targets.set(data); onLoaded?.(); },
+    this.service.disconnectionTargets(this.firebaseId).pipe(
+      switchMap(data => !this.firebaseId && data.complete
+        ? this.auth.restoreUserData().pipe(map(() => data)) : of(data)),
+      finalize(() => this.loading.set(false)),
+    ).subscribe({
+      next: data => { this.targets.set(data); if (data.complete) this.connectionChanged.emit(); onLoaded?.(); },
       error: err => {
         this.targets.set(null);
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
@@ -155,7 +159,10 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     this.busy.set(true); this.busyChange.emit(true); this.error.set(''); this.message.set('');
     this.service.disconnect({ firebaseId: this.firebaseId, scope: selection === 'all' ? 'all' : 'consent',
       ...(selection === 'all' ? {} : { consentId: selection.consentId, connectionRole: selection.connectionRole }),
-    }).pipe(finalize(() => { this.busy.set(false); this.busyChange.emit(false); })).subscribe({
+    }).pipe(
+      switchMap(result => !this.firebaseId ? this.auth.restoreUserData().pipe(map(() => result)) : of(result)),
+      finalize(() => { this.busy.set(false); this.busyChange.emit(false); }),
+    ).subscribe({
       next: result => {
         this.confirmation.set(null); this.choices.set(null);
         this.targets.set({ consents: result.remainingConsents, complete: result.complete, hasOpenBanking: result.hasOpenBanking, errors: result.errors });
@@ -164,7 +171,6 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
           this.error.set('הפעולה לא הושלמה במלואה. חלק מההרשאות עדיין פעילות או שמצבן לא אומת. יש לרענן ולנסות שוב.');
         } else { this.message.set(selection === 'all' ? 'הניתוק מבנקאות פתוחה הושלם.' : 'ההרשאה בוטלה.'); }
         this.connectionChanged.emit();
-        if (!this.firebaseId) this.auth.restoreUserData().subscribe();
       },
       error: () => {
         this.confirmation.set(null); this.targets.set(null);

@@ -16,7 +16,7 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - [x] Separate single-consent cancellation and full-disconnection UI for owner and admin, previewing every affected local account/card.
 - [x] Backend derives identity and verifies real owner/admin permissions; accountant delegation cannot terminate.
 - [x] Termination probes primary and spouse identities, including pending onboarding; partial errors remain visible and retryable.
-- [x] hasOpenBanking reflects verified current connections; historical spouse identity is preserved and successful full disconnection clears pending consent initiation.
+- [x] hasOpenBanking reflects verified current connections; verified complete absence of permissions resets spouse connection and pending consent flags, while preserving all application data and stable identity derivation.
 - [x] No source, bill association, classification/rule, approved expense, or retained slim transaction is deleted.
 - [x] Changed provider consent/resource IDs reuse permanent source IDs and associations; repeated rediscovery creates no duplicate account/card in mocked regression tests.
 - [x] Existing nightly cache cleanup remains unchanged; rebuilding an empty cache preserves manual classification and confirmed states.
@@ -86,3 +86,19 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - Backend verification: 2 focused suites / 43 tests passed, Nest build passed. Frontend final focused selection: shared component + Settings row routing + existing source deletion, 32 ChromeHeadless tests passed. Independent read-only review found two UI gaps; both corrected and covered by regressions.
 - No application servers, real provider calls, real disconnections, database changes, pushes or integration performed during this follow-up.
 - Final follow-up Angular production build passed (hash 110508ec7fa41d00); existing size/CommonJS warnings remain. git diff --check passed.
+
+## Approved profile and full-reset follow-up (2026-10-23)
+
+- User approved implementation in the same feature worktree, based on local commit 359571d7.
+- Acceptance: every authenticated browser bootstrap refreshes profile from the backend; successful owner consent termination and authoritative disconnected discovery refresh the cached/reactive profile and yellow banner without manual reload.
+- Acceptance: complete verified absence of all primary/spouse permissions resets banking connection flags and consent initiation. Partial failures or remaining pending permissions preserve uncertainty. No Source, association, classification, transaction, expense, subscription or unrelated profile data is reset.
+- Preserve delegation/session UID boundaries and stable primary/spouse provider identity suffixes. No live calls, database operations, app servers or main integration are authorized by this follow-up.
+- Implementation: StartupService revalidates the UID-bound owner profile once per authenticated browser bootstrap even with existing tab cache. Explicit owner request context omits represented-client/business headers while preserving delegation. Bounded transport failure preserves session/cache.
+- AuthService publishes accepted owner-profile updates; request generation and UID checks discard stale/wrong-owner responses. Cached MyAccount pages react immediately and reread effective profile on Ionic reentry. Complete discovery and termination refresh profiles before notifying parent UI.
+- Verified complete absence of all nonterminal permissions resets hasOpenBanking and hasSpouseFeezbackIdentity, and clears lastConsentInitiatedAt. Pending/partial/failed checks do not reset spouse/onboarding flags. Successful single-last-consent cancellation also qualifies. Source rows/mappings/classifications/approved expenses and all unrelated user/billing data remain unchanged.
+- Retained intentionally: cache/sync outcome history, lastSourcesRefreshAt, spouse personal profile, stable UID-derived provider identities, Source.connectionRole and enrollment/subscription terms. No schema or billing-contract changes.
+- Independent review found spouse webhook verification could race an old empty snapshot. Verification+flag update now share the per-user connection queue; webhook separately queues discovery after verification, avoiding nested locks. Controlled regression covers this and repeated spouse/primary reconnect retaining six original Sources/bill links.
+- Final focused backend checks: 4 exact suites (disconnection/API/reconnection/spouse), 80 tests passed. Final frontend isolated mocked checks: owner-profile/startup/interceptor, cached dashboard, management and Settings, 44 tests passed (including logout/relogin invalidation). No live provider requests, app servers, database changes, push or integration.
+
+- Final Nest build passed. Owner-profile request generations also invalidate on Firebase session transitions, preventing old responses after logout and same-UID relogin. Final code review resolved the spouse verification blocker; no further blockers found.
+- Final Angular production build passed on the final session-invalidation source state; existing CommonJS/style/initial-size warnings remain, with no budget/config changes. git diff --check passed.

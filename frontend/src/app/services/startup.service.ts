@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { AuthService } from './auth.service';
 import { GenericService } from './generic.service';
 import { isFirebaseAuthPersistenceReady } from '../shared/auth/firebase-auth-persistence';
+import { firstValueFrom } from 'rxjs';
 
 /**
  * Single, explicit "startup ready" gate for the whole app.
@@ -61,7 +62,10 @@ export class StartupService {
   /** Resolves once initialization has finished. Memoized — safe to await often. */
   whenReady(): Promise<void> {
     if (!this.readyPromise) {
-      this.readyPromise = this.auth.waitForAuthInit().then(() => {
+      this.readyPromise = this.auth.waitForAuthInit().then(async () => {
+        // A tab cache survives browser refresh; revalidate it once per app load.
+        // The owner-only request preserves any represented-client context.
+        if (this.auth.isLoggedIn) await firstValueFrom(this.auth.refreshOwnerProfile());
         this._ready.set(true);
       });
     }

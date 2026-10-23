@@ -73,8 +73,65 @@ describe('Feezback disconnection', () => {
     // Spouse has no persisted source metadata in this fixture.
     expect(sync.clearConsentOnSources).not.toHaveBeenCalledWith('owner', 'c2', true);
     expect(JSON.stringify(await sources.find())).toBe(snapshot);
-    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(user.hasSpouseFeezbackIdentity).toBe(false);
     expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+  });
+  it('complete empty preview resets both connection flags and pending initiation without deleting permanent sources', async () => {
+    permissions.owner_sub = [];
+    permissions.owner_sub_spouse = [{ resourceId: 'old', consentStatus: 'terminatedByTpp' }];
+    const snapshot = JSON.stringify(await sources.find());
+    const result = await service.targets('owner');
+    expect(result).toMatchObject({ complete: true, hasOpenBanking: false, consents: [] });
+    expect(users.update).toHaveBeenCalledWith({ firebaseId: 'owner' }, { hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
+    expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+    expect(JSON.stringify(await sources.find())).toBe(snapshot);
+    expect(api.getUserConsents.mock.calls).toEqual([['owner_sub', true], ['owner_sub_spouse', true]]);
+    expect(api.terminateConsent).not.toHaveBeenCalled();
+  });
+  it('remaining pending permission preserves spouse and onboarding flags despite no usable connection', async () => {
+    permissions.owner_sub = [];
+    const preview = await service.targets('owner');
+    expect(preview).toMatchObject({ complete: true, hasOpenBanking: false });
+    expect(preview.consents).toHaveLength(1);
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('partial preview cannot reset spouse or onboarding flags when one identity is unknown', async () => {
+    api.getUserConsents.mockImplementation(async sub => {
+      if (sub.endsWith('spouse')) throw Error('unavailable');
+      return { consents: [] };
+    });
+    expect((await service.targets('owner')).complete).toBe(false);
+    expect(user.hasOpenBanking).toBe(true);
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(users.update).not.toHaveBeenCalled();
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('single cancellation of the final permission also clears fully disconnected flags', async () => {
+    permissions.owner_sub_spouse = [];
+    const result = await service.disconnect('owner', { scope: 'consent', consentId: 'c1', connectionRole: 'primary' });
+    expect(result).toMatchObject({ status: 'success', hasOpenBanking: false, remainingConsents: [] });
+    expect(user.hasSpouseFeezbackIdentity).toBe(false);
+    expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+  });
+  it('full disconnection with pending or failed termination preserves spouse and onboarding flags', async () => {
+    permissions.owner_sub = [];
+    api.terminateConsent.mockRejectedValue(Error('failed'));
+    const result = await service.disconnect('owner', { scope: 'all' });
+    expect(result).toMatchObject({ status: 'partial', hasOpenBanking: false });
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('partial POST result does not clear spouse or onboarding flags even when final snapshot becomes empty', async () => {
+    let reads = 0;
+    api.getUserConsents.mockImplementation(async () => {
+      if (++reads === 1) throw Error('temporarily unavailable');
+      return { consents: [] };
+    });
+    const result = await service.disconnect('owner', { scope: 'all' });
+    expect(result).toMatchObject({ status: 'partial', complete: true, remainingConsents: [] });
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });
   it('single cancellation leaves another valid identity connected', async () => {
     permissions.owner_sub_spouse[0].consentStatus = 'valid';
@@ -82,6 +139,7 @@ describe('Feezback disconnection', () => {
     expect(result).toMatchObject({ status: 'success', hasOpenBanking: true });
     expect(result.remainingConsents).toHaveLength(1);
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
     expect(api.terminateConsent).toHaveBeenCalledTimes(1);
   });
   it('refuses a consent belonging to another owner/identity before DELETE', async () => {

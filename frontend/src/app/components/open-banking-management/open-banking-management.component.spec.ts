@@ -29,6 +29,24 @@ describe('open banking disconnection', () => {
     expect(text).toContain('כרטיס'); expect(text).toContain('6789');
     expect(text).toContain('בתוקף'); fixture.destroy();
   });
+  it('refreshes the owner profile after authoritative discovery before notifying parent consumers', () => {
+    const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);
+    const changed = jasmine.createSpy(); component.connectionChanged.subscribe(changed);
+    component.ngOnInit();
+    expect(auth.restoreUserData).toHaveBeenCalledTimes(1); expect(changed).not.toHaveBeenCalled();
+    expect(component.loading()).toBeTrue();
+    refreshed.next({ hasOpenBanking: false }); refreshed.complete();
+    expect(changed).toHaveBeenCalledTimes(1); expect(component.loading()).toBeFalse();
+  });
+  it('waits for the post-cancellation profile before clearing busy state and notifying parent consumers', () => {
+    component.ngOnInit(); const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);
+    const changed = jasmine.createSpy(); component.connectionChanged.subscribe(changed);
+    component.confirmation.set('all'); component.confirm();
+    expect(component.busy()).toBeTrue(); expect(changed).not.toHaveBeenCalled();
+    refreshed.next({ hasOpenBanking: false }); refreshed.complete();
+    expect(changed).toHaveBeenCalledTimes(1); expect(component.busy()).toBeFalse();
+    expect(component.targets()?.hasOpenBanking).toBeFalse();
+  });
   it('explains a synthetic demo connection without exposing mutation targets', () => {
     service.disconnectionTargets.and.returnValue(throwError(() => ({ error: { code: 'SYNTHETIC_OPEN_BANKING' } })));
     component.load();

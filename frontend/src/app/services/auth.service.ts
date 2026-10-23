@@ -3,8 +3,8 @@ import { ClientPanelService } from './clients-panel.service';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { Router } from '@angular/router';
-import { Observable, catchError, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError } from 'rxjs';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, catchError, defer, filter, firstValueFrom, from, switchMap, take, EMPTY, tap, BehaviorSubject, finalize, throwError, map, of, timeout } from 'rxjs';
+import { HttpClient, HttpContext, HttpHeaders } from '@angular/common/http';
 import { User, UserCredential } from '@firebase/auth-types';
 import { GoogleAuthProvider, sendEmailVerification } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
@@ -12,6 +12,7 @@ import { ExpenseDataService } from './expense-data.service';
 import { GenericService } from './generic.service';
 import { IUserData } from '../shared/interface';
 import { IdentitySessionStorageService } from '../shared/auth/identity-session-storage.service';
+import { OWNER_PROFILE_REQUEST } from '../shared/auth/owner-profile-request';
 
 @Injectable({
   providedIn: 'root'
@@ -24,6 +25,9 @@ export class AuthService {
   private viewAsUserData: IUserData | null = null;
   private refreshInterval: any;
   private tokenListenerInitialized = false; // Ensure the listener is initialized only once
+  private ownerProfileRequestVersion = 0;
+  private readonly ownerProfileUpdates = new BehaviorSubject<IUserData | null>(null);
+  readonly ownerProfileUpdates$ = this.ownerProfileUpdates.asObservable();
 
 
   /**
@@ -77,6 +81,10 @@ export class AuthService {
     this.authInitPromise = new Promise<void>((resolve) => {
       this.afAuth.authState.subscribe({
         next: (user) => {
+          if (this.authUser()?.uid !== user?.uid) {
+            this.ownerProfileRequestVersion++;
+            this.ownerProfileUpdates.next(null);
+          }
           this.identityStorage.setAuthenticatedUid(user?.uid ?? null);
           this.authUser.set((user as User | null) ?? null);
           if (!this.authInitialized()) {
@@ -89,6 +97,8 @@ export class AuthService {
           // done with "no user" so guards can make a decision. This does NOT
           // sign anybody out — no signOut() call, no storage cleared.
           console.error('[AuthService] authState stream error:', err);
+          this.ownerProfileRequestVersion++;
+          this.ownerProfileUpdates.next(null);
           this.identityStorage.setAuthenticatedUid(null);
           this.authUser.set(null);
           this.authInitialized.set(true);
@@ -340,21 +350,49 @@ export class AuthService {
 
   /** Cache the real signed-in profile in this tab only. */
   storeUserData(userData: IUserData): boolean {
-    return this.identityStorage.setUserData(userData);
+    const stored = this.identityStorage.setUserData(userData);
+    if (stored) {
+      this.ownerProfileRequestVersion++;
+      this.ownerProfileUpdates.next(userData);
+    }
+    return stored;
+  }
+
+  /** Fresh real-owner read; does not enter/exit delegation or trigger login sync. */
+  refreshOwnerProfile(): Observable<IUserData | null> {
+    return defer(() => {
+      const uid = this.getCurrentAuthUser()?.uid;
+      if (!uid) return of(null);
+      const version = ++this.ownerProfileRequestVersion;
+      return this.http.get<IUserData>(`${environment.apiUrl}auth/signin`, {
+        context: new HttpContext().set(OWNER_PROFILE_REQUEST, true),
+        headers: new HttpHeaders({ 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }),
+      }).pipe(
+        timeout(10_000),
+        map(profile => {
+          if (version !== this.ownerProfileRequestVersion || this.getCurrentAuthUser()?.uid !== uid || profile?.firebaseId !== uid) return null;
+          return this.storeUserData(profile) ? profile : null;
+        }),
+        // A transient outage keeps the existing tab cache and Firebase session.
+        catchError(() => of(null)),
+      );
+    });
   }
 
   /**
-   * Restore userData from the backend when this tab's cache is missing but the user is still logged in.
+   * Refresh the effective profile. Owner reads revalidate the tab cache;
+   * represented-client reads retain their existing view-as semantics.
    * @returns Observable that emits the restored userData or null if restoration fails
    */
   restoreUserData(): Observable<IUserData | null> {
+    if (!this.isViewingAsClient() && !sessionStorage.getItem('tm.selectedClientId')) return this.refreshOwnerProfile();
     return this.signIn().pipe(
       tap((userData: IUserData) => {
         // Never persist into the base `userData` slot while impersonating —
         // this request resolves to the impersonated client (via the
         // x-client-user-id header) and would otherwise clobber the
         // accountant's own cached profile with the client's data.
-        if (userData && !this.isViewingAsClient()) {
+        if (userData && !this.isViewingAsClient() && !sessionStorage.getItem('tm.selectedClientId')) {
           this.storeUserData(userData);
           // console.log('✅ userData restored from backend');
         }

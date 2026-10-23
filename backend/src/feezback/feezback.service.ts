@@ -150,6 +150,10 @@ export class FeezbackService {
 
   /** Only the authenticated data-ready webhook calls this method. Never from browser return/discovery. */
   async verifySpouseWebhookConnection(firebaseId: string, sub: string): Promise<boolean> {
+    return connectionOperation(firebaseId, () => this.verifySpouseWebhookConnectionUnlocked(firebaseId, sub));
+  }
+
+  private async verifySpouseWebhookConnectionUnlocked(firebaseId: string, sub: string): Promise<boolean> {
     if (sub !== feezbackSub(firebaseId, true)) return false;
     const user = await this.userRepository.findOne({ where: { firebaseId } });
     if (!user) return false;

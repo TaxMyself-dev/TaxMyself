@@ -69,6 +69,10 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
 
 ## Open-banking payment source deletion
+Authoritative complete consent discovery and every completed disconnect response
+refresh the owner profile before emitting `connectionChanged`. Parent account-source
+reloads therefore observe the new profile rather than racing a stale cached flag.
+Explicit admin targets do not refresh or overwrite the admin's own profile.
 The permissions tab embeds `OpenBankingManagementComponent` directly below its
 existing account-source table. Owner row actions preview cancellation of the
 whole consent (all associated accounts/cards) or start reconnect for a disconnected
