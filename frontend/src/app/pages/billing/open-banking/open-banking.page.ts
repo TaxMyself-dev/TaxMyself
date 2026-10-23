@@ -52,14 +52,34 @@ export class OpenBankingPage implements OnInit {
     }
   }
   async load() {
-    this.busy.set(true);
+    this.busy.set(true); this.error.set('');
     try {
       const options = await this.enrollment.options();
       this.options.set(options);
       this.selectedPlanId = options.enrollment?.planId ?? options.plans[0]?.id ?? null;
       this.cancelPlanId = options.nonBankingPlans[0]?.id ?? null;
-    } catch { await this.navigation.returnToOrigin(); }
+    } catch (error) {
+      this.options.set(null);
+      this.showFailure('options', error);
+    }
     finally { this.busy.set(false); }
+  }
+  async retryLoad() {
+    if (this.busy()) return;
+    await this.load();
+    if (this.options()?.complimentary || this.options()?.status === 'ACTIVE') await this.continue();
+  }
+  private showFailure(step: 'options' | 'prepare' | 'connection-options' | 'consent-link', error?: unknown) {
+    const messages = {
+      options: 'לא הצלחנו לטעון את פרטי ההצטרפות. אפשר לנסות שוב. אם הבעיה נמשכת, פנו לתמיכה.',
+      prepare: 'לא הצלחנו לאשר את ההצטרפות לחיבור. נסו שוב או רעננו את פרטי התוכנית. אם הבעיה נמשכת, פנו לתמיכה.',
+      'connection-options': 'לא הצלחנו לבדוק את אפשרויות החיבור לבנקאות פתוחה. נסו שוב. אם הבעיה נמשכת, פנו לתמיכה.',
+      'consent-link': 'לא הצלחנו ליצור קישור מאובטח לחיבור הבנק. נסו שוב. אם הבעיה נמשכת, פנו לתמיכה.',
+    };
+    const status = (error as { status?: unknown } | null)?.status;
+    const code = typeof status === 'number' && [400, 401, 403, 404, 409, 422, 429, 500, 502, 503, 504].includes(status)
+      ? ` (קוד שגיאה: ${status})` : '';
+    this.error.set(messages[step] + code);
   }
   planCard(plan: OpenBankingEnrollmentOptions['plans'][number]): PricingCardPlan {
     return { id: plan.id, name: plan.name, badge: plan.badge ?? null, recommended: !!plan.recommended,
@@ -79,8 +99,10 @@ export class OpenBankingPage implements OnInit {
     const plan = options.plans.find(p => p.id === this.selectedPlanId);
     if (!options.complimentary && options.status !== 'ACTIVE' && !plan) return;
     this.busy.set(true); this.error.set('');
+    let failureStep: 'prepare' | 'options' = 'prepare';
     try {
       if (!options.complimentary && options.status !== 'ACTIVE') await this.enrollment.prepare(plan!.id, plan!.quote);
+      failureStep = 'options';
       const updated = await this.enrollment.options();
       this.options.set(updated);
       if (!updated.complimentary && !updated.hasSavedCard && updated.status !== 'ACTIVE') {
@@ -89,8 +111,8 @@ export class OpenBankingPage implements OnInit {
         return;
       }
       await this.connect();
-    } catch {
-      await this.navigation.returnToOrigin();
+    } catch (error) {
+      if (!this.error()) this.showFailure(failureStep, error);
     } finally { this.busy.set(false); }
   }
   onCardDialogChange(visible: boolean) {
@@ -108,11 +130,13 @@ export class OpenBankingPage implements OnInit {
     this.continueAfterCard = false;
     this.busy.set(true); this.error.set('');
     try { await this.connect(); }
-    catch { await this.navigation.returnToOrigin(); }
+    catch (error) { if (!this.error()) this.showFailure('connection-options', error); }
     finally { this.busy.set(false); }
   }
   private async connect() {
-    const options = await firstValueFrom(this.feezback.connectionOptions());
+    let options: { offerSpouse: boolean };
+    try { options = await firstValueFrom(this.feezback.connectionOptions()); }
+    catch (error) { this.showFailure('connection-options', error); throw error; }
     if (options.offerSpouse) {
       this.spouseConnection.set(false);
       this.identityDialog.set(true);
@@ -124,7 +148,7 @@ export class OpenBankingPage implements OnInit {
     if (this.busy() || !this.identityDialog()) return;
     this.busy.set(true); this.error.set('');
     try { await this.redirectToFeezback(this.spouseConnection()); this.identityDialog.set(false); }
-    catch { this.identityDialog.set(false); await this.navigation.returnToOrigin(); }
+    catch (error) { if (!this.error()) this.showFailure('consent-link', error); }
     finally { this.busy.set(false); }
   }
   async cancelConnection() {
@@ -133,10 +157,12 @@ export class OpenBankingPage implements OnInit {
     await this.navigation.returnToOrigin();
   }
   private async redirectToFeezback(spouse: boolean) {
-    const response = await firstValueFrom(this.feezback.createConsentLink(spouse));
-    const link = response?.link || response?.url || response;
-    if (typeof link !== 'string' || !link.startsWith('https://')) throw new Error('Invalid consent URL');
-    window.location.replace(link);
+    try {
+      const response = await firstValueFrom(this.feezback.createConsentLink(spouse));
+      const link = response?.link || response?.url || response;
+      if (typeof link !== 'string' || !link.startsWith('https://')) throw new Error('Invalid consent URL');
+      window.location.replace(link);
+    } catch (error) { this.showFailure('consent-link', error); throw error; }
   }
   async cancel() {
     const request = this.options()?.enrollment;

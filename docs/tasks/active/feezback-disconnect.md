@@ -111,3 +111,11 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - Normal Settings permission discovery (GET only) verified full disconnection and changed both flags to0 through the existing reset service. Targeted SQL recheck confirmed both0; browser shows disconnected status and yellow dashboard banner. No consent creation/termination or DELETE invoked.
 - Root cause: connection-options read stored flags without authoritative discovery, so stale flags persisted until the user opened permission management. Reconcile before returning connection-options; preserve partial/pending states and synthetic demo behavior. No schema or unrelated profile/business changes.
 - Follow-up verification: 4 focused backend suites /64 tests passed, Nest build passed, independent review found no blockers, diff check passed. Provider discovery adds its existing read/retry latency to connection-options. Frontend unchanged. Screenshot of verified yellow dashboard banner retained outside Git in task workspace.
+
+## Reconnection failure visibility (2026-10-23)
+
+- User reported Continue briefly loading then returning home. Enrollment load/prepare/connection-options/link failures all silently navigated to origin, hiding the actual failure.
+- Keep failed enrollment/connection attempts on-page with fixed safe Hebrew messages, allowlisted HTTP status and retry. No raw response/token/URL displayed. Spouse choice is retained for retry; explicit cancel still returns to origin. Initial-load retry resumes active/complimentary flow.
+- Live inspection saw transient local server connectivity errors. Subsequent authenticated enrollment navigation successfully generated a provider link and reached Feezback's initial screen. Stopped before provider Continue/bank selection/authorization; no consent was granted or terminated. This verifies the current route works but does not prove the historical failure's exact cause.
+- Browser screenshot saved outside Git; signed provider URL/token is not recorded in documentation or commit.
+- Validation: 30/30 focused billing/open-banking mocked browser tests passed; Angular production build passed with existing warnings. Diff checked. No backend changes for this visibility fix.
