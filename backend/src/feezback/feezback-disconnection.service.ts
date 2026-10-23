@@ -1,3 +1,4 @@
+import { FeezbackCacheCleanupService, DisconnectionCacheProof } from './feezback-cache-cleanup.service';
 import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -62,11 +63,12 @@ export class FeezbackDisconnectionService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Source) private readonly sources: Repository<Source>,
     private readonly sync: UserSyncStateService,
+    private readonly cacheCleanup: FeezbackCacheCleanupService,
   ) {}
 
   async targets(firebaseId: string): Promise<DisconnectionTargets> {
     return connectionOperation(firebaseId, async () => {
-      const { verifiedSources, ...targets } = await this.readTargets(firebaseId);
+      const { verifiedSources, cacheProof, ...targets } = await this.readTargets(firebaseId);
       return targets;
     });
   }
@@ -76,7 +78,7 @@ export class FeezbackDisconnectionService {
     await this.sync.clearConsentInitiated(firebaseId);
   }
 
-  private async readTargets(firebaseId: string, resetFullyDisconnected = true): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>> }> {
+  private async readTargets(firebaseId: string, resetFullyDisconnected = true): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>>; cacheProof: DisconnectionCacheProof }> {
     const user = await this.users.findOne({ where: { firebaseId } });
     if (!user) throw new BadRequestException('User not found');
     if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({
@@ -158,8 +160,17 @@ export class FeezbackDisconnectionService {
     }
     // A complete consent read proving no active permission clears the flag even
     // when stale provider accounts still exist. Partial reads never clear it.
+    const cacheProof: DisconnectionCacheProof = {
+      complete: errors.length === 0, consents, errors,
+      sources: stored.map(source => ({ sourceRecordId: source.id, connectionRole: source.connectionRole ?? 'primary',
+        consentId: rows.find(row => row.sourceRecordId === source.id)?.consentId ?? null })),
+    };
     let hasOpenBanking = user.hasOpenBanking;
     const fullyDisconnected = connectionComplete && errors.length === 0 && consents.length === 0;
+    // GET may clean only a fully disconnected tenant: partial GET reads do not
+    // clear old consent pointers, so selective deletion could be refilled.
+    // POST performs selective cleanup after its pointer reconciliation below.
+    if (resetFullyDisconnected && fullyDisconnected) await this.cacheCleanup.cleanup(firebaseId, cacheProof);
     if (fullyDisconnected && resetFullyDisconnected) {
       await this.resetDisconnectedFlags(firebaseId);
       hasOpenBanking = false;
@@ -167,7 +178,7 @@ export class FeezbackDisconnectionService {
       hasOpenBanking = connected;
       await this.users.update({ firebaseId }, { hasOpenBanking });
     }
-    return { consents, complete: errors.length === 0, hasOpenBanking, errors, verifiedSources };
+    return { consents, complete: errors.length === 0, hasOpenBanking, errors, verifiedSources, cacheProof };
   }
 
   async disconnect(firebaseId: string, request: DisconnectRequest) {
@@ -215,6 +226,7 @@ export class FeezbackDisconnectionService {
           await this.sync.clearConsentOnSources(firebaseId, id, role === 'spouse');
         }
       }
+      await this.cacheCleanup.cleanup(firebaseId, after.cacheProof);
       // Verification after a timeout can still prove success. Discovery errors,
       // remaining permissions and asynchronous provider termination stay visible.
       const success = after.complete && results.every(r => r.status === 'terminated') &&

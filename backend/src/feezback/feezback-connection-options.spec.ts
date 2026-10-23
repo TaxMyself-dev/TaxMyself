@@ -27,7 +27,7 @@ describe('connection options reconcile current provider permissions', () => {
     sync = { getSourceResults: jest.fn().mockResolvedValue([]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined) };
     provider = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any,
       {} as any, sync, users, sources, {} as any, {} as any);
-    disconnection = new FeezbackDisconnectionService(api, users, sources, sync);
+    disconnection = new FeezbackDisconnectionService(api, users, sources, sync, { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) } as any);
     controller = new FeezbackController(provider, {} as any, {} as any, {} as any, {} as any, disconnection);
   });
   afterEach(() => { expect(api.terminateConsent).not.toHaveBeenCalled(); });

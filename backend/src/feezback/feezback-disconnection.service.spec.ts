@@ -7,6 +7,7 @@ import { FeezbackHttpError } from './core/feezback-errors';
 
 describe('Feezback disconnection', () => {
   let api: any, users: any, sources: any, sync: any, service: FeezbackDisconnectionService, user: any;
+  let cacheCleanup: any;
   let permissions: Record<string, any[]>;
   beforeEach(() => {
     user = { firebaseId: 'owner', hasOpenBanking: true, hasSpouseFeezbackIdentity: true };
@@ -25,7 +26,8 @@ describe('Feezback disconnection', () => {
     sync = { getSourceResults: jest.fn().mockResolvedValue([
       { sourceRecordId: 11, sourceId: '1234567', resourceId: 'a1', consentId: 'c1', connectionRole: 'primary' },
     ]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined), upsertSourceConsents: jest.fn().mockResolvedValue(undefined), clearConsentOnSources: jest.fn().mockResolvedValue(1) };
-    service = new FeezbackDisconnectionService(api, users, sources, sync);
+    cacheCleanup = { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) };
+    service = new FeezbackDisconnectionService(api, users, sources, sync, cacheCleanup);
   });
   it('protects synthetic demo connections before provider or source access', async () => {
     user.email = DESIGNER_SANDBOX_PROFILE.email;
@@ -132,6 +134,34 @@ describe('Feezback disconnection', () => {
     expect(result).toMatchObject({ status: 'partial', complete: true, remainingConsents: [] });
     expect(user.hasSpouseFeezbackIdentity).toBe(true);
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('cleans only once after POST final verification and keeps cleanup evidence internal', async () => {
+    const result = await service.disconnect('owner', { scope: 'all' });
+    expect(cacheCleanup.cleanup).toHaveBeenCalledTimes(1);
+    expect(cacheCleanup.cleanup).toHaveBeenCalledWith('owner', expect.objectContaining({ complete: true, consents: [],
+      sources: [expect.objectContaining({ sourceRecordId: 11, consentId: 'c1' })] }));
+    expect(cacheCleanup.cleanup.mock.invocationCallOrder[0]).toBeGreaterThan(api.terminateConsent.mock.invocationCallOrder[1]);
+    expect(cacheCleanup.cleanup.mock.invocationCallOrder[0]).toBeGreaterThan(sync.clearConsentOnSources.mock.invocationCallOrder[0]);
+    expect(result).not.toHaveProperty('cacheProof');
+  });
+  it('does not report completion or reset spouse flags when cache cleanup fails', async () => {
+    cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
+    await expect(service.disconnect('owner', { scope: 'all' })).rejects.toThrow('cache transaction failed');
+    expect(user.hasSpouseFeezbackIdentity).toBe(true);
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('propagates GET cleanup failure before resetting connection flags', async () => {
+    permissions.owner_sub = []; permissions.owner_sub_spouse = [];
+    cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
+    await expect(service.targets('owner')).rejects.toThrow('cache transaction failed');
+    expect(user).toMatchObject({ hasOpenBanking: true, hasSpouseFeezbackIdentity: true });
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('does not selectively clean GET cache before stale consent pointers are reconciled', async () => {
+    permissions.owner_sub = [];
+    const preview = await service.targets('owner');
+    expect(preview.consents).toHaveLength(1);
+    expect(cacheCleanup.cleanup).not.toHaveBeenCalled();
   });
   it('single cancellation leaves another valid identity connected', async () => {
     permissions.owner_sub_spouse[0].consentStatus = 'valid';

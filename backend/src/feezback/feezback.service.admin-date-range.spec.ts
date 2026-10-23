@@ -18,7 +18,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
 
   beforeEach(() => {
     userSyncStateService = {
-      getSourceResults: jest.fn().mockResolvedValue([]),
+      getSourceResults: jest.fn().mockResolvedValue([{ sourceRecordId: 11, consentId: 'active-consent' }]),
       updateSourceResults: jest.fn().mockResolvedValue(undefined),
       markCacheReadyAfterSourcePull: jest.fn().mockResolvedValue(undefined),
     };
@@ -66,7 +66,11 @@ describe('FeezbackService admin date-range diagnostics', () => {
       processingService as any,
       userSyncStateService as any,
       { findOne: jest.fn().mockResolvedValue({ fName: 'Test', lName: 'User' }) } as any,
-      { find: jest.fn().mockResolvedValue([]) } as any,
+      { find: jest.fn().mockResolvedValue([{ id: 11 }]), manager: {
+        transaction: jest.fn(async callback => callback({ getRepository: () => ({
+          findOne: jest.fn().mockResolvedValue({ hasOpenBanking: true }),
+        }) })),
+      } } as any,
       {} as any,
       mailService as any,
     );
@@ -77,6 +81,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
   it('emails provider duplicate details including the Feezback response timestamp', async () => {
     const providerResponseReceivedAt = '2026-10-08T12:34:56.789Z';
     const base = {
+      sourceRecordId: 11,
       providerOriginalId: 'BIO_369_533089_105_820',
       merchantName: 'Merchant',
       amount: -151.02,

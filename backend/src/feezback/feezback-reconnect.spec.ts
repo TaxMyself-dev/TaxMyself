@@ -110,7 +110,7 @@ describe('Feezback reconnection preserves permanent sources', () => {
     const original = accounts.map(row => ({ ...row }));
     const sourceIds = original.map(row => row.id);
     connected = false;
-    const disconnection = new FeezbackDisconnectionService(api, userRepo, sourceRepo, sync);
+    const disconnection = new FeezbackDisconnectionService(api, userRepo, sourceRepo, sync, { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) } as any);
     await disconnection.targets(uid);
     expect(user).toMatchObject({ hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
     expect(progress.update).toHaveBeenCalledWith({ userId: uid }, { lastConsentInitiatedAt: null });
@@ -151,7 +151,7 @@ describe('Feezback reconnection preserves permanent sources', () => {
       }
       return providerRead(sub);
     });
-    const disconnection = new FeezbackDisconnectionService(api, userRepo, sourceRepo, sync);
+    const disconnection = new FeezbackDisconnectionService(api, userRepo, sourceRepo, sync, { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) } as any);
     const preview = disconnection.targets(uid);
     await started;
     generation = 2;
