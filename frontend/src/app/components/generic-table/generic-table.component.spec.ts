@@ -36,6 +36,24 @@ describe('GenericTable unified row actions', () => {
   function menu(): TableRowActionsMenuComponent {
     return fixture.debugElement.query(By.directive(TableRowActionsMenuComponent)).componentInstance;
   }
+  for (const mobileLayout of [false, true]) {
+    it(`uses optional empty text only for an empty source and preserves search/failure/loading states (mobile=${mobileLayout})`, () => {
+      mobile.set(mobileLayout);
+      fixture.componentRef.setInput('mobileCardConfig', { primaryFields: ['name'] });
+      fixture.componentRef.setInput('emptyText', 'אין נתונים כי אין חיבור לבנקאות פתוחה');
+      fixture.componentRef.setInput('dataTable', []); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('אין נתונים כי אין חיבור לבנקאות פתוחה');
+      fixture.componentRef.setInput('dataTable', [row]); component.searchTerm.set('missing-name'); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('אויש, לא מצאנו את מה שחיפשת');
+      expect(fixture.nativeElement.textContent).not.toContain('אין נתונים כי אין חיבור לבנקאות פתוחה');
+      fixture.componentRef.setInput('dataTable', []); component.searchTerm.set('');
+      fixture.componentRef.setInput('useSyncState', true); fixture.componentRef.setInput('processStatus', 'failed'); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('שגיאה במשיכת הנתונים');
+      expect(fixture.nativeElement.textContent).not.toContain('אין נתונים כי אין חיבור לבנקאות פתוחה');
+      fixture.componentRef.setInput('processStatus', 'running'); fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).not.toContain('אין נתונים כי אין חיבור לבנקאות פתוחה');
+    });
+  }
 
   it('renders the same filtered actions in desktop, mobile cards and mobile table rows', () => {
     fixture.componentRef.setInput('actions', [action, { ...action, name: 'hidden', showWhen: () => false }]);
