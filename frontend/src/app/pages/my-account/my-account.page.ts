@@ -501,7 +501,25 @@ export class MyAccountPage implements OnInit {
     private authService: AuthService,
     private route: ActivatedRoute,
     private router: Router,
-  ) { }
+  ) {
+    this.observeOwnerProfile();
+  }
+
+  private observeOwnerProfile(): void {
+    this.authService.ownerProfileUpdates$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(profile => {
+      if (profile && !this.isDelegatedClientView() && !this.authService.isViewingAsClient() &&
+        this.authService.getCurrentAuthUser()?.uid === profile.firebaseId) {
+        this.userData = profile;
+        this.hasOpenBanking.set(!!profile.hasOpenBanking);
+      }
+    });
+  }
+
+  ionViewWillEnter(): void {
+    // Ionic may retain this page while Settings updates the owner's profile.
+    const profile = this.authService.getUserDataFromLocalStorage();
+    if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
+  }
 
   ngOnInit() {
     console.log("MyAccountPage initialized");

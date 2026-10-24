@@ -37,6 +37,8 @@ export class ClientsDashboardComponent implements OnInit {
   filteredUsers: any[] = [];
   visibleFeezbackDialog = signal<boolean>(false);
   selectedClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingBusy = signal(false);
 
   // Admin: live accounts/cards diagnostic dialog
   accountsDialogVisible = signal<boolean>(false);
@@ -146,6 +148,13 @@ export class ClientsDashboardComponent implements OnInit {
   ];
 
   fileActions: IGenericTableAction[] = [
+    {
+      name: 'manageOpenBanking', desktopDisplay: 'icon', icon: 'pi pi-link',
+      title: 'ניהול הרשאות וניתוק מבנקאות פתוחה',
+      action: (_event: any, row: IRowDataTable) => this.bankingClient.set({
+        firebaseId: row['firebaseId'] as string, name: row['fullName'] as string,
+      }),
+    },
     {
       name: 'enterAsUser',
       desktopDisplay: 'icon',

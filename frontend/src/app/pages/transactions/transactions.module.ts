@@ -15,6 +15,7 @@ import { ClassifyTranComponent } from "../../components/classify-tran/classify-t
 import { AddCategoryComponent } from "../../components/add-category/add-category.component";
 import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
+import { DialogModule } from 'primeng/dialog';
 import { FilterPanelComponent } from "../../components/filter-panel/filter-panell.component";
 import { ButtonComponent } from "../../components/button/button.component";
 
@@ -35,6 +36,7 @@ import { ButtonComponent } from "../../components/button/button.component";
     AddCategoryComponent,
     CheckboxModule,
     ToastModule,
+    DialogModule,
     FilterPanelComponent,
     ButtonComponent
 ],

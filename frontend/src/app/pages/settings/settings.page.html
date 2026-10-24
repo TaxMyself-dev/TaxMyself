@@ -452,9 +452,9 @@
         }
       </div>
 
-      @if (hasOpenBankingAccess()) {
-        <div class="accounts-management">
-          <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+      <div class="accounts-management">
+        <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+        @if (hasOpenBankingAccess()) {
 
           @if (accountSourcesLoading()) {
             <p class="permissions-loading">טוען...</p>
@@ -468,8 +468,14 @@
               [mobileCardConfig]="accountSourcesMobileCardConfig">
             </app-generic-table>
           }
-        </div>
-      }
+        }
+        <app-open-banking-management
+          #bankingManagement
+          [embedded]="true"
+          [externalBusy]="accountSourcesLoading() || retryingSourceId() !== null || deletingSourceId() !== null"
+          (connectionChanged)="onBankingConnectionChanged()">
+        </app-open-banking-management>
+      </div>
 
       <div class="permissions-inner-frame">
         <h3 class="subsection-title">ניהול הרשאות</h3>

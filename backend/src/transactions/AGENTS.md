@@ -52,3 +52,19 @@ Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses 
 
 ## Disconnected payment sources
 DELETE /transactions/sources/:sourceRecordId uses FirebaseAuthGuard and effective user ownership. A transaction locks the owned source and its sync state, refuses any nonempty consentId with SOURCE_HAS_ACTIVE_CONSENT (409), detaches historical cache references, deletes sync metadata, then deletes only that source. Bills, slim transactions, cache history, expenses and provider consents are retained. No schema changes or provider API calls. Settings sources include records without a sync state.
+
+## Consent rotation during an in-flight pull
+
+For existing sync rows, updateSourceResults writes outcome fields only. Discovery
+owns consent/resource rotation. Results with older identifiers are ignored; an
+atomic identifier predicate prevents a pull finishing after termination or
+reconnection from resurrecting old consent metadata. Permanent sources, bill
+associations, classifications, rules, slim rows and approved expenses are retained.
+Reconnection and empty-cache rebuild regression tests cover stable source IDs,
+identity/currency separation, one-time classifications and confirmed states.
+
+## Verified provider disconnection cache removal
+
+Feezback's disconnection service now deletes only temporary cache rows after authoritative verification. Partial termination targets owned permanent Source IDs, excluding any source covered by another nonterminal permission; uncertain/ambiguous scopes are retained. Full verified absence of all permissions clears the user's entire temporary cache (including legacy rows with no Source ID), cache freshness and full-sync transient outcome fields. Slim classifications/confirmation, Expenses, rules, Sources and bill associations remain intact for reconnect.
+
+Feezback persistence and cache-state promotions share the per-user queue and pessimistic User row lock with cleanup. They recheck the current connected flag and stable source consent pointers before ingestion, preventing late pulls from restoring disconnected cache. Generic transaction classification/rebuild behavior and nightly cleanup are unchanged.

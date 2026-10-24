@@ -75,6 +75,29 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
 
 ## Open-banking payment source deletion
-Each source has a delete action identified by sourceRecordId (including spouse sources with matching numbers). Active consent shows a popup explaining that Feezback requires a new consent with the desired accounts/cards. Disconnected sources require confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the explanation. Historical transactions are retained.
+Authoritative complete consent discovery and every completed disconnect response
+refresh the owner profile before emitting `connectionChanged`. Parent account-source
+reloads therefore observe the new profile rather than racing a stale cached flag.
+Explicit admin targets do not refresh or overwrite the admin's own profile.
+The permissions tab embeds `OpenBankingManagementComponent` directly below its
+existing account-source table. Owner row actions preview cancellation of the
+whole consent (all associated accounts/cards) or start reconnect for a disconnected
+source; full disconnection and discovery refresh are below the table. Discovery
+and mutations share guards with existing source pull/delete actions. Active-consent
+rows expose cancellation instead of source deletion. The embedded footer stays outside the
+OPEN_BANKING entitlement gate, so an owner can revoke consent after losing module
+access. It previews server-reported consents and every associated source, supports
+single-consent revocation separately from full primary/spouse disconnection,
+and never deletes sources, classifications, associations or approved expenses.
+Incomplete provider discovery and partial termination remain explicit retry states.
+Represented-client mode cannot use owner controls. Reconnect uses the existing
+`/billing/open-banking` enrollment and identity-selection flow. Changes refresh
+auth state and (when entitled) the account-source list.
+Expired/blocked subscriptions also have an auth-only `/billing/open-banking/manage`
+page, linked directly from the global billing-block dialog. Existing Settings
+billing guards remain unchanged. The billing-route dialog exemption keeps consent
+management usable without unlocking other protected pages.
+
+Disconnected sources retain an explicit delete action identified by sourceRecordId (including spouse sources with matching numbers). Active-consent rows instead offer consent cancellation with a complete affected-source preview. Deletion requires confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the existing explanation. Historical transactions are retained.
 
 Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.

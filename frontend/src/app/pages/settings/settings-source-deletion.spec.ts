@@ -6,6 +6,8 @@ describe('settings payment source deletion', () => {
   function setup() {
     const page = Object.create(SettingsPage.prototype) as SettingsPage;
     page.deletingSourceId = signal<number | null>(null);
+    page.accountSourcesLoading = signal(false);
+    page.retryingSourceId = signal<string | null>(null);
     page.accountSources = signal<any[]>([{ sourceRecordId: 22 }, { sourceRecordId: 23 }]);
     page.confirmationService = { confirm: jasmine.createSpy('confirm') } as any;
     page.transactionsService = { deleteSource: jasmine.createSpy('deleteSource').and.returnValue(of({ deleted: true })) } as any;

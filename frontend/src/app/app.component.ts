@@ -43,6 +43,10 @@ export class AppComponent implements OnInit {
 
   // Show the blocking billing dialog when the backend reports a blocking status,
   // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
+  openBankingManagement(): void {
+    void this.router.navigate(['/billing/open-banking/manage']);
+  }
+
   protected readonly showBillingDialog = computed(() => {
     const url = this.currentUrl();
     if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {

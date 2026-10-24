@@ -1,5 +1,10 @@
 ## Purpose
 Main integration keeps server verification authoritative: returning from Feezback does not optimistically set hasOpenBanking in UI or local storage.
+The dashboard subscribes to validated owner-profile cache updates so cancellation
+updates `hasOpenBanking` and the existing yellow disconnected banner without a
+browser reload, including when Ionic retains the page. Owner events are ignored
+in represented-client mode and when the Firebase UID differs. `ionViewWillEnter`
+also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 

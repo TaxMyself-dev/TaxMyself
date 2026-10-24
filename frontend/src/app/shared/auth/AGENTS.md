@@ -18,6 +18,14 @@ Small shared authentication-navigation primitives.
 - Authenticated identity/business caches must never be written to
   `localStorage`: concurrent administrator/client tabs share it and would
   overwrite each other's UI identity.
+- `StartupService.whenReady()` revalidates the real owner's profile once per
+  browser/app load, even when the tab cache exists. `AuthService.refreshOwnerProfile`
+  uses a bounded no-cache `auth/signin` read without `freshLogin` and explicitly
+  omits represented-client/business headers through `OWNER_PROFILE_REQUEST`.
+  Delegation markers and the represented profile overlay are preserved. Only a
+  matching current Firebase UID and the latest request may update the owner cache;
+  outages retain the existing cache/session. Successful owner writes publish
+  `ownerProfileUpdates$` for retained page instances.
 
 ## Related topics
 

@@ -121,7 +121,7 @@ export class User {
     @Column({ default: false })
     hasOpenBanking: boolean;
 
-    /** Ever verified by a spouse data-ready webhook; retained after consent expiry. */
+    /** Spouse webhook verified; retained after expiry, reset after verified complete disconnection. */
     @Column({ default: false })
     hasSpouseFeezbackIdentity: boolean;
     

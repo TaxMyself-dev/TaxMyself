@@ -15,6 +15,10 @@ table contract and must have identical availability and execution in both layout
   DOM rendering/clicks, file ownership and canceled file selections.
 
 ## Main flows and invariants
+- Optional `emptyText` changes only a genuinely empty source collection on
+  desktop/mobile. Its default remains the existing no-results text; local search
+  or filtering of nonempty source rows retains no-results copy. Loading and sync
+  failure branches retain priority over empty text.
 
 - `showWhen(row)` always applies, on every layout and again before execution.
   `fileRequirement: 'stored'` additionally requires a nonblank string `file`

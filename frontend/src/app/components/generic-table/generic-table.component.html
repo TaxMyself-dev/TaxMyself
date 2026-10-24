@@ -183,7 +183,7 @@
         } @else {
           <div class="empty-data-container">
             <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
-            <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+            <p class="empty-data-text">{{ displayedEmptyText() }}</p>
           </div>
         }
       </div>
@@ -426,7 +426,7 @@
                   <app-p-button [icon]="'pi pi-refresh'" (onButtonClicked)="triggerFullSync()" [buttonText]="'נסה שוב'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="buttonSize.AUTO"></app-p-button>
                 } 
                 @else {
-                  <p class="empty-data-text">אויש, לא מצאנו את מה שחיפשת</p>
+                  <p class="empty-data-text">{{ displayedEmptyText() }}</p>
                 }
               </div>
             <!-- } -->
