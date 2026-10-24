@@ -267,3 +267,5 @@ Integrated code `7236477f` passed 6 focused Jest suites (30 tests) and the Nest
 build; local main, `origin/main`, and `codex/integration-kt083` were verified at
 that commit. No live profile seed, schema, production-data, provider,
 accounting, authorization, or deployment action occurred.
+
+Open-banking delivery confirmation (2026-10-25): main and codex/integration were atomically pushed to274b54fa; GitHub ls-remote and local/tracking refs all matched. Task marked PUSHED. Completion bookkeeping only follows; no deployment or production action.
