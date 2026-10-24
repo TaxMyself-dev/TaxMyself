@@ -1,5 +1,23 @@
 # Primary manager state
 
+## Open banking disconnection source delivery — 2026-10-25
+
+User explicitly authorized final tests, main merge and GitHub push without
+production deployment. Initial fetch: primary main5fbbc1ee was20 commits behind
+origin/main cb3c70ea, with no local-only commits. User separately approved
+preserving non-overlapping untracked checkout items. Clean codex/integration
+was fast-forwarded to current remote main, then merged feature4b6e84a2 without
+conflicts as46a1868e. Independent review found no blocking findings and confirmed
+latest Settings proprietor behavior remains intact.
+
+Integrated validation:24 backend suites/255 tests,89 focused ChromeHeadless
+tests, Nest build and Angular production build(hash2b2aa17d34c60540) passed.
+No feature schema/SQL/environment/lockfile change. No provider call, database
+write, runtime restart, credential/configuration change or production access
+occurred during final delivery. Source delivery is separate from deployment.
+Feature worktree retained for existing local DEV follow-up. Delivery bookkeeping
+is the only change after the tested merge candidate.
+
 ## Admin Cardcom refunds source delivery — 2026-10-22
 
 Elazar explicitly authorized merging the refund feature into main and pushing,

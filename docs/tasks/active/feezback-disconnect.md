@@ -1,6 +1,6 @@
 # Feezback consent termination and full disconnection
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED_VERIFIED`
 - Task manager: current feature chat
 - Worker: scoped backend/frontend helpers; task manager owns retention/race tests and final review
 - Worktree: dedicated feezback-disconnect worktree
@@ -163,3 +163,12 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - No live provider calls, DEV database changes, production access, proxy/key changes or consent operations in this follow-up.
 - Final focused Jest verification: 3 suites, 29 tests passed (transaction failure logging, diagnostic redaction, bounded1004 retry). Whitespace diff check passed.
 - Final Nest build passed (exit0). No schema or external API contract changes. Local commit only; no push, deployment, server restart or production action.
+
+## Final source-delivery validation — 2026-10-25
+
+- User authorized final verification, main merge and GitHub push, explicitly excluding deployment. User separately approved preserving untracked primary-checkout items while updating main when non-overlapping.
+- Initial fetch found local main 5fbbc1ee behind origin/main cb3c70ea by20 commits (no local-only commits). Prepared clean codex/integration with fast-forward to cb3c70ea, then merge commit46a1868e containing feature4b6e84a2; no conflicts. Primary untracked paths have no overlap with the integrated changes.
+- Independent read-only review found no blockers: Settings proprietor changes preserved; consent owner/admin scope, partial proof, cache locks/late-pull guards, stable sources and profile identity boundaries intact. Feature has no schema/SQL/env/lockfile change; user.entity.ts change is comment-only.
+- Integrated backend:24 exact suites/255 tests passed (all20 Feezback suites plus retention, source race, source association and sync-state suites), exit0. Integrated frontend:89 focused ChromeHeadless tests passed, exit0, covering profile refresh, consent management, settings actions/deletion, disconnected flow/generic-table and onboarding. Nest build passed, exit0. No broad-suite green claim; previously documented unrelated failures are outside this final selection.
+- No live provider calls, database writes, runtime boot/restart, configuration/key changes or production access during final source-delivery verification. Feature worktree retained for local DEV follow-up.
+- Angular production build passed, exit0, hash2b2aa17d34c60540. All final integrated gates passed; source-only delivery candidate46a1868e, followed solely by delivery documentation.
