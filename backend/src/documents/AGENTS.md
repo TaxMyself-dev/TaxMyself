@@ -27,17 +27,21 @@ allocation, retries perform local work only and never call SHAAM again.
 - Renderer reuses existing sums/item/payment transforms and does not alter accounting calculations. Payment details column appears only when populated. Both `docSubtitle` (linked-document text) and `docDescription` (free note) are rendered; empty allocation/note fields are omitted.
 - Standalone `scripts/render-document-samples.ts` produces visual fixtures without starting Nest, a database, or a provider session. See `docs/features/document-pdf-redesign.md` for configuration and rollout evidence.
 
-## Known discount audit findings (2026-10-18, not fixed)
+## Discount behavior
 
-- Discount/before-discount rows are absent for VAT-liable businesses across all
-  seven PDF types; item tables omit line discounts. Exempt pre-discount row reads
-  sumWithoutVat, which only coincides with stored sumBefDisBefVat in some paths.
-- Mixed VAT summary labels and credit untaxed omission can make displayed
-  components fail to reconcile with the unchanged final total. Characterization
-  evidence is in `pdf/document-pdf-discount-audit.spec.ts`; passing reproduces
-  current behavior, not correctness. See task `docs/tasks/active/pdf-service.md`.
-- A separate frontend VAT-inclusive discount aggregation discrepancy was
-  reproduced. Changing calculation amounts is outside the display-audit scope.
+- PDFs show before-discount and discount summary rows for every business and
+  supported document type when a positive discount exists. Item tables expose
+  the net line discount and display the net line total after discount. Exempt
+  summaries read the persisted `sumBefDisBefVat` field rather than reconstructed
+  `sumWithoutVat`.
+- Mixed-VAT PDFs derive the after-discount untaxed amount from document lines
+  for both fresh string VAT options and persisted numeric enum values. The
+  taxable row excludes that amount, and credit invoices include the untaxed row,
+  so displayed components reconcile with the final total.
+- Frontend document aggregation uses each line's before-VAT discount. For
+  VAT-inclusive input, the gross discount entered by the user is converted once
+  at line level and the net value is used consistently by the document summary,
+  persisted header, allocation payload and journal flow.
 
 ## Key entities/files
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.

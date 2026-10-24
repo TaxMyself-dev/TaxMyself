@@ -638,14 +638,39 @@ export class DocumentsService {
       const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath));
       logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
     }
-    const summary = await this.transformSumsToSumTable(doc, doc.issuerBusinessNumber);
+    const lines = data.linesData ?? [];
+    // `doc.sumWithoutVat` comes from different sources: fresh requests carry
+    // the pre-discount untaxed amount, while persisted-document reconstruction
+    // carries the after-discount amount. Derive the PDF split from line facts so
+    // both paths label taxable and untaxed totals consistently.
+    const sumWithoutVatAfterDiscount = lines
+      .filter((line: any) => String(line.vatOpts).toUpperCase() === 'WITHOUT'
+        || Number(line.vatOpts) === VatOptions.WITHOUT)
+      .reduce((sum: number, line: any) => {
+        const unitPrice = Number(line.sumBefVatPerUnit || line.sum || 0);
+        const quantity = Number(line.unitQuantity || 1);
+        const discount = Number(line.disBefVatPerLine ?? line.discount ?? 0);
+        return sum + Number(line.sumAftDisBefVatPerLine
+          ?? (unitPrice * quantity - discount));
+      }, 0);
+    const pdfDoc = lines.length > 0
+      ? { ...doc, sumWithoutVat: sumWithoutVatAfterDiscount }
+      : doc;
+    const summary = await this.transformSumsToSumTable(pdfDoc, doc.issuerBusinessNumber);
     // Credit invoices used the separate legacy VAT fields rather than VAT rows
     // in sumTable. Preserve those displayed values in the local summary too.
     if (doc.docType === DocumentType.CREDIT_INVOICE && !isExemptBusinessType(doc.businessType)) {
-      summary.unshift(
-        { 'תיאור': 'סה״כ חייב במע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.sumAftDisBefVAT || 0) - Number(doc.sumWithoutVat || 0))}` },
+      const creditVatRows = [
+        { 'תיאור': 'סה״כ חייב במע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(pdfDoc.sumAftDisBefVAT || 0) - Number(pdfDoc.sumWithoutVat || 0))}` },
         { 'תיאור': 'מע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.vatSum || 0))}` },
-      );
+      ];
+      if (Number(pdfDoc.sumWithoutVat || 0) > 0) {
+        creditVatRows.push({
+          'תיאור': 'סה״כ ללא מע״מ:',
+          'סכום': `₪${this.formatNumberWithCommas(Number(pdfDoc.sumWithoutVat))}`,
+        });
+      }
+      summary.splice(Math.max(0, summary.length - 1), 0, ...creditVatRows);
     }
     const allocationNumber = this.allocationNumberForDisplay(doc.allocationNum);
     const model: DocumentPdfModel = {
@@ -735,7 +760,7 @@ export class DocumentsService {
     // Use businessType from docData (DTO) to avoid an extra DB query
     const businessType = docData.businessType ?? null;
     const docType = docData.docType;
-    const sumBefDisBefVat = Number(docData.sumWithoutVat || 0);
+    const sumBefDisBefVat = Number(docData.sumBefDisBefVat || 0);
     const disSum = Number(docData.disSum || 0);
     const sumAftDisWithVAT = Number(docData.sumAftDisWithVAT || 0);
     const sumAftDisBefVAT = Number(docData.sumAftDisBefVAT || 0);
@@ -744,23 +769,21 @@ export class DocumentsService {
 
     const sumTable: any[] = [];
 
-    // For EXEMPT (עוסק פטור / שותפות פטורה)
-    if (isExemptBusinessType(businessType)) {
-      // If discount is 0, show only total; otherwise show all fields
-      if (disSum > 0) {
-        // Show: סה"כ לפני הנחה
-        sumTable.push({
+    if (disSum > 0) {
+      sumTable.push(
+        {
           'תיאור': 'סה"כ לפני הנחה:',
           'סכום': `₪${this.formatNumberWithCommas(sumBefDisBefVat)}`,
-        });
-
-        // Show: הנחה
-        sumTable.push({
+        },
+        {
           'תיאור': 'הנחה:',
           'סכום': `₪${this.formatNumberWithCommas(disSum)}`,
-        });
-      }
+        },
+      );
+    }
 
+    // For EXEMPT (עוסק פטור / שותפות פטורה)
+    if (isExemptBusinessType(businessType)) {
       // Always show: סה"כ 
       sumTable.push({
         'תיאור': 'סה"כ:',
@@ -774,7 +797,7 @@ export class DocumentsService {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
-          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT - sumWithoutVat)}`,
         });
 
         // מע"מ
@@ -813,8 +836,13 @@ export class DocumentsService {
     return lines.map(line => {
       const unitQuantity = Number(line.unitQuantity);
       const sumBefVatPerUnit = Number(line.sumBefVatPerUnit);
+      const discount = Number(line.disBefVatPerLine || 0);
+      const totalAfterDiscount = Number(
+        line.sumAftDisBefVatPerLine ?? (sumBefVatPerUnit * unitQuantity - discount),
+      );
       return {
-        'סה"כ': `₪${this.formatNumberWithCommas(sumBefVatPerUnit * unitQuantity)}`,
+        'סה"כ': `₪${this.formatNumberWithCommas(totalAfterDiscount)}`,
+        'הנחה': `₪${this.formatNumberWithCommas(discount)}`,
         'מחיר': `₪${this.formatNumberWithCommas(sumBefVatPerUnit)}`,
         'כמות': this.formatNumberWithCommas(unitQuantity),
         'פירוט': line.description || ""

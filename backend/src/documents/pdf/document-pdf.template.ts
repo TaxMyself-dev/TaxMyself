@@ -144,8 +144,8 @@ export function buildDocumentHtml(
   )}${optional('allocation', model.allocation)}</section>
     <section class="items"><div class="section-title">פריטים</div>${table(
       model.items,
-      ['פירוט', 'כמות', 'מחיר', 'סה"כ'],
-      [61, 13, 13, 13],
+      ['פירוט', 'כמות', 'מחיר', 'הנחה', 'סה"כ'],
+      [48, 12, 13, 13, 14],
     )}${totals(model.totals)}</section>
     ${
       model.payments.length

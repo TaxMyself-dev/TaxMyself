@@ -37,6 +37,7 @@ async function verifyLayout({ executablePath, fontDirectory, template }) {
               "תיאור ארוך שניתן לחלק לשורות לפי המקום שנותר לצד הסכומים הגדולים",
             כמות: "1.00",
             מחיר: amount,
+            הנחה: "₪5,676.00",
             'סה"כ': amount,
           },
         ],

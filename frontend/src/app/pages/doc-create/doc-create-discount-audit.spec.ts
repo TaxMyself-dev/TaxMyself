@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { DocCreatePage } from './doc-create.page';
 
-describe('current discount basis characterization', () => {
+describe('document discount basis', () => {
   for (const option of ['INCLUDE', 'EXCLUDE', 'WITHOUT']) {
     it(`${option}: compares current line total with the current document total`, () => {
       const page: any = Object.create(DocCreatePage.prototype);
@@ -14,15 +14,10 @@ describe('current discount basis characterization', () => {
       page.calculateVatFieldsForLine(0);
       const line = page.lineItemsDraft()[0];
       const totals = page.documentTotals();
-      if (option === 'INCLUDE') {
-        expect(line.disBefVatPerLine).toBe(100);
-        expect(page.documentSummary().totalDiscount).toBe(118);
-        expect(line.sumAftDisWithVat).toBe(1062);
-        expect(totals.sumAftDisWithVat).toBe(1044);
-      } else {
-        expect(totals.sumAftDisWithVat).toBe(line.sumAftDisWithVat);
-        expect(totals.sumAftDisWithVat).toBe(option === 'WITHOUT' ? 900 : 1062);
-      }
+      expect(page.documentSummary().totalDiscount).toBe(100);
+      expect(totals.sumAftDisWithVat).toBe(line.sumAftDisWithVat);
+      expect(totals.sumAftDisWithVat).toBe(option === 'WITHOUT' ? 900 : 1062);
+      if (option === 'INCLUDE') expect(line.disBefVatPerLine).toBe(100);
     });
   }
 });

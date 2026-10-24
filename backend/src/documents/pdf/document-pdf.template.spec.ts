@@ -12,6 +12,7 @@ const model = (): DocumentPdfModel => ({
       פירוט: '<script>alert(1)</script>',
       כמות: '1',
       מחיר: '₪67',
+      הנחה: '₪0',
       'סה"כ': '₪67',
     },
   ],
