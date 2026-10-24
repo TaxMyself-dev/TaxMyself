@@ -1,3 +1,5 @@
+import { isPublicKeyLookupFailure, PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS } from './feezback-key-lookup-retry';
+import { sleep } from './feezback-retry.utils';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
@@ -82,10 +84,20 @@ export class FeezbackAuthService {
     try {
       jwtToken = this.feezbackJwtService.generateAccessToken(sub);
 
-      const response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }> =
-        await firstValueFrom(
-          this.http.post(this.tokenUrl, { token: jwtToken }),
-        );
+      // Sign once and reuse exactly the same request body for the one bounded
+      // retry. A new JWT would hide whether the provider key lookup recovered.
+      const body = { token: jwtToken };
+      let response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }>;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await firstValueFrom(this.http.post(this.tokenUrl, body));
+          break;
+        } catch (error) {
+          const mapped = toFeezbackHttpError('POST', this.tokenUrl, error);
+          if (attempt !== 0 || !isPublicKeyLookupFailure(mapped)) throw mapped;
+          await sleep(PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS);
+        }
+      }
 
       const accessToken = response.data?.token;
       if (!accessToken || typeof accessToken !== 'string') {
