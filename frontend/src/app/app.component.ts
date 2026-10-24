@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
 import { Location } from '@angular/common';
@@ -194,7 +194,8 @@ export class AppComponent implements OnInit {
       if (reconnectedAt === 0) {
         return; // Initial value — no outage has ended yet.
       }
-      void this.appRefresh.refreshSharedState();
+      // Only reconnect events trigger recovery; refreshed service signals are not dependencies.
+      untracked(() => { void this.appRefresh.refreshSharedState(); });
     });
   }
 
