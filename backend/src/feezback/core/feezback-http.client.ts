@@ -120,6 +120,17 @@ export class FeezbackHttpClient {
         traceEntry.durationMs = failedAt - sentAt;
         traceEntry.status = mapped.status;
 
+        // Record each failed transaction attempt, including failures recovered by retry.
+        if (method === 'GET' && /\/transactions\/?$/.test(new URL(url).pathname)) {
+          const credentials = Object.entries(headers)
+            .filter(([name]) => /authorization|token|api[-_]?key|cookie/i.test(name))
+            .flatMap(([, value]) => [value, value.replace(/^Bearer\s+/i, '')]);
+          this.logger.error('[FeezbackResponse] ' + feeZbackErrorDiagnostic(mapped,
+            [...credentials, options.sub ?? ''], {
+              attempt: attempt + 1, maxAttempts: maxRetries + 1, durationMs: failedAt - sentAt,
+            }));
+        }
+
         const rateLimit = isRateLimitError(mapped);
         const keyLookupRetry = !keyLookupRetried && isPublicKeyLookupFailure(mapped) &&
           isConfiguredKeyLookupPost(method, url, [this.authService.getTokenUrl?.(), this.authService.getLgsUrl?.()]);

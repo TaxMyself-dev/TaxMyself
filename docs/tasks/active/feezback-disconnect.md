@@ -155,3 +155,11 @@ Customers and administrators can cancel a specific provider consent or disconnec
 - Mitigation acceptance: exactly one bounded extra attempt for LGS POST /token or /link error1004 only, same signed request. Permanent failure still surfaces; other400/DELETE/data paths retain existing policy. This addresses intermittent behavior, does not claim upstream root-cause correction.
 - Independent read-only review found no retry-scope/cap/logging blockers. Focused retry/auth/onboarding/redaction checks:5 suites69 tests passed. Final affected regression:all19 exact Feezback suites226 tests passed; shared signed body and terminal repeated1004 behavior covered. Other400/nonconfigured/data/DELETE behavior unchanged.
 - Final Nest build passed and diff check passed. No key/TPP/proxy configuration changes. Local worktree mitigation only; upstream root cause remains unproven, permanent1004 still requires provider/proxy-side investigation.
+
+### Transaction pull error diagnostics (DEV-only local follow-up)
+- Requested coverage: failed bank/card transaction GET requests, including legacy and consent-scoped endpoints. Each failed attempt logs sanitized provider body, endpoint, status/code, attempt/maxAttempts and durationMs; no successful payload logging or Axios config serialization.
+- Central client logging leaves retry decisions unchanged. Credential redaction covers echoed request secrets, user URL identity, URL queries, nested credential/config/request fields and existing JWT/PEM/Bearer/PII filters.
+- New tests exercise account/card403, per-attempt503 recovery, unrelated GET exclusions and secret non-disclosure; existing1004 regression remains included. Initial safety check caught query redaction ordering after identity substitution; fixed before final verification.
+- No live provider calls, DEV database changes, production access, proxy/key changes or consent operations in this follow-up.
+- Final focused Jest verification: 3 suites, 29 tests passed (transaction failure logging, diagnostic redaction, bounded1004 retry). Whitespace diff check passed.
+- Final Nest build passed (exit0). No schema or external API contract changes. Local commit only; no push, deployment, server restart or production action.
