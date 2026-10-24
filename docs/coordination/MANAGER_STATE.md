@@ -269,3 +269,5 @@ that commit. No live profile seed, schema, production-data, provider,
 accounting, authorization, or deployment action occurred.
 
 Open-banking delivery confirmation (2026-10-25): main and codex/integration were atomically pushed to274b54fa; GitHub ls-remote and local/tracking refs all matched. Task marked PUSHED. Completion bookkeeping only follows; no deployment or production action.
+
+Billing reconnect loop correction (2026-10-25): root recovery effect accidentally tracked synchronous billing service reads. Mocked-HTTP real-effect regression reproduced2 failures before correction; Angular untracked around shared refresh removes feedback while preserving next-outage recovery.15 focused frontend tests and production Angular build(hashe8f0a44488522975) passed; independent scoped review found no blockers. Fast-forward integration preserves the tested executable tree; this record alone follows. No billing policy, schema, backend, provider, database, deployment or runtime restart change.
