@@ -1,4 +1,5 @@
--- Approved for preparation only. NOT executed. Not part of TypeORM synchronize.
+-- Executed with explicit approval on keepintax-dev on 2026-10-25 only.
+-- NOT executed on production. Not part of TypeORM synchronize.
 CREATE TABLE lychee_intake_events (
   event_id VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   channel_id VARCHAR(255) NOT NULL,

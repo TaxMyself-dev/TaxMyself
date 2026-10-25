@@ -1,6 +1,6 @@
 # Lychee backend intake
 
-Implemented locally; not deployed and no messages sent. The endpoint is
+Implemented locally; no cloud deployment and no messages sent. The endpoint is
 `POST /webhooks/lychee`. The proxy entry remains `POST /lychee/webhook`.
 Configure the proxy dev/prod destinations with the FULL backend path (through
 ngrok for dev). Both hops verify the same raw-body HMAC and channel.
@@ -9,7 +9,8 @@ ngrok for dev). Both hops verify the same raw-body HMAC and channel.
 
 1. Review and separately authorize execution of
    `backend/scripts/migrations/2026-10-25_lychee_intake.sql` on the intended
-   development database. Preparation only was approved; nothing was executed.
+   development database. On 2026-10-25 Elazar separately approved execution and
+   the table was created and verified (22 columns) on keepintax-dev only.
    The table is deliberately absent from TypeORM entities/synchronize.
 2. Configure backend `LYCHEE_WEBHOOK_SECRET`, `LYCHEE_CHANNEL_ID`, and
    `LYCHEE_API_KEY` in ignored server environment. The secret is supplied by
@@ -72,8 +73,27 @@ no automatic deletion or retention job was introduced without a product decision
 
 ## Verification and limits
 
+### Development receiver prepared 2026-10-25
+
+`node scripts/start-lychee-receiver.js` starts the built app on port 3000 with
+synchronize, boot seeding, all scheduled tasks and the Lychee worker disabled.
+It requires keepintax-dev. `DISABLE_SCHEDULED_TASKS=true` disables cron/interval/
+timeout registration; normal launches retain their previous scheduling defaults.
+Logs go to ignored `.lychee-receiver.log`. This launch is for subscription setup,
+not end-to-end import testing. It does not change the .env or expose a send API.
+
+The existing ngrok agent was verified forwarding the fixed domain to port 3000:
+`https://margeret-guttiform-overfondly.ngrok-free.dev/webhooks/lychee`.
+Empty POSTs to both localhost and this public URL returned 503, as expected
+while LYCHEE_WEBHOOK_SECRET is missing. No event was enqueued. Receive the secret,
+set it in this worktree's ignored environment and restart before Lychee sends
+their signed test. Keep the worker off until media/key settings are configured.
+This test URL goes directly through the existing ngrok tunnel; the cloud proxy
+has not been modified/deployed. The same tunnel can serve CardCom/Feezback paths.
+
 Focused Jest tests exercise signature bytes, HTTP rejection/acknowledgment,
 dedup conflict, media destination safety, single/multi-business routing, retained
-bytes and ownership. HTTP/media/Drive/SQL boundaries are mocked; no live database,
-Lychee, ngrok or Drive test has been run. Do not describe this as deployed or
-verified end-to-end. Sending business questions remains intentionally absent.
+bytes and ownership. Automated tests mock HTTP/media/Drive/SQL boundaries.
+The development schema and unsigned ngrok connectivity were verified separately
+as described above. Signed Lychee events and actual document/Drive import have
+not been verified end-to-end. Sending business questions remains absent.
