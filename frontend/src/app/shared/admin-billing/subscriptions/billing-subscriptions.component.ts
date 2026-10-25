@@ -50,6 +50,7 @@ import {
 } from './billing-subscriptions.presentation';
 
 export type DiscountKind = 'NONE' | 'PERCENT' | 'AMOUNT';
+export type SubscriptionStatusFilter = 'ALL' | 'ACTIVE' | 'TRIAL' | 'TRIAL_EXPIRED';
 
 /** ISelectItem format required by app-input-select (name/value, not label/value). */
 const DISCOUNT_KIND_OPTIONS: ISelectItem[] = [
@@ -130,6 +131,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
 
   subscriptions = signal<AdminSubscription[]>([]);
+  readonly statusFilter = signal<SubscriptionStatusFilter>('ALL');
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
   refundSub = signal<AdminSubscription | null>(null);
@@ -252,8 +254,16 @@ export class BillingSubscriptionsComponent implements OnInit {
     },
   ];
 
+  readonly filteredSubscriptions = computed(() => {
+    const status = this.statusFilter();
+    return status === 'ALL'
+      ? this.subscriptions()
+      : this.subscriptions().filter(subscription =>
+          subscription.billingAccessMode !== 'COMPLIMENTARY_FULL' && subscription.status === status);
+  });
+
   readonly tableRows = computed<IRowDataTable[]>(() =>
-    this.subscriptions().map(s => ({
+    this.filteredSubscriptions().map(s => ({
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
       businessName:            s.businessName ?? '—',
@@ -281,6 +291,10 @@ export class BillingSubscriptionsComponent implements OnInit {
       ),
     }))
   );
+
+  onStatusFilterChange(event: Event): void {
+    this.statusFilter.set((event.target as HTMLSelectElement).value as SubscriptionStatusFilter);
+  }
 
   ngOnInit(): void {
     this.loadSubscriptions();
