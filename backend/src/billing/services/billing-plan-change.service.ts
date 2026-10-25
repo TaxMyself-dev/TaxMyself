@@ -1,3 +1,4 @@
+import { isPlanInCatalog } from '../domain/plan-catalog';
 import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, In, Raw } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
@@ -76,11 +77,15 @@ export class BillingPlanChangeService {
     if (!Number.isFinite(at.getTime()) || at.getTime() > Date.now() || Date.now() - at.getTime() > PLAN_CHANGE_QUOTE_TTL_MS) {
       throw new ConflictException('הצעת שינוי התוכנית פגה. יש לרענן את הפירוט.');
     }
-    const [target, current, command] = await Promise.all([
+    const [target, current, targetPlan, command] = await Promise.all([
       this.pricing.calculateCheckoutPrice(sub.firebaseId, planId),
       this.dataSource.manager.findOne(SubscriptionPlan, { where: { id: sub.planId } }),
+      this.dataSource.manager.findOne(SubscriptionPlan, { where: { id: planId, isActive: true } }),
       latestPlanChangeCommand(this.dataSource.manager, sub.id),
     ]);
+    if (!targetPlan || !isPlanInCatalog(current, targetPlan)) {
+      throw new ConflictException('התוכנית אינה זמינה במסלול שלך.');
+    }
     if (!current || target.currency !== current.currency || target.currency !== 'ILS') throw new ConflictException('Unsupported plan currency');
     const currentBase = this.pricing.resolveEffectivePlanPrice(current, target.billingBusinessType);
     const action = target.originalAmountAgorot >= currentBase

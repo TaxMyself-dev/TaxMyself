@@ -35,6 +35,10 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   access. PREPARE recovery runs daily at 02:45 (original trial plus seven-day
   recovery window), using existing read-only provider endpoints; errors are
   isolated per user. Source discovery itself persists flag/source metadata.
+  Discovery does not select or upgrade referral plans. The old automatic
+  referral-basic to referral-open-banking mutation is removed. Only the
+  existing explicitly approved trial enrollment receives connectionVerified;
+  paid plan changes use the shared billing preview/confirmation mechanism.
 - Pending provider work: when a paid downgrade to a plan without OPEN_BANKING
   becomes effective, or subscription cancellation takes effect, revoke provider consents through the explicit owner/admin disconnection flow. Automatic subscription-triggered provider cancellation is not implemented; stopping local access does not stop provider cost.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.

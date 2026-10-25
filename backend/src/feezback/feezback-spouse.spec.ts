@@ -16,7 +16,7 @@ describe('optional Feezback spouse identity', () => {
     state = { getSourceResults: jest.fn().mockResolvedValue([]), updateSourceResults: jest.fn().mockResolvedValue(undefined) };
     source = { query: jest.fn().mockResolvedValue(undefined) };
     service = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any,
-      {} as any, state, users, source, { autoUpgradeReferralOpenBankingIfEligible: jest.fn().mockResolvedValue(undefined) } as any, {} as any);
+      {} as any, state, users, source, {} as any, {} as any);
   });
   it.each([[false, false, false], [true, false, true], [false, true, true]])('offers selection from active=%s and historical=%s', async (active, history, expected) => {
     users.findOne.mockResolvedValue({ hasOpenBanking: active, hasSpouseFeezbackIdentity: history });

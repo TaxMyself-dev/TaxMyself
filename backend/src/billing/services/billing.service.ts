@@ -35,6 +35,7 @@ import { BillingCancellationService, cancellationIsDue } from './billing-cancell
 import { OpenBankingEnrollmentService } from './open-banking-enrollment.service';
 import { CancelSubscriptionDto } from '../dtos/cancel-subscription.dto';
 import { PlanChangeSnapshot } from '../domain/billing-plan-change';
+import { isPlanInCatalog } from '../domain/plan-catalog';
 import {
   BillingAttemptStatus,
   BillingChargeMode,
@@ -120,50 +121,7 @@ export class BillingService {
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
-  /**
-   * For a referral-track user (already known to be on SOME non-public
-   * plan), resolves which of the two referral plans actually reflects
-   * reality RIGHT NOW — from the live User.hasOpenBanking flag, never from
-   * whichever referral plan happens to be stored on the subscription. The
-   * stored planId can lag reality (e.g. the consent-webhook auto-upgrade
-   * — see FeezbackService.refreshUserSources — hasn't run yet or failed),
-   * so this is the single source of truth for "which referral plan" used
-   * by both getPlans() (display) and createCheckout() (what's actually
-   * purchased). Returns null only if neither referral plan can be found
-   * (deactivated/missing) — callers fall back to whatever they already have.
-   */
-  private async resolveReferralEffectivePlan(
-    firebaseId: string,
-  ): Promise<SubscriptionPlan | null> {
-    const user = await this.userRepo.findOne({ where: { firebaseId } });
-    const targetSlug = user?.hasOpenBanking
-      ? 'referral-open-banking'
-      : 'referral-basic';
-    return this.planRepo.findOne({
-      where: { slug: targetSlug, isActive: true },
-    });
-  }
-
-  /**
-   * Returns the plans the requesting user is allowed to choose from, with
-   * the price effective for their billing business type — resolved once
-   * from their businesses and applied to every plan, so the frontend never
-   * has to decide between the exempt-dealer and licensed-dealer price
-   * itself.
-   *
-   * If the user's OWN currently-assigned plan is non-public (e.g.
-   * referral-basic/referral-open-banking — see
-   * scripts/migrations/2026-08-09_seed-referral-plans.ts), the general
-   * public catalog is never fetched: a referral-track client reaching this
-   * screen (post-trial "choose a plan") must see ONLY their own discounted
-   * plan, not the full-price public grid — showing both would let them
-   * accidentally check out on the wrong one. Every other user (no
-   * subscription, no plan, or an already-public plan) sees the normal
-   * public catalog.
-   *
-   * WHICH referral plan is resolved live via resolveReferralEffectivePlan
-   * (User.hasOpenBanking), not by trusting the stored planId — see there.
-   */
+  /** Returns every active plan in the owner's catalog, independent of connection state. */
   async getPlans(firebaseId: string) {
     const [billingBusinessType, subscription] = await Promise.all([
       this.pricingService.resolveUserBillingBusinessType(firebaseId),
@@ -172,21 +130,15 @@ export class BillingService {
 
     const storedPlan = subscription?.planId
       ? await this.planRepo.findOne({
-          where: { id: subscription.planId, isActive: true },
+          where: { id: subscription.planId },
         })
       : null;
 
-    let plans: SubscriptionPlan[];
-    if (storedPlan && !storedPlan.isPublic) {
-      plans = [
-        (await this.resolveReferralEffectivePlan(firebaseId)) ?? storedPlan,
-      ];
-    } else {
-      plans = await this.planRepo.find({
-        where: { isActive: true, isPublic: true },
-        order: { displayOrder: 'ASC' },
-      });
-    }
+    const catalog = await this.planRepo.find({
+      where: { isActive: true, isPublic: storedPlan?.isPublic !== false },
+      order: { displayOrder: 'ASC' },
+    });
+    const plans = catalog.filter(plan => isPlanInCatalog(storedPlan, plan));
 
     return plans.map((p) => ({
       id: p.id,
@@ -597,40 +549,13 @@ export class BillingService {
       );
     }
 
-    // Checking out on a referral plan: always resolve the LIVE-correct one
-    // (basic vs open-banking, from User.hasOpenBanking) rather than trusting
-    // dto.planId as-is — closes the race where the client rendered a
-    // stale/cached option. Persist it now so subscription.planId is already
-    // right even before the CardCom webhook activates payment (see
-    // resolveReferralEffectivePlan). Public-plan checkouts are unaffected.
-    let plan = requestedPlan;
-    if (!requestedPlan.isPublic && !isDebtRecovery) {
-      const effectivePlan = await this.resolveReferralEffectivePlan(firebaseId);
-      if (effectivePlan) {
-        plan = effectivePlan;
-        if (subscription.planId !== plan.id && subscription.status !== SubscriptionStatus.ACTIVE) {
-          this.logger.log(
-            `createCheckout: referral plan resolved live to ${plan.slug} (requested ${requestedPlan.slug}) ` +
-              `for firebaseId=${firebaseId.substring(
-                0,
-                8,
-              )}... — updating subscription.planId`,
-          );
-          const updateResult = await this.subscriptionRepo.update(
-            {
-              id: subscription.id,
-              planId: subscription.planId,
-              billingAccessMode: BillingAccessMode.STANDARD,
-            },
-            { planId: plan.id },
-          );
-          if (updateResult.affected !== 1) {
-            throw new ConflictException(
-              'Subscription changed while checkout was being prepared. Please try again.',
-            );
-          }
-          subscription.planId = plan.id;
-        }
+    const plan = requestedPlan;
+    if (!isDebtRecovery) {
+      const currentPlan = subscription.planId
+        ? await this.planRepo.findOne({ where: { id: subscription.planId } })
+        : null;
+      if (!isPlanInCatalog(currentPlan, plan)) {
+        throw new ForbiddenException('התוכנית אינה זמינה במסלול שלך.');
       }
     }
 
@@ -863,153 +788,6 @@ export class BillingService {
   async withdrawSubscriptionCancellation(actor: BillingMutationActorContext, expectedEventId: number) {
     if (!this.cancellationService) throw new ConflictException('Cancellation is unavailable');
     return this.cancellationService.withdraw(actor, expectedEventId);
-  }
-
-  /**
-   * Core mutation shared by the customer-facing upgrade endpoint and the
-   * automatic open-banking-consent trigger (see
-   * autoUpgradeReferralOpenBankingIfEligible / FeezbackService.refreshUserSources).
-   * Just a planId swap — no CardCom call, no charge, no billing event. The
-   * subscription stays whatever status it already was (TRIAL during the
-   * referral trial); the new plan only takes effect at the next real
-   * checkout/renewal, driven by SubscriptionRenewalService, which only ever
-   * processes status=ACTIVE rows and never touches TRIAL.
-   */
-  private async applyReferralOpenBankingUpgrade(
-    subscription: Subscription,
-    targetPlan: SubscriptionPlan,
-  ): Promise<boolean> {
-    // Update only the plan column and require the row to still be the STANDARD
-    // subscription we inspected. A concurrent complimentary-access grant wins:
-    // it clears the plan and this stale writer becomes a clean no-op instead of
-    // restoring fields (especially billingAccessMode) from an old entity.
-    const result = await this.subscriptionRepo.update(
-      {
-        id: subscription.id,
-        planId: subscription.planId,
-        billingAccessMode: BillingAccessMode.STANDARD,
-      },
-      { planId: targetPlan.id },
-    );
-    if (result.affected === 1) subscription.planId = targetPlan.id;
-    return result.affected === 1;
-  }
-
-  /**
-   * Customer-facing upgrade, scoped ONLY to moving a referral-signup
-   * subscriber from referral-basic to referral-open-banking (see
-   * scripts/migrations/2026-08-09_seed-referral-plans.ts). Deliberately not a
-   * generic plan-switcher — plan-existence validation mirrors
-   * AdminBillingService.updateSubscriptionPlan, plus the referral-specific
-   * "must currently be on referral-basic" guard.
-   */
-  async upgradeToReferralOpenBankingPlan(
-    actor: BillingMutationActorContext,
-  ): Promise<{
-    planId: number;
-    planSlug: string;
-    planName: string;
-  }> {
-    assertBillingOwnerMutation(actor);
-    const firebaseId = actor.subjectFirebaseId;
-    const subscription = await this.subscriptionRepo.findOne({
-      where: { firebaseId },
-    });
-    if (!subscription) {
-      throw new BadRequestException('לא נמצא מנוי עבור המשתמש.');
-    }
-
-    const currentPlan = subscription.planId
-      ? await this.planRepo.findOne({ where: { id: subscription.planId } })
-      : null;
-    if (currentPlan?.slug !== 'referral-basic') {
-      throw new BadRequestException(
-        'שדרוג זה זמין רק למנויים בתוכנית הבסיסית שהתקבלה דרך הפניית רואה חשבון.',
-      );
-    }
-
-    const targetPlan = await this.planRepo.findOne({
-      where: { slug: 'referral-open-banking', isActive: true },
-    });
-    if (!targetPlan) {
-      throw new NotFoundException('תוכנית השדרוג אינה זמינה כרגע.');
-    }
-
-    const upgraded = await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
-    if (!upgraded) {
-      throw new ConflictException(
-        'Subscription changed while the upgrade was being applied. Please try again.',
-      );
-    }
-
-    this.logger.log(
-      `upgradeToReferralOpenBankingPlan: firebaseId=${firebaseId.substring(
-        0,
-        8,
-      )}... ` +
-        `referral-basic -> referral-open-banking (planId=${targetPlan.id})`,
-    );
-
-    return {
-      planId: targetPlan.id,
-      planSlug: targetPlan.slug,
-      planName: targetPlan.name,
-    };
-  }
-
-  /**
-   * Automatic counterpart to upgradeToReferralOpenBankingPlan, triggered when
-   * a referral-track client successfully completes Feezback open-banking
-   * consent (see FeezbackService.refreshUserSources) — so even if they never
-   * hit the manual upgrade endpoint, they're already on the correct
-   * ₪59 plan by the time their trial ends and billing starts.
-   *
-   * Silently no-ops (never throws) unless the subscription's CURRENT plan is
-   * exactly referral-basic — covers "not on the referral track at all",
-   * "already upgraded to referral-open-banking", and "on any other plan" in
-   * one check, so this is safe to call unconditionally and is idempotent:
-   * calling it again after a successful upgrade (or for a non-referral user)
-   * is always a clean no-op, never a duplicate write or duplicate log line.
-   */
-  async autoUpgradeReferralOpenBankingIfEligible(
-    firebaseId: string,
-  ): Promise<boolean> {
-    const subscription = await this.subscriptionRepo.findOne({
-      where: { firebaseId },
-    });
-    if (!subscription?.planId) return false;
-
-    const currentPlan = await this.planRepo.findOne({
-      where: { id: subscription.planId },
-    });
-    if (currentPlan?.slug !== 'referral-basic') return false;
-
-    const targetPlan = await this.planRepo.findOne({
-      where: { slug: 'referral-open-banking', isActive: true },
-    });
-    if (!targetPlan) {
-      this.logger.warn(
-        `autoUpgradeReferralOpenBankingIfEligible: referral-open-banking plan not found/inactive — ` +
-          `skipping auto-upgrade for firebaseId=${firebaseId.substring(
-            0,
-            8,
-          )}...`,
-      );
-      return false;
-    }
-
-    const upgraded = await this.applyReferralOpenBankingUpgrade(subscription, targetPlan);
-    if (!upgraded) return false;
-
-    this.logger.log(
-      `autoUpgradeReferralOpenBankingIfEligible: firebaseId=${firebaseId.substring(
-        0,
-        8,
-      )}... ` +
-        `referral-basic -> referral-open-banking (planId=${targetPlan.id}) [auto, open-banking consent completed]`,
-    );
-
-    return true;
   }
 
   // ─── Change payment method ─────────────────────────────────────────────────

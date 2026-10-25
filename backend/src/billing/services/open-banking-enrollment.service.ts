@@ -1,3 +1,4 @@
+import { isPlanInCatalog } from '../domain/plan-catalog';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In, Raw } from 'typeorm';
 import { createHash } from 'crypto';
@@ -47,16 +48,16 @@ export class OpenBankingEnrollmentService {
   async options(firebaseId: string) {
     const sub = await this.db.manager.findOne(Subscription, { where: { firebaseId } });
     if (!sub) throw new ConflictException('לא נמצא מנוי.');
-    // Public catalog plus the owner's private/referral banking plan.
-    const plans = await this.db.manager.find(SubscriptionPlan, { where: { isActive: true }, order: { displayOrder: 'ASC' } });
-    const eligible = plans.filter(plan => plan.modules?.includes(ModuleName.OPEN_BANKING) &&
-      (plan.isPublic || plan.id === sub.planId ||
-        (plan.slug === 'referral-open-banking' && plans.some(p => p.id === sub.planId && p.slug.startsWith('referral-')))));
+    const current = sub.planId
+      ? await this.db.manager.findOne(SubscriptionPlan, { where: { id: sub.planId } }) : null;
+    const plans = (await this.db.manager.find(SubscriptionPlan, {
+      where: { isActive: true }, order: { displayOrder: 'ASC' },
+    })).filter(plan => isPlanInCatalog(current, plan));
+    const eligible = plans.filter(plan => plan.modules?.includes(ModuleName.OPEN_BANKING));
     const priced = await Promise.all(eligible.map(async plan => ({ id: plan.id, name: plan.name, modules: plan.modules, features: plan.features,
       badge: plan.badge, recommended: plan.recommended, isPublic: plan.isPublic, notes: plan.notes,
       ...(await this.quote(sub, plan)) })));
-    const nonBankingPlans = plans.filter(plan => !plan.modules?.includes(ModuleName.OPEN_BANKING) &&
-      (plan.isPublic || (plan.slug === 'referral-basic' && plans.some(p => p.id === sub.planId && p.slug.startsWith('referral-')))))
+    const nonBankingPlans = plans.filter(plan => !plan.modules?.includes(ModuleName.OPEN_BANKING))
       .map(plan => ({ id: plan.id, name: plan.name }));
     const command = await this.latest(sub.id);
     const status = sub.status === SubscriptionStatus.TRIAL && sub.trialEnd && sub.trialEnd <= new Date()

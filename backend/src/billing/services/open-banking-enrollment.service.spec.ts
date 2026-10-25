@@ -48,6 +48,23 @@ describe('Open banking trial enrollment', () => {
     const options = await service.options('owner');
     return service.prepare(owner, 5, options.plans[0].quote);
   }
+  it.each([null, 90])('keeps enrollment options in the assigned catalog %s', async assignedId => {
+    const referral = [
+      { id: 90, name: 'Referral basic', slug: 'referral-basic', isPublic: false, modules: [ModuleName.EXPENSES] },
+      { id: 91, name: 'Referral banking', slug: 'referral-open-banking', isPublic: false, modules: [ModuleName.OPEN_BANKING] },
+    ];
+    sub.planId = assignedId;
+    const originalFind = manager.find.getMockImplementation();
+    const originalOne = manager.findOne.getMockImplementation();
+    manager.find.mockImplementation(async (entity, opts) => entity === SubscriptionPlan ? [...plans, ...referral] : originalFind(entity, opts));
+    manager.findOne.mockImplementation(async (entity, opts) => entity === SubscriptionPlan
+      ? [...plans, ...referral].find(p => p.id === opts.where.id) ?? null : originalOne(entity, opts));
+    const options = await service.options('owner');
+    expect(options.plans.map(p => p.id)).toEqual(assignedId ? [91] : [5]);
+    expect(options.nonBankingPlans.map(p => p.id)).toEqual(assignedId ? [90] : [4]);
+    await expect(service.prepare(owner, assignedId ? 5 : 91, options.plans[0].quote)).rejects.toThrow('בנקאות');
+  });
+
   it('shows only banking plans and rejects a non-banking plan on the server', async () => {
     const options = await service.options('owner');
     expect(options.plans.map(p => p.id)).toEqual([5]);

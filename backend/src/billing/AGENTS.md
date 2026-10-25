@@ -631,3 +631,19 @@ response includes the resulting `status` so clients can refresh accurately.
 - documents (receipt PDF generation/storage)
 - mail (receipt email delivery)
 - business (billing business-type-specific pricing)
+
+## Referral catalog selection
+
+GET billing/plans returns all active private referral-* plans for an owner assigned
+to that catalog, regardless of User.hasOpenBanking. An inactive assigned plan
+still identifies the catalog. Public owners see only active public plans; other
+private assignments expose only their assigned plan. Checkout honors the chosen
+plan without resolving/replacing it from banking connection state. Checkout,
+paid-change previews and banking enrollment enforce the same catalog boundary.
+Existing debt recovery, trial enrollment terms, proration and downgrade timing remain intact.
+Public and referral paid owners use the same BillingPlanChangeService preview,
+quote confirmation, canonical upgrade payment and scheduled downgrade flow.
+The legacy upgrade-to-open-banking endpoint and direct referral plan mutation
+helpers are removed. Provider discovery never upgrades a subscription based on
+connection state; only an explicitly approved trial enrollment may be armed by
+connectionVerified under the existing enrollment rules.

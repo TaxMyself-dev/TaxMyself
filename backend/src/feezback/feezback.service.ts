@@ -682,11 +682,9 @@ export class FeezbackService {
     const connected = results.some(r => r.status === 'fulfilled' && r.value.connected);
     const complete = results.every(r => r.status === 'fulfilled' && r.value.complete);
     if (connected || complete) await this.userRepository.update({ firebaseId }, { hasOpenBanking: connected });
-    // Billing sees the aggregated, persisted connection state, once per user.
+    // Only an explicitly approved trial enrollment may react to connection verification.
     if (connected) {
       await this.openBankingEnrollment?.connectionVerified(firebaseId);
-      try { await this.billingService.autoUpgradeReferralOpenBankingIfEligible(firebaseId); }
-      catch (error: any) { this.logger.error('Referral open-banking auto-upgrade check failed: ' + error?.message); }
     }
     if (results.every(r => r.status === 'rejected')) throw (results[0] as PromiseRejectedResult).reason;
   }

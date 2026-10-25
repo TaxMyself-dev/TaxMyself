@@ -66,7 +66,7 @@ describe('Feezback reconnection preserves permanent sources', () => {
     };
     service = new FeezbackService({} as any, { getTppId: () => 'test-tpp' } as any, api as any,
       {} as any, {} as any, sync, userRepo, sourceRepo,
-      { autoUpgradeReferralOpenBankingIfEligible: jest.fn().mockResolvedValue(undefined) } as any, {} as any);
+      {} as any, {} as any);
   });
 
   afterEach(() => jest.restoreAllMocks());
