@@ -31,8 +31,8 @@ a durable queue. Lychee retry limits and subscription suspension still apply.
 Do not enable until the corresponding backend receivers are implemented.
 
 The existing development simulator is NOT this receiver and cannot consume this
-payload. Durable backend intake, media download, account resolution, business
-selection and Drive integration remain separate work. No schema was changed.
+payload. See `lychee-backend.md` for the new receiver, required SQL (prepared but
+not executed), disabled worker and remaining activation requirements.
 
 Run focused offline tests: `node --test proxy/lychee-webhook.test.js`.
 The deployed proxy hostname/configuration have not been verified; after approval

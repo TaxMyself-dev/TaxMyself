@@ -1,4 +1,19 @@
-# WhatsApp development intake
+# WhatsApp intake
+
+## Lychee adapter (2026-10-25)
+
+Approved owner mapping for this adapter is the signup phone (normalized), with
+ambiguous or unknown accounts rejected. This overrides the simulator-only rule
+below for Lychee. Every import requires an explicit currently owned business.
+POST /webhooks/lychee validates raw HMAC and channel before durable enqueue.
+LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
+Elazar approved preparing its SQL only; no database execution was authorized.
+LYCHEE_INTAKE_ENABLED and LYCHEE_WORKER_ENABLED default off. There is no outbound
+messaging implementation. Multi-business documents remain WAITING_FOR_BUSINESS;
+prompt mappings and quoted replies are supported in storage, but prompts cannot
+be sent yet. Never fabricate prompt IDs or route to a primary business.
+
+## Existing development simulator
 
 Development only. Explicit operator-provided test bindings are not account verification.
 All endpoints require WHATSAPP_DEV_ENABLED=true and a development token of at least
