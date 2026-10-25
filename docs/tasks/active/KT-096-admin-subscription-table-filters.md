@@ -1,6 +1,6 @@
 # KT-096 - Admin subscription table filters
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex (direct, non-parallel task)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -35,7 +35,7 @@ filtered by the three relevant onboarding/billing statuses.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): `f2552fe6`
 - Changed files: admin billing backend service/spec/topic docs; subscription
   table component/template/styles/spec/topic docs; this task file.
 - Tests and exact results:
@@ -56,8 +56,11 @@ filtered by the three relevant onboarding/billing statuses.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `f2552fe6`
+- Combined verification: backend Jest 14/14; frontend Karma 7/7; Nest build
+  passed; Angular production build passed.
+- `origin/main` verification: source commit pushed successfully; final
+  documentation verification recorded in the follow-up bookkeeping commit.
+- User-visible run instructions: open Admin panel → CardCom / Subscriptions;
+  demo profiles are absent and the status selector filters the table.
