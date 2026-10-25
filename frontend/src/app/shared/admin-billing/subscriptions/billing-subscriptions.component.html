@@ -12,7 +12,21 @@
       [isLoading]="runningDueRenewals()"
       (onButtonClicked)="confirmRunDueRenewals()">
     </app-p-button>
-    <p class="table-title">מנויים</p>
+    <div class="table-title-and-filter">
+      <p class="table-title">מנויים</p>
+      <label class="status-filter">
+        <span>סטטוס</span>
+        <select
+          aria-label="סינון מנויים לפי סטטוס"
+          [value]="statusFilter()"
+          (change)="onStatusFilterChange($event)">
+          <option value="ALL">הכול</option>
+          <option value="ACTIVE">פעיל</option>
+          <option value="TRIAL">ניסיון</option>
+          <option value="TRIAL_EXPIRED">ניסיון פג</option>
+        </select>
+      </label>
+    </div>
   </div>
 
   <!-- Status badge template — wired into columnsTitle via viewChild() signal -->

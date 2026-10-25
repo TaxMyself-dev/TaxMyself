@@ -9,6 +9,7 @@ import { BillingObligation } from '../entities/billing-obligation.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
+import { isDemoEmail } from 'src/demo-data/profiles';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
@@ -321,7 +322,9 @@ export class AdminBillingService {
     // Q4: one grouped query for every subscription's unresolved-attempt indicator
     const indicatorMap = await this.loadUnresolvedAttemptIndicators();
 
-    return raw.map((r): AdminSubscriptionResponse => {
+    const nonDemoSubscriptions = raw.filter(r => !isDemoEmail(userMap.get(r.firebaseId)?.email));
+
+    return nonDemoSubscriptions.map((r): AdminSubscriptionResponse => {
       const user = userMap.get(r.firebaseId);
       const biz  = businessMap.get(r.firebaseId);
       const sid  = Number(r.subscriptionId);

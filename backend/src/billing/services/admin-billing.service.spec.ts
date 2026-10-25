@@ -268,6 +268,55 @@ describe('AdminBillingService.findAllSubscriptions', () => {
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.hasOpenBanking', 'hasOpenBanking');
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
   });
+
+  it('excludes registered demo-profile users from the subscription list', async () => {
+    const subscriptionQuery = queryBuilder([
+      {
+        subscriptionId: 41,
+        firebaseId: 'real-client',
+        status: SubscriptionStatus.ACTIVE,
+        billingAccessMode: BillingAccessMode.STANDARD,
+        planId: null,
+        nextBillingDate: null,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        cardLast4: null,
+      },
+      {
+        subscriptionId: 42,
+        firebaseId: 'demo-client',
+        status: SubscriptionStatus.TRIAL,
+        billingAccessMode: BillingAccessMode.STANDARD,
+        planId: null,
+        nextBillingDate: null,
+        createdAt: new Date('2026-09-02T00:00:00.000Z'),
+        cardLast4: null,
+      },
+    ]);
+    const userQuery = queryBuilder([
+      {
+        firebaseId: 'real-client', userId: 7, fName: 'Real', lName: 'User',
+        email: 'real@example.com', hasOpenBanking: 0, lastLoginAt: null,
+      },
+      {
+        firebaseId: 'demo-client', userId: 8, fName: 'Demo', lName: 'User',
+        email: 'demo+single-licensed@taxmyself.local', hasOpenBanking: 0, lastLoginAt: null,
+      },
+    ]);
+    const businessQuery = queryBuilder([]);
+    const dataSource = {
+      createQueryBuilder: jest.fn()
+        .mockReturnValueOnce(subscriptionQuery)
+        .mockReturnValueOnce(userQuery)
+        .mockReturnValueOnce(businessQuery),
+    } as unknown as DataSource;
+    const service = new AdminBillingService(
+      {} as any, {} as any, dataSource, {} as any, {} as any, {} as any, {} as any, {} as any,
+    );
+
+    const result = await service.findAllSubscriptions();
+
+    expect(result.map(subscription => subscription.firebaseId)).toEqual(['real-client']);
+  });
 });
 
 describe('AdminBillingService unresolved billing attempts (read-only)', () => {
