@@ -93,7 +93,10 @@ function Invoke-Native([string]$Command, [string[]]$Arguments) {
 }
 
 function Invoke-NativeCapture([string]$Command, [string[]]$Arguments) {
-  $output = & $Command @Arguments 2>&1
+  # Capture stdout only. Some CLIs (notably Firebase under newer Node versions)
+  # print deprecation warnings to stderr even on success; merging that stream
+  # into JSON output makes valid responses impossible to parse.
+  $output = & $Command @Arguments
   if ($LASTEXITCODE -ne 0) {
     throw "$Command failed with exit code $LASTEXITCODE"
   }

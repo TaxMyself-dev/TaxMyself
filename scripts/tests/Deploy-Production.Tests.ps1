@@ -21,6 +21,9 @@ if ($gitignoreSource -notmatch '(?m)^/firebase-debug\*\.log\r?$') {
 }
 
 $source = Get-Content -LiteralPath $releaseScript -Raw
+if ($source -match '\$output\s*=\s*&\s*\$Command\s+@Arguments\s+2>&1') {
+  throw 'Native JSON capture must not merge stderr warnings into stdout'
+}
 if ($source -match '--to-latest') {
   throw 'Release script must never promote the mutable latest revision'
 }
