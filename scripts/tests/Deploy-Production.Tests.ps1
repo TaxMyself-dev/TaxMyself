@@ -3,6 +3,7 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).
 $releaseScript = Join-Path $repositoryRoot 'scripts/Deploy-Production.ps1'
 $validFixture = Join-Path $PSScriptRoot 'production-release-state.json'
 $invalidFixture = Join-Path $PSScriptRoot 'production-release-state-invalid.json'
+$gitignore = Join-Path $repositoryRoot '.gitignore'
 
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -12,6 +13,11 @@ $parseErrors = $null
 )
 if ($parseErrors.Count) {
   throw "Release script has $($parseErrors.Count) PowerShell parse error(s)"
+}
+
+$gitignoreSource = Get-Content -LiteralPath $gitignore -Raw
+if ($gitignoreSource -notmatch '(?m)^/firebase-debug\*\.log\r?$') {
+  throw 'Firebase CLI debug logs must be ignored so a failed auth check does not dirty the release tree'
 }
 
 $source = Get-Content -LiteralPath $releaseScript -Raw

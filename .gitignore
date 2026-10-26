@@ -16,6 +16,7 @@ keys/
 *.key
 *.pem
 .firebase/hosting.*.cache
+/firebase-debug*.log
 backend/src/feezback/transactions-data/transactions-*.json
 
 .claude/settings.local.json
