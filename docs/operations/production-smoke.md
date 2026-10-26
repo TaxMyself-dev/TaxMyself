@@ -54,3 +54,54 @@ monitoring, alarms, or broader regression tests.
 
 Only one full smoke run may execute at a time because it uses a fixed Firebase
 email address.
+
+## Unified release script
+
+`scripts/Deploy-Production.ps1` coordinates the complete flow. Its default is
+read-only plan mode:
+
+```powershell
+./scripts/Deploy-Production.ps1 -Plan
+```
+
+The script never receives, stores, or bypasses an account password. The first
+`-Apply` stage explicitly launches both interactive login flows:
+
+```powershell
+gcloud auth login
+firebase login --reauth
+```
+
+Only after both logins succeed does the preflight stage perform read-only checks
+that the active sessions can access `taxmyself-prod`. An unauthorized session
+stops the release before any build or deployment. `-Plan` does not launch login
+windows; it validates the sessions that already exist. Git authentication is
+checked naturally by the required `git fetch origin`; Git Credential Manager
+may prompt if its own session has expired.
+
+An authorized production operator applies the displayed plan with both gates:
+
+```powershell
+$env:KEEPINTAX_PRODUCTION_DEPLOY = 'taxmyself-prod'
+./scripts/Deploy-Production.ps1 -Apply
+```
+
+`KEEPINTAX_PRODUCTION_DEPLOY` is checked before opening the login flows. It is
+an anti-accident confirmation, not a password or credential; possessing it
+grants no Google Cloud or Firebase permissions.
+
+Release identifiers use local date/time plus a monotonically increasing
+sequence, for example `r20261026-191522-0042`. The sequence is derived from
+prior revisions created by this script. Each stage prints `START` and `OK`;
+failure output includes `FAILED`, the exact stage, and the exception reason.
+
+The frontend is first deployed to a one-day Firebase preview channel named for
+the release. A read-only browser smoke runs against that preview and the newly
+promoted canonical backend. Only the exact tested preview version is then
+cloned to the live channel; the prior live version is retained in the fixed
+`production-rollback` channel.
+
+The first apply is also the smoke bootstrap: the zero-traffic backend candidate
+already contains `/ready` and both job binaries, so the script checks readiness,
+creates the jobs from that exact immutable image, and only then promotes the
+backend. The script performs no schema migration or cutover SQL.

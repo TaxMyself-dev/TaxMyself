@@ -12,7 +12,7 @@
         "serviceAccountName": "backend@example.iam.gserviceaccount.com",
         "containers": [
           {
-            "image": "region-docker.pkg.dev/project/backend/image:test",
+            "image": "region-docker.pkg.dev/project/backend/image@sha256:0000000000000000000000000000000000000000000000000000000000000000",
             "env": [
               { "name": "FIREBASE_PROJECT_ID", "value": "example-project" },
               { "name": "FIREBASE_CLIENT_EMAIL", "value": "firebase@example.invalid" },

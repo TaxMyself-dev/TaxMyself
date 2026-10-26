@@ -5,6 +5,7 @@ param(
   [string]$SourceService = 'taxmys16elf-prod',
   [string]$VerifyJob = 'keepintax-smoke-verify',
   [string]$CleanupJob = 'keepintax-smoke-cleanup',
+  [string]$Image,
   [string]$SourceJsonPath,
   [switch]$Apply
 )
@@ -76,7 +77,7 @@ function Invoke-JobDeploy(
     'run', 'jobs', 'deploy', $JobName,
     "--project=$Project",
     "--region=$Region",
-    "--image=$image",
+    "--image=$jobImage",
     "--service-account=$runtimeServiceAccount",
     '--command=node',
     "--args=$Entrypoint",
@@ -140,10 +141,14 @@ $sensitiveVariables = @(
 $state = Get-SourceState
 $template = $state.spec.template
 $container = @($template.spec.containers)[0]
-$image = [string]$container.image
+$sourceImage = [string]$container.image
 $runtimeServiceAccount = [string]$template.spec.serviceAccountName
-if (!$image -or !$runtimeServiceAccount) {
+if (!$sourceImage -or !$runtimeServiceAccount) {
   throw 'The backend service is missing an image or runtime service account'
+}
+$jobImage = if ($Image) { $Image } else { $sourceImage }
+if ($jobImage -notmatch '^.+@sha256:[0-9a-f]{64}$') {
+  throw 'The job image must be an immutable sha256 image reference'
 }
 
 $environment = @{}
@@ -186,7 +191,7 @@ $plan = [ordered]@{
   project = $Project
   region = $Region
   sourceService = $SourceService
-  image = $image
+  image = $jobImage
   runtimeServiceAccount = $runtimeServiceAccount
   jobs = @(
     [ordered]@{ name = $VerifyJob; entrypoint = 'dist/smoke/verify-smoke-user.js'; networkCopied = $false },

@@ -15,14 +15,16 @@ backend, frontend, signup, Firebase verification, login, and cleanup flow.
 - `run-signup-smoke.js` — ordered signup, private verification job, login, and
   guaranteed cleanup-job orchestration.
 - `inspect-cloud-run-source.ps1` and `configure-cloud-run-jobs.ps1` — redacted
-  production configuration inventory and double-gated private job setup.
+  production configuration inventory and double-gated private job setup; job
+  configuration accepts only an immutable `@sha256` image reference.
 - `run-candidate-readiness.ps1` and `run-production-smoke.ps1` — guarded
   operator entrypoints for pre-traffic and post-deployment checks.
 
 ## Main flows
 
 1. Run candidate readiness against the exact tagged Cloud Run revision before
-   moving production traffic.
+   moving production traffic, then configure both private jobs from that
+   candidate's exact immutable image digest.
 2. After backend traffic and frontend hosting are updated, run the full smoke
    sequence serially with the fixed `smoke-test@keepintax.co.il` identity.
 3. Verify the synthetic Firebase user privately between signup and login, then
