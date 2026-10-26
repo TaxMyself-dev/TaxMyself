@@ -10,6 +10,11 @@
         {
           "percent": 100,
           "revisionName": "taxmys16elf-prod-r20261025-221045-0041"
+        },
+        {
+          "revisionName": "taxmys16elf-prod-r20261024-101530-0040",
+          "tag": "older-candidate",
+          "url": "https://older-candidate.example.invalid"
         }
       ]
     }

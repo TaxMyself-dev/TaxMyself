@@ -118,6 +118,17 @@ function Assert-CloudName([string]$Name, [string]$Value) {
   }
 }
 
+function Get-OptionalProperty([object]$InputObject, [string]$Name, $DefaultValue = $null) {
+  if ($null -eq $InputObject) { return $DefaultValue }
+  $property = $InputObject.PSObject.Properties[$Name]
+  if ($null -eq $property -or $null -eq $property.Value) { return $DefaultValue }
+  return $property.Value
+}
+
+function Get-TrafficPercent([object]$TrafficTarget) {
+  return [int](Get-OptionalProperty $TrafficTarget 'percent' 0)
+}
+
 function Get-NextReleaseSequence([string[]]$RevisionNames) {
   $escapedService = [regex]::Escape($BackendService)
   $numbers = @(
@@ -139,10 +150,10 @@ function Assert-BackendTraffic([string]$ExpectedRevision) {
     '--format=json'
   )
   $state = $json | ConvertFrom-Json
-  $active = @($state.status.traffic | Where-Object { $_.percent -gt 0 })
+  $active = @($state.status.traffic | Where-Object { (Get-TrafficPercent $_) -gt 0 })
   if ($active.Count -ne 1 -or
-      $active[0].percent -ne 100 -or
-      $active[0].revisionName -ne $ExpectedRevision) {
+      (Get-TrafficPercent $active[0]) -ne 100 -or
+      (Get-OptionalProperty $active[0] 'revisionName') -ne $ExpectedRevision) {
     throw "Backend traffic is not 100% on expected revision $ExpectedRevision"
   }
 }
@@ -292,11 +303,13 @@ try {
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $script:ReleaseId = "r$timestamp-$($sequence.ToString('D4'))"
 
-    $activeTraffic = @($serviceState.status.traffic | Where-Object { $_.percent -gt 0 })
-    if ($activeTraffic.Count -ne 1 -or $activeTraffic[0].percent -ne 100 -or !$activeTraffic[0].revisionName) {
+    $activeTraffic = @($serviceState.status.traffic | Where-Object { (Get-TrafficPercent $_) -gt 0 })
+    if ($activeTraffic.Count -ne 1 -or
+        (Get-TrafficPercent $activeTraffic[0]) -ne 100 -or
+        !(Get-OptionalProperty $activeTraffic[0] 'revisionName')) {
       throw 'Expected exactly one backend revision receiving 100% traffic'
     }
-    $script:OldBackendRevision = [string]$activeTraffic[0].revisionName
+    $script:OldBackendRevision = [string](Get-OptionalProperty $activeTraffic[0] 'revisionName')
     Write-ReleaseStatus 'INFO' "Release tag: $($script:ReleaseId)" DarkGray
     Write-ReleaseStatus 'INFO' "Current backend revision: $($script:OldBackendRevision)" DarkGray
   }
@@ -406,17 +419,20 @@ try {
     if ($script:CandidateRevision -ne $expectedRevision) {
       throw "Unexpected candidate revision: $($script:CandidateRevision)"
     }
-    $candidateTraffic = @($candidateState.status.traffic | Where-Object { $_.tag -eq $script:ReleaseId })
-    $script:CandidateUrl = [string]$candidateTraffic[0].url
+    $candidateTraffic = @($candidateState.status.traffic | Where-Object {
+      (Get-OptionalProperty $_ 'tag') -eq $script:ReleaseId
+    })
+    if ($candidateTraffic.Count -ne 1) { throw 'Tagged candidate traffic target is missing or ambiguous' }
+    $script:CandidateUrl = [string](Get-OptionalProperty $candidateTraffic[0] 'url')
     $script:CandidateImage = [string]@($candidateState.spec.template.spec.containers)[0].image
     if (!$script:CandidateUrl.StartsWith('https://')) { throw 'Tagged candidate URL is missing' }
     if ($script:CandidateImage -notmatch '^.+@sha256:[0-9a-f]{64}$') {
       throw 'Candidate image is not an immutable sha256 reference'
     }
-    $activeTraffic = @($candidateState.status.traffic | Where-Object { $_.percent -gt 0 })
+    $activeTraffic = @($candidateState.status.traffic | Where-Object { (Get-TrafficPercent $_) -gt 0 })
     if ($activeTraffic.Count -ne 1 -or
-        $activeTraffic[0].percent -ne 100 -or
-        $activeTraffic[0].revisionName -ne $script:OldBackendRevision) {
+        (Get-TrafficPercent $activeTraffic[0]) -ne 100 -or
+        (Get-OptionalProperty $activeTraffic[0] 'revisionName') -ne $script:OldBackendRevision) {
       $script:BackendPromoted = $true
       throw 'The zero-traffic deployment unexpectedly changed production traffic'
     }
