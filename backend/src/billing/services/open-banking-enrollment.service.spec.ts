@@ -44,6 +44,12 @@ describe('Open banking trial enrollment', () => {
       finalAmountAgorot: 6372, amountBeforeVatAgorot: 5400, vatAmountAgorot: 972, currency: 'ILS' })) } as any);
   });
   afterEach(() => jest.useRealTimers());
+  it('reports a missing subscription as a server error, not a conflict', async () => {
+    sub = null;
+    await expect(service.options('owner')).rejects.toMatchObject({
+      status: 500, message: 'לא נמצא מנוי.',
+    });
+  });
   async function prepare() {
     const options = await service.options('owner');
     return service.prepare(owner, 5, options.plans[0].quote);

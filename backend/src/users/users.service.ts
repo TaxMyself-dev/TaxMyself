@@ -75,7 +75,7 @@ export class UsersService {
    * there is exactly one trial definition in the codebase.
    */
   async ensureTrialSubscription(firebaseId: string, manager?: EntityManager): Promise<void> {
-    await this.billingService.ensureTrialSubscription(firebaseId, manager);
+    await this.billingService.ensureTrialSubscriptionRecord(firebaseId, manager);
   }
 
   /** Days a referral-signup trial runs before a card is required, vs. the standard TRIAL_DAYS env value. */

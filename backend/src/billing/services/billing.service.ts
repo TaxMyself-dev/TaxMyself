@@ -248,24 +248,25 @@ export class BillingService {
 
   // ─── Trial ───────────────────────────────────────────────────────────────────
 
-  async ensureTrialSubscription(firebaseId: string, manager?: EntityManager) {
+  async ensureTrialSubscription(firebaseId: string) {
+    const subscription = await this.ensureTrialSubscriptionRecord(firebaseId);
+    const plan = subscription.planId
+      ? await this.planRepo.findOne({ where: { id: subscription.planId } }) : null;
+    return this.buildBillingStateResponse(subscription, plan, firebaseId);
+  }
+
+  // Persistence only: safe inside signup's uncommitted transaction.
+  async ensureTrialSubscriptionRecord(firebaseId: string, manager?: EntityManager) {
     const subscriptionRepo = manager
       ? manager.getRepository(Subscription)
       : this.subscriptionRepo;
-    const planRepo = manager
-      ? manager.getRepository(SubscriptionPlan)
-      : this.planRepo;
 
     const existing = await subscriptionRepo.findOne({
       where: { firebaseId },
     });
 
     if (existing) {
-      let plan: SubscriptionPlan | null = null;
-      if (existing.planId) {
-        plan = await planRepo.findOne({ where: { id: existing.planId } });
-      }
-      return this.buildBillingStateResponse(existing, plan, firebaseId);
+      return existing;
     }
 
     const now = new Date();
@@ -289,7 +290,7 @@ export class BillingService {
           8,
         )}... trialEnd=${trialEnd.toISOString()}`,
       );
-      return this.buildBillingStateResponse(saved, null, firebaseId);
+      return saved;
     } catch (err: any) {
       // Lost the race against a concurrent call — ux_subscription_firebase
       // (unique on firebase_id) rejected the duplicate insert. Return the
@@ -301,11 +302,7 @@ export class BillingService {
 
       const winner = await subscriptionRepo.findOne({ where: { firebaseId } });
       if (!winner) throw err;
-      let plan: SubscriptionPlan | null = null;
-      if (winner.planId) {
-        plan = await planRepo.findOne({ where: { id: winner.planId } });
-      }
-      return this.buildBillingStateResponse(winner, plan, firebaseId);
+      return winner;
     }
   }
 

@@ -647,3 +647,6 @@ The legacy upgrade-to-open-banking endpoint and direct referral plan mutation
 helpers are removed. Provider discovery never upgrades a subscription based on
 connection state; only an explicitly approved trial enrollment may be armed by
 connectionVerified under the existing enrollment rules.
+
+## Signup transaction isolation
+UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).

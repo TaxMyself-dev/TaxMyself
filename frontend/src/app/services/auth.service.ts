@@ -445,7 +445,14 @@ export class AuthService {
     });
   }
 
-  getSignupErrorMessage(err: string): string {
+  getSignupErrorMessage(error: any): string {
+    const message = error?.error?.message;
+    if (typeof message === 'string' && message.trim()) return message;
+    if (Array.isArray(message)) {
+      const messages = message.filter((item: unknown) => typeof item === 'string' && item.trim());
+      if (messages.length) return messages.join('\n');
+    }
+    const err = typeof error === 'string' ? error : error?.code;
     switch (err) {
 
       case 'auth/email-already-in-use':

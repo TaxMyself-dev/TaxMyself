@@ -1,5 +1,5 @@
 import { isPlanInCatalog } from '../domain/plan-catalog';
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, InternalServerErrorException, Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, In, Raw } from 'typeorm';
 import { createHash } from 'crypto';
 import { ModuleName } from 'src/enum';
@@ -47,7 +47,7 @@ export class OpenBankingEnrollmentService {
 
   async options(firebaseId: string) {
     const sub = await this.db.manager.findOne(Subscription, { where: { firebaseId } });
-    if (!sub) throw new ConflictException('לא נמצא מנוי.');
+    if (!sub) throw new InternalServerErrorException('לא נמצא מנוי.');
     const current = sub.planId
       ? await this.db.manager.findOne(SubscriptionPlan, { where: { id: sub.planId } }) : null;
     const plans = (await this.db.manager.find(SubscriptionPlan, {

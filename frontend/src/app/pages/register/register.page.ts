@@ -620,7 +620,7 @@ matchRegisterImage = computed(() => {
             return EMPTY;
           }
 
-          const errMessage = this.authService.getSignupErrorMessage(error.code);
+          const errMessage = this.authService.getSignupErrorMessage(error);
           this.messageService.add({ severity: 'error', summary: 'Error', detail: errMessage, sticky: true, key: 'br' });
           return EMPTY;
         }),

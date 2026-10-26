@@ -20,3 +20,5 @@ Multi-step signup wizard (personal → spouse → children → business, or a sh
 - Backend: auth (SignUp endpoint, get-cities), cities.
 - Frontend shared: none directly imported beyond generic input/button/stepper components (`SharedModule`, `StepperComponent`, `InputTextComponent`, `InputDateComponent`, `InputSelectComponent`).
 - Depended on by: login (post-registration redirect passes credentials via router state).
+
+Signup passes the complete error to getSignupErrorMessage: server message strings/validation arrays are displayed, with Firebase code translations and a generic fallback retained.
