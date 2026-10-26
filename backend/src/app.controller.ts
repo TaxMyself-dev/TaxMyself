@@ -1,9 +1,13 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Header, Post } from '@nestjs/common';
 import { AppService } from './app.service';
+import { ReadinessService } from './readiness.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly readinessService: ReadinessService,
+  ) {}
 
   /** Root health check — answers Cloud Run liveness probes */
   @Get()
@@ -11,11 +15,16 @@ export class AppController {
     return { status: 'ok' };
   }
 
+  /** Deployment gate: verifies this revision's DB connection and signup schema. */
+  @Get('ready')
+  @Header('Cache-Control', 'no-store')
+  readinessCheck() {
+    return this.readinessService.check();
+  }
+
   @Post('daily-task')
   async triggerDailyTask(): Promise<void> {
     console.log('Cron endpoint triggered.');
     await this.appService.handleDailyTask();
   }
-
-
 }

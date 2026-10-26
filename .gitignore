@@ -22,3 +22,7 @@ backend/src/feezback/transactions-data/transactions-*.json
 
 _prod_dump/
 *prod.sql
+
+# Production smoke test dependencies and failure artifacts.
+/smoke-tests/node_modules/
+/smoke-tests/artifacts/
