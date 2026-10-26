@@ -1,5 +1,19 @@
 # Primary manager state
 
+## KT-098 production release orchestrator — 2026-10-26
+
+The guarded PowerShell release orchestrator was locally verified and pushed to
+`origin/main` as `1d79885d`. It validates a clean synchronized main branch,
+performs interactive gcloud/Firebase login, builds and tests locally, deploys a
+zero-traffic backend candidate, binds private smoke jobs to its immutable image,
+promotes exact backend/frontend versions, runs signup/login/cleanup smoke, and
+attempts rollback after post-promotion failures. Release-script regression
+tests, six PowerShell parse checks, eight smoke unit tests, exact-image fixture
+validation, and `git diff --check` passed. No production read, deployment,
+database access, schema change, credential access, or live smoke run was
+performed by Codex; production plan/apply remains an operator action under
+`PRODUCTION_POLICY.md`.
+
 ## Open banking disconnection source delivery — 2026-10-25
 
 User explicitly authorized final tests, main merge and GitHub push without

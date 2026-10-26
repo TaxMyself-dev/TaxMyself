@@ -1,6 +1,6 @@
 # KT-098 - Production release orchestrator
 
-- Status: `COMPLETE` — verified locally and approved for source delivery
+- Status: `PUSHED` — delivered to `origin/main` in `1d79885d`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager (no delegated worker)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev`
@@ -44,7 +44,7 @@ and automatic rollback with stage-specific diagnostics.
 
 - Result: implementation complete and locally verified; production plan/apply
   has not been run
-- Commit hash(es): this task's delivery commit (see Git history)
+- Commit hash(es): `1d79885d51106d8e98830fa2f29ae149664f3a7e`
 - Changed files: `scripts/Deploy-Production.ps1`, release plan/failure fixtures,
   `scripts/AGENTS.md`, exact-image support in
   `smoke-tests/configure-cloud-run-jobs.ps1`, smoke fixture image references,
