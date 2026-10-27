@@ -1,5 +1,16 @@
 # Primary manager state
 
+## KT-103 Cloud Run job environment arguments — 2026-10-27
+
+The guarded release again stopped safely at Stage 10 because the custom gcloud
+dictionary delimiter was escaped for a different shell layer and rejected by
+Windows PowerShell/gcloud. Job environment and secret flags now use sorted,
+comma-separated `KEY=VALUE` entries; plain values remain Base64 encoded and
+comma/newline input is rejected. Exact encoding and unsafe-input regressions,
+the full release fixture suite, parser checks and 8 smoke config tests passed.
+Delivery `5986c185` was pushed and verified on local/remote `main`. The operator's
+candidate remained at zero traffic; Codex performed no production action.
+
 ## KT-102 native stderr release logging — 2026-10-27
 
 The first quiet-console Apply incorrectly treated gcloud's successful
