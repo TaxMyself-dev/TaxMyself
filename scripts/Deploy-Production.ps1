@@ -178,23 +178,6 @@ function Get-OptionalProperty([object]$InputObject, [string]$Name, $DefaultValue
   return $property.Value
 }
 
-function Protect-ReleaseDiagnostic([string]$Message) {
-  if ([string]::IsNullOrWhiteSpace($Message)) { return $null }
-  $clean = ($Message -replace '[\r\n\t]+', ' ' -replace '\s{2,}', ' ').Trim()
-  $clean = [regex]::Replace(
-    $clean,
-    '(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+',
-    'Bearer [REDACTED]'
-  )
-  $clean = [regex]::Replace(
-    $clean,
-    '(?i)((?:password|passwd|token|secret|private[_ -]?key|api[_ -]?key|authorization)\s*[:=]\s*)("[^"]*"|''[^'']*''|[^\s,;]+)',
-    '$1[REDACTED]'
-  )
-  if ($clean.Length -gt 500) { return $clean.Substring(0, 497) + '...' }
-  return $clean
-}
-
 function Get-CloudRunErrorSummaryFromJson([string]$Json) {
   if ([string]::IsNullOrWhiteSpace($Json)) { return $null }
   try {
@@ -210,38 +193,33 @@ function Get-CloudRunErrorSummaryFromJson([string]$Json) {
     return $null
   }
 
-  $summaries = @(
-    foreach ($entry in $entries) {
-      $message = [string](Get-OptionalProperty $entry 'textPayload' '')
-      if ([string]::IsNullOrWhiteSpace($message)) {
-        $jsonPayload = Get-OptionalProperty $entry 'jsonPayload'
-        $message = [string](Get-OptionalProperty $jsonPayload 'message' '')
-      }
-      $firstLine = @($message -split "`r?`n" | Where-Object { $_.Trim() }) |
-        Select-Object -First 1
-      $safe = Protect-ReleaseDiagnostic $firstLine
-      if ($safe) { $safe }
+  foreach ($entry in $entries) {
+    $message = [string](Get-OptionalProperty $entry 'textPayload' '')
+    if ([string]::IsNullOrWhiteSpace($message)) {
+      $jsonPayload = Get-OptionalProperty $entry 'jsonPayload'
+      $message = [string](Get-OptionalProperty $jsonPayload 'message' '')
     }
-  )
-  if ($summaries.Count -eq 0) { return $null }
+    $firstLine = [string](@($message -split "`r?`n" | Where-Object { $_.Trim() }) |
+      Select-Object -First 1)
 
-  $applicationError = @($summaries | Where-Object {
-    $_ -match '(?i)^(Error|TypeError|ReferenceError|QueryFailedError|Fatal|Unhandled|[A-Za-z0-9_.]+Exception)\b'
-  }) | Select-Object -First 1
-  if ($applicationError) { return [string]$applicationError }
-
-  $nonProbeError = @($summaries | Where-Object {
-    $_ -notmatch '(?i)STARTUP TCP probe failed|instance was not started|container failed to start'
-  }) | Select-Object -First 1
-  if ($nonProbeError) { return [string]$nonProbeError }
-  return [string]$summaries[0]
+    # Do not sanitize and forward arbitrary text. Accept only a complete,
+    # known-safe shape and reconstruct it from tightly constrained captures.
+    if ($firstLine -match '^Error: Catalog integrity failure: (?<count>\d+) active booking_account row\(s\) have empty visibleBusinessTypes \(sample codes: (?<codes>\d+(?:,\s*\d+){0,9})\)\. Run the visible-business-types backfill before startup\.$') {
+      $count = [int]$Matches['count']
+      $codes = $Matches['codes']
+      return "Error: Catalog integrity failure: $count active booking_account row(s) have empty visibleBusinessTypes (sample codes: $codes). Run the visible-business-types backfill before startup."
+    }
+  }
+  return $null
 }
 
 function Get-CloudRunRevisionErrorSummary([string]$Revision) {
   $filter =
     "resource.type=`"cloud_run_revision`" AND " +
     "resource.labels.service_name=`"$BackendService`" AND " +
-    "resource.labels.revision_name=`"$Revision`" AND severity>=ERROR"
+    "resource.labels.revision_name=`"$Revision`" AND severity>=ERROR AND " +
+    "(textPayload=~`"^Error: Catalog integrity failure:`" OR " +
+    "jsonPayload.message=~`"^Error: Catalog integrity failure:`")"
   try {
     # Cloud Logging can trail the failed deploy response briefly. Retry only
     # an empty result; authorization/CLI failures fall through immediately.
@@ -260,7 +238,7 @@ function Get-CloudRunRevisionErrorSummary([string]$Revision) {
       }
       if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
     }
-    Write-ReleaseLog "No concise ERROR log was available for revision $Revision"
+    Write-ReleaseLog "No allowlisted startup diagnostic was available for revision $Revision"
   } catch {
     Write-ReleaseLog "Could not read ERROR logs for revision ${Revision}: $($_.Exception.Message)"
   }

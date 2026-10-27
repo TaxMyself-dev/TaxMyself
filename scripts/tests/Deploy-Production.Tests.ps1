@@ -101,18 +101,17 @@ $encodedDictionary = & $dictionaryInvoker @{
 
 $cloudErrorInvoker = Get-NamedFunctionTextInvoker $releaseScript @(
   'Get-OptionalProperty',
-  'Protect-ReleaseDiagnostic',
   'Get-CloudRunErrorSummaryFromJson'
 ) 'Get-CloudRunErrorSummaryFromJson'
 $cloudErrorFixture = @'
 [
   {
     "severity": "ERROR",
-    "textPayload": "throw new Error(`Catalog integrity failure`);"
+    "textPayload": "Error: unrelated startup failure token=top-secret password=also-secret"
   },
   {
     "severity": "ERROR",
-    "textPayload": "Error: Catalog integrity failure: token=top-secret password:also-secret\n    at bootstrap (/app/dist/main.js:74:5)"
+    "textPayload": "Error: Catalog integrity failure: 1 active booking_account row(s) have empty visibleBusinessTypes (sample codes: 61420). Run the visible-business-types backfill before startup.\n    at bootstrap (/app/dist/main.js:74:5)"
   },
   {
     "severity": "ERROR",
@@ -121,11 +120,21 @@ $cloudErrorFixture = @'
 ]
 '@
 $cloudErrorSummary = & $cloudErrorInvoker $cloudErrorFixture
-if ($cloudErrorSummary -notmatch '^Error: Catalog integrity failure:' -or
-    $cloudErrorSummary -notmatch 'token=\[REDACTED\]' -or
-    $cloudErrorSummary -notmatch 'password:\[REDACTED\]' -or
-    $cloudErrorSummary -match 'top-secret|also-secret|bootstrap|STARTUP TCP') {
-  throw "Cloud Run startup summary was not concise and redacted: $cloudErrorSummary"
+$expectedCloudError = 'Error: Catalog integrity failure: 1 active booking_account row(s) have empty visibleBusinessTypes (sample codes: 61420). Run the visible-business-types backfill before startup.'
+if ($cloudErrorSummary -ne $expectedCloudError) {
+  throw "Cloud Run startup summary was not the exact allowlisted message: $cloudErrorSummary"
+}
+$unknownCloudErrorFixture = @'
+[
+  {
+    "severity": "ERROR",
+    "textPayload": "Error: database failed token=top-secret password=also-secret"
+  }
+]
+'@
+$unknownCloudErrorSummary = & $cloudErrorInvoker $unknownCloudErrorFixture
+if ($null -ne $unknownCloudErrorSummary) {
+  throw "Non-allowlisted Cloud Run error leaked into the summary: $unknownCloudErrorSummary"
 }
 if ($encodedDictionary -ne 'FIRST=plain,SECOND=base64-value==') {
   throw "Unexpected gcloud dictionary encoding: $encodedDictionary"
@@ -178,6 +187,8 @@ foreach ($requiredText in @(
   'anti-accident gate'
   "'logging', 'read'"
   'resource.labels.revision_name'
+  'textPayload=~'
+  'jsonPayload.message=~'
   'Cloud Run revision startup failed'
 )) {
   if (!$source.Contains($requiredText)) {

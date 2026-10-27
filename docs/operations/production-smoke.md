@@ -96,11 +96,13 @@ prior revisions created by this script. Each stage prints `START` and `COMPLETE`
 failure output includes `FAILED`, the exact stage, and the exception reason.
 When Cloud Run builds the image but the new zero-traffic revision fails during
 startup, Stage 8 performs a read-only ERROR-log lookup scoped to that exact
-revision. If an application exception is available, the terminal shows its
-first line as the failure reason instead of only `gcloud` exit code 1. The line
-is length-limited and common credential fields are redacted; raw log JSON and
-the full stack are never copied to terminal output or the deployment log. If
-the operator lacks log-read permission, the original `gcloud` error remains.
+revision and to explicitly allowlisted safe message prefixes. The local parser
+also requires the complete approved message shape and reconstructs its output
+from numeric captures; it never forwards arbitrary log text. The current
+allowlist contains only catalog-integrity failures. Unknown errors, raw log
+JSON, stack traces and secret-bearing free text are not retrieved or copied to
+the terminal/deployment log. If no approved diagnosis is available or the
+operator lacks log-read permission, the original `gcloud` error remains.
 
 The terminal intentionally stays quiet during each stage. It prints the local
 log path once, followed by stage status, concise failure/rollback status, and
