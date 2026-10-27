@@ -34,6 +34,29 @@ function Get-NamedFunctionInvoker([string]$ScriptPath, [string]$FunctionName) {
   )
 }
 
+function Get-NamedFunctionTextInvoker([string]$ScriptPath, [string[]]$FunctionNames, [string]$EntryFunction) {
+  $tokens = $null
+  $errors = $null
+  $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    $ScriptPath,
+    [ref]$tokens,
+    [ref]$errors
+  )
+  if ($errors.Count) { throw "$ScriptPath has PowerShell parse errors" }
+  $definitions = foreach ($functionName in $FunctionNames) {
+    $functionAst = $ast.Find({
+      param($node)
+      $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq $functionName
+    }, $true)
+    if ($null -eq $functionAst) { throw "Function $functionName was not found in $ScriptPath" }
+    $functionAst.Extent.Text
+  }
+  return [scriptblock]::Create(
+    "param([string]`$Text)`n$($definitions -join "`n")`n$EntryFunction `$Text"
+  )
+}
+
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
   $releaseScript,
@@ -74,6 +97,35 @@ $dictionaryInvoker = Get-NamedFunctionInvoker $configureJobsScript 'Get-GcloudDi
 $encodedDictionary = & $dictionaryInvoker @{
   SECOND = 'base64-value=='
   FIRST = 'plain'
+}
+
+$cloudErrorInvoker = Get-NamedFunctionTextInvoker $releaseScript @(
+  'Get-OptionalProperty',
+  'Protect-ReleaseDiagnostic',
+  'Get-CloudRunErrorSummaryFromJson'
+) 'Get-CloudRunErrorSummaryFromJson'
+$cloudErrorFixture = @'
+[
+  {
+    "severity": "ERROR",
+    "textPayload": "throw new Error(`Catalog integrity failure`);"
+  },
+  {
+    "severity": "ERROR",
+    "textPayload": "Error: Catalog integrity failure: token=top-secret password:also-secret\n    at bootstrap (/app/dist/main.js:74:5)"
+  },
+  {
+    "severity": "ERROR",
+    "textPayload": "Default STARTUP TCP probe failed 1 time consecutively."
+  }
+]
+'@
+$cloudErrorSummary = & $cloudErrorInvoker $cloudErrorFixture
+if ($cloudErrorSummary -notmatch '^Error: Catalog integrity failure:' -or
+    $cloudErrorSummary -notmatch 'token=\[REDACTED\]' -or
+    $cloudErrorSummary -notmatch 'password:\[REDACTED\]' -or
+    $cloudErrorSummary -match 'top-secret|also-secret|bootstrap|STARTUP TCP') {
+  throw "Cloud Run startup summary was not concise and redacted: $cloudErrorSummary"
 }
 if ($encodedDictionary -ne 'FIRST=plain,SECOND=base64-value==') {
   throw "Unexpected gcloud dictionary encoding: $encodedDictionary"
@@ -124,6 +176,9 @@ foreach ($requiredText in @(
   'gcloud auth login',
   'firebase login --reauth',
   'anti-accident gate'
+  "'logging', 'read'"
+  'resource.labels.revision_name'
+  'Cloud Run revision startup failed'
 )) {
   if (!$source.Contains($requiredText)) {
     throw "Release safety marker is missing: $requiredText"

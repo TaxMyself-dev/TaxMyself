@@ -94,6 +94,13 @@ Release identifiers use local date/time plus a monotonically increasing
 sequence, for example `r20261026-191522-0042`. The sequence is derived from
 prior revisions created by this script. Each stage prints `START` and `COMPLETE`;
 failure output includes `FAILED`, the exact stage, and the exception reason.
+When Cloud Run builds the image but the new zero-traffic revision fails during
+startup, Stage 8 performs a read-only ERROR-log lookup scoped to that exact
+revision. If an application exception is available, the terminal shows its
+first line as the failure reason instead of only `gcloud` exit code 1. The line
+is length-limited and common credential fields are redacted; raw log JSON and
+the full stack are never copied to terminal output or the deployment log. If
+the operator lacks log-read permission, the original `gcloud` error remains.
 
 The terminal intentionally stays quiet during each stage. It prints the local
 log path once, followed by stage status, concise failure/rollback status, and

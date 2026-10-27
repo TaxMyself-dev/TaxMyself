@@ -44,6 +44,11 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
   and Firebase sessions interactively. Never accept passwords as script
   parameters or store credentials in the repository.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
+- A failed zero-traffic Cloud Run deployment reads only ERROR entries for the
+  exact expected revision and promotes one concise, redacted application-error
+  line into the Stage 8 failure. Raw logging JSON and stack traces remain out of
+  terminal output and the release log; inability to read logs preserves the
+  original `gcloud` failure.
 - Detailed command, test, build, and cloud output streams in real time to the
   git-ignored `deployment-logs/` file printed once at startup; routine details
   and dependency warnings do not flood the operator terminal.

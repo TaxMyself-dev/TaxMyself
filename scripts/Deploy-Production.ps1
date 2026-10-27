@@ -178,6 +178,95 @@ function Get-OptionalProperty([object]$InputObject, [string]$Name, $DefaultValue
   return $property.Value
 }
 
+function Protect-ReleaseDiagnostic([string]$Message) {
+  if ([string]::IsNullOrWhiteSpace($Message)) { return $null }
+  $clean = ($Message -replace '[\r\n\t]+', ' ' -replace '\s{2,}', ' ').Trim()
+  $clean = [regex]::Replace(
+    $clean,
+    '(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+',
+    'Bearer [REDACTED]'
+  )
+  $clean = [regex]::Replace(
+    $clean,
+    '(?i)((?:password|passwd|token|secret|private[_ -]?key|api[_ -]?key|authorization)\s*[:=]\s*)("[^"]*"|''[^'']*''|[^\s,;]+)',
+    '$1[REDACTED]'
+  )
+  if ($clean.Length -gt 500) { return $clean.Substring(0, 497) + '...' }
+  return $clean
+}
+
+function Get-CloudRunErrorSummaryFromJson([string]$Json) {
+  if ([string]::IsNullOrWhiteSpace($Json)) { return $null }
+  try {
+    $parsed = $Json | ConvertFrom-Json
+    # Windows PowerShell 5.1 can return a top-level JSON array as one nested
+    # pipeline object. Force explicit enumeration so each log entry is scored.
+    $entries = if ($parsed -is [System.Array]) {
+      @($parsed | ForEach-Object { $_ })
+    } else {
+      @($parsed)
+    }
+  } catch {
+    return $null
+  }
+
+  $summaries = @(
+    foreach ($entry in $entries) {
+      $message = [string](Get-OptionalProperty $entry 'textPayload' '')
+      if ([string]::IsNullOrWhiteSpace($message)) {
+        $jsonPayload = Get-OptionalProperty $entry 'jsonPayload'
+        $message = [string](Get-OptionalProperty $jsonPayload 'message' '')
+      }
+      $firstLine = @($message -split "`r?`n" | Where-Object { $_.Trim() }) |
+        Select-Object -First 1
+      $safe = Protect-ReleaseDiagnostic $firstLine
+      if ($safe) { $safe }
+    }
+  )
+  if ($summaries.Count -eq 0) { return $null }
+
+  $applicationError = @($summaries | Where-Object {
+    $_ -match '(?i)^(Error|TypeError|ReferenceError|QueryFailedError|Fatal|Unhandled|[A-Za-z0-9_.]+Exception)\b'
+  }) | Select-Object -First 1
+  if ($applicationError) { return [string]$applicationError }
+
+  $nonProbeError = @($summaries | Where-Object {
+    $_ -notmatch '(?i)STARTUP TCP probe failed|instance was not started|container failed to start'
+  }) | Select-Object -First 1
+  if ($nonProbeError) { return [string]$nonProbeError }
+  return [string]$summaries[0]
+}
+
+function Get-CloudRunRevisionErrorSummary([string]$Revision) {
+  $filter =
+    "resource.type=`"cloud_run_revision`" AND " +
+    "resource.labels.service_name=`"$BackendService`" AND " +
+    "resource.labels.revision_name=`"$Revision`" AND severity>=ERROR"
+  try {
+    # Cloud Logging can trail the failed deploy response briefly. Retry only
+    # an empty result; authorization/CLI failures fall through immediately.
+    foreach ($attempt in 1..3) {
+      $json = Invoke-NativeCapture $script:GcloudCommand @(
+        'logging', 'read', $filter,
+        "--project=$Project",
+        '--limit=50',
+        '--order=asc',
+        '--format=json'
+      )
+      $summary = Get-CloudRunErrorSummaryFromJson $json
+      if ($summary) {
+        Write-ReleaseLog "Cloud Run startup cause: $summary"
+        return $summary
+      }
+      if ($attempt -lt 3) { Start-Sleep -Seconds 2 }
+    }
+    Write-ReleaseLog "No concise ERROR log was available for revision $Revision"
+  } catch {
+    Write-ReleaseLog "Could not read ERROR logs for revision ${Revision}: $($_.Exception.Message)"
+  }
+  return $null
+}
+
 function Get-TrafficPercent([object]$TrafficTarget) {
   return [int](Get-OptionalProperty $TrafficTarget 'percent' 0)
 }
@@ -479,16 +568,26 @@ try {
   # keep all public production traffic on the previously serving revision.
   Invoke-Stage 'Deploy backend candidate with zero traffic' {
     $source = Join-Path $script:ReleaseDirectory 'backend-source'
-    Invoke-Native $script:GcloudCommand @(
-      'run', 'deploy', $BackendService,
-      "--source=$source",
-      "--project=$Project",
-      "--region=$Region",
-      "--revision-suffix=$($script:ReleaseId)",
-      "--tag=$($script:ReleaseId)",
-      '--no-traffic',
-      '--quiet'
-    )
+    $expectedRevision = "$BackendService-$($script:ReleaseId)"
+    try {
+      Invoke-Native $script:GcloudCommand @(
+        'run', 'deploy', $BackendService,
+        "--source=$source",
+        "--project=$Project",
+        "--region=$Region",
+        "--revision-suffix=$($script:ReleaseId)",
+        "--tag=$($script:ReleaseId)",
+        '--no-traffic',
+        '--quiet'
+      )
+    } catch {
+      $deployError = $_
+      $startupCause = Get-CloudRunRevisionErrorSummary $expectedRevision
+      if ($startupCause) {
+        throw "Cloud Run revision startup failed: $startupCause"
+      }
+      throw $deployError
+    }
     $candidateJson = Invoke-NativeCapture $script:GcloudCommand @(
       'run', 'services', 'describe', $BackendService,
       "--project=$Project",
@@ -500,7 +599,6 @@ try {
     if (!$script:CandidateRevision -or $script:CandidateRevision -ne $candidateState.status.latestReadyRevisionName) {
       throw 'The candidate revision was created but is not ready'
     }
-    $expectedRevision = "$BackendService-$($script:ReleaseId)"
     if ($script:CandidateRevision -ne $expectedRevision) {
       throw "Unexpected candidate revision: $($script:CandidateRevision)"
     }
