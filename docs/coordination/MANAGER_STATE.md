@@ -1,5 +1,16 @@
 # Primary manager state
 
+## KT-106 Allowlisted Cloud Run startup diagnostics — 2026-10-27
+
+Stage 8 no longer retrieves arbitrary ERROR messages and then attempts to
+redact them. Its exact-revision Cloud Logging query now accepts only explicitly
+allowlisted safe prefixes, and the local parser requires a complete approved
+shape before reconstructing output from constrained numeric captures. The
+current allowlist contains only catalog-integrity failures; unknown messages,
+stacks, probes, and secret-bearing free text retain the original gcloud error.
+Release regressions passed in Windows PowerShell 5.1 and PowerShell 7.
+Delivery `8fcdef24` is ready for push; Codex performed no production action.
+
 ## KT-105 Cloud Run startup failure diagnostics — 2026-10-27
 
 Failed Stage 8 candidate deployments now query ERROR logs for only the exact
