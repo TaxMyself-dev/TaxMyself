@@ -1,5 +1,16 @@
 # Primary manager state
 
+## KT-099 backend test baseline repair — 2026-10-27
+
+The backend regression gate exposed by the guarded release attempt was restored
+without changing runtime behavior. Ten stale assertions were aligned with the
+current document, report, catalog, demo-data and user contracts; two additional
+legacy user/auth suites were rewritten against the current APIs. The complete
+backend run passed 188 suites and 1,820 tests, followed by a successful Nest
+build and `git diff --check`. Delivery `85361511` was pushed and verified on
+local `main`, `origin/main` and the remote branch. No schema, production data,
+credential, production access or deployment action occurred.
+
 ## KT-098 production release orchestrator — 2026-10-26
 
 The guarded PowerShell release orchestrator was locally verified and pushed to
