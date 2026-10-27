@@ -1,5 +1,17 @@
 # Primary manager state
 
+## KT-102 native stderr release logging — 2026-10-27
+
+The first quiet-console Apply incorrectly treated gcloud's successful
+"browser opened" stderr progress as a terminating Windows PowerShell 5.1 error.
+Native stdout/stderr now streams to the detailed log while native failure is
+classified exclusively by exit code; stdout-only JSON capture remains isolated.
+Nested smoke scripts run through the same boundary in child PowerShell
+processes. Fixtures cover stderr+exit 0, stdout with simultaneous stderr, and
+exit 7. Release regressions, parser checks and 8 smoke config tests passed.
+Delivery `f34bb513` was pushed and verified on local/remote `main`. Codex ran no
+production command or deployment.
+
 ## KT-101 quiet production release logging — 2026-10-27
 
 The guarded production release now prints only the detailed-log path, stage
