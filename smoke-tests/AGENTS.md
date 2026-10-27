@@ -22,6 +22,16 @@ backend, frontend, signup, Firebase verification, login, and cleanup flow.
 - `run-candidate-readiness.ps1` and `run-production-smoke.ps1` — guarded
   operator entrypoints for pre-traffic and post-deployment checks.
 
+Registration controls are located through their visible labels in
+`registration-locators.js`; the suite does not rely on Angular directive
+attributes that may be absent from rendered DOM. The signup runner emits one
+bounded `[SMOKE FATAL]` reason for the quiet release console while detailed
+child-process output remains in the deployment log.
+For a diagnostic against a rolled-back production version,
+`run-production-smoke.ps1 -SignupFlowOnly` runs only the write-capable
+registration, verification, login, and guaranteed cleanup chain. The normal
+release path does not set this switch and retains readiness/read-only gates.
+
 ## Main flows
 
 1. Run candidate readiness against the exact tagged Cloud Run revision before

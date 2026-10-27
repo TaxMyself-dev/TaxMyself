@@ -57,6 +57,10 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
 - Native CLI stderr is diagnostic output, not failure by itself. Preserve it in
   the detailed log and classify native success/failure only by exit code;
   PowerShell/cmdlet exceptions remain terminating.
+- A child smoke process may expose a concise terminal reason only through the
+  explicit `[SMOKE FATAL]` marker. All unmarked child output stays confined to
+  the detailed log, preventing arbitrary test/application output from being
+  promoted to the operator console.
 
 ## Related topics
 

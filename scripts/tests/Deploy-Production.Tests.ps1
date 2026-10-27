@@ -212,7 +212,8 @@ if ($planOutput -match 'Using local test-state fixture' -or
     $planOutput -match 'Fixture detail output' -or
     $planOutput -match 'Fixture native stderr' -or
     $planOutput -match 'Fixture captured stderr' -or
-    $planOutput -match 'Fixture native non-zero') {
+    $planOutput -match 'Fixture native non-zero' -or
+    $planOutput -match 'Fixture safe smoke') {
   throw 'Plan leaked detailed stage output to the terminal'
 }
 $planLogLine = $planLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
@@ -225,6 +226,7 @@ if ($planLog -notmatch 'Using local test-state fixture' -or
     $planLog -notmatch 'Fixture native stderr is informational' -or
     $planLog -notmatch 'Fixture captured stderr is informational' -or
     $planLog -notmatch 'Fixture native non-zero exit was detected correctly' -or
+    $planLog -notmatch 'Fixture safe smoke reason was promoted correctly' -or
     $planLog -notmatch 'Current backend revision' -or
     $planLog -notmatch 'Install pinned dependencies' -or
     $planLog -notmatch 'r\d{8}-\d{6}-0042') {

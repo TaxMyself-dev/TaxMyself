@@ -15,15 +15,19 @@ const input: SmokeCleanupInput = {
 };
 
 function dependencies() {
+  const smokeUser = {
+    firebaseId: input.firebaseId,
+    email: input.email,
+    fName: 'Keepintax',
+    lName: 'Smokeabcdefghijkl',
+    driveFolderId: 'drive-folder-id',
+  };
   const database: jest.Mocked<SmokeCleanupDatabase> = {
     assertDatabase: jest.fn().mockResolvedValue(undefined),
-    findUser: jest.fn().mockResolvedValue({
-      firebaseId: input.firebaseId,
-      email: input.email,
-      fName: 'Keepintax',
-      lName: 'Smokeabcdefghijkl',
-      driveFolderId: 'drive-folder-id',
-    }),
+    findUsers: jest
+      .fn()
+      .mockResolvedValueOnce([smokeUser])
+      .mockResolvedValue([]),
     deleteSignupRows: jest.fn().mockResolvedValue({
       subscriptions: 1,
       users: 1,
@@ -89,17 +93,17 @@ describe('SmokeUserCleanup', () => {
 
   it('refuses a database row whose name is not the guarded smoke name', async () => {
     const deps = dependencies();
-    deps.database.findUser.mockResolvedValue({
+    deps.database.findUsers.mockReset().mockResolvedValue([{
       firebaseId: input.firebaseId,
       email: input.email,
       fName: 'Real',
       lName: 'Customer',
       driveFolderId: 'drive-folder-id',
-    });
+    }]);
 
     await expect(
       new SmokeUserCleanup(deps).run(input, 'keepintax-prod'),
-    ).rejects.toThrow('Database user name does not match');
+    ).rejects.toThrow('No database user matches the guarded smoke run id');
     expect(deps.drive.deleteUserFolder).not.toHaveBeenCalled();
     expect(deps.firebase.deleteUser).not.toHaveBeenCalled();
     expect(deps.database.deleteSignupRows).not.toHaveBeenCalled();
@@ -122,7 +126,7 @@ describe('SmokeUserCleanup', () => {
 
   it('is retry-safe when Firebase and the database row are already gone', async () => {
     const deps = dependencies();
-    deps.database.findUser.mockResolvedValue(null);
+    deps.database.findUsers.mockReset().mockResolvedValue([]);
     deps.firebase.findUserByEmail.mockResolvedValue(null);
     deps.database.deleteSignupRows.mockResolvedValue({});
 
@@ -170,5 +174,44 @@ describe('SmokeUserCleanup', () => {
       ),
     ).rejects.toThrow('Firebase and database identities disagree');
     expect(deps.drive.deleteUserFolder).not.toHaveBeenCalled();
+  });
+
+  it('selects only the exact guarded run when stale smoke rows share the email', async () => {
+    const deps = dependencies();
+    const stale = {
+      firebaseId: 'stale-firebase-uid',
+      email: input.email,
+      fName: 'Keepintax',
+      lName: 'Smokezyxwvutsrqpo',
+      driveFolderId: 'stale-drive-folder',
+    };
+    const current = {
+      firebaseId: input.firebaseId,
+      email: input.email,
+      fName: 'Keepintax',
+      lName: 'Smokeabcdefghijkl',
+      driveFolderId: 'drive-folder-id',
+    };
+    deps.database.findUsers
+      .mockReset()
+      .mockResolvedValueOnce([stale, current])
+      .mockResolvedValueOnce([stale]);
+
+    await expect(
+      new SmokeUserCleanup(deps).run(input, 'keepintax-prod'),
+    ).resolves.toMatchObject({ databaseUserFound: true });
+    expect(deps.database.deleteSignupRows).toHaveBeenCalledWith(
+      input.firebaseId,
+      input.email,
+    );
+  });
+
+  it('fails when the expected database user was not deleted', async () => {
+    const deps = dependencies();
+    deps.database.deleteSignupRows.mockResolvedValue({ users: 0 });
+
+    await expect(
+      new SmokeUserCleanup(deps).run(input, 'keepintax-prod'),
+    ).rejects.toThrow('was not deleted exactly once');
   });
 });

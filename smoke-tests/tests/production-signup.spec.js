@@ -1,5 +1,6 @@
 const { test, expect } = require("playwright/test");
 const { endpoint, loadSignupConfig } = require("../config");
+const { selectInput, textInput } = require("../registration-locators");
 
 test("a synthetic user can complete the deployed registration flow", async ({
   page,
@@ -29,27 +30,21 @@ test("a synthetic user can complete the deployed registration flow", async ({
   });
   await expect(page.locator(".register-screen")).toBeVisible();
 
-  await page.locator('input[formcontrolname="fName"]').fill("Keepintax");
-  await page
-    .locator('input[formcontrolname="lName"]')
-    .fill(`Smoke${config.runId}`);
-  await page.locator('input[formcontrolname="id"]').fill("000000018");
-  await page.locator('input[formcontrolname="email"]').fill(config.email);
-  await page.locator('input[formcontrolname="phone"]').fill("0500000000");
-  await page.locator('input[formcontrolname="password"]').fill(config.password);
-  await page
-    .locator('input[formcontrolname="confirmPassword"]')
-    .fill(config.password);
+  await textInput(page, "שם פרטי").fill("Keepintax");
+  await textInput(page, "שם משפחה").fill(`Smoke${config.runId}`);
+  await textInput(page, "תעודת זהות").fill("000000018");
+  await textInput(page, "כתובת אימייל").fill(config.email);
+  await textInput(page, "מספר פלאפון").fill("0500000000");
+  await textInput(page, "סיסמה").fill(config.password);
+  await textInput(page, "אימות סיסמה").fill(config.password);
 
-  const familyStatus = page.locator('p-select[formcontrolname="familyStatus"]');
+  const familyStatus = selectInput(page, "מצב משפחתי");
   await familyStatus.click();
-  await page.getByRole("option", { name: "רווק/ה" }).click();
+  await page.getByRole("option", { name: "רווק/ה", exact: true }).click();
 
-  const employmentStatus = page.locator(
-    'p-select[formcontrolname="employmentStatus"]'
-  );
+  const employmentStatus = selectInput(page, "סטטוס תעסוקתי");
   await employmentStatus.click();
-  await page.getByRole("option", { name: "שכיר/ה" }).click();
+  await page.getByRole("option", { name: "שכיר/ה", exact: true }).click();
 
   const signupRequestPromise = page.waitForRequest(
     (request) =>

@@ -35,6 +35,10 @@ used after a synthetic signup test.
   broaden or guess deletion targets.
 - Resolve the UID independently from Firebase and the DB; disagreement is a
   hard failure before any deletion.
+- Reused smoke email addresses are disambiguated by the exact guarded folder
+  name derived from `runId`. Unrelated stale smoke rows never broaden the
+  deletion target, and a Firebase identity without an attributable exact DB
+  row is not deletion authority.
 - Delete Drive content only by the exact guarded folder name under the system
   root. A stored folder ID alone is never deletion authority, and duplicate
   exact-name folders are a hard failure.
@@ -42,5 +46,8 @@ used after a synthetic signup test.
   than broaden deletion.
 - External deletion is retry-safe; database deletion is transactional and
   constrained by both UID and email.
+- Database cleanup also removes legacy `user_module_subscription` rows,
+  requires exactly one user deletion when the run row existed, and verifies
+  that the exact run row is absent before reporting success.
 - Unit tests and builds use mocks only. Live production execution, credentials,
   and job deployment require explicit production approval.

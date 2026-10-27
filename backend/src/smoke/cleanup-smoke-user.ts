@@ -37,17 +37,14 @@ class MysqlSmokeCleanupDatabase implements SmokeCleanupDatabase {
     }
   }
 
-  async findUser(email: string): Promise<SmokeDbUser | null> {
+  async findUsers(email: string): Promise<SmokeDbUser[]> {
     const [rows] = await this.connection.execute<UserRow[]>(
       `SELECT firebaseId, email, fName, lName, drive_folder_id AS driveFolderId
        FROM \`user\`
        WHERE LOWER(email) = LOWER(?)`,
       [email],
     );
-    if (rows.length > 1) {
-      throw new Error('Smoke identity resolved to more than one database user');
-    }
-    return rows[0] ?? null;
+    return rows;
   }
 
   async deleteSignupRows(
@@ -59,9 +56,9 @@ class MysqlSmokeCleanupDatabase implements SmokeCleanupDatabase {
       const [lockedRows] = await this.connection.execute<UserRow[]>(
         `SELECT firebaseId, email, fName, lName, drive_folder_id AS driveFolderId
          FROM \`user\`
-         WHERE firebaseId = ? OR LOWER(email) = LOWER(?)
+         WHERE firebaseId = ?
          FOR UPDATE`,
-        [firebaseId, email],
+        [firebaseId],
       );
       if (lockedRows.length > 1) {
         throw new Error('Smoke identity changed during cleanup');
@@ -85,6 +82,10 @@ class MysqlSmokeCleanupDatabase implements SmokeCleanupDatabase {
       );
       deleted.businesses = await this.delete(
         'DELETE FROM business WHERE firebaseId = ?',
+        [firebaseId],
+      );
+      deleted.moduleSubscriptions = await this.delete(
+        'DELETE FROM user_module_subscription WHERE firebaseId = ?',
         [firebaseId],
       );
       deleted.subscriptions = await this.delete(

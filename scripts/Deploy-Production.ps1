@@ -117,16 +117,24 @@ function Invoke-Native([string]$Command, [string[]]$Arguments) {
   # is redirected. Many successful CLIs (gcloud, Firebase, npm) write routine
   # progress to stderr, so log both streams and trust the native exit code.
   $previousErrorActionPreference = $ErrorActionPreference
+  $safeFatal = [pscustomobject]@{ Reason = $null }
   try {
     $ErrorActionPreference = 'Continue'
     & $Command @Arguments 2>&1 | ForEach-Object {
-      Write-ReleaseLog ([string]$_)
+      $line = [string]$_
+      Write-ReleaseLog $line
+      if ($line -match '^\[SMOKE FATAL\]\s+(.+)$') {
+        $safeFatal.Reason = $Matches[1]
+      }
     }
     $nativeExitCode = $LASTEXITCODE
   } finally {
     $ErrorActionPreference = $previousErrorActionPreference
   }
   if ($nativeExitCode -ne 0) {
+    if ($safeFatal.Reason) {
+      throw $safeFatal.Reason
+    }
     throw "$Command failed with exit code $nativeExitCode"
   }
 }
@@ -376,6 +384,17 @@ try {
       } catch {
         if ($_.Exception.Message -notmatch 'failed with exit code 7') { throw }
         Write-Output 'Fixture native non-zero exit was detected correctly'
+      }
+      try {
+        Invoke-Native $script:PowerShellCommand @(
+          '-NoProfile',
+          '-Command',
+          "[Console]::Error.WriteLine('[SMOKE FATAL] Fixture safe smoke reason'); exit 9"
+        )
+        throw 'Native safe-fatal fixture unexpectedly succeeded'
+      } catch {
+        if ($_.Exception.Message -ne 'Fixture safe smoke reason') { throw }
+        Write-Output 'Fixture safe smoke reason was promoted correctly'
       }
       return
     }

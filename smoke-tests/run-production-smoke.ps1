@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$ApiUrl = 'https://taxmys16elf-prod-tau7bgxb3q-zf.a.run.app',
-  [string]$BrowserChannel = 'chrome'
+  [string]$BrowserChannel = 'chrome',
+  [switch]$SignupFlowOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,9 +23,11 @@ $names = @(
   'SMOKE_CLEANUP_JOB',
   'SMOKE_GCP_PROJECT',
   'SMOKE_GCP_REGION',
-  'SMOKE_BROWSER_CHANNEL'
+  'SMOKE_BROWSER_CHANNEL',
+  'SMOKE_SIGNUP_FLOW_ONLY'
 )
 $previous = @{}
+$smokeExitCode = 1
 foreach ($name in $names) {
   $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
@@ -37,13 +40,12 @@ try {
   $env:SMOKE_GCP_PROJECT = 'taxmyself-prod'
   $env:SMOKE_GCP_REGION = 'me-west1'
   $env:SMOKE_BROWSER_CHANNEL = $BrowserChannel
+  $env:SMOKE_SIGNUP_FLOW_ONLY = if ($SignupFlowOnly) { 'true' } else { 'false' }
 
   Push-Location $PSScriptRoot
   try {
     & npm run smoke:signup
-    if ($LASTEXITCODE -ne 0) {
-      throw "Production smoke run failed with exit code $LASTEXITCODE"
-    }
+    $smokeExitCode = $LASTEXITCODE
   } finally {
     Pop-Location
   }
@@ -51,4 +53,8 @@ try {
   foreach ($name in $names) {
     [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
   }
+}
+
+if ($smokeExitCode -ne 0) {
+  exit $smokeExitCode
 }

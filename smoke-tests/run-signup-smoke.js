@@ -48,6 +48,14 @@ async function main() {
     SMOKE_USER_PASSWORD: password,
     SMOKE_FOLDER_NAME: folderName,
   };
+  const signupFlowOnly = process.env.SMOKE_SIGNUP_FLOW_ONLY === "true";
+  const browserSpecs = signupFlowOnly
+    ? ["tests/production-signup.spec.js"]
+    : [
+        "tests/production-readiness.spec.js",
+        "tests/production-readonly.spec.js",
+        "tests/production-signup.spec.js",
+      ];
 
   const gcloud =
     process.env.GCLOUD_BIN ||
@@ -59,14 +67,15 @@ async function main() {
       [
         playwrightCli,
         "test",
-        "tests/production-readiness.spec.js",
-        "tests/production-readonly.spec.js",
-        "tests/production-signup.spec.js",
+        ...browserSpecs,
       ],
       { env: testEnv }
     );
     if (signupExitCode !== 0) {
-      throw new Error(`Smoke signup failed with exit code ${signupExitCode}`);
+      const phase = signupFlowOnly
+        ? "Production registration browser test"
+        : "Production readiness/read-only/registration browser tests";
+      throw new Error(`${phase} failed with exit code ${signupExitCode}`);
     }
 
     const verifyExitCode = await executeJob(
@@ -143,7 +152,9 @@ function requiredCloudResource(name) {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error(error.message);
+    // The release orchestrator exposes only this deliberately bounded marker
+    // on its quiet console. Full child-process output remains in the log.
+    console.error(`[SMOKE FATAL] ${error.message}`);
     process.exitCode = 1;
   });
 }

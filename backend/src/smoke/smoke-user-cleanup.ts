@@ -23,7 +23,7 @@ export type SmokeCleanupResult = {
 
 export interface SmokeCleanupDatabase {
   assertDatabase(expectedDatabase: string): Promise<void>;
-  findUser(email: string): Promise<SmokeDbUser | null>;
+  findUsers(email: string): Promise<SmokeDbUser[]>;
   deleteSignupRows(
     firebaseId: string,
     email: string,
@@ -83,22 +83,22 @@ export class SmokeUserCleanup {
     const { database, firebase, drive } = this.dependencies;
     await database.assertDatabase(expectedDatabase);
 
-    const dbUser = await database.findUser(input.email);
-    if (dbUser) {
-      if (dbUser.email.toLowerCase() !== input.email.toLowerCase()) {
-        throw new Error(
-          'Database identity does not exactly match the smoke user',
-        );
-      }
-      const expectedName = [dbUser.fName, dbUser.lName]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-      if (expectedName !== input.folderName) {
-        throw new Error(
-          'Database user name does not match the guarded smoke folder',
-        );
-      }
+    const dbUsers = await database.findUsers(input.email);
+    const exactDbUsers = dbUsers.filter((user) => {
+      const fullName = [user.fName, user.lName].filter(Boolean).join(' ').trim();
+      return (
+        user.email.toLowerCase() === input.email.toLowerCase() &&
+        fullName === input.folderName
+      );
+    });
+    if (exactDbUsers.length > 1) {
+      throw new Error('Smoke run resolved to more than one exact database user');
+    }
+    const dbUser = exactDbUsers[0] ?? null;
+    if (!dbUser && dbUsers.length > 0) {
+      throw new Error(
+        'No database user matches the guarded smoke run id and folder name',
+      );
     }
 
     const firebaseUser = await firebase.findUserByEmail(input.email);
@@ -108,6 +108,11 @@ export class SmokeUserCleanup {
     ) {
       throw new Error(
         'Firebase identity does not exactly match the smoke user',
+      );
+    }
+    if (firebaseUser && !dbUser && !input.firebaseId?.trim()) {
+      throw new Error(
+        'Firebase smoke identity cannot be associated with the guarded run id',
       );
     }
     const firebaseIds = [
@@ -134,6 +139,18 @@ export class SmokeUserCleanup {
     const deletedRows = firebaseId
       ? await database.deleteSignupRows(firebaseId, input.email)
       : {};
+    if (dbUser && deletedRows.users !== 1) {
+      throw new Error('Smoke database user was not deleted exactly once');
+    }
+
+    const remainingExactUsers = (await database.findUsers(input.email)).filter(
+      (user) =>
+        [user.fName, user.lName].filter(Boolean).join(' ').trim() ===
+        input.folderName,
+    );
+    if (remainingExactUsers.length > 0) {
+      throw new Error('Smoke database user still exists after cleanup');
+    }
 
     return {
       runId: input.runId,
