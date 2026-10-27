@@ -28,6 +28,9 @@ $gitignoreSource = Get-Content -LiteralPath $gitignore -Raw
 if ($gitignoreSource -notmatch '(?m)^/firebase-debug\*\.log\r?$') {
   throw 'Firebase CLI debug logs must be ignored so a failed auth check does not dirty the release tree'
 }
+if ($gitignoreSource -notmatch '(?m)^/deployment-logs/\r?$') {
+  throw 'Detailed deployment logs must be ignored so they do not dirty release preflight'
+}
 
 # The release script enables strict mode before invoking these child scripts.
 # Cloud Run omits valueFrom for ordinary env entries and may omit optional
@@ -96,16 +99,31 @@ $planLines = [System.Collections.Generic.List[string]]::new()
 & $releaseScript -Plan -TestStatePath $validFixture *>&1 |
   ForEach-Object { $planLines.Add("$_") }
 $planOutput = $planLines -join "`n"
-if ($planOutput -notmatch 'r\d{8}-\d{6}-0042') {
-  throw 'Plan did not increment the fixture sequence to 0042'
-}
 if (($planOutput | Select-String '\[START\]' -AllMatches).Matches.Count -ne 2 -or
-    ($planOutput | Select-String '\[OK\]' -AllMatches).Matches.Count -ne 2) {
-  throw 'Plan did not print START and OK for both read-only stages'
+    ($planOutput | Select-String '\[COMPLETE\]' -AllMatches).Matches.Count -ne 2) {
+  throw 'Plan did not print START and COMPLETE for both read-only stages'
 }
 if ($planOutput -notmatch 'No changes were made') {
   throw 'Plan did not print its no-write guarantee'
 }
+if ($planOutput -match 'Using local test-state fixture' -or
+    $planOutput -match 'Current backend revision' -or
+    $planOutput -match 'Fixture detail output') {
+  throw 'Plan leaked detailed stage output to the terminal'
+}
+$planLogLine = $planLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
+if (!$planLogLine) { throw 'Plan did not print its detailed log path' }
+$planLogPath = $planLogLine.Substring('Detailed log: '.Length)
+if (!(Test-Path -LiteralPath $planLogPath)) { throw 'Plan detailed log file was not created' }
+$planLog = Get-Content -LiteralPath $planLogPath -Raw
+if ($planLog -notmatch 'Using local test-state fixture' -or
+    $planLog -notmatch 'Fixture detail output is routed to the release log' -or
+    $planLog -notmatch 'Current backend revision' -or
+    $planLog -notmatch 'Install pinned dependencies' -or
+    $planLog -notmatch 'r\d{8}-\d{6}-0042') {
+  throw 'Plan detailed log is missing stage or plan details'
+}
+Remove-Item -LiteralPath $planLogPath -Force
 
 $failureLines = [System.Collections.Generic.List[string]]::new()
 & $releaseScript -Plan -TestStatePath $invalidFixture *>&1 |
@@ -119,6 +137,19 @@ if ($failureOutput -notmatch '\[FAILED\].*Read production state' -or
     $failureOutput -notmatch 'Expected exactly one backend revision') {
   throw 'Failure output did not include the exact stage and reason'
 }
+if ($failureOutput -match 'CategoryInfo|ScriptStackTrace|FullyQualifiedErrorId') {
+  throw 'Failure output leaked the verbose PowerShell error record to the terminal'
+}
+$failureLogLine = $failureLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
+if (!$failureLogLine) { throw 'Failed plan did not print its detailed log path' }
+$failureLogPath = $failureLogLine.Substring('Detailed log: '.Length)
+if (!(Test-Path -LiteralPath $failureLogPath)) { throw 'Failed plan detailed log file was not created' }
+$failureLog = Get-Content -LiteralPath $failureLogPath -Raw
+if ($failureLog -notmatch 'Expected exactly one backend revision' -or
+    $failureLog -notmatch 'status.*failed') {
+  throw 'Failed plan detailed log is missing its failure diagnostics or summary'
+}
+Remove-Item -LiteralPath $failureLogPath -Force
 
 try {
   & $releaseScript -Apply -TestStatePath $validFixture

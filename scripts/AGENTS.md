@@ -43,7 +43,10 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
   and Git Credential Manager sessions. Apply begins by refreshing the gcloud
   and Firebase sessions interactively. Never accept passwords as script
   parameters or store credentials in the repository.
-- Every stage reports START and OK, or FAILED with its stage and reason.
+- Every stage reports START and COMPLETE, or FAILED with its stage and reason.
+- Detailed command, test, build, and cloud output streams in real time to the
+  git-ignored `deployment-logs/` file printed once at startup; routine details
+  and dependency warnings do not flood the operator terminal.
 
 ## Related topics
 

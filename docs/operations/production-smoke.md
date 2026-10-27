@@ -92,8 +92,19 @@ grants no Google Cloud or Firebase permissions.
 
 Release identifiers use local date/time plus a monotonically increasing
 sequence, for example `r20261026-191522-0042`. The sequence is derived from
-prior revisions created by this script. Each stage prints `START` and `OK`;
+prior revisions created by this script. Each stage prints `START` and `COMPLETE`;
 failure output includes `FAILED`, the exact stage, and the exception reason.
+
+The terminal intentionally stays quiet during each stage. It prints the local
+log path once, followed by stage status, concise failure/rollback status, and
+the final outcome. Full npm, test, build, gcloud, Firebase and smoke output is
+streamed in real time to a timestamped file under the git-ignored
+`deployment-logs/` directory. To follow those details from another PowerShell
+window while a release is running:
+
+```powershell
+Get-Content -LiteralPath '<printed-log-path>' -Wait
+```
 
 The frontend is first deployed to a one-day Firebase preview channel named for
 the release. A read-only browser smoke runs against that preview and the newly

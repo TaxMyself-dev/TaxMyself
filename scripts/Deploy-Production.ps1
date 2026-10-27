@@ -60,10 +60,29 @@ $script:GitCommand = $null
 $script:GcloudCommand = $null
 $script:FirebaseCommand = $null
 $script:NpmCommand = $null
+$script:QuietConsole = $false
+$script:LogWriter = $null
+$script:LogPath = $null
+
+function Write-ReleaseLog([object]$Record) {
+  if ($null -eq $script:LogWriter) { return }
+  $text = if ($Record -is [System.Management.Automation.ErrorRecord]) {
+    $Record | Format-List * -Force | Out-String -Width 4096
+  } else {
+    [string]$Record
+  }
+  foreach ($line in @($text -split "`r?`n")) {
+    $script:LogWriter.WriteLine($line)
+  }
+}
 
 function Write-ReleaseStatus([string]$State, [string]$Message, [ConsoleColor]$Color) {
   $timestamp = Get-Date -Format 'HH:mm:ss'
-  Write-Host "[$timestamp] [$State] $Message" -ForegroundColor $Color
+  $line = "[$timestamp] [$State] $Message"
+  Write-ReleaseLog $line
+  if (!$script:QuietConsole) {
+    Write-Host $line -ForegroundColor $Color
+  }
 }
 
 function Invoke-Stage([string]$Name, [scriptblock]$Action) {
@@ -72,13 +91,20 @@ function Invoke-Stage([string]$Name, [scriptblock]$Action) {
   $started = Get-Date
   Write-ReleaseStatus 'START' "Stage $($script:StageNumber): $Name" Cyan
   try {
-    & $Action
+    $script:QuietConsole = $true
+    try {
+      & $Action *>&1 | ForEach-Object { Write-ReleaseLog $_ }
+    } finally {
+      $script:QuietConsole = $false
+    }
     $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
     $script:StageResults.Add([ordered]@{ stage = $Name; status = 'ok'; seconds = $duration })
-    Write-ReleaseStatus 'OK' "Stage $($script:StageNumber): $Name (${duration}s)" Green
+    Write-ReleaseStatus 'COMPLETE' "Stage $($script:StageNumber): $Name (${duration}s)" Green
   } catch {
+    $script:QuietConsole = $false
     $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
     $reason = $_.Exception.Message
+    Write-ReleaseLog $_
     $script:StageResults.Add([ordered]@{ stage = $Name; status = 'failed'; seconds = $duration; reason = $reason })
     Write-ReleaseStatus 'FAILED' "Stage $($script:StageNumber): $Name (${duration}s) - $reason" Red
     throw
@@ -194,6 +220,18 @@ $smokeDirectory = Join-Path $repositoryRoot 'smoke-tests'
 $configureJobsScript = Join-Path $smokeDirectory 'configure-cloud-run-jobs.ps1'
 $candidateReadinessScript = Join-Path $smokeDirectory 'run-candidate-readiness.ps1'
 $productionSmokeScript = Join-Path $smokeDirectory 'run-production-smoke.ps1'
+$logDirectory = Join-Path $repositoryRoot 'deployment-logs'
+New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+$logTimestamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+$script:LogPath = Join-Path $logDirectory "production-release-$logTimestamp-$PID.log"
+$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+$script:LogWriter = New-Object System.IO.StreamWriter($script:LogPath, $false, $utf8WithoutBom)
+$script:LogWriter.AutoFlush = $true
+Write-ReleaseLog "KeepInTax production release log"
+Write-ReleaseLog "Started: $((Get-Date).ToString('o'))"
+Write-ReleaseLog "Mode: $(if ($Apply) { 'Apply' } else { 'Plan' })"
+Write-ReleaseLog "Project: $Project"
+Write-Host "Detailed log: $($script:LogPath)" -ForegroundColor DarkGray
 
 try {
   # Apply stage 1: Require the anti-accident gate, then authenticate
@@ -223,6 +261,7 @@ try {
     if ($TestStatePath) {
       if (!(Test-Path -LiteralPath $TestStatePath)) { throw 'Test state fixture was not found' }
       Write-ReleaseStatus 'INFO' 'Using local test-state fixture; no external command will run' DarkGray
+      Write-Output 'Fixture detail output is routed to the release log'
       return
     }
     $script:GitCommand = Get-CommandName 'git'
@@ -315,7 +354,6 @@ try {
   }
 
   if ($Plan) {
-    Write-Host ''
     Write-ReleaseStatus 'PLAN' 'No changes were made. Apply will run these stages:' Yellow
     @(
       'Install pinned dependencies and run backend tests/build',
@@ -329,10 +367,9 @@ try {
       'Clone the current Firebase live release to the production-rollback channel',
       'Promote the exact tested preview version to Firebase live',
       'Run the full production signup/login/cleanup smoke suite'
-    ) | ForEach-Object { Write-Host "  - $_" }
-    Write-Host ''
-    Write-Host "Planned release: $($script:ReleaseId)"
-    Write-Host "Apply gate: `$env:KEEPINTAX_PRODUCTION_DEPLOY='$Project'"
+    ) | ForEach-Object { Write-ReleaseLog "  - $_" }
+    Write-ReleaseLog "Planned release: $($script:ReleaseId)"
+    Write-ReleaseLog "Apply gate: `$env:KEEPINTAX_PRODUCTION_DEPLOY='$Project'"
     return
   }
 
@@ -550,9 +587,8 @@ try {
     }
   }
 
-  Write-Host ''
   Write-ReleaseStatus 'SUCCESS' "Production release $($script:ReleaseId) completed" Green
-  $script:StageResults | Format-Table -AutoSize
+  Write-ReleaseLog ($script:StageResults | Format-Table -AutoSize | Out-String -Width 4096)
 } catch {
   $originalError = $_.Exception.Message
   $failedStage = $script:CurrentStage
@@ -599,10 +635,16 @@ try {
   # Return a real non-zero process status without making PowerShell repeat the
   # same failure as a long stack trace. Invoke-Stage already printed the exact
   # failed stage and reason above.
+  Write-ReleaseLog ($script:StageResults | Format-Table -AutoSize | Out-String -Width 4096)
   exit 1
 } finally {
   Set-Location $repositoryRoot
   try { Remove-ReleaseDirectory } catch {
     Write-ReleaseStatus 'WARNING' "Temporary release cleanup failed: $($_.Exception.Message)" Yellow
+  }
+  if ($null -ne $script:LogWriter) {
+    Write-ReleaseLog "Finished: $((Get-Date).ToString('o'))"
+    $script:LogWriter.Dispose()
+    $script:LogWriter = $null
   }
 }
