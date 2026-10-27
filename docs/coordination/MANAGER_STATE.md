@@ -1,5 +1,17 @@
 # Primary manager state
 
+## KT-105 Cloud Run startup failure diagnostics — 2026-10-27
+
+Failed Stage 8 candidate deployments now query ERROR logs for only the exact
+expected Cloud Run revision and surface one concise application exception as
+the terminal failure reason. Generic startup probes no longer hide the real
+cause. Output is single-line, capped at 500 characters, and redacts common
+credential fields and bearer tokens; raw JSON and stacks are not persisted.
+Empty logging results retry briefly, while log-read failures retain the
+original gcloud error. Release regressions passed in Windows PowerShell 5.1 and
+PowerShell 7. Delivery `452e640a` is ready for push; Codex performed no
+production action.
+
 ## KT-104 Public registration smoke gate — 2026-10-27
 
 Stage 13 was traced from its Playwright artifact: `GET /auth/get-cities`
