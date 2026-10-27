@@ -1,5 +1,16 @@
 # Primary manager state
 
+## KT-101 quiet production release logging — 2026-10-27
+
+The guarded production release now prints only the detailed-log path, stage
+START/COMPLETE progress, concise failure/safety/rollback status and final
+outcome. Full command, npm, test, build and cloud output streams in real time to
+a unique UTF-8 file under git-ignored `deployment-logs/`; successful and failed
+runs record a stage summary and full failure record. Fixture-backed quiet-output
+and failure-log regression tests, PowerShell parsing and 8 smoke config tests
+passed. Delivery `89bbe32d` was pushed and verified on local/remote `main`.
+Dependencies were not changed, and Codex performed no production action.
+
 ## KT-100 smoke job optional environment repair — 2026-10-27
 
 The first guarded production release reached a healthy zero-traffic candidate
