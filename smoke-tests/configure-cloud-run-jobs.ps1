@@ -12,6 +12,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-OptionalProperty([object]$InputObject, [string]$Name, $DefaultValue = $null) {
+  if ($null -eq $InputObject) { return $DefaultValue }
+  $property = $InputObject.PSObject.Properties[$Name]
+  if ($null -eq $property -or $null -eq $property.Value) { return $DefaultValue }
+  return $property.Value
+}
+
 function Assert-CloudName([string]$Name, [string]$Value) {
   if ($Value -notmatch '^[a-z][a-z0-9-]{0,62}$') {
     throw "$Name is not a valid Google Cloud resource name"
@@ -153,17 +160,21 @@ if ($jobImage -notmatch '^.+@sha256:[0-9a-f]{64}$') {
 
 $environment = @{}
 foreach ($item in @($container.env)) {
-  if (!$item.name) { continue }
-  if ($null -ne $item.valueFrom.secretKeyRef) {
-    $environment[$item.name] = @{
+  $itemName = [string](Get-OptionalProperty $item 'name')
+  if (!$itemName) { continue }
+  $valueFrom = Get-OptionalProperty $item 'valueFrom'
+  $secretKeyRef = Get-OptionalProperty $valueFrom 'secretKeyRef'
+  $plainValue = Get-OptionalProperty $item 'value'
+  if ($null -ne $secretKeyRef) {
+    $environment[$itemName] = @{
       kind = 'secret-reference'
-      secretName = [string]$item.valueFrom.secretKeyRef.name
-      secretVersion = [string]$item.valueFrom.secretKeyRef.key
+      secretName = [string](Get-OptionalProperty $secretKeyRef 'name')
+      secretVersion = [string](Get-OptionalProperty $secretKeyRef 'key')
     }
-  } elseif ($null -ne $item.value) {
-    $environment[$item.name] = @{
+  } elseif ($null -ne $plainValue) {
+    $environment[$itemName] = @{
       kind = 'plain-value'
-      value = [string]$item.value
+      value = [string]$plainValue
     }
   }
 }
@@ -179,9 +190,9 @@ if ($environment['DB_DATABASE'].kind -ne 'plain-value' -or
 }
 
 $annotations = $template.metadata.annotations
-$cloudSql = [string]$annotations.'run.googleapis.com/cloudsql-instances'
-$vpcConnector = [string]$annotations.'run.googleapis.com/vpc-access-connector'
-$vpcEgress = [string]$annotations.'run.googleapis.com/vpc-access-egress'
+$cloudSql = [string](Get-OptionalProperty $annotations 'run.googleapis.com/cloudsql-instances')
+$vpcConnector = [string](Get-OptionalProperty $annotations 'run.googleapis.com/vpc-access-connector')
+$vpcEgress = [string](Get-OptionalProperty $annotations 'run.googleapis.com/vpc-access-egress')
 $securityWarnings = @(
   $sensitiveVariables | Where-Object { $environment[$_].kind -eq 'plain-value' }
 )

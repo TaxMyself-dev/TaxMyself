@@ -3,7 +3,16 @@ $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).
 $releaseScript = Join-Path $repositoryRoot 'scripts/Deploy-Production.ps1'
 $validFixture = Join-Path $PSScriptRoot 'production-release-state.json'
 $invalidFixture = Join-Path $PSScriptRoot 'production-release-state-invalid.json'
+$configureJobsScript = Join-Path $repositoryRoot 'smoke-tests/configure-cloud-run-jobs.ps1'
+$inspectSourceScript = Join-Path $repositoryRoot 'smoke-tests/inspect-cloud-run-source.ps1'
+$cloudRunFixture = Join-Path $repositoryRoot 'smoke-tests/tests/fixtures/cloud-run-service.json'
+$plainCloudRunFixture = Join-Path $repositoryRoot 'smoke-tests/tests/fixtures/cloud-run-service-plain-env.json'
 $gitignore = Join-Path $repositoryRoot '.gitignore'
+
+function Invoke-FixtureScriptWithStrictMode([string]$ScriptPath, [string]$FixturePath) {
+  Set-StrictMode -Version Latest
+  return (& $ScriptPath -SourceJsonPath $FixturePath | Out-String)
+}
 
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -18,6 +27,24 @@ if ($parseErrors.Count) {
 $gitignoreSource = Get-Content -LiteralPath $gitignore -Raw
 if ($gitignoreSource -notmatch '(?m)^/firebase-debug\*\.log\r?$') {
   throw 'Firebase CLI debug logs must be ignored so a failed auth check does not dirty the release tree'
+}
+
+# The release script enables strict mode before invoking these child scripts.
+# Cloud Run omits valueFrom for ordinary env entries and may omit optional
+# network annotations, so both shapes must remain safe in that exact context.
+$mixedPlan = Invoke-FixtureScriptWithStrictMode $configureJobsScript $cloudRunFixture | ConvertFrom-Json
+if ($mixedPlan.jobs.Count -ne 2 -or $mixedPlan.securityWarnings.Count -ne 0) {
+  throw 'Strict-mode smoke job plan did not preserve mixed plain/secret environment entries'
+}
+$plainPlan = Invoke-FixtureScriptWithStrictMode $configureJobsScript $plainCloudRunFixture | ConvertFrom-Json
+if ($plainPlan.jobs.Count -ne 2 -or $plainPlan.securityWarnings.Count -ne 3) {
+  throw 'Strict-mode smoke job plan did not preserve plain environment entries'
+}
+$plainInventory = Invoke-FixtureScriptWithStrictMode $inspectSourceScript $plainCloudRunFixture | ConvertFrom-Json
+if (!$plainInventory.readyToConfigureJobs -or
+    $plainInventory.network.vpcConnectorConfigured -or
+    $plainInventory.network.vpcEgress -ne 'default') {
+  throw 'Strict-mode source inventory did not handle omitted optional properties'
 }
 
 $source = Get-Content -LiteralPath $releaseScript -Raw

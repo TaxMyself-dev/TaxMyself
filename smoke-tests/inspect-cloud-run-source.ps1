@@ -8,6 +8,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-OptionalProperty([object]$InputObject, [string]$Name, $DefaultValue = $null) {
+  if ($null -eq $InputObject) { return $DefaultValue }
+  $property = $InputObject.PSObject.Properties[$Name]
+  if ($null -eq $property -or $null -eq $property.Value) { return $DefaultValue }
+  return $property.Value
+}
+
 function Assert-CloudName([string]$Name, [string]$Value) {
   if ($Value -notmatch '^[a-z][a-z0-9-]{0,62}$') {
     throw "$Name is not a valid Google Cloud resource name"
@@ -40,13 +47,17 @@ if (!$container.image -or !$template.spec.serviceAccountName) {
 
 $environment = @{}
 foreach ($item in @($container.env)) {
-  if (!$item.name) { continue }
-  if ($null -ne $item.valueFrom.secretKeyRef) {
-    $environment[$item.name] = 'secret-reference'
-  } elseif ($null -ne $item.value) {
-    $environment[$item.name] = 'plain-value'
+  $itemName = [string](Get-OptionalProperty $item 'name')
+  if (!$itemName) { continue }
+  $valueFrom = Get-OptionalProperty $item 'valueFrom'
+  $secretKeyRef = Get-OptionalProperty $valueFrom 'secretKeyRef'
+  $plainValue = Get-OptionalProperty $item 'value'
+  if ($null -ne $secretKeyRef) {
+    $environment[$itemName] = 'secret-reference'
+  } elseif ($null -ne $plainValue) {
+    $environment[$itemName] = 'plain-value'
   } else {
-    $environment[$item.name] = 'unsupported'
+    $environment[$itemName] = 'unsupported'
   }
 }
 
@@ -85,9 +96,9 @@ foreach ($name in ($verifyVariables + $cleanupVariables | Select-Object -Unique)
 }
 
 $annotations = $template.metadata.annotations
-$cloudSql = $annotations.'run.googleapis.com/cloudsql-instances'
-$vpcConnector = $annotations.'run.googleapis.com/vpc-access-connector'
-$vpcEgress = $annotations.'run.googleapis.com/vpc-access-egress'
+$cloudSql = Get-OptionalProperty $annotations 'run.googleapis.com/cloudsql-instances'
+$vpcConnector = Get-OptionalProperty $annotations 'run.googleapis.com/vpc-access-connector'
+$vpcEgress = Get-OptionalProperty $annotations 'run.googleapis.com/vpc-access-egress'
 $missingCount = @($variableStatus.Values | Where-Object { !$_.available }).Count
 $securityWarnings = @(
   $mustBeSecret | Where-Object { $variableStatus[$_].source -eq 'plain-value' }
