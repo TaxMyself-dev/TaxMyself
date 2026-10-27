@@ -9,7 +9,9 @@ backend, frontend, signup, Firebase verification, login, and cleanup flow.
 - `config.js` — explicit URL and fixed synthetic-identity validation.
 - `tests/production-readiness.spec.js` — candidate backend `/ready` gate.
 - `tests/production-readonly.spec.js` — deployed registration-page/API-origin
-  check with no writes.
+  check with no writes; it requires `GET /auth/get-cities` to return 200 and
+  reports failed requests on the deployed frontend/backend origins with the
+  status, method, and URL.
 - `tests/production-signup.spec.js` and `production-login.spec.js` — synthetic
   registration and authenticated dashboard checks.
 - `run-signup-smoke.js` — ordered signup, private verification job, login, and

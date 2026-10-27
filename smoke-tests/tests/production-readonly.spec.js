@@ -12,13 +12,19 @@ test("deployed registration UI loads and uses the expected backend", async ({
     browserFailures.push(`pageerror: ${error.message}`);
   });
   page.on("console", (message) => {
-    if (message.type() === "error") {
+    // Chromium emits this generic message without the failing URL. HTTP
+    // failures on our deployed origins are captured below with actionable
+    // status/method/URL details; other console errors remain fatal.
+    if (
+      message.type() === "error" &&
+      !message.text().startsWith("Failed to load resource:")
+    ) {
       browserFailures.push(`console.error: ${message.text()}`);
     }
   });
   page.on("response", (response) => {
     const responseUrl = new URL(response.url());
-    if (criticalOrigins.has(responseUrl.origin) && response.status() >= 500) {
+    if (criticalOrigins.has(responseUrl.origin) && response.status() >= 400) {
       browserFailures.push(
         `${response.status()} ${response.request().method()} ${response.url()}`
       );
@@ -39,7 +45,7 @@ test("deployed registration UI loads and uses the expected backend", async ({
 
     const citiesResponse = await citiesResponsePromise;
     expect(new URL(citiesResponse.url()).origin).toBe(apiUrl.origin);
-    expect(citiesResponse.status()).toBeLessThan(500);
+    expect(citiesResponse.status()).toBe(200);
     expect(Array.isArray(await citiesResponse.json())).toBe(true);
 
     await expect(page.locator(".register-screen")).toBeVisible();
