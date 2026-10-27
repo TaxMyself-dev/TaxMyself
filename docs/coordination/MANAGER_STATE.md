@@ -1,5 +1,17 @@
 # Primary manager state
 
+## KT-100 smoke job optional environment repair — 2026-10-27
+
+The first guarded production release reached a healthy zero-traffic candidate
+but stopped safely before promotion because the smoke-job configurator read an
+optional Cloud Run `valueFrom` property directly under PowerShell strict mode.
+Both source-inventory scripts now read optional plain/secret environment fields
+and network annotations safely. Fixture coverage reproduces all-plain production
+shape plus mixed Secret Manager shape under strict mode. Release regression,
+three PowerShell parser checks and all 8 smoke config tests passed. Delivery
+`6513b882` was pushed and verified on local/remote `main`. Codex performed no
+production access, job update, traffic change or deployment.
+
 ## KT-099 backend test baseline repair — 2026-10-27
 
 The backend regression gate exposed by the guarded release attempt was restored
