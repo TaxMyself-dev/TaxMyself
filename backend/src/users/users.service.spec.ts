@@ -1,15 +1,24 @@
-import { Test, TestingModule } from '@nestjs/testing';
+jest.mock('firebase-admin', () => ({
+  auth: jest.fn(() => ({})),
+}));
+
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
   let service: UsersService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [UsersService],
-    }).compile();
-
-    service = module.get<UsersService>(UsersService);
+  beforeEach(() => {
+    service = new UsersService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
   });
 
   it('should be defined', () => {
