@@ -47,6 +47,9 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
 - Detailed command, test, build, and cloud output streams in real time to the
   git-ignored `deployment-logs/` file printed once at startup; routine details
   and dependency warnings do not flood the operator terminal.
+- Native CLI stderr is diagnostic output, not failure by itself. Preserve it in
+  the detailed log and classify native success/failure only by exit code;
+  PowerShell/cmdlet exceptions remain terminating.
 
 ## Related topics
 

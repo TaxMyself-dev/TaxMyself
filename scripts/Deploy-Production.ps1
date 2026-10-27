@@ -60,6 +60,7 @@ $script:GitCommand = $null
 $script:GcloudCommand = $null
 $script:FirebaseCommand = $null
 $script:NpmCommand = $null
+$script:PowerShellCommand = $null
 $script:QuietConsole = $false
 $script:LogWriter = $null
 $script:LogPath = $null
@@ -93,7 +94,7 @@ function Invoke-Stage([string]$Name, [scriptblock]$Action) {
   try {
     $script:QuietConsole = $true
     try {
-      & $Action *>&1 | ForEach-Object { Write-ReleaseLog $_ }
+      & $Action | ForEach-Object { Write-ReleaseLog $_ }
     } finally {
       $script:QuietConsole = $false
     }
@@ -112,9 +113,21 @@ function Invoke-Stage([string]$Name, [scriptblock]$Action) {
 }
 
 function Invoke-Native([string]$Command, [string[]]$Arguments) {
-  & $Command @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "$Command failed with exit code $LASTEXITCODE"
+  # Windows PowerShell 5.1 turns native stderr into NativeCommandError when it
+  # is redirected. Many successful CLIs (gcloud, Firebase, npm) write routine
+  # progress to stderr, so log both streams and trust the native exit code.
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments 2>&1 | ForEach-Object {
+      Write-ReleaseLog ([string]$_)
+    }
+    $nativeExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($nativeExitCode -ne 0) {
+    throw "$Command failed with exit code $nativeExitCode"
   }
 }
 
@@ -122,11 +135,25 @@ function Invoke-NativeCapture([string]$Command, [string[]]$Arguments) {
   # Capture stdout only. Some CLIs (notably Firebase under newer Node versions)
   # print deprecation warnings to stderr even on success; merging that stream
   # into JSON output makes valid responses impossible to parse.
-  $output = & $Command @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "$Command failed with exit code $LASTEXITCODE"
+  $stdout = [System.Collections.Generic.List[string]]::new()
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments 2>&1 | ForEach-Object {
+      if ($_ -is [System.Management.Automation.ErrorRecord]) {
+        Write-ReleaseLog ([string]$_)
+      } else {
+        $stdout.Add([string]$_)
+      }
+    }
+    $nativeExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
   }
-  return ($output -join "`n")
+  if ($nativeExitCode -ne 0) {
+    throw "$Command failed with exit code $nativeExitCode"
+  }
+  return ($stdout -join "`n")
 }
 
 function Get-CommandName([string]$Name) {
@@ -227,6 +254,7 @@ $script:LogPath = Join-Path $logDirectory "production-release-$logTimestamp-$PID
 $utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
 $script:LogWriter = New-Object System.IO.StreamWriter($script:LogPath, $false, $utf8WithoutBom)
 $script:LogWriter.AutoFlush = $true
+$script:PowerShellCommand = (Get-Process -Id $PID).Path
 Write-ReleaseLog "KeepInTax production release log"
 Write-ReleaseLog "Started: $((Get-Date).ToString('o'))"
 Write-ReleaseLog "Mode: $(if ($Apply) { 'Apply' } else { 'Plan' })"
@@ -260,8 +288,28 @@ try {
   Invoke-Stage 'Preflight: clean main branch and required tools' {
     if ($TestStatePath) {
       if (!(Test-Path -LiteralPath $TestStatePath)) { throw 'Test state fixture was not found' }
-      Write-ReleaseStatus 'INFO' 'Using local test-state fixture; no external command will run' DarkGray
+      Write-ReleaseStatus 'INFO' 'Using local test-state fixture; no cloud command will run' DarkGray
       Write-Output 'Fixture detail output is routed to the release log'
+      Invoke-Native $script:PowerShellCommand @(
+        '-NoProfile',
+        '-Command',
+        "[Console]::Error.WriteLine('Fixture native stderr is informational'); exit 0"
+      )
+      $fixtureCapture = Invoke-NativeCapture $script:PowerShellCommand @(
+        '-NoProfile',
+        '-Command',
+        "[Console]::Out.WriteLine('fixture-stdout'); [Console]::Error.WriteLine('Fixture captured stderr is informational'); exit 0"
+      )
+      if ($fixtureCapture.Trim() -ne 'fixture-stdout') {
+        throw 'Native stdout-only fixture capture was contaminated by stderr'
+      }
+      try {
+        Invoke-Native $script:PowerShellCommand @('-NoProfile', '-Command', 'exit 7')
+        throw 'Native non-zero fixture unexpectedly succeeded'
+      } catch {
+        if ($_.Exception.Message -notmatch 'failed with exit code 7') { throw }
+        Write-Output 'Fixture native non-zero exit was detected correctly'
+      }
       return
     }
     $script:GitCommand = Get-CommandName 'git'
@@ -480,8 +528,13 @@ try {
   # Call /ready on the candidate tag URL. This checks the candidate's actual
   # production DB connection and signup-critical schema before promotion.
   Invoke-Stage 'Candidate backend readiness' {
-    & $candidateReadinessScript -ApiUrl $script:CandidateUrl -BrowserChannel $BrowserChannel
-    if ($LASTEXITCODE -ne 0) { throw "Candidate readiness exited with code $LASTEXITCODE" }
+    Invoke-Native $script:PowerShellCommand @(
+      '-NoProfile',
+      '-ExecutionPolicy', 'Bypass',
+      '-File', $candidateReadinessScript,
+      '-ApiUrl', $script:CandidateUrl,
+      '-BrowserChannel', $BrowserChannel
+    )
   }
 
   # Create/update the private Firebase verification and cleanup jobs from the
@@ -490,8 +543,16 @@ try {
     $previousGate = $env:SMOKE_CONFIGURE_JOBS
     try {
       $env:SMOKE_CONFIGURE_JOBS = $Project
-      & $configureJobsScript -Project $Project -Region $Region -SourceService $BackendService -Image $script:CandidateImage -Apply
-      if ($LASTEXITCODE -ne 0) { throw "Smoke job configuration exited with code $LASTEXITCODE" }
+      Invoke-Native $script:PowerShellCommand @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $configureJobsScript,
+        '-Project', $Project,
+        '-Region', $Region,
+        '-SourceService', $BackendService,
+        '-Image', $script:CandidateImage,
+        '-Apply'
+      )
     } finally {
       $env:SMOKE_CONFIGURE_JOBS = $previousGate
     }
@@ -580,8 +641,13 @@ try {
     $previousGate = $env:SMOKE_RUN_PRODUCTION
     try {
       $env:SMOKE_RUN_PRODUCTION = 'app.keepintax.co.il'
-      & $productionSmokeScript -ApiUrl $PublicApiUrl -BrowserChannel $BrowserChannel
-      if ($LASTEXITCODE -ne 0) { throw "Production smoke exited with code $LASTEXITCODE" }
+      Invoke-Native $script:PowerShellCommand @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $productionSmokeScript,
+        '-ApiUrl', $PublicApiUrl,
+        '-BrowserChannel', $BrowserChannel
+      )
     } finally {
       $env:SMOKE_RUN_PRODUCTION = $previousGate
     }
