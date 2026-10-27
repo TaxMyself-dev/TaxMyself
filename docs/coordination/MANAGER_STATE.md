@@ -1,5 +1,16 @@
 # Primary manager state
 
+## KT-104 Public registration smoke gate — 2026-10-27
+
+Stage 13 was traced from its Playwright artifact: `GET /auth/get-cities`
+succeeded with 200, while an unauthenticated root-app refresh called
+`GET /billing/me`, received 401, and could race the public registration route
+back to login. Billing refresh on selected-client emissions is now gated on an
+authenticated user. The read-only smoke requires cities status 200 and reports
+critical HTTP failures with exact status, method, and URL. Focused frontend
+tests 2/2, smoke unit tests 8/8, and the Angular production build passed.
+Delivery `1f33b6b8` is ready for push; Codex performed no production action.
+
 ## KT-103 Cloud Run job environment arguments — 2026-10-27
 
 The guarded release again stopped safely at Stage 10 because the custom gcloud
