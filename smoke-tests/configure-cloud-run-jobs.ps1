@@ -43,21 +43,15 @@ function Get-SourceState {
 
 function Get-GcloudDictionary([hashtable]$Values) {
   if ($Values.Count -eq 0) { return $null }
-  $delimiter = "SMOKESEP$([guid]::NewGuid().ToString('N'))"
   foreach ($value in $Values.Values) {
-    if ([string]$value -match [regex]::Escape($delimiter)) {
-      throw 'Could not create a safe gcloud argument delimiter'
+    if ([string]$value -match '[,\r\n]') {
+      throw 'A gcloud dictionary value contains an unsupported delimiter'
     }
-  }
-  $prefix = if ($IsWindows -or $env:OS -eq 'Windows_NT') {
-    "^^^^$delimiter^^^^"
-  } else {
-    "^$delimiter^"
   }
   $pairs = @($Values.GetEnumerator() | Sort-Object Key | ForEach-Object {
     "$($_.Key)=$($_.Value)"
   })
-  return "$prefix$($pairs -join $delimiter)"
+  return ($pairs -join ',')
 }
 
 function Invoke-JobDeploy(

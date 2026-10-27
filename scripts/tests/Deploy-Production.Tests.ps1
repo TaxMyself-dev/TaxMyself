@@ -14,6 +14,26 @@ function Invoke-FixtureScriptWithStrictMode([string]$ScriptPath, [string]$Fixtur
   return (& $ScriptPath -SourceJsonPath $FixturePath | Out-String)
 }
 
+function Get-NamedFunctionInvoker([string]$ScriptPath, [string]$FunctionName) {
+  $tokens = $null
+  $errors = $null
+  $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    $ScriptPath,
+    [ref]$tokens,
+    [ref]$errors
+  )
+  if ($errors.Count) { throw "$ScriptPath has PowerShell parse errors" }
+  $functionAst = $ast.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+      $node.Name -eq $FunctionName
+  }, $true)
+  if ($null -eq $functionAst) { throw "Function $FunctionName was not found in $ScriptPath" }
+  return [scriptblock]::Create(
+    "param([hashtable]`$Values)`n$($functionAst.Extent.Text)`n$FunctionName `$Values"
+  )
+}
+
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
   $releaseScript,
@@ -48,6 +68,21 @@ if (!$plainInventory.readyToConfigureJobs -or
     $plainInventory.network.vpcConnectorConfigured -or
     $plainInventory.network.vpcEgress -ne 'default') {
   throw 'Strict-mode source inventory did not handle omitted optional properties'
+}
+
+$dictionaryInvoker = Get-NamedFunctionInvoker $configureJobsScript 'Get-GcloudDictionary'
+$encodedDictionary = & $dictionaryInvoker @{
+  SECOND = 'base64-value=='
+  FIRST = 'plain'
+}
+if ($encodedDictionary -ne 'FIRST=plain,SECOND=base64-value==') {
+  throw "Unexpected gcloud dictionary encoding: $encodedDictionary"
+}
+try {
+  [void](& $dictionaryInvoker @{ UNSAFE = 'contains,comma' })
+  throw 'Unsafe gcloud dictionary value unexpectedly succeeded'
+} catch {
+  if ($_.Exception.Message -notmatch 'unsupported delimiter') { throw }
 }
 
 $source = Get-Content -LiteralPath $releaseScript -Raw

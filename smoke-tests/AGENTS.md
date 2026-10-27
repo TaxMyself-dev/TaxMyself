@@ -45,6 +45,10 @@ backend, frontend, signup, Firebase verification, login, and cleanup flow.
   it joins the production sequence.
 - Payments, official documents, SHAAM, and banking-provider calls are outside
   this suite unless separately designed and approved.
+- Cloud Run job dictionary flags use comma-separated `KEY=VALUE` entries only:
+  plain values cross the boundary as Base64 and secret references use Cloud
+  resource names, so comma/newline input must be rejected before invoking
+  gcloud.
 
 ## Related topics
 
