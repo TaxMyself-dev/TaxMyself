@@ -83,11 +83,14 @@ describe('Lychee HTTP boundary (no external services)', () => {
       .expect(503);
     expect(accept).not.toHaveBeenCalled();
   });
-  it('is unavailable when disabled', async () => {
-    process.env.LYCHEE_INTAKE_ENABLED = 'false';
+  it('receives signed events without an intake enable flag', async () => {
+    delete process.env.LYCHEE_INTAKE_ENABLED;
     await request(app.getHttpServer())
       .post('/webhooks/lychee')
-      .send(JSON.parse(raw))
-      .expect(404);
+      .set('Content-Type', 'application/json')
+      .set('x-lychee-signature', signature)
+      .send(raw)
+      .expect(200);
+    expect(accept).toHaveBeenCalled();
   });
 });

@@ -43,7 +43,6 @@ export class LycheeIntakeService {
   async tick(): Promise<void> {
     if (
       this.running ||
-      process.env.LYCHEE_INTAKE_ENABLED !== 'true' ||
       process.env.LYCHEE_WORKER_ENABLED !== 'true'
     )
       return;

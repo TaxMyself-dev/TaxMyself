@@ -8,7 +8,8 @@ below for Lychee. Every import requires an explicit currently owned business.
 POST /webhooks/lychee validates raw HMAC and channel before durable enqueue.
 LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
 Elazar approved preparing its SQL only; no database execution was authorized.
-LYCHEE_INTAKE_ENABLED and LYCHEE_WORKER_ENABLED default off. There is no outbound
+The receiver loads with normal backend startup; no intake enable flag is needed.
+LYCHEE_WORKER_ENABLED defaults off. There is no outbound
 messaging implementation. Multi-business documents remain WAITING_FOR_BUSINESS;
 prompt mappings and quoted replies are supported in storage, but prompts cannot
 be sent yet. Never fabricate prompt IDs or route to a primary business.

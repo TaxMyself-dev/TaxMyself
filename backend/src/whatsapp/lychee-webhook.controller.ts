@@ -3,7 +3,6 @@ import {
   Post,
   Req,
   HttpCode,
-  NotFoundException,
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
@@ -78,8 +77,6 @@ export class LycheeWebhookController {
   @Post()
   @HttpCode(200)
   async receive(@Req() req: Request & { rawBody?: Buffer }) {
-    if (process.env.LYCHEE_INTAKE_ENABLED !== 'true')
-      throw new NotFoundException();
     const secret = process.env.LYCHEE_WEBHOOK_SECRET;
     const channel = process.env.LYCHEE_CHANNEL_ID;
     if (!secret || !channel) throw new ServiceUnavailableException();

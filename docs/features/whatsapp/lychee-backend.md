@@ -21,9 +21,9 @@ ngrok for dev). Both hops verify the same raw-body HMAC and channel.
    Download fails closed until configured. Only public IPv4 DNS answers are
    supported; redirects, private destinations and API credential forwarding
    to media storage are prohibited.
-4. Set `LYCHEE_INTAKE_ENABLED=true` to expose the receiver. It is otherwise
-   absent (404). Set `LYCHEE_WORKER_ENABLED=true` separately to process jobs.
-   Keep both disabled until the schema and development environment are ready.
+4. The receiver loads on normal backend startup without an intake enable flag.
+   A missing secret/channel yields 503, never silent route absence.
+   Set `LYCHEE_WORKER_ENABLED=true` separately to process queued documents.
 5. Configure proxy routing and a verified ngrok URL. Deployment, cloud config,
    live callbacks and sending remain separate authorized actions.
 

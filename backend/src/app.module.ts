@@ -222,7 +222,7 @@ new Logger('Bootstrap').log(
       intervals: process.env.DISABLE_SCHEDULED_TASKS !== 'true',
       timeouts: process.env.DISABLE_SCHEDULED_TASKS !== 'true',
     }),
-    ...(process.env.LYCHEE_INTAKE_ENABLED === 'true' ? [LycheeModule] : []),
+    LycheeModule,
     ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
