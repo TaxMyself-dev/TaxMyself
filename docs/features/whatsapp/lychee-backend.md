@@ -62,6 +62,22 @@ WAITING_FOR_BUSINESS, with a snapshot of business choices. No question is sent.
 do not populate it with a guessed or unrelated ID. Without an actual prompt
 mapping, replies are ignored and cannot assign documents.
 
+`LycheeEventStore.recordPrompt(eventId, channelId, owner, promptId)` persists the
+real WhatsApp ID returned by the future send adapter, scoped to owner/channel and
+a waiting document. It refuses overwriting an unrelated ID. This method is not
+called by a live sender: none exists yet. A failed mapping write after sending
+must be retried using the same provider send idempotency key, not a new question.
+
+`POST /webhooks/lychee/reply-owner` verifies the ORIGINAL signed incoming event,
+requires a quoted message ID, and returns `{ownsReply: boolean}` from SQL.
+It matches channel, normalized sender and prompt ID, including completed
+documents for late/duplicate replies; duplicate mappings fail closed. It performs
+no queue insertion or document processing. Missing table/DB fails the lookup.
+The proxy queries this endpoint before forwarding quoted events. No new table,
+schema, proxy DB credentials or mutable in-memory proxy mappings were added.
+Support prompt ownership is not included in this document-only resolver; its
+future integration must extend the resolver without creating another webhook.
+
 When a mapped quoted reply arrives, selection is matched by channel, normalized
 sender, owner, prompt ID and unique label. The document is queued independently;
 current ownership is checked again and staged bytes reused. This supports

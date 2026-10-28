@@ -5,11 +5,13 @@ import * as request from 'supertest';
 import { createHmac } from 'crypto';
 import { LycheeWebhookController } from './lychee-webhook.controller';
 import { LycheeIntakeService } from './lychee-intake.service';
+import { LycheeEventStore } from './lychee-event.store';
 
 describe('Lychee HTTP boundary (no external services)', () => {
   let app: INestApplication;
   const original = { ...process.env };
   const accept = jest.fn();
+  const ownsReply = jest.fn();
   const raw = JSON.stringify(
     {
       event: 'message.received',
@@ -32,7 +34,8 @@ describe('Lychee HTTP boundary (no external services)', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [LycheeWebhookController],
-      providers: [{ provide: LycheeIntakeService, useValue: { accept } }],
+      providers: [{ provide: LycheeIntakeService, useValue: { accept } },
+        { provide: LycheeEventStore, useValue: { ownsReply } }],
     }).compile();
     app = module.createNestApplication({ bodyParser: false });
     app.use(
@@ -52,6 +55,23 @@ describe('Lychee HTTP boundary (no external services)', () => {
     process.env.LYCHEE_WEBHOOK_SECRET = 'test-secret';
     process.env.LYCHEE_CHANNEL_ID = 'channel';
     accept.mockReset();
+    ownsReply.mockReset();
+  });
+  it('queries quoted reply ownership without enqueuing the event', async () => {
+    const quoted = JSON.stringify({ ...JSON.parse(raw), has_media: false, message_type: 'text',
+      reply_to_whatsapp_message_id: 'wamid.question' });
+    const sig = 'sha256=' + createHmac('sha256', 'test-secret').update(quoted).digest('hex');
+    ownsReply.mockResolvedValue(true);
+    const response = await request(app.getHttpServer()).post('/webhooks/lychee/reply-owner')
+      .set('Content-Type', 'application/json').set('x-lychee-signature', sig).send(quoted).expect(200);
+    expect(response.body).toEqual({ ownsReply: true });
+    expect(accept).not.toHaveBeenCalled();
+    expect(ownsReply).toHaveBeenCalledWith(expect.objectContaining({ reply_to_whatsapp_message_id: 'wamid.question' }));
+  });
+  it('does not disclose ownership to unsigned queries', async () => {
+    await request(app.getHttpServer()).post('/webhooks/lychee/reply-owner')
+      .send(JSON.parse(raw)).expect(401);
+    expect(ownsReply).not.toHaveBeenCalled();
   });
   afterAll(async () => {
     process.env = original;

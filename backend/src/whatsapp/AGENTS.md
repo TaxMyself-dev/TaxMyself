@@ -15,6 +15,9 @@ LYCHEE_WORKER_ENABLED defaults off. There is no outbound
 messaging implementation. Multi-business documents remain WAITING_FOR_BUSINESS;
 prompt mappings and quoted replies are supported in storage, but prompts cannot
 be sent yet. Never fabricate prompt IDs or route to a primary business.
+Signed POST /webhooks/lychee/reply-owner is read-only and queries persistent
+document prompt ownership (including completed rows). It must not enqueue or
+call selectBusiness. recordPrompt binds real provider IDs for a future sender.
 
 ## Existing development simulator
 

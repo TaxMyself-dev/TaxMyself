@@ -11,6 +11,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request } from 'express';
 import { lycheeSender } from './lychee-sender';
 import { LycheeIntakeService } from './lychee-intake.service';
+import { LycheeEventStore } from './lychee-event.store';
 
 export interface LycheeEvent {
   event: 'message.received';
@@ -71,21 +72,27 @@ export function parseLycheeEvent(
 
 @Controller('webhooks/lychee')
 export class LycheeWebhookController {
-  constructor(private readonly intake: LycheeIntakeService) {}
-  @Post()
+  constructor(private readonly intake: LycheeIntakeService, private readonly events: LycheeEventStore) {}
+
+  @Post('reply-owner')
   @HttpCode(200)
-  async receive(@Req() req: Request & { rawBody?: Buffer }) {
+  async replyOwner(@Req() req: Request & { rawBody?: Buffer }) {
+    const event = this.verifiedEvent(req);
+    if (!event.reply_to_whatsapp_message_id) throw new BadRequestException('Quoted reply required');
+    return { ownsReply: await this.events.ownsReply(event) };
+  }
+
+  private verifiedEvent(req: Request & { rawBody?: Buffer }): LycheeEvent {
     const secret = process.env.LYCHEE_WEBHOOK_SECRET;
     const channel = process.env.LYCHEE_CHANNEL_ID;
     if (!secret || !channel) throw new ServiceUnavailableException();
-    if (!Buffer.isBuffer(req.rawBody))
-      throw new BadRequestException('Raw body unavailable');
-    const event = parseLycheeEvent(
-      req.rawBody,
-      req.headers['x-lychee-signature'],
-      secret,
-      channel,
-    );
+    if (!Buffer.isBuffer(req.rawBody)) throw new BadRequestException('Raw body unavailable');
+    return parseLycheeEvent(req.rawBody, req.headers['x-lychee-signature'], secret, channel);
+  }
+  @Post()
+  @HttpCode(200)
+  async receive(@Req() req: Request & { rawBody?: Buffer }) {
+    const event = this.verifiedEvent(req);
     await this.intake.accept(event);
     return { received: true };
   }

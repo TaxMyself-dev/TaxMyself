@@ -26,6 +26,26 @@ const job: any = {
 };
 
 describe('Lychee signed intake', () => {
+  it('looks up prompt ownership by channel and normalized phone even after completion', async () => {
+    const db: any = { query: jest.fn().mockResolvedValue([{ event_id: 'doc' }]) };
+    const store = new LycheeEventStore(db);
+    expect(await store.ownsReply({ ...event, sender_phone: null, contact_phone: '0501234567',
+      reply_to_whatsapp_message_id: 'prompt' })).toBe(true);
+    expect(db.query.mock.calls[0][1]).toEqual(['channel1', '972501234567', 'prompt']);
+    expect(db.query.mock.calls[0][0]).not.toContain('WAITING_FOR_BUSINESS');
+    db.query.mockResolvedValue([]);
+    expect(await store.ownsReply({ ...event, reply_to_whatsapp_message_id: 'unknown' })).toBe(false);
+    db.query.mockResolvedValue([{ event_id: 'a' }, { event_id: 'b' }]);
+    await expect(store.ownsReply({ ...event, reply_to_whatsapp_message_id: 'ambiguous' })).rejects.toThrow();
+  });
+  it('records prompt IDs scoped to document, channel and owner; refuses replacing existing mapping', async () => {
+    const db: any = { query: jest.fn().mockResolvedValueOnce({}).mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'prompt' }]) };
+    const store = new LycheeEventStore(db);
+    await store.recordPrompt('doc', 'channel1', 'owner', 'prompt');
+    expect(db.query.mock.calls[0][1]).toEqual(['prompt', 'doc', 'channel1', 'owner', 'prompt']);
+    db.query.mockResolvedValueOnce({}).mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'other' }]);
+    await expect(store.recordPrompt('doc', 'channel1', 'owner', 'prompt')).rejects.toThrow();
+  });
   it('accepts absent sender with local contact phone, but rejects malformed or conflicting sender', () => {
     for (const sender_phone of [null, undefined, '', '  ']) {
       const input = { ...event, sender_phone, contact_phone: '0501234567' };

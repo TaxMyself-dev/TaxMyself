@@ -24,9 +24,17 @@ prod. Unlisted senders always go to prod, including when they write `#dev`.
 Null, missing or blank sender_phone falls back to contact_phone; malformed or
 conflicting nonempty sender phones are rejected. Signed bytes remain unchanged.
 Never mirror or fall back to prod after a dev failure.
-Quoted follow-up replies without `#dev` still follow this rule; durable reply
-ownership across environments is not implemented and remains required before
-enabling business-selection prompts. Do not assume a dev conversation is sticky.
+Quoted replies take precedence over `#dev`. For allowlisted senders the proxy
+queries both configured receivers at `<receiver-url>/reply-owner` with the
+unchanged signed event. This endpoint only reads persistent prompt mappings;
+it never enqueues, downloads media or processes the event. Exactly one owner is
+required, then the event is forwarded only to that receiver. Unlisted senders
+can resolve production ownership only. Zero/multiple owners return 409; failed
+lookups return 502 for retry, with no environment fallback.
+For test senders, ngrok must be reachable even to disambiguate a production
+quoted reply. Both backends must expose the ownership endpoint before deploying
+this proxy revision. No quoted reply is routed solely by its text or arrival order.
+Unquoted messages still follow the `#dev` rule, without global conversation state.
 Configuration is read on process startup; changes require a proxy restart/deploy.
 Finish pending business selections before switching a sender's environment.
 

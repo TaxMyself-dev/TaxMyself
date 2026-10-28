@@ -153,4 +153,36 @@ export class LycheeEventStore {
     );
     return result.affectedRows === 1;
   }
+
+  /** Read-only lookup: completed prompts retain ownership for late/repeated replies. */
+  async ownsReply(event: LycheeEvent): Promise<boolean> {
+    if (!event.reply_to_whatsapp_message_id) return false;
+    const rows = await this.db.query(
+      `SELECT event_id FROM lychee_intake_events WHERE channel_id=? AND sender_phone=?
+       AND prompt_whatsapp_message_id=? LIMIT 2`,
+      [event.channel_id, lycheeSender(event), event.reply_to_whatsapp_message_id],
+    );
+    if (rows.length > 1) throw new ConflictException('Ambiguous prompt ownership');
+    return rows.length === 1;
+  }
+
+  /** Future send adapter calls ONLY after obtaining the actual WhatsApp prompt ID. */
+  async recordPrompt(eventId: string, channelId: string, owner: string, promptId: string): Promise<void> {
+    if (typeof promptId !== 'string' || !promptId.length || promptId.length > 255) {
+      throw new ConflictException('Invalid prompt identifier');
+    }
+    await this.db.query(
+      `UPDATE lychee_intake_events SET prompt_whatsapp_message_id=?
+       WHERE event_id=? AND channel_id=? AND firebase_id=? AND status='WAITING_FOR_BUSINESS'
+       AND (prompt_whatsapp_message_id IS NULL OR prompt_whatsapp_message_id=?)`,
+      [promptId, eventId, channelId, owner, promptId],
+    );
+    const rows = await this.db.query(
+      `SELECT prompt_whatsapp_message_id FROM lychee_intake_events
+       WHERE event_id=? AND channel_id=? AND firebase_id=?`, [eventId, channelId, owner],
+    );
+    if (rows.length !== 1 || rows[0].prompt_whatsapp_message_id !== promptId) {
+      throw new ConflictException('Prompt mapping not recorded');
+    }
+  }
 }
