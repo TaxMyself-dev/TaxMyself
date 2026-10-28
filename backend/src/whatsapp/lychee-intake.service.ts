@@ -10,7 +10,7 @@ import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { DocumentImportService } from '../document-import/document-import.service';
 import { DocumentImportSource } from '../document-import/enums/document-import.enums';
-import { normalizeWhatsappPhone } from './whatsapp-development.config';
+import { lycheeSender } from './lychee-sender';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
 import { LycheeClient } from './lychee-client.service';
 import type { LycheeEvent } from './lychee-webhook.controller';
@@ -73,7 +73,11 @@ export class LycheeIntakeService {
       await this.store.complete(job, 'IGNORED');
       return;
     }
-    const normalized = normalizeWhatsappPhone(e.sender_phone);
+    const normalized = lycheeSender(e);
+    if (!normalized) {
+      await this.store.complete(job, 'REJECTED_SENDER');
+      return;
+    }
     // Signup phone is the approved account mapping. Reject shared/missing phones.
     const users = await this.users
       .createQueryBuilder('u')

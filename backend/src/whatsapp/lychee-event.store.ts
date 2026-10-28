@@ -2,7 +2,7 @@ import { Injectable, ConflictException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { createHash, randomUUID } from 'crypto';
 import type { LycheeEvent } from './lychee-webhook.controller';
-import { normalizeWhatsappPhone } from './whatsapp-development.config';
+import { lycheeSender } from './lychee-sender';
 
 export interface LycheeJob {
   event_id: string;
@@ -28,7 +28,7 @@ export class LycheeEventStore {
           event.event_id,
           event.channel_id,
           event.message_id,
-          normalizeWhatsappPhone(event.sender_phone),
+          lycheeSender(event),
           payload,
           hash,
         ],
@@ -134,7 +134,7 @@ export class LycheeEventStore {
       AND prompt_whatsapp_message_id=? LIMIT 2`,
       [
         event.channel_id,
-        normalizeWhatsappPhone(event.sender_phone),
+        lycheeSender(event),
         owner,
         event.reply_to_whatsapp_message_id,
       ],

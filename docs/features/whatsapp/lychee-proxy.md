@@ -12,14 +12,21 @@ Server environment configuration (never commit actual values):
 - `LYCHEE_WEBHOOK_SECRET`: webhook signing secret supplied by Lychee.
 - `LYCHEE_CHANNEL_ID`: Keepintax channel identifier.
 - `LYCHEE_PROD_WEBHOOK_URL`: full HTTPS production receiver endpoint.
-- `LYCHEE_TEST_MODE`: `true` or `false`, defaults to false.
+- `LYCHEE_TEST_MODE`: legacy variable; no longer controls routing.
 - `LYCHEE_TEST_PHONES`: comma-separated test senders; Israeli local mobile
-  numbers normalize to international format. Required with test mode on.
+  numbers normalize to international format. Only these senders can select dev.
 - `LYCHEE_DEV_WEBHOOK_URL`: full HTTPS ngrok receiver endpoint, required with
-  test mode on. Update when the ngrok hostname changes.
+  a nonempty test-phone list. Update when the ngrok hostname changes.
 
-When test mode is on, listed senders go to dev; all other senders go to prod.
-When off, all go to prod. Never mirror or fall back to prod after a dev failure.
+Listed senders go to dev ONLY when `text` contains the standalone token `#dev`
+(case insensitive, whitespace-delimited). Without it, even test senders go to
+prod. Unlisted senders always go to prod, including when they write `#dev`.
+Null, missing or blank sender_phone falls back to contact_phone; malformed or
+conflicting nonempty sender phones are rejected. Signed bytes remain unchanged.
+Never mirror or fall back to prod after a dev failure.
+Quoted follow-up replies without `#dev` still follow this rule; durable reply
+ownership across environments is not implemented and remains required before
+enabling business-selection prompts. Do not assume a dev conversation is sticky.
 Configuration is read on process startup; changes require a proxy restart/deploy.
 Finish pending business selections before switching a sender's environment.
 

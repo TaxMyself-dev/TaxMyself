@@ -13,7 +13,7 @@ async function invoke({ overrides = {}, eventOverrides = {}, failure = false, st
   signature, raw } = {}) {
   const config = configuration({ ...env, ...overrides });
   const bytes = raw || Buffer.from(JSON.stringify({ event: 'message.received', event_id: 'evt-1',
-    channel_id: 'test-channel', sender_phone: '972501234567', contact_phone: '972501234567',
+    channel_id: 'test-channel', sender_phone: '972501234567', contact_phone: '972501234567', text: '#dev test',
     ...eventOverrides }, null, 2));
   const signed = signature ?? ('sha256=' + createHmac('sha256', config.secret).update(bytes).digest('hex'));
   const calls = [];
@@ -41,9 +41,9 @@ test('other senders go only to production', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
 });
-test('test mode off sends test sender to production', async () => {
+test('legacy test mode flag does not override per-message marker', async () => {
   const { calls } = await invoke({ overrides: { LYCHEE_TEST_MODE: 'false' } });
-  assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  assert.equal(calls[0].url, env.LYCHEE_DEV_WEBHOOK_URL);
 });
 test('ngrok failure never falls back to production', async () => {
   const { res, calls } = await invoke({ failure: true });
@@ -62,17 +62,32 @@ test('bad signatures including non ASCII never forward', async () => {
 });
 test('invalid signed payload or channel never forwards', async () => {
   for (const options of [{ raw: Buffer.from('{') }, { eventOverrides: { channel_id: 'other' } },
-    { eventOverrides: { sender_phone: '' } }, { eventOverrides: { contact_phone: '972509999999' } }]) {
+    { eventOverrides: { sender_phone: 'bad' } }, { eventOverrides: { contact_phone: '972509999999' } }]) {
     const { res, calls } = await invoke(options);
     assert.equal(res.code, 400); assert.equal(calls.length, 0);
   }
 });
 test('configuration fails closed', () => {
-  for (const overrides of [{ LYCHEE_WEBHOOK_SECRET: '' }, { LYCHEE_TEST_PHONES: '' },
-    { LYCHEE_TEST_MODE: 'TRUE' }, { LYCHEE_DEV_WEBHOOK_URL: 'http://localhost:3000' },
+  for (const overrides of [{ LYCHEE_WEBHOOK_SECRET: '' }, { LYCHEE_TEST_PHONES: 'invalid' },
+    { LYCHEE_DEV_WEBHOOK_URL: 'http://localhost:3000' },
     { LYCHEE_PROD_WEBHOOK_URL: 'https://127.0.0.1/path' },
     { LYCHEE_DEV_WEBHOOK_URL: env.LYCHEE_PROD_WEBHOOK_URL }]) {
     assert.throws(() => configuration({ ...env, ...overrides }));
+  }
+});
+
+test('authorized sender without exact marker uses production', async () => {
+  for (const text of ['[מסמך]', 'invoice', '#developer', 'x#dev', '#devops']) {
+    const { calls } = await invoke({ eventOverrides: { text } });
+    assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  }
+});
+test('empty sender falls back to local contact phone without changing signed bytes', async () => {
+  for (const sender_phone of [null, undefined, '', '  ']) {
+    const { res, calls, bytes } = await invoke({ eventOverrides: { sender_phone, contact_phone: '0501234567', text: 'test #DEV file' } });
+    assert.equal(res.code, 200);
+    assert.equal(calls[0].url, env.LYCHEE_DEV_WEBHOOK_URL);
+    assert.strictEqual(calls[0].options.body, bytes);
   }
 });
 test('disabled feature registers no route', () => {

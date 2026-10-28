@@ -6,6 +6,8 @@ Approved owner mapping for this adapter is the signup phone (normalized), with
 ambiguous or unknown accounts rejected. This overrides the simulator-only rule
 below for Lychee. Every import requires an explicit currently owned business.
 POST /webhooks/lychee validates raw HMAC and channel before durable enqueue.
+Provider sender_phone may be null, missing or blank: use normalized contact_phone
+in that case. A malformed or conflicting nonempty sender must still be rejected.
 LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
 Elazar approved preparing its SQL only; no database execution was authorized.
 The receiver loads with normal backend startup; no intake enable flag is needed.

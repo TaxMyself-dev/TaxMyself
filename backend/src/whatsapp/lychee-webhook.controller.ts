@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Request } from 'express';
-import { normalizeWhatsappPhone } from './whatsapp-development.config';
+import { lycheeSender } from './lychee-sender';
 import { LycheeIntakeService } from './lychee-intake.service';
 
 export interface LycheeEvent {
@@ -18,7 +18,7 @@ export interface LycheeEvent {
   channel_id: string;
   message_id: string;
   whatsapp_message_id: string;
-  sender_phone: string;
+  sender_phone?: string | null;
   contact_phone: string;
   message_type: string;
   has_media: boolean;
@@ -62,9 +62,7 @@ export function parseLycheeEvent(
       (typeof e.reply_to_whatsapp_message_id === 'string' &&
         e.reply_to_whatsapp_message_id.length <= 255)
     ) ||
-    !normalizeWhatsappPhone(e.sender_phone) ||
-    normalizeWhatsappPhone(e.sender_phone) !==
-      normalizeWhatsappPhone(e.contact_phone)
+    !lycheeSender(e)
   ) {
     throw new BadRequestException('Invalid Lychee event');
   }

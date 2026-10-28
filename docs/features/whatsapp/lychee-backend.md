@@ -29,7 +29,8 @@ ngrok for dev). Both hops verify the same raw-body HMAC and channel.
 
 ## Processing
 
-The receiver verifies signature, channel, sender/contact equality and bounded
+The receiver verifies signature, channel, sender/contact equality when sender
+is nonempty (otherwise contact_phone is used), and bounded
 event shape. It commits the event to SQL before acknowledging with HTTP 200.
 Failed storage returns 503; conflicting reuse of event_id returns 409.
 Retries with identical payload are acknowledged without a new job.

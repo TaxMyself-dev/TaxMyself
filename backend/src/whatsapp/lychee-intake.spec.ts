@@ -3,6 +3,7 @@ import { parseLycheeEvent } from './lychee-webhook.controller';
 import { detectLycheeMime } from './lychee-client.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { LycheeIntakeService } from './lychee-intake.service';
+import { lycheeSender } from './lychee-sender';
 
 const event: any = {
   event: 'message.received',
@@ -25,6 +26,17 @@ const job: any = {
 };
 
 describe('Lychee signed intake', () => {
+  it('accepts absent sender with local contact phone, but rejects malformed or conflicting sender', () => {
+    for (const sender_phone of [null, undefined, '', '  ']) {
+      const input = { ...event, sender_phone, contact_phone: '0501234567' };
+      const bytes = Buffer.from(JSON.stringify(input));
+      const sig = 'sha256=' + createHmac('sha256', 'secret').update(bytes).digest('hex');
+      expect(lycheeSender(parseLycheeEvent(bytes, sig, 'secret', 'channel1'))).toBe('972501234567');
+    }
+    expect(lycheeSender({ sender_phone: 'bad', contact_phone: '0501234567' })).toBeNull();
+    expect(lycheeSender({ sender_phone: '0541234567', contact_phone: '0501234567' })).toBeNull();
+    expect(lycheeSender({ sender_phone: null, contact_phone: '' })).toBeNull();
+  });
   const raw = Buffer.from(JSON.stringify(event, null, 2));
   const signature =
     'sha256=' + createHmac('sha256', 'secret').update(raw).digest('hex');

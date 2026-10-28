@@ -23,20 +23,16 @@ function configuration(env) {
   if (!env.LYCHEE_WEBHOOK_SECRET || !env.LYCHEE_CHANNEL_ID) {
     throw new Error('Lychee requires LYCHEE_WEBHOOK_SECRET and LYCHEE_CHANNEL_ID');
   }
-  if (env.LYCHEE_TEST_MODE && !['true', 'false'].includes(env.LYCHEE_TEST_MODE)) {
-    throw new Error('LYCHEE_TEST_MODE must be true or false');
-  }
-  const testMode = env.LYCHEE_TEST_MODE === 'true';
   const numbers = (env.LYCHEE_TEST_PHONES || '').split(',').map(x => x.trim()).filter(Boolean);
   const normalized = numbers.map(phone);
-  if (normalized.some(x => !x) || (testMode && !normalized.length)) {
-    throw new Error('Expected valid LYCHEE_TEST_PHONES when test mode is active');
+  if (normalized.some(x => !x)) {
+    throw new Error('Expected valid LYCHEE_TEST_PHONES');
   }
   const prodUrl = destination(env.LYCHEE_PROD_WEBHOOK_URL);
-  const devUrl = testMode ? destination(env.LYCHEE_DEV_WEBHOOK_URL) : null;
+  const devUrl = normalized.length ? destination(env.LYCHEE_DEV_WEBHOOK_URL) : null;
   if (prodUrl === devUrl) throw new Error('Lychee dev and production destinations must differ');
   return { secret: env.LYCHEE_WEBHOOK_SECRET, channelId: env.LYCHEE_CHANNEL_ID,
-    testMode, testPhones: new Set(normalized), prodUrl, devUrl };
+    testPhones: new Set(normalized), prodUrl, devUrl };
 }
 
 function createHandler(config, fetchImpl = fetch) {
@@ -57,12 +53,15 @@ function createHandler(config, fetchImpl = fetch) {
         event.channel_id !== config.channelId) {
       return res.status(400).json({ error: 'Invalid event or channel' });
     }
-    const sender = phone(event.sender_phone);
     const contact = phone(event.contact_phone);
+    const missingSender = event.sender_phone == null ||
+      typeof event.sender_phone === 'string' && !event.sender_phone.trim();
+    const sender = missingSender ? contact : phone(event.sender_phone);
     if (!sender || !contact || sender !== contact) {
       return res.status(400).json({ error: 'Invalid or ambiguous sender' });
     }
-    const target = config.testMode && config.testPhones.has(sender) ? config.devUrl : config.prodUrl;
+    const devMarked = typeof event.text === 'string' && /(?:^|\s)#dev(?=$|\s)/i.test(event.text);
+    const target = devMarked && config.testPhones.has(sender) ? config.devUrl : config.prodUrl;
     try {
       const response = await fetchImpl(target, {
         method: 'POST', redirect: 'error',
