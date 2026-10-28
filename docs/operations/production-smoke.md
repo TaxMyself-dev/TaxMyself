@@ -57,15 +57,15 @@ email address.
 
 ## Unified release script
 
-`scripts/Deploy-Production.ps1` coordinates the complete flow. Its default is
-read-only plan mode:
+`scripts\deploy` coordinates the complete flow and immediately starts a full
+guarded release by default:
 
 ```powershell
-./scripts/Deploy-Production.ps1 -Plan
+.\scripts\deploy
 ```
 
-The script never receives, stores, or bypasses an account password. The first
-`-Apply` stage explicitly launches both interactive login flows:
+The script never receives, stores, or bypasses an account password. Its first
+stage explicitly launches the interactive login flows required by the target:
 
 ```powershell
 gcloud auth login
@@ -74,27 +74,19 @@ firebase login --reauth
 
 Only after both logins succeed does the preflight stage perform read-only checks
 that the active sessions can access `taxmyself-prod`. An unauthorized session
-stops the release before any build or deployment. `-Plan` does not launch login
-windows; it validates the sessions that already exist. Git authentication is
-checked naturally by the required `git fetch origin`; Git Credential Manager
-may prompt if its own session has expired.
-
-An authorized production operator applies the displayed plan with both gates:
-
-```powershell
-$env:KEEPINTAX_PRODUCTION_DEPLOY = 'taxmyself-prod'
-./scripts/Deploy-Production.ps1 -Apply
-```
+stops the release before any build or deployment. Git authentication is checked
+naturally by the required `git fetch origin`; Git Credential Manager may prompt
+if its own session has expired.
 
 The default target is the complete backend-and-frontend release. A scoped
 release uses the same guarded flow:
 
 ```powershell
 # Backend only: candidate, readiness, smoke jobs, traffic, and live smoke
-./scripts/Deploy-Production.ps1 -Apply -Target Backend
+.\scripts\deploy backend
 
 # Frontend only: build, preview smoke, live backup/promotion, and live smoke
-./scripts/Deploy-Production.ps1 -Apply -Target Frontend
+.\scripts\deploy frontend
 ```
 
 For a faster release after the local suites have already passed on the exact
@@ -102,16 +94,12 @@ commit, `-SkipLocalTests` skips only the backend Jest suite and the smoke
 configuration unit tests. It can be combined with any target:
 
 ```powershell
-./scripts/Deploy-Production.ps1 -Apply -Target Full -SkipLocalTests
+.\scripts\deploy -SkipLocalTests
 ```
 
 There is intentionally no unverified direct-promotion mode. Dependency
 installation, production builds, candidate readiness, preview browser smoke,
 full production signup/login/cleanup smoke, and rollback remain mandatory.
-
-`KEEPINTAX_PRODUCTION_DEPLOY` is checked before opening the login flows. It is
-an anti-accident confirmation, not a password or credential; possessing it
-grants no Google Cloud or Firebase permissions.
 
 Release identifiers use local date/time plus a monotonically increasing
 sequence, for example `r20261026-191522-0042`. The sequence is derived from

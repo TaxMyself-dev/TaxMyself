@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../..')).Path
-$releaseScript = Join-Path $repositoryRoot 'scripts/Deploy-Production.ps1'
+$releaseScript = Join-Path $repositoryRoot 'scripts/deploy.ps1'
 $validFixture = Join-Path $PSScriptRoot 'production-release-state.json'
 $invalidFixture = Join-Path $PSScriptRoot 'production-release-state-invalid.json'
 $configureJobsScript = Join-Path $repositoryRoot 'smoke-tests/configure-cloud-run-jobs.ps1'
@@ -8,6 +8,7 @@ $inspectSourceScript = Join-Path $repositoryRoot 'smoke-tests/inspect-cloud-run-
 $cloudRunFixture = Join-Path $repositoryRoot 'smoke-tests/tests/fixtures/cloud-run-service.json'
 $plainCloudRunFixture = Join-Path $repositoryRoot 'smoke-tests/tests/fixtures/cloud-run-service-plain-env.json'
 $gitignore = Join-Path $repositoryRoot '.gitignore'
+$deployCommand = Join-Path $repositoryRoot 'scripts/deploy.cmd'
 
 function Invoke-FixtureScriptWithStrictMode([string]$ScriptPath, [string]$FixturePath) {
   Set-StrictMode -Version Latest
@@ -147,6 +148,10 @@ try {
 }
 
 $source = Get-Content -LiteralPath $releaseScript -Raw
+if ($source -match '(?m)^\s*\[switch\]\$(Plan|Apply)\b' -or
+    $source -match 'KEEPINTAX_PRODUCTION_DEPLOY') {
+  throw 'Legacy plan/apply deployment ceremony is still present'
+}
 if ($source -match '\$output\s*=\s*&\s*\$Command\s+@Arguments\s+2>&1') {
   throw 'Native JSON capture must not merge stderr warnings into stdout'
 }
@@ -174,7 +179,6 @@ foreach ($marker in $orderedMarkers) {
 }
 foreach ($requiredText in @(
   '--no-traffic',
-  'KEEPINTAX_PRODUCTION_DEPLOY',
   'production-rollback',
   'Assert-BackendTraffic',
   'Production authorization and interactive deployment login',
@@ -184,7 +188,6 @@ foreach ($requiredText in @(
   "'projects:list'",
   'gcloud auth login',
   'firebase login --reauth',
-  'anti-accident gate'
   "'logging', 'read'"
   'resource.labels.revision_name'
   'textPayload=~'
@@ -196,43 +199,43 @@ foreach ($requiredText in @(
   }
 }
 
-$planLines = [System.Collections.Generic.List[string]]::new()
-& $releaseScript -Plan -TestStatePath $validFixture *>&1 |
-  ForEach-Object { $planLines.Add("$_") }
-$planOutput = $planLines -join "`n"
-if (($planOutput | Select-String '\[START\]' -AllMatches).Matches.Count -ne 2 -or
-    ($planOutput | Select-String '\[COMPLETE\]' -AllMatches).Matches.Count -ne 2) {
-  throw 'Plan did not print START and COMPLETE for both read-only stages'
+$fixtureLines = [System.Collections.Generic.List[string]]::new()
+& $releaseScript -TestStatePath $validFixture *>&1 |
+  ForEach-Object { $fixtureLines.Add("$_") }
+$fixtureOutput = $fixtureLines -join "`n"
+if (($fixtureOutput | Select-String '\[START\]' -AllMatches).Matches.Count -ne 2 -or
+    ($fixtureOutput | Select-String '\[COMPLETE\]' -AllMatches).Matches.Count -ne 2) {
+  throw 'Fixture validation did not print START and COMPLETE for both read-only stages'
 }
-if ($planOutput -notmatch 'No changes were made') {
-  throw 'Plan did not print its no-write guarantee'
+if ($fixtureOutput -notmatch 'Fixture validation completed; no production changes were made') {
+  throw 'Fixture validation did not print its no-write guarantee'
 }
-if ($planOutput -match 'Using local test-state fixture' -or
-    $planOutput -match 'Current backend revision' -or
-    $planOutput -match 'Fixture detail output' -or
-    $planOutput -match 'Fixture native stderr' -or
-    $planOutput -match 'Fixture captured stderr' -or
-    $planOutput -match 'Fixture native non-zero' -or
-    $planOutput -match 'Fixture safe smoke') {
-  throw 'Plan leaked detailed stage output to the terminal'
+if ($fixtureOutput -match 'Using local test-state fixture' -or
+    $fixtureOutput -match 'Current backend revision' -or
+    $fixtureOutput -match 'Fixture detail output' -or
+    $fixtureOutput -match 'Fixture native stderr' -or
+    $fixtureOutput -match 'Fixture captured stderr' -or
+    $fixtureOutput -match 'Fixture native non-zero' -or
+    $fixtureOutput -match 'Fixture safe smoke') {
+  throw 'Fixture validation leaked detailed stage output to the terminal'
 }
-$planLogLine = $planLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
-if (!$planLogLine) { throw 'Plan did not print its detailed log path' }
-$planLogPath = $planLogLine.Substring('Detailed log: '.Length)
-if (!(Test-Path -LiteralPath $planLogPath)) { throw 'Plan detailed log file was not created' }
-$planLog = Get-Content -LiteralPath $planLogPath -Raw
-if ($planLog -notmatch 'Using local test-state fixture' -or
-    $planLog -notmatch 'Fixture detail output is routed to the release log' -or
-    $planLog -notmatch 'Fixture native stderr is informational' -or
-    $planLog -notmatch 'Fixture captured stderr is informational' -or
-    $planLog -notmatch 'Fixture native non-zero exit was detected correctly' -or
-    $planLog -notmatch 'Fixture safe smoke reason was promoted correctly' -or
-    $planLog -notmatch 'Current backend revision' -or
-    $planLog -notmatch 'Install pinned backend dependencies' -or
-    $planLog -notmatch 'r\d{8}-\d{6}-0042') {
-  throw 'Plan detailed log is missing stage or plan details'
+$fixtureLogLine = $fixtureLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
+if (!$fixtureLogLine) { throw 'Fixture validation did not print its detailed log path' }
+$fixtureLogPath = $fixtureLogLine.Substring('Detailed log: '.Length)
+if (!(Test-Path -LiteralPath $fixtureLogPath)) { throw 'Fixture detailed log file was not created' }
+$fixtureLog = Get-Content -LiteralPath $fixtureLogPath -Raw
+if ($fixtureLog -notmatch 'Using local test-state fixture' -or
+    $fixtureLog -notmatch 'Fixture detail output is routed to the release log' -or
+    $fixtureLog -notmatch 'Fixture native stderr is informational' -or
+    $fixtureLog -notmatch 'Fixture captured stderr is informational' -or
+    $fixtureLog -notmatch 'Fixture native non-zero exit was detected correctly' -or
+    $fixtureLog -notmatch 'Fixture safe smoke reason was promoted correctly' -or
+    $fixtureLog -notmatch 'Current backend revision' -or
+    $fixtureLog -notmatch 'Install pinned backend dependencies' -or
+    $fixtureLog -notmatch 'r\d{8}-\d{6}-0042') {
+  throw 'Fixture detailed log is missing stage or target details'
 }
-Remove-Item -LiteralPath $planLogPath -Force
+Remove-Item -LiteralPath $fixtureLogPath -Force
 
 foreach ($targetCase in @(
   @{ Target = 'Backend'; Required = 'Deploy a tagged backend revision'; Forbidden = 'Build the production frontend'; Skip = $false },
@@ -240,15 +243,14 @@ foreach ($targetCase in @(
   @{ Target = 'Full'; Required = 'builds and production gates remain required'; Forbidden = $null; Skip = $true }
 )) {
   $targetLines = [System.Collections.Generic.List[string]]::new()
-  $targetArguments = @{
-    Plan = $true
-    Target = $targetCase.Target
-    TestStatePath = $validFixture
-  }
-  if ($targetCase.Skip) { $targetArguments.SkipLocalTests = $true }
   $global:LASTEXITCODE = 0
-  & $releaseScript @targetArguments *>&1 |
-    ForEach-Object { $targetLines.Add("$_") }
+  if ($targetCase.Skip) {
+    & $releaseScript $targetCase.Target -TestStatePath $validFixture -SkipLocalTests *>&1 |
+      ForEach-Object { $targetLines.Add("$_") }
+  } else {
+    & $releaseScript $targetCase.Target -TestStatePath $validFixture *>&1 |
+      ForEach-Object { $targetLines.Add("$_") }
+  }
   $targetLogLine = $targetLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
   if (!$targetLogLine) { throw "Target $($targetCase.Target) did not print a log path" }
   $targetLogPath = $targetLogLine.Substring('Detailed log: '.Length)
@@ -264,7 +266,7 @@ foreach ($targetCase in @(
 }
 
 $failureLines = [System.Collections.Generic.List[string]]::new()
-& $releaseScript -Plan -TestStatePath $invalidFixture *>&1 |
+& $releaseScript -TestStatePath $invalidFixture *>&1 |
   ForEach-Object { $failureLines.Add("$_") }
 $failureExitCode = $LASTEXITCODE
 $failureOutput = $failureLines -join "`n"
@@ -279,22 +281,24 @@ if ($failureOutput -match 'CategoryInfo|ScriptStackTrace|FullyQualifiedErrorId')
   throw 'Failure output leaked the verbose PowerShell error record to the terminal'
 }
 $failureLogLine = $failureLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
-if (!$failureLogLine) { throw 'Failed plan did not print its detailed log path' }
+if (!$failureLogLine) { throw 'Failed fixture validation did not print its detailed log path' }
 $failureLogPath = $failureLogLine.Substring('Detailed log: '.Length)
-if (!(Test-Path -LiteralPath $failureLogPath)) { throw 'Failed plan detailed log file was not created' }
+if (!(Test-Path -LiteralPath $failureLogPath)) { throw 'Failed fixture detailed log file was not created' }
 $failureLog = Get-Content -LiteralPath $failureLogPath -Raw
 if ($failureLog -notmatch 'Expected exactly one backend revision' -or
     $failureLog -notmatch 'status.*failed') {
-  throw 'Failed plan detailed log is missing its failure diagnostics or summary'
+  throw 'Failed fixture detailed log is missing its failure diagnostics or summary'
 }
 Remove-Item -LiteralPath $failureLogPath -Force
 
-try {
-  & $releaseScript -Apply -TestStatePath $validFixture
-  throw 'Fixture-backed apply unexpectedly succeeded'
-} catch {
-  if ($_.Exception.Message -notmatch 'cannot be used with Apply') { throw }
+if (!(Test-Path -LiteralPath $deployCommand)) {
+  throw 'Extensionless deploy command wrapper is missing'
+}
+$deployCommandSource = Get-Content -LiteralPath $deployCommand -Raw
+if ($deployCommandSource -notmatch 'deploy\.ps1' -or
+    $deployCommandSource -notmatch '%\*') {
+  throw 'Deploy command wrapper does not forward its target/options to deploy.ps1'
 }
 
 $global:LASTEXITCODE = 0
-Write-Output 'Deploy-Production tests passed'
+Write-Output 'deploy tests passed'

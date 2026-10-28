@@ -5,21 +5,21 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
 
 ## Key files
 
-- `Deploy-Production.ps1` — plan/apply production release orchestrator with
+- `deploy.cmd` / `deploy.ps1` — single-command production release orchestrator with
   `Full`, `Backend`, and `Frontend` targets, an optional local-test skip,
   zero-traffic backend candidate, readiness, exact-image job configuration,
   frontend backup/deploy, full smoke, and rollback.
 - `tests/production-release-state.json` — read-only fixture proving sequential
-  release numbering and plan output without cloud access.
+  release numbering and target selection without cloud access.
 - `tests/production-release-state-invalid.json` — invalid traffic-split fixture
   proving stage and failure-reason diagnostics.
-- `tests/Deploy-Production.Tests.ps1` — syntax, plan, sequence, stage-order,
-  immutable-revision, failure-diagnostic, and apply-guard regression checks.
+- `tests/deploy.Tests.ps1` — syntax, fixture, sequence, target, stage-order,
+  immutable-revision, and failure-diagnostic regression checks.
 
 ## Main flow
 
-1. Require a clean `main` exactly matching `origin/main` and explicit apply
-   authorization.
+1. Require a clean `main` exactly matching `origin/main` and authenticated
+   deployment sessions.
 2. Allocate `rYYYYMMDD-HHmmss-NNNN` from prior script-created Cloud Run
    revision names.
 3. Verify/build locally, deploy a zero-traffic candidate from a clean Git
@@ -37,8 +37,8 @@ and promotion, live compatibility smoke, and frontend rollback.
 
 ## Invariants
 
-- Default behavior is plan-only. Apply requires
-  `KEEPINTAX_PRODUCTION_DEPLOY=taxmyself-prod` and `-Apply`.
+- Running `scripts\deploy` immediately starts the guarded release; the default
+  target is `Full`, while positional `backend` and `frontend` scope it.
 - `Target` defaults to `Full`. `SkipLocalTests` may skip only local Jest and
   smoke configuration unit tests; it must never skip builds, candidate
   readiness, browser smoke, full live signup/login/cleanup smoke, or rollback.
@@ -49,9 +49,9 @@ and promotion, live compatibility smoke, and frontend rollback.
 - Do not run schema migrations, cutover SQL, or production-data maintenance.
 - Never print or persist production environment values or credentials.
 - Deployment authentication comes only from existing gcloud, Firebase CLI,
-  and Git Credential Manager sessions. Apply begins by refreshing the gcloud
-  and Firebase sessions interactively. Never accept passwords as script
-  parameters or store credentials in the repository.
+  and Git Credential Manager sessions. Every release begins by refreshing the
+  sessions required by its target. Never accept passwords as script parameters
+  or store credentials in the repository.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
 - A failed zero-traffic Cloud Run deployment queries only ERROR entries for the
   exact expected revision whose message prefix is explicitly allowlisted. The
