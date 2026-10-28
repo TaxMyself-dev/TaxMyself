@@ -1,4 +1,17 @@
 ## Purpose
+Captured charge completion recovery (2026-10-28): BillingCompletionRecoveryService
+runs every minute, independently of renewal eligibility, with a bounded batch
+of 20 CHARGE/CAPTURED attempts. It routes hosted captures through hosted completion
+and token captures through completeCapturedAttempt, never chargeSubscription.
+Existing exclusive finalization leases serialize worker/admin/daily completion.
+Claim persists a crash wake-up; failure persists next_action_at with delays of
+1/5/15/30 minutes then hourly. The run count and sanitized category use the existing
+failure_category POST_CAPTURE:<category>:<run> tag; provider reconciliation counters
+are untouched. Null schedules on old captures are eligible after a one-minute grace.
+The canonical receipt pointer is saved on the attempt before PDF work, checking
+documents.billing_attempt_id provenance. Completion clears the local retry tag and
+schedule. PDF retries reuse the existing document/journal; mail errors also keep
+completion pending. No schema change. See docs/features/billing-pdf-recovery.md.
 Admin refund PDF access: GET subscriptions/:id/refunds/:attemptId/document is
 admin-only, validates source subscription/user and linked credit document attempt
 provenance, then streams the existing PDF with no-store. Never bypass ownership

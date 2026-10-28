@@ -339,7 +339,7 @@ describe('BillingLifecycleService post-capture recovery', () => {
     );
     expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
     // Lease released with the claimed version so the very next run can retry.
-    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5, 'RECEIPT_STEP_FAILED');
     // The attempt is never pushed to UNKNOWN/DECLINED and the provider is untouched.
     expect(orchestration.applyNormalizedOutcome).not.toHaveBeenCalled();
     expect(provider.submitCharge).not.toHaveBeenCalled();
@@ -395,7 +395,7 @@ describe('BillingLifecycleService post-capture recovery', () => {
         failureCategory: 'FINALIZATION_FAILED',
       }),
     );
-    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5, 'FINALIZATION_FAILED');
   });
 
   it('a second failure leaves the attempt safely recoverable, and a later success completes it once', async () => {
@@ -453,6 +453,21 @@ describe('BillingLifecycleService post-capture recovery', () => {
     expect(receipt.createReceipt).not.toHaveBeenCalled();
     expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
     expect(orchestration.releaseFinalizationLease).not.toHaveBeenCalled();
+  });
+
+  it('rechecks automatic retry timing under the lease and skips I/O for a rescheduled candidate', async () => {
+    const { service, orchestration, provider, receipt } = build({
+      claimForFinalization: jest.fn().mockResolvedValue({
+        claimed: false, attempt: capturedRow(), reason: 'NOT_DUE',
+      }),
+    });
+    const result = await service.resumeCapturedAttempt({
+      actor, attemptId: 3, receipt, leaseOwner: 'worker', scheduledOnly: true,
+    });
+    expect(result.status).toBe('RETRY_SCHEDULED');
+    expect(orchestration.claimForFinalization).toHaveBeenCalledWith(3, 'worker', actor.subjectFirebaseId, undefined, undefined, true);
+    expect(receipt.createReceipt).not.toHaveBeenCalled();
+    expect(provider.submitCharge).not.toHaveBeenCalled();
   });
 
   it('is an idempotent no-op for an attempt that is already COMPLETED', async () => {
@@ -634,7 +649,7 @@ describe('BillingLifecycleService post-capture activation step', () => {
     );
     expect(receipt.createReceipt).not.toHaveBeenCalled();
     expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
-    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5, 'ACTIVATION_FAILED');
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('abc123SECRET');
     expect(serialized).not.toContain('4111111111111111');
@@ -669,7 +684,7 @@ describe('BillingLifecycleService post-capture activation step', () => {
     }
     expect(receipt.createReceipt).not.toHaveBeenCalled();
     expect(orchestration.finalizeCapturedAttempt).not.toHaveBeenCalled();
-    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5);
+    expect(orchestration.releaseFinalizationLease).toHaveBeenCalledWith(3, 5, 'ACTIVATION_DEFERRED');
   });
 
   it('a later run after a failed activation retries the whole post-capture phase and completes once', async () => {

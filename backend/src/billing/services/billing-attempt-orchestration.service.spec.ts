@@ -13,6 +13,7 @@ import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
+import { Documents } from '../../documents/documents.entity';
 import { PLAN_CHANGE_POLICY, PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
   BillingAttemptOrchestrationService,
@@ -764,6 +765,88 @@ describe('BillingAttemptOrchestrationService', () => {
       manager.findOne.mockImplementation(async (entity: unknown) =>
         entity === BillingAttempt ? row : debt,
       );
+
+    it('persists completion backoff across runs without changing provider reconciliation counters', async () => {
+      const row = capturedRow({ reconciliationAttempts: 4 });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+      let at = now;
+      for (const delayMinutes of [1, 5, 15, 30, 60, 60]) {
+        await service.claimForFinalization(row.id, 'worker', 'owner-1', at);
+        const claimVersion = row.stateVersion;
+        expect(row.nextActionAt!.getTime()).toBeGreaterThan(row.leaseExpiresAt!.getTime());
+        await service.releaseFinalizationLease(row.id, claimVersion, 'RECEIPT_STEP_FAILED', at);
+        expect(row.nextActionAt).toEqual(new Date(at.getTime() + delayMinutes * 60_000));
+        expect(row.failureCategory).toMatch(/^POST_CAPTURE:RECEIPT_STEP_FAILED:\d+$/);
+        expect(row.status).toBe(BillingAttemptStatus.CAPTURED);
+        expect(row.reconciliationAttempts).toBe(4);
+        expect(row.cardcomTransactionId).toBe('deal-77');
+        at = row.nextActionAt!;
+      }
+      await service.finalizeCapturedAttempt(row.id, 243, at);
+      expect(row.nextActionAt).toBeNull();
+      expect(row.failureCategory).toBeNull();
+    });
+
+    it('rejects a stale automatic candidate after another instance rescheduled it, while allowing explicit completion', async () => {
+      const row = capturedRow({ nextActionAt: new Date(now.getTime() + 60_000) });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+      await expect(service.claimForFinalization(row.id, 'worker', 'owner-1', now, undefined, true))
+        .resolves.toMatchObject({ claimed: false, reason: 'NOT_DUE' });
+      expect(manager.save).not.toHaveBeenCalled();
+      await expect(service.claimForFinalization(row.id, 'admin', 'owner-1', now))
+        .resolves.toMatchObject({ claimed: true });
+    });
+
+    it('recovers an expired crash claim without changing its provider transaction', async () => {
+      const row = capturedRow();
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+      await service.claimForFinalization(row.id, 'crashed-worker', 'owner-1', now);
+      const wakeUp = row.nextActionAt!;
+      expect(row.failureCategory).toBe('POST_CAPTURE:IN_PROGRESS:1');
+      await expect(service.claimForFinalization(row.id, 'replacement', 'owner-1', wakeUp, undefined, true))
+        .resolves.toMatchObject({ claimed: true });
+      expect(row.failureCategory).toBe('POST_CAPTURE:IN_PROGRESS:2');
+      expect(row.cardcomTransactionId).toBe('deal-77');
+    });
+
+    it('does not claim a refund through charge completion', async () => {
+      const row = capturedRow({ operation: 'REFUND' });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+      await expect(service.claimForFinalization(row.id, 'worker', 'owner-1', now))
+        .rejects.toThrow('Refunds require the refund recovery workflow');
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('records the existing receipt before PDF I/O without invalidating the lease version', async () => {
+      const row = capturedRow({ stateVersion: 4 });
+      manager.findOne.mockImplementation(async entity => entity === Documents
+        ? { id: 243, billingAttemptId: row.id } : row);
+      await service.recordCapturedReceipt(row.id, 243);
+      expect(row.receiptDocId).toBe(243);
+      expect(row.stateVersion).toBe(4);
+      await service.releaseFinalizationLease(row.id, 4, 'RECEIPT_STEP_FAILED', now);
+      expect(row.nextActionAt).toEqual(new Date(now.getTime() + 60_000));
+      expect(row.receiptDocId).toBe(243);
+      await expect(service.recordCapturedReceipt(row.id, 999)).rejects.toThrow('provenance');
+    });
+
+    it('rejects a document without matching attempt provenance', async () => {
+      const row = capturedRow();
+      manager.findOne.mockImplementation(async entity => entity === Documents ? null : row);
+      await expect(service.recordCapturedReceipt(row.id, 243)).rejects.toThrow('provenance');
+      expect(manager.save).not.toHaveBeenCalled();
+    });
+
+    it('discovers crashed/legacy captures with a null schedule, excluding refunds, live leases and future retries', async () => {
+      manager.find.mockResolvedValueOnce([capturedRow()]).mockResolvedValueOnce([obligation()]);
+      const result = await service.findDueCapturedAttempts(now, 20);
+      expect(result).toEqual([expect.objectContaining({ attemptId: 21, firebaseId: 'owner-1' })]);
+      const query = manager.find.mock.calls[0][1];
+      expect(query.where).toEqual(expect.objectContaining({ operation: 'CHARGE', status: BillingAttemptStatus.CAPTURED }));
+      expect(query.where.nextActionAt.type).toBe('or');
+      expect(query.where.leaseExpiresAt.type).toBe('or');
+      expect(query.take).toBe(20);
+    });
 
     it('claims a CAPTURED attempt exclusively and never changes its status or provider fields', async () => {
       const row = capturedRow();

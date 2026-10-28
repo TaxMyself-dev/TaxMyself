@@ -88,6 +88,7 @@ export class BillingHostedCompletionService {
     subscriptionId: number;
     billingAttemptId: number;
     verifiedResult?: CardcomWebhookPayload;
+    scheduledOnly?: boolean;
   }): Promise<HostedCompletionStatus> {
     const { firebaseId, subscriptionId, billingAttemptId } = params;
 
@@ -95,6 +96,7 @@ export class BillingHostedCompletionService {
       actor: { actorFirebaseId: firebaseId, subjectFirebaseId: firebaseId },
       attemptId: billingAttemptId,
       leaseOwner: `hosted-recovery-${billingAttemptId}`,
+      scheduledOnly: params.scheduledOnly,
       activate: (attempt) =>
         this.activateSubscription({ firebaseId, subscriptionId, attempt, verifiedResult: params.verifiedResult }),
       receipt: {

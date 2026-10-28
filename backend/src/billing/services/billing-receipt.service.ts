@@ -8,6 +8,7 @@ import { MailService } from 'src/mail/mail.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingEventType } from '../enums/billing.enums';
 import { BillingReceiptPeriod } from '../domain/billing-receipt-period';
+import { BillingAttemptOrchestrationService } from './billing-attempt-orchestration.service';
 
 /**
  * Identity of the business issuing a billing receipt. Passed in by the caller
@@ -51,6 +52,7 @@ export class BillingReceiptService {
     private readonly billingEventService: BillingEventService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    private readonly orchestration: BillingAttemptOrchestrationService,
   ) {}
 
   // ─── Step 1: Create document row + DocLines + DocPayments ────────────────────
@@ -227,9 +229,11 @@ export class BillingReceiptService {
       }
     }
 
+    await this.orchestration.recordCapturedReceipt(attempt.id, receiptDocId);
     await this.finalizeBillingReceiptPdfs(receiptDocId, issuer, firebaseId);
     if (!event.receiptEmailSent) {
-      await this.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
+      const delivery = await this.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName);
+      if (delivery.error) throw new Error('Receipt email delivery failed; local completion will retry');
     }
     return { receiptDocId };
   }
