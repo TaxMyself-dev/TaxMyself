@@ -228,11 +228,40 @@ if ($planLog -notmatch 'Using local test-state fixture' -or
     $planLog -notmatch 'Fixture native non-zero exit was detected correctly' -or
     $planLog -notmatch 'Fixture safe smoke reason was promoted correctly' -or
     $planLog -notmatch 'Current backend revision' -or
-    $planLog -notmatch 'Install pinned dependencies' -or
+    $planLog -notmatch 'Install pinned backend dependencies' -or
     $planLog -notmatch 'r\d{8}-\d{6}-0042') {
   throw 'Plan detailed log is missing stage or plan details'
 }
 Remove-Item -LiteralPath $planLogPath -Force
+
+foreach ($targetCase in @(
+  @{ Target = 'Backend'; Required = 'Deploy a tagged backend revision'; Forbidden = 'Build the production frontend'; Skip = $false },
+  @{ Target = 'Frontend'; Required = 'Build the production frontend'; Forbidden = 'Create a clean backend source snapshot'; Skip = $false },
+  @{ Target = 'Full'; Required = 'builds and production gates remain required'; Forbidden = $null; Skip = $true }
+)) {
+  $targetLines = [System.Collections.Generic.List[string]]::new()
+  $targetArguments = @{
+    Plan = $true
+    Target = $targetCase.Target
+    TestStatePath = $validFixture
+  }
+  if ($targetCase.Skip) { $targetArguments.SkipLocalTests = $true }
+  $global:LASTEXITCODE = 0
+  & $releaseScript @targetArguments *>&1 |
+    ForEach-Object { $targetLines.Add("$_") }
+  $targetLogLine = $targetLines | Where-Object { $_ -match '^Detailed log: ' } | Select-Object -First 1
+  if (!$targetLogLine) { throw "Target $($targetCase.Target) did not print a log path" }
+  $targetLogPath = $targetLogLine.Substring('Detailed log: '.Length)
+  $targetLog = Get-Content -LiteralPath $targetLogPath -Raw
+  if ($targetLog -notmatch "Target: $($targetCase.Target)" -or
+      $targetLog -notmatch [regex]::Escape($targetCase.Required)) {
+    throw "Target $($targetCase.Target) plan omitted its target or required stages"
+  }
+  if ($targetCase.Forbidden -and $targetLog -match [regex]::Escape($targetCase.Forbidden)) {
+    throw "Target $($targetCase.Target) plan included an out-of-scope stage"
+  }
+  Remove-Item -LiteralPath $targetLogPath -Force
+}
 
 $failureLines = [System.Collections.Generic.List[string]]::new()
 & $releaseScript -Plan -TestStatePath $invalidFixture *>&1 |

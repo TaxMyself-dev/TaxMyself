@@ -6,6 +6,7 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
 ## Key files
 
 - `Deploy-Production.ps1` — plan/apply production release orchestrator with
+  `Full`, `Backend`, and `Frontend` targets, an optional local-test skip,
   zero-traffic backend candidate, readiness, exact-image job configuration,
   frontend backup/deploy, full smoke, and rollback.
 - `tests/production-release-state.json` — read-only fixture proving sequential
@@ -29,10 +30,18 @@ across the backend Cloud Run service, private smoke jobs, and Firebase Hosting.
 5. On a post-promotion failure, attempt frontend and backend rollback while
    retaining the original failed stage and reason.
 
+Backend-only releases keep candidate readiness, immutable smoke-job updates,
+exact-revision promotion, live compatibility smoke, and backend rollback.
+Frontend-only releases keep the production build, preview smoke, live backup
+and promotion, live compatibility smoke, and frontend rollback.
+
 ## Invariants
 
 - Default behavior is plan-only. Apply requires
   `KEEPINTAX_PRODUCTION_DEPLOY=taxmyself-prod` and `-Apply`.
+- `Target` defaults to `Full`. `SkipLocalTests` may skip only local Jest and
+  smoke configuration unit tests; it must never skip builds, candidate
+  readiness, browser smoke, full live signup/login/cleanup smoke, or rollback.
 - Never deploy a dirty tree, a branch other than `main`, or a commit different
   from `origin/main`.
 - Never use `LATEST` for traffic promotion or mutable image tags for smoke

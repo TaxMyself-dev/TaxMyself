@@ -86,6 +86,29 @@ $env:KEEPINTAX_PRODUCTION_DEPLOY = 'taxmyself-prod'
 ./scripts/Deploy-Production.ps1 -Apply
 ```
 
+The default target is the complete backend-and-frontend release. A scoped
+release uses the same guarded flow:
+
+```powershell
+# Backend only: candidate, readiness, smoke jobs, traffic, and live smoke
+./scripts/Deploy-Production.ps1 -Apply -Target Backend
+
+# Frontend only: build, preview smoke, live backup/promotion, and live smoke
+./scripts/Deploy-Production.ps1 -Apply -Target Frontend
+```
+
+For a faster release after the local suites have already passed on the exact
+commit, `-SkipLocalTests` skips only the backend Jest suite and the smoke
+configuration unit tests. It can be combined with any target:
+
+```powershell
+./scripts/Deploy-Production.ps1 -Apply -Target Full -SkipLocalTests
+```
+
+There is intentionally no unverified direct-promotion mode. Dependency
+installation, production builds, candidate readiness, preview browser smoke,
+full production signup/login/cleanup smoke, and rollback remain mandatory.
+
 `KEEPINTAX_PRODUCTION_DEPLOY` is checked before opening the login flows. It is
 an anti-accident confirmation, not a password or credential; possessing it
 grants no Google Cloud or Firebase permissions.
@@ -113,6 +136,15 @@ window while a release is running:
 
 ```powershell
 Get-Content -LiteralPath '<printed-log-path>' -Wait
+```
+
+To open the most recent complete release log later:
+
+```powershell
+$latestReleaseLog = Get-ChildItem .\deployment-logs\production-release-*.log |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+Get-Content -LiteralPath $latestReleaseLog.FullName
 ```
 
 The frontend is first deployed to a one-day Firebase preview channel named for
