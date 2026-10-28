@@ -7,7 +7,8 @@ backend, frontend, signup, Firebase verification, login, and cleanup flow.
 ## Key files
 
 - `config.js` — explicit URL and fixed synthetic-identity validation.
-- `tests/production-readiness.spec.js` — candidate backend `/ready` gate.
+- `tests/production-readiness.spec.js` — candidate backend `/ready` gate,
+  including the explicit `keepintax-prod` database-target assertion.
 - `tests/production-readonly.spec.js` — deployed registration-page/API-origin
   check with no writes; it requires `GET /auth/get-cities` to return 200 and
   reports failed requests on the deployed frontend/backend origins with the

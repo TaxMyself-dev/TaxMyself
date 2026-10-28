@@ -33,8 +33,11 @@ values are tracked separately and do not block initial smoke delivery.
 1. Deploy the backend revision without promoting production traffic.
 2. Point `SMOKE_API_URL` at that exact candidate revision and run
    `npm run smoke:readiness` from `smoke-tests/`. Do not promote the backend if
-   `/ready` fails: the revision cannot reach the real production DB or its
-   signup-critical schema is incomplete.
+   `/ready` fails: the revision is not connected specifically to
+   `keepintax-prod`, cannot reach it, or its signup-critical schema is
+   incomplete. This authoritative check runs after the candidate build because
+   only the deployed revision has the real runtime connection, but still runs
+   at zero traffic before promotion.
 3. Promote backend traffic only after the candidate readiness check succeeds.
 4. Deploy the frontend.
 5. Set the production web/API URLs, job names, GCP project, and region

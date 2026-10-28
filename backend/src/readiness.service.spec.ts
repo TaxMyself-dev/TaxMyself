@@ -13,11 +13,14 @@ const metadataFixture = [
 
 function makeDataSource(
   rows: Array<{ tableName: string; columnName: string }>,
+  databaseName = 'keepintax-prod',
 ) {
   let queryIndex = 0;
   const metadata = [...metadataFixture];
   return {
-    query: jest.fn(async () => (queryIndex++ === 0 ? [{ ok: 1 }] : rows)),
+    query: jest.fn(async () =>
+      queryIndex++ === 0 ? [{ databaseName }] : rows,
+    ),
     getMetadata: jest.fn(() => {
       const current = metadata.shift();
       if (!current) throw new Error('Unexpected metadata request');
@@ -64,9 +67,16 @@ describe('ReadinessService', () => {
     await expect(new ReadinessService(dataSource).check()).resolves.toEqual({
       status: 'ready',
       revision: 'backend-00042',
-      checks: { database: 'ok', signupSchema: 'ok' },
+      checks: {
+        database: 'ok',
+        databaseTarget: 'ok',
+        signupSchema: 'ok',
+      },
     });
-    expect(dataSource.query).toHaveBeenNthCalledWith(1, 'SELECT 1 AS ok');
+    expect(dataSource.query).toHaveBeenNthCalledWith(
+      1,
+      'SELECT DATABASE() AS databaseName',
+    );
     expect(dataSource.query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining('INFORMATION_SCHEMA.COLUMNS'),
@@ -93,9 +103,31 @@ describe('ReadinessService', () => {
     ).rejects.toMatchObject({
       response: {
         status: 'not_ready',
-        checks: { database: 'ok', signupSchema: 'failed' },
+        checks: {
+          database: 'ok',
+          databaseTarget: 'ok',
+          signupSchema: 'failed',
+        },
       },
     });
+  });
+
+  it('fails when the live connection targets a non-production database', async () => {
+    const dataSource = makeDataSource(schemaRows(), 'keepintax-dev');
+
+    await expect(
+      new ReadinessService(dataSource).check(),
+    ).rejects.toMatchObject({
+      response: {
+        status: 'not_ready',
+        checks: {
+          database: 'ok',
+          databaseTarget: 'failed',
+          signupSchema: 'unknown',
+        },
+      },
+    });
+    expect(dataSource.query).toHaveBeenCalledTimes(1);
   });
 
   it('reports a database failure without leaking driver details', async () => {
@@ -113,7 +145,11 @@ describe('ReadinessService', () => {
       expect(error).toBeInstanceOf(ServiceUnavailableException);
       expect((error as ServiceUnavailableException).getResponse()).toEqual({
         status: 'not_ready',
-        checks: { database: 'failed', signupSchema: 'unknown' },
+        checks: {
+          database: 'failed',
+          databaseTarget: 'unknown',
+          signupSchema: 'unknown',
+        },
       });
       expect(
         JSON.stringify((error as ServiceUnavailableException).getResponse()),
