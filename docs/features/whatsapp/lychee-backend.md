@@ -23,7 +23,9 @@ ngrok for dev). Both hops verify the same raw-body HMAC and channel.
    to media storage are prohibited.
 4. The receiver loads on normal backend startup without an intake enable flag.
    A missing secret/channel yields 503, never silent route absence.
-   Set `LYCHEE_WORKER_ENABLED=true` separately to process queued documents.
+   Queue processing runs automatically with normal backend startup. No separate
+   worker enable flag is used. New events and existing pending/retry rows are
+   processed; existing FAILED rows still require explicit retry handling.
 5. Configure proxy routing and a verified ngrok URL. Deployment, cloud config,
    live callbacks and sending remain separate authorized actions.
 
@@ -92,19 +94,20 @@ no automatic deletion or retention job was introduced without a product decision
 
 ### Development receiver prepared 2026-10-25
 
-`node scripts/start-lychee-receiver.js` starts the built app on port 3000 with
-synchronize, boot seeding, all scheduled tasks and the Lychee worker disabled.
-It requires keepintax-dev. `DISABLE_SCHEDULED_TASKS=true` disables cron/interval/
-timeout registration; normal launches retain their previous scheduling defaults.
-Logs go to ignored `.lychee-receiver.log`. This launch is for subscription setup,
-not end-to-end import testing. It does not change the .env or expose a send API.
+Normal startup is `npm run start:watch` from this worktree's backend directory.
+The optional legacy `node scripts/start-lychee-receiver.js` launcher starts the
+built app on port 3000 with schema synchronize and boot seeding disabled; as of
+2026-10-29 it no longer disables scheduled work. It requires keepintax-dev.
+`DISABLE_SCHEDULED_TASKS=true` remains a general explicit scheduler override;
+normal startup does not set it.
+Legacy launcher logs go to ignored `.lychee-receiver.log`. No send API exists.
 
 The existing ngrok agent was verified forwarding the fixed domain to port 3000:
 `https://margeret-guttiform-overfondly.ngrok-free.dev/webhooks/lychee`.
 Empty POSTs to both localhost and this public URL returned 503, as expected
 while LYCHEE_WEBHOOK_SECRET is missing. No event was enqueued. Receive the secret,
 set it in this worktree's ignored environment and restart before Lychee sends
-their signed test. Keep the worker off until media/key settings are configured.
+their signed test. Configure API key and media hosts for successful processing.
 This test URL goes directly through the existing ngrok tunnel; the cloud proxy
 has not been modified/deployed. The same tunnel can serve CardCom/Feezback paths.
 

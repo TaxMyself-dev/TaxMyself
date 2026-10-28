@@ -11,7 +11,7 @@ in that case. A malformed or conflicting nonempty sender must still be rejected.
 LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
 Elazar approved preparing its SQL only; no database execution was authorized.
 The receiver loads with normal backend startup; no intake enable flag is needed.
-LYCHEE_WORKER_ENABLED defaults off. There is no outbound
+The queue worker runs automatically on the normal scheduler. There is no outbound
 messaging implementation. Multi-business documents remain WAITING_FOR_BUSINESS;
 prompt mappings and quoted replies are supported in storage, but prompts cannot
 be sent yet. Never fabricate prompt IDs or route to a primary business.

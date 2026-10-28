@@ -26,6 +26,15 @@ const job: any = {
 };
 
 describe('Lychee signed intake', () => {
+  it('accepts the updated Keepintax provider payload', () => {
+    const channel = '73971d88-8e11-4f58-958c-7472129063e7';
+    const updated = { ...event, channel_id: channel, occurred_at: '2026-10-29T08:41:12.517Z',
+      channel_name: 'Keepintax', channel_phone: '0553081341', contact_phone: '0501234567',
+      text: '#dev חשבונית לבדיקה', sender_phone: null, sender_name: null };
+    const raw = Buffer.from(JSON.stringify(updated));
+    const signature = 'sha256=' + createHmac('sha256', 'secret').update(raw).digest('hex');
+    expect(lycheeSender(parseLycheeEvent(raw, signature, 'secret', channel))).toBe('972501234567');
+  });
   it('looks up prompt ownership by channel and normalized phone even after completion', async () => {
     const db: any = { query: jest.fn().mockResolvedValue([{ event_id: 'doc' }]) };
     const store = new LycheeEventStore(db);
@@ -199,6 +208,16 @@ describe('Lychee document workflow without sending', () => {
       '123',
       'drive1',
     );
+  });
+  it('processes queued documents automatically and prevents overlapping worker runs', async () => {
+    let finish: (value: any) => void;
+    store.claim.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    const running = service.tick();
+    await service.tick();
+    expect(store.claim).toHaveBeenCalledTimes(1);
+    finish(job);
+    await running;
+    expect(importer.importDocument).toHaveBeenCalled();
   });
   it('stores multi-business bytes separately without uploading or sending', async () => {
     businesses.find.mockResolvedValue([

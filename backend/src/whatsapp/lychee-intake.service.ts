@@ -41,11 +41,7 @@ export class LycheeIntakeService {
 
   @Interval(10000)
   async tick(): Promise<void> {
-    if (
-      this.running ||
-      process.env.LYCHEE_WORKER_ENABLED !== 'true'
-    )
-      return;
+    if (this.running) return;
     this.running = true;
     let job: LycheeJob | null = null;
     try {
