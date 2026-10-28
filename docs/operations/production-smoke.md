@@ -64,6 +64,12 @@ guarded release by default:
 .\scripts\deploy
 ```
 
+To display all targets, options, and examples without starting a deployment:
+
+```powershell
+.\scripts\deploy -Help
+```
+
 The script never receives, stores, or bypasses an account password. Its first
 stage explicitly launches the interactive login flows required by the target:
 

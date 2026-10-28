@@ -35,6 +35,8 @@ param(
   [ValidateSet('Full', 'Backend', 'Frontend')]
   [string]$Target = 'Full',
   [switch]$SkipLocalTests,
+  [Alias('h')]
+  [switch]$Help,
   [string]$Project = 'taxmyself-prod',
   [string]$Region = 'me-west1',
   [string]$BackendService = 'taxmys16elf-prod',
@@ -44,6 +46,33 @@ param(
   [Parameter(DontShow)]
   [string]$TestStatePath
 )
+
+if ($Help) {
+  @'
+KeepInTax production deployment
+
+Usage:
+  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests]
+  .\scripts\deploy -Help
+
+Target (optional; default: full):
+  full       Deploy backend and frontend.
+  backend    Deploy only the backend, then run live compatibility smoke.
+  frontend   Deploy only the frontend, then run live compatibility smoke.
+
+Options:
+  -SkipLocalTests  Skip local backend Jest and smoke configuration tests.
+                   Builds and all production safety checks still run.
+  -Help, -h        Show this help without starting a deployment.
+
+Examples:
+  .\scripts\deploy
+  .\scripts\deploy backend
+  .\scripts\deploy frontend
+  .\scripts\deploy backend -SkipLocalTests
+'@ | Write-Output
+  return
+}
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest

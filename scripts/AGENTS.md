@@ -39,6 +39,8 @@ and promotion, live compatibility smoke, and frontend rollback.
 
 - Running `scripts\deploy` immediately starts the guarded release; the default
   target is `Full`, while positional `backend` and `frontend` scope it.
+- `scripts\deploy -Help` (also `-h`) is side-effect free and must return
+  before log creation, authentication, preflight, or any cloud command.
 - `Target` defaults to `Full`. `SkipLocalTests` may skip only local Jest and
   smoke configuration unit tests; it must never skip builds, candidate
   readiness, browser smoke, full live signup/login/cleanup smoke, or rollback.

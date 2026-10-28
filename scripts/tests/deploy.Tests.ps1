@@ -68,6 +68,21 @@ if ($parseErrors.Count) {
   throw "Release script has $($parseErrors.Count) PowerShell parse error(s)"
 }
 
+$global:LASTEXITCODE = 0
+$helpOutput = (& $releaseScript -Help | Out-String)
+if ($LASTEXITCODE -ne 0 -or
+    $helpOutput -notmatch 'Usage:' -or
+    $helpOutput -notmatch 'full\|backend\|frontend' -or
+    $helpOutput -notmatch '\-SkipLocalTests' -or
+    $helpOutput -match 'Detailed log:|\[START\]|Opening Google Cloud login') {
+  throw 'Deploy help is incomplete or started deployment work'
+}
+
+$shortHelpOutput = (& $releaseScript -h | Out-String)
+if ($shortHelpOutput -notmatch 'Usage:') {
+  throw 'Deploy help alias did not produce usage output'
+}
+
 $gitignoreSource = Get-Content -LiteralPath $gitignore -Raw
 if ($gitignoreSource -notmatch '(?m)^/firebase-debug\*\.log\r?$') {
   throw 'Firebase CLI debug logs must be ignored so a failed auth check does not dirty the release tree'
