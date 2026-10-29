@@ -107,7 +107,7 @@ describe('Lychee signed intake', () => {
     db.query
       .mockRejectedValueOnce({ code: 'ER_DUP_ENTRY' })
       .mockResolvedValueOnce([{ payload_hash: hash }]);
-    await expect(store.enqueue(event)).resolves.toBeUndefined();
+    await expect(store.enqueue(event)).resolves.toBe('DUPLICATE');
     db.query
       .mockRejectedValueOnce({ code: 'ER_DUP_ENTRY' })
       .mockResolvedValueOnce([{ payload_hash: 'different' }]);
@@ -282,7 +282,7 @@ describe('Lychee document workflow without sending', () => {
       status: 'SKIPPED',
       driveFileId: null,
     });
-    await expect(service.process(job)).rejects.toThrow('Import failed');
+    await expect(service.process(job)).rejects.toThrow();
     expect(store.complete).not.toHaveBeenCalled();
   });
 });

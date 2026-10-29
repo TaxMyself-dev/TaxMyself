@@ -12,6 +12,7 @@ import type { Request } from 'express';
 import { lycheeSender } from './lychee-sender';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { LycheeEventStore } from './lychee-event.store';
+import { lycheeLog } from './lychee-log';
 
 export interface LycheeEvent {
   event: 'message.received';
@@ -72,27 +73,70 @@ export function parseLycheeEvent(
 
 @Controller('webhooks/lychee')
 export class LycheeWebhookController {
-  constructor(private readonly intake: LycheeIntakeService, private readonly events: LycheeEventStore) {}
+  constructor(
+    private readonly intake: LycheeIntakeService,
+    private readonly events: LycheeEventStore,
+  ) {}
 
   @Post('reply-owner')
   @HttpCode(200)
   async replyOwner(@Req() req: Request & { rawBody?: Buffer }) {
     const event = this.verifiedEvent(req);
-    if (!event.reply_to_whatsapp_message_id) throw new BadRequestException('Quoted reply required');
-    return { ownsReply: await this.events.ownsReply(event) };
+    if (!event.reply_to_whatsapp_message_id)
+      throw new BadRequestException('Quoted reply required');
+    const ownsReply = await this.events.ownsReply(event);
+    lycheeLog(
+      event.event_id,
+      'reply.owner',
+      'completed',
+      ownsReply ? 'מזהה השאלה שייך לסביבה זו' : 'לא נמצא מיפוי שאלה בסביבה זו',
+    );
+    return { ownsReply };
   }
 
   private verifiedEvent(req: Request & { rawBody?: Buffer }): LycheeEvent {
     const secret = process.env.LYCHEE_WEBHOOK_SECRET;
     const channel = process.env.LYCHEE_CHANNEL_ID;
-    if (!secret || !channel) throw new ServiceUnavailableException();
-    if (!Buffer.isBuffer(req.rawBody)) throw new BadRequestException('Raw body unavailable');
-    return parseLycheeEvent(req.rawBody, req.headers['x-lychee-signature'], secret, channel);
+    if (!secret || !channel) {
+      lycheeLog(
+        undefined,
+        'webhook.config',
+        'blocked',
+        !secret ? 'חסר סוד חתימה במקלט' : 'חסר מזהה ערוץ במקלט',
+      );
+      throw new ServiceUnavailableException();
+    }
+    if (!Buffer.isBuffer(req.rawBody))
+      throw new BadRequestException('Raw body unavailable');
+    try {
+      return parseLycheeEvent(
+        req.rawBody,
+        req.headers['x-lychee-signature'],
+        secret,
+        channel,
+      );
+    } catch (error) {
+      lycheeLog(
+        undefined,
+        'webhook.verify',
+        'blocked',
+        (error as any)?.getStatus?.() === 401
+          ? 'אימות החתימה נכשל; הבקשה לא נשמרה'
+          : 'החתימה עברה אך מבנה האירוע, הערוץ או זהות השולח אינם תקינים',
+      );
+      throw error;
+    }
   }
   @Post()
   @HttpCode(200)
   async receive(@Req() req: Request & { rawBody?: Buffer }) {
     const event = this.verifiedEvent(req);
+    lycheeLog(
+      event.event_id,
+      'webhook.receive',
+      'completed',
+      'התקבלה הודעה חתומה, הערוץ והשולח אושרו; מתחילה שמירה בתור',
+    );
     await this.intake.accept(event);
     return { received: true };
   }

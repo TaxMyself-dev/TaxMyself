@@ -36,6 +36,10 @@ function configuration(env) {
 }
 
 function createHandler(config, fetchImpl = fetch) {
+  function audit(eventId, stage, outcome, message, details = {}) {
+    const event_id = typeof eventId === 'string' && /^[A-Za-z0-9_.:-]{1,255}$/.test(eventId) ? eventId : undefined;
+    console.info(JSON.stringify({ component: 'LycheeProxy', event_id, stage, outcome, message, ...details }));
+  }
   async function ownsReply(target, raw, signature) {
     const url = new URL(target);
     url.pathname = url.pathname.replace(/\/+$/, '') + '/reply-owner';
@@ -46,7 +50,7 @@ function createHandler(config, fetchImpl = fetch) {
     });
     if (!response.ok) {
       if (response.body) await response.body.cancel();
-      throw new Error('Reply ownership lookup unavailable');
+      throw Object.assign(new Error('Reply ownership lookup unavailable'), { httpStatus: response.status });
     }
     // Bound response reads; never trust an HTML/ngrok error or an arbitrary large payload.
     const reader = response.body.getReader();
@@ -65,20 +69,30 @@ function createHandler(config, fetchImpl = fetch) {
     return data.ownsReply;
   }
   return async (req, res) => {
+    const started = Date.now();
     const raw = req.body;
-    if (!Buffer.isBuffer(raw)) return res.status(400).json({ error: 'Raw JSON required' });
+    if (!Buffer.isBuffer(raw)) {
+      audit(undefined, 'webhook.receive', 'blocked', 'גוף הבקשה אינו JSON גולמי');
+      return res.status(400).json({ error: 'Raw JSON required' });
+    }
     const header = req.headers['x-lychee-signature'];
     const expected = 'sha256=' + createHmac('sha256', config.secret).update(raw).digest('hex');
     if (typeof header !== 'string' || !/^sha256=[a-f0-9]{64}$/.test(header) ||
         !timingSafeEqual(Buffer.from(header), Buffer.from(expected))) {
+      audit(undefined, 'webhook.signature', 'blocked', 'חתימה חסרה או שגויה; האירוע לא יועבר');
       return res.status(401).json({ error: 'Invalid signature' });
     }
     let event;
     try { event = JSON.parse(raw.toString('utf8')); }
-    catch { return res.status(400).json({ error: 'Invalid JSON' }); }
+    catch {
+      audit(undefined, 'webhook.parse', 'blocked', 'גוף הבקשה אינו JSON תקין');
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
     if (!event || event.event !== 'message.received' ||
         typeof event.event_id !== 'string' || !event.event_id ||
         event.channel_id !== config.channelId) {
+      audit(event?.event_id, 'webhook.event', 'blocked', event?.channel_id !== config.channelId ?
+        'מזהה הערוץ אינו תואם לערוץ המוגדר בפרוקסי' : 'סוג האירוע או מזהה האירוע אינם תקינים');
       return res.status(400).json({ error: 'Invalid event or channel' });
     }
     const contact = phone(event.contact_phone);
@@ -86,25 +100,38 @@ function createHandler(config, fetchImpl = fetch) {
       typeof event.sender_phone === 'string' && !event.sender_phone.trim();
     const sender = missingSender ? contact : phone(event.sender_phone);
     if (!sender || !contact || sender !== contact) {
+      audit(event.event_id, 'sender.resolve', 'blocked', 'מספר איש הקשר אינו תקין או שיש סתירה עם מספר השולח');
       return res.status(400).json({ error: 'Invalid or ambiguous sender' });
     }
     const devMarked = typeof event.text === 'string' && /(?:^|\s)#dev(?=$|\s)/i.test(event.text);
     let target = devMarked && config.testPhones.has(sender) ? config.devUrl : config.prodUrl;
+    let activeStage = 'reply.resolve';
+    audit(event.event_id, 'webhook.verify', 'completed', 'החתימה, הערוץ וזהות השולח אושרו');
     try {
       const replyId = event.reply_to_whatsapp_message_id;
       if (replyId != null && replyId !== '') {
         if (typeof replyId !== 'string' || replyId.length > 255) {
+          audit(event.event_id, 'reply.resolve', 'blocked', 'מזהה ההודעה המצוטטת אינו תקין');
           return res.status(400).json({ error: 'Invalid reply identifier' });
         }
         // Persistent ownership lives in each backend DB, not in proxy instance memory.
         const candidates = config.testPhones.has(sender) ? [config.prodUrl, config.devUrl] : [config.prodUrl];
+        audit(event.event_id, 'reply.resolve', 'started', 'בדיקת בעלות השאלה בסביבות המורשות לפני ניתוב התשובה');
         const ownership = await Promise.all(candidates.map(url => ownsReply(url, raw, header)));
         const matches = candidates.filter((_url, index) => ownership[index]);
         if (matches.length !== 1) {
+          audit(event.event_id, 'reply.resolve', 'blocked', matches.length ?
+            'נמצא מיפוי בשתי סביבות; אין ניתוב אוטומטי' : 'לא נמצא מיפוי שאלה; אין העברה אוטומטית לפרוד');
           return res.status(409).json({ error: 'Unknown or ambiguous reply ownership' });
         }
         target = matches[0];
       }
+      audit(event.event_id, 'route.forward', 'started', event.reply_to_whatsapp_message_id ?
+        'התשובה מנותבת לפי הבעלות השמורה של השאלה' : devMarked && config.testPhones.has(sender) ?
+        'מספר בדיקה מורשה וכיתוב #dev זוהו; העברה לדב' :
+        devMarked ? 'הכיתוב #dev הגיע ממספר שאינו מורשה לבדיקות; העברה לפרוד' :
+        'אין כיתוב #dev; העברה לפרוד', { environment: target === config.devUrl ? 'dev' : 'prod' });
+      activeStage = 'route.forward';
       const response = await fetchImpl(target, {
         method: 'POST', redirect: 'error',
         headers: { 'content-type': 'application/json', 'x-lychee-signature': header },
@@ -113,8 +140,16 @@ function createHandler(config, fetchImpl = fetch) {
       const accepted = response.ok;
       // Do not relay backend payloads or signed media URLs to the sender/logs.
       if (response.body) await response.body.cancel();
+      audit(event.event_id, 'route.forward', accepted ? 'completed' : 'failed', accepted ?
+        'המקלט ביעד אישר את קבלת האירוע' : 'המקלט ביעד דחה את האירוע; מוחזרת שגיאה כדי לאפשר ניסיון חוזר',
+        { environment: target === config.devUrl ? 'dev' : 'prod', httpStatus: response.status, durationMs: Date.now() - started });
       return res.status(accepted ? 200 : 502).json(accepted ? { received: true } : { error: 'Destination rejected event' });
-    } catch {
+    } catch (error) {
+      audit(event.event_id, activeStage, 'failed', activeStage === 'reply.resolve' ?
+        'לא ניתן לברר את בעלות השאלה: המקלט אינו זמין או החזיר תשובה לא תקינה; אין ניחוש סביבה' :
+        'ההעברה למקלט נכשלה ברשת או בזמן ההמתנה; אין מעבר לסביבה אחרת',
+        { durationMs: Date.now() - started,
+          httpStatus: Number.isInteger(error?.httpStatus) ? error.httpStatus : undefined });
       // No production fallback: a retry must return to the selected environment.
       return res.status(502).json({ error: 'Destination unavailable' });
     }

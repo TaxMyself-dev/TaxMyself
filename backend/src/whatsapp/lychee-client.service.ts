@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { lookup } from 'dns/promises';
 import { isIP } from 'net';
+import { lycheeLog, lycheeStep, safeLycheeError } from './lychee-log';
 
 export const LYCHEE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -10,18 +11,30 @@ export const LYCHEE_MAX_BYTES = 10 * 1024 * 1024;
 export class LycheeClient {
   async download(
     messageId: string,
+    eventId?: string,
   ): Promise<{ content: Buffer; filename: string; mimeType: string }> {
     const key = process.env.LYCHEE_API_KEY;
-    if (!key) throw new Error('Lychee API key unavailable');
-    const metadata = await axios.get(
-      'https://app.lychee-ltd.com/api/wap/get_message_media',
-      {
-        params: { message_id: messageId },
-        headers: { Authorization: `Bearer ${key}` },
-        timeout: 10000,
-        maxRedirects: 0,
-        maxContentLength: 65536,
-      },
+    if (!key) {
+      lycheeLog(
+        eventId,
+        'media.config',
+        'blocked',
+        'חסר LYCHEE_API_KEY; לא ניתן לבקש קישור הורדה',
+      );
+      throw new Error('Lychee API key unavailable');
+    }
+    const metadata = await lycheeStep(
+      eventId,
+      'media.link',
+      'בקשת קישור זמני חדש לקובץ מליצ׳י',
+      () =>
+        axios.get('https://app.lychee-ltd.com/api/wap/get_message_media', {
+          params: { message_id: messageId },
+          headers: { Authorization: `Bearer ${key}` },
+          timeout: 10000,
+          maxRedirects: 0,
+          maxContentLength: 65536,
+        }),
     );
     const url = new URL(metadata.data.url);
     const allowed = (process.env.LYCHEE_MEDIA_HOSTS || '')
@@ -35,12 +48,38 @@ export class LycheeClient {
       (url.port && url.port !== '443') ||
       isIP(url.hostname) ||
       !allowed.includes(url.hostname)
-    )
+    ) {
+      lycheeLog(
+        eventId,
+        'media.url',
+        'blocked',
+        'קישור ההורדה אינו בדומיין HTTPS מורשה; בדוק LYCHEE_MEDIA_HOSTS',
+      );
       throw new Error('Untrusted media host');
-    if (!url.pathname.startsWith('/storage/v1/object/sign/wap-media-private/')) {
+    }
+    if (
+      !url.pathname.startsWith('/storage/v1/object/sign/wap-media-private/')
+    ) {
+      lycheeLog(
+        eventId,
+        'media.url',
+        'blocked',
+        'נתיב הקובץ אינו בתיקיית המדיה הפרטית שסוכמה',
+      );
       throw new Error('Untrusted media path');
     }
-    const addresses = await lookup(url.hostname, { all: true });
+    lycheeLog(
+      eventId,
+      'media.url',
+      'completed',
+      'דומיין ונתיב קישור ההורדה אושרו; הקישור עצמו אינו נרשם בלוג',
+    );
+    const addresses = await lycheeStep(
+      eventId,
+      'media.dns',
+      'בדיקת כתובת שרת הקובץ לפני ההורדה',
+      () => lookup(url.hostname, { all: true }),
+    );
     // Pin the resolved public IPv4 address for this request (prevent DNS rebinding).
     const address = addresses.find(
       (x) => x.family === 4 && publicIpv4(x.address),
@@ -49,6 +88,12 @@ export class LycheeClient {
       !address ||
       addresses.some((x) => x.family !== 4 || !publicIpv4(x.address))
     ) {
+      lycheeLog(
+        eventId,
+        'media.dns',
+        'blocked',
+        'שרת הקובץ לא עבר בדיקת כתובות IPv4 ציבוריות',
+      );
       throw new Error('Non-public media destination');
     }
     const https = await import('https');
@@ -57,18 +102,43 @@ export class LycheeClient {
         cb(null, address.address, 4)) as any,
     });
     try {
-      const result = await axios.get(url.href, {
-        responseType: 'arraybuffer',
-        timeout: 20000,
-        maxRedirects: 0,
-        maxContentLength: LYCHEE_MAX_BYTES,
-        maxBodyLength: LYCHEE_MAX_BYTES,
-        httpsAgent: agent,
-        proxy: false,
-        headers: { 'Accept-Encoding': 'identity' },
-      });
+      const result = await lycheeStep(
+        eventId,
+        'media.download',
+        'הורדת קובץ המקור מהאחסון הפרטי ללא הפניות',
+        () =>
+          axios.get(url.href, {
+            responseType: 'arraybuffer',
+            timeout: 20000,
+            maxRedirects: 0,
+            maxContentLength: LYCHEE_MAX_BYTES,
+            maxBodyLength: LYCHEE_MAX_BYTES,
+            httpsAgent: agent,
+            proxy: false,
+            headers: { 'Accept-Encoding': 'identity' },
+          }),
+      );
       const content = Buffer.from(result.data);
-      const mimeType = detectLycheeMime(content);
+      let mimeType: string;
+      try {
+        mimeType = detectLycheeMime(content);
+      } catch (error) {
+        lycheeLog(
+          eventId,
+          'media.validate',
+          'blocked',
+          safeLycheeError(error).reason,
+          { bytes: content.length },
+        );
+        throw error;
+      }
+      lycheeLog(
+        eventId,
+        'media.validate',
+        'completed',
+        'גודל הקובץ וחתימת סוג התוכן נבדקו ואושרו',
+        { bytes: content.length },
+      );
       const filename = String(
         metadata.data.file_name ||
           `document.${

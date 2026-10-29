@@ -140,3 +140,18 @@ test('disabled feature registers no route', () => {
   registerLycheeWebhook({ post() { assert.fail('unexpected route'); } }, {}, {});
   assert.equal(configuration({}), null);
 });
+
+test('proxy audit identifies route without revealing text, phones, signatures or body', async () => {
+  const lines = [];
+  const originalLog = console.info;
+  console.info = value => lines.push(value);
+  try {
+    await invoke({ eventOverrides: { text: '#dev PRIVATE_CAPTION', message_id: 'PRIVATE_MESSAGE_ID' } });
+    await invoke({ signature: 'PRIVATE_SIGNATURE' });
+  } finally { console.info = originalLog; }
+  const joined = lines.join('\n');
+  for (const secret of ['PRIVATE_CAPTION', 'PRIVATE_MESSAGE_ID', 'PRIVATE_SIGNATURE', '972501234567']) {
+    assert.ok(!joined.includes(secret));
+  }
+  assert.ok(lines.map(x => JSON.parse(x)).some(x => x.event_id === 'evt-1' && x.environment === 'dev'));
+});

@@ -94,6 +94,32 @@ no automatic deletion or retention job was introduced without a product decision
 
 ## Verification and limits
 
+### Structured operational logs
+
+New backend `[Lychee]` records are JSON with `event_id`, `stage`, `outcome`, a
+human-readable Hebrew `message`, and optional duration, attempt count, byte count,
+HTTP status or safe transport/database code. Progress uses DEBUG (already enabled
+by main.ts); blocked/failed outcomes use WARN. Empty worker polls are not logged.
+Filter by event_id to follow webhook.receive -> queue.save/claim -> user.lookup
+-> business.lookup -> media.link/url/dns/download/validate -> drive.import/result
+-> queue.complete. Multi-business waits and text replies are explicitly described.
+Duplicate delivery is distinguished from a newly queued event. Retry scheduling
+states 60 seconds; the fifth failed attempt explicitly reports FAILED.
+
+Remote HTTP 500 is explained as a remote-server error at the actual failing
+stage. URL/bucket checks, missing API key, missing Drive folder, database table
+absence, unsupported content and quota-related import failures have readable
+messages. Unknown errors are described without dumping their original text.
+No new log includes full phone numbers, names, filenames, message text, raw
+payload, authorization headers, signing secrets, signed URLs or file bytes.
+These controls apply to the new Lychee logs; existing shared importer/Drive
+service logs are separate and were not rewritten in this task.
+
+Proxy JSON logs identify validation, destination environment, reply ownership,
+downstream status and network failure. They appear in cloud logs only after an
+authorized proxy deployment. Local backend logs appear after the normal restart
+or watch recompilation. Nothing is deployed automatically.
+
 ### Development receiver prepared 2026-10-25
 
 Normal startup is `npm run start:watch` from this worktree's backend directory.

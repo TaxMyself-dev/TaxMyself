@@ -16,7 +16,7 @@ export interface LycheeJob {
 export class LycheeEventStore {
   constructor(private readonly db: DataSource) {}
 
-  async enqueue(event: LycheeEvent): Promise<void> {
+  async enqueue(event: LycheeEvent): Promise<'SAVED' | 'DUPLICATE'> {
     const payload = JSON.stringify(event);
     const hash = createHash('sha256').update(payload).digest('hex');
     try {
@@ -33,6 +33,7 @@ export class LycheeEventStore {
           hash,
         ],
       );
+      return 'SAVED';
     } catch (e: any) {
       if (e?.code !== 'ER_DUP_ENTRY') throw e;
       const rows = await this.db.query(
@@ -41,6 +42,7 @@ export class LycheeEventStore {
       );
       if (rows[0]?.payload_hash !== hash)
         throw new ConflictException('Event identifier reused');
+      return 'DUPLICATE';
     }
   }
 
