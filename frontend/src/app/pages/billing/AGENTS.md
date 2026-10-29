@@ -11,6 +11,13 @@ Standalone pricing/plans page where a user views available subscription plans an
 - `plan-card.component.ts` / `.html` — shared plan features, price, badge and CTA; uses the existing pricing stylesheet on both pricing and enrollment pages. Pricing remains net of VAT; enrollment shows its approved VAT-inclusive quote.
 
 ## Main flows
+- Enrollment/connection failures stay on `/billing/open-banking` with safe Hebrew
+  stage guidance (enrollment details, preparation, identity options, or consent
+  link) and an allowlisted HTTP status only. Provider bodies, URLs and tokens
+  are never rendered. Initial-detail retry resumes automatic connection for
+  ACTIVE/complimentary owners; identity-link errors keep the spouse choice open
+  for retry. Explicit cancellation retains return-to-origin behavior. Billing
+  terms, card confirmation and server eligibility remain unchanged.
 - KT-053: /billing/open-banking is an authenticated enrollment page displaying
   only server-eligible OPEN_BANKING plans, original trial end and the quoted
   first monthly price including VAT. Shared PlanCardComponent renders the same
@@ -82,3 +89,17 @@ recovery, billing-state and admin-subscriptions spec includes.
 - Backend `billing` module (`GET billing/plans`, `POST billing/checkout` — Cardcom integration).
 - Routed under `/billing/plans` (guarded by `AuthGuard`) in `app-routing.module.ts`; `/billing` redirects to `plans`.
 - Uses `GenericService` for toast notifications on error.
+
+## Optional spouse Feezback identity (2026-10-15)
+
+The existing primary identity remains Firebase UID + _sub. Only explicit checkbox selection creates a consent link for UID + _sub_spouse. The final enrollment redirect reads server connection-options and offers the unchecked choice if hasOpenBanking OR hasSpouseFeezbackIdentity. It also covers direct page navigation and saved-card resumes.
+
+Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Secondary source/normalized transaction identifiers have a deterministic _spouse suffix; retries resolve the corresponding SUB from that suffix. Primary identifiers are unchanged. No additional mapping table is used.
+
+Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.
+
+Active and complimentary owners automatically enter the existing Feezback connection flow on enrollment-page initialization, without an intermediate continue CTA. The spouse choice still applies when offered by the server; connection cancellation (including Escape), enrollment/link failures, and provider failure/TTL-expiry callbacks return to the originating internal URL. OpenBankingNavigationService remembers that URL per tab across provider/card redirects; successful provider return clears it. The external redirect replaces the enrollment entry in browser history.
+
+Referral owners see every active referral plan on the plans page, including the
+basic downgrade and banking upgrade, independent of whether a bank is connected.
+The server keeps public and referral catalogs separate and honors the selected plan.

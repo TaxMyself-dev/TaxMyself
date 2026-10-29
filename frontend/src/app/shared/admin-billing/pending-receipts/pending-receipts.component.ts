@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, DestroyRef, inject, OnInit, computed, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -8,7 +9,7 @@ import { GenericTableComponent } from 'src/app/components/generic-table/generic-
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize } from 'src/app/components/button/button.enum';
 import { AdminBillingService, PendingReceiptFailure } from 'src/app/services/admin-billing.service';
-import { IColumnDataTable, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable } from 'src/app/shared/interface';
 import { FormTypes } from 'src/app/shared/enums';
 
 @Component({
@@ -44,12 +45,11 @@ export class PendingReceiptsComponent implements OnInit {
     { name: 'createdAt',   value: 'תאריך חיוב',   type: FormTypes.DATE },
   ];
 
-  readonly rowActions: ITableRowAction[] = [
+  readonly rowActions: IGenericTableAction[] = [
     {
       name: 'generate',
       icon: 'pi pi-file-check',
       title: 'הפק קבלה',
-      alwaysShow: true,
       isLoading: () => this.generatingEventId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmGenerate(row),
     },

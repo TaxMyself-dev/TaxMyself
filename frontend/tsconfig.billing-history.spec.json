@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "types": ["jasmine", "node"] },
+  "include": ["src/app/pages/settings/my-subscription-tab/*.spec.ts", "src/**/*.d.ts"]
+}

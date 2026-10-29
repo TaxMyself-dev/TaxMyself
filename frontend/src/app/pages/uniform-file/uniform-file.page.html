@@ -34,60 +34,52 @@
         </p>
       </div>
 
-      <section class="shaam-card" dir="rtl" aria-labelledby="shaam-card-title">
+      <section class="shaam-card" dir="rtl">
         <div class="shaam-card__header">
           <div>
-            <h3 id="shaam-card-title">שליחה מקוונת לשע״מ</h3>
-            <p>הורדת ה־ZIP הושלמה. השליחה לשע״מ היא פעולה נפרדת ומפורשת.</p>
+            <h3>שליחה מאובטחת לרשות המסים</h3>
+            <p>הורדת ה-ZIP נשארת זמינה גם ללא שליחה מקוונת.</p>
           </div>
-          @if (shaamSubmission) {
-            <span class="shaam-state" [class.approved]="shaamSubmission.state === 'APPROVED'" [class.rejected]="shaamSubmission.state === 'REJECTED'">
-              {{ shaamStateLabel(shaamSubmission.state) }}
-            </span>
+          <span class="connection-status" [attr.data-status]="uniformConnectionStatus">
+            {{ connectionStatusLabel() }}
+          </span>
+        </div>
+
+        <div class="shaam-actions">
+          @if (uniformConnectionStatus !== 'connected') {
+            <button type="button" class="shaam-button secondary" (click)="connectUniformFile()">
+              {{ uniformConnectionStatus === 'reauth-required' ? 'חיבור מחדש' : 'חיבור Daily Token' }}
+            </button>
+          }
+          <button
+            type="button"
+            class="shaam-button primary"
+            [disabled]="uniformConnectionStatus !== 'connected' || isSubmittingToShaam"
+            (click)="submitUniformFileToShaam()">
+            {{ isSubmittingToShaam ? 'שולח...' : 'שליחת INI ו-BKM' }}
+          </button>
+          @if (canPollUniformFile()) {
+            <button
+              type="button"
+              class="shaam-button secondary"
+              [disabled]="isPollingShaam"
+              (click)="pollUniformFileStatus()">
+              {{ isPollingShaam ? 'בודק...' : 'בדיקת סטטוס' }}
+            </button>
           }
         </div>
 
-        @if (!shaamSubmission) {
-          <ion-button type="button" (click)="prepareShaamSubmission()" [disabled]="shaamBusy">
-            הכנת הקבצים לשליחה
-          </ion-button>
-        } @else {
-          <div class="shaam-details">
-            <span>מזהה פנימי: {{ shaamSubmission.id }}</span>
-            <span>INI: {{ shaamSubmission.iniStatus || 'טרם התקבל סטטוס' }}</span>
-            <span>BKM: {{ shaamSubmission.bkmStatus || 'טרם התקבל סטטוס' }}</span>
-          </div>
-
-          @if (shaamErrorLabel(); as errorLabel) {
-            <p class="shaam-error">{{ errorLabel }}</p>
-          }
-
-          <div class="shaam-actions">
-            @if (!shaamConnected && shaamSubmission.state !== 'APPROVED' && shaamSubmission.state !== 'REJECTED') {
-              <ion-button type="button" (click)="connectShaam()" [disabled]="shaamBusy">
-                התחברות לשע״מ
-              </ion-button>
-              <ion-button type="button" fill="outline" (click)="checkShaamConnection()" [disabled]="shaamBusy">
-                בדיקת חיבור
-              </ion-button>
-            }
-
-            @if (shaamConnected && (shaamSubmission.state === 'GENERATED' || shaamSubmission.state === 'AUTH_REQUIRED' || shaamSubmission.state === 'RETRYABLE_FAILURE')) {
-              <ion-button type="button" color="success" (click)="transferShaamSubmission()" [disabled]="shaamBusy">
-                שליחה לשע״מ
-              </ion-button>
-            }
-
-            @if (shaamConnected && canPollShaam()) {
-              <ion-button type="button" fill="outline" (click)="pollShaamSubmission()" [disabled]="shaamBusy">
-                עדכון סטטוס משע״מ
-              </ion-button>
+        @if (uniformSubmission) {
+          <div class="submission-status" [attr.data-state]="uniformSubmission.state">
+            <strong>{{ submissionStateLabel(uniformSubmission.state) }}</strong>
+            <div class="file-statuses">
+              <span>INI: {{ fileStatusLabel(uniformSubmission.iniStatus) }}</span>
+              <span>BKM: {{ fileStatusLabel(uniformSubmission.bkmStatus) }}</span>
+            </div>
+            @if (uniformSubmission.errorMessage) {
+              <p class="submission-error">{{ uniformSubmission.errorMessage }}</p>
             }
           </div>
-
-          @if (shaamSubmission.state === 'PROCESSING') {
-            <p class="shaam-note">הקבצים התקבלו וממתינים לעיבוד. מצב זה עדיין אינו אישור.</p>
-          }
         }
       </section>
 

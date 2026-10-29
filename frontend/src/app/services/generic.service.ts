@@ -125,6 +125,11 @@ export class GenericService {
 
 
   /** Save to both the signal and this tab's identity-scoped cache. */
+  updateBusinessLogoCache(id: number | undefined, logoPath: string | null): void {
+    if (id == null) return;
+    this.saveBusinesses(this.businesses().map(business => business.id === id ? { ...business, logoPath } : business));
+  }
+
   private saveBusinesses(data: Business[]) {
     this._businesses.set(data);
     this.identityStorage.setBusinesses(data);
@@ -149,6 +154,7 @@ export class GenericService {
   /** עדכון פרטי עסק (תמיכה בעדכון לפי id לעסק חדש או לפי businessNumber) */
   async updateBusiness(payload: {
     id?: number;
+    proprietorRole?: string;
     businessNumber?: string;
     advanceTaxPercent?: number;
     businessName?: string;
@@ -170,6 +176,7 @@ export class GenericService {
 
   /** יצירת עסק חדש למשתמש המחובר (עם פרטים אופציונליים מהמודל) */
   async createBusiness(payload?: {
+    proprietorRole: string;
     businessName?: string;
     businessNumber?: string;
     businessAddress?: string;

@@ -21,7 +21,7 @@
         [dataTable]="myExpenses | async"
         [placeholderSearch]="'חיפוש חופשי בטבלה'"
         [searchColumns]="expenseSearchColumns"
-        [fileActions]="fileActions()"
+        [actions]="fileActions()"
         [selectionModeCheckBox]="null"
         [mobileCardConfig]="mobileCardConfig"
         [tableHeight]="'500px'">
@@ -37,7 +37,7 @@
           [dataTable]="myAnnualExpenses | async"
           [placeholderSearch]="'חיפוש חופשי בטבלה'"
           [searchColumns]="expenseSearchColumns"
-          [fileActions]="fileActions()"
+          [actions]="fileActions()"
           [selectionModeCheckBox]="null"
           [mobileCardConfig]="mobileCardConfig"
           [tableHeight]="'400px'">

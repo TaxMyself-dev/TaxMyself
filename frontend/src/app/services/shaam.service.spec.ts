@@ -21,41 +21,36 @@ describe('ShaamService uniform-file flow', () => {
 
   afterEach(() => http.verify());
 
-  it('prepares a business-scoped submission without sending file bytes', () => {
-    service.prepareUniformFileSubmission(
+  it('creates a business-scoped submission without sending file bytes', () => {
+    service.createUniformFileSubmission(
       '222222226',
       '2026-01-01',
       '2026-12-31',
     ).subscribe();
 
-    const request = http.expectOne(`${environment.apiUrl}shaam/uniform-file/submissions`);
+    const request = http.expectOne(
+      `${environment.apiUrl}shaam/uniform-file/submissions?businessNumber=222222226`,
+    );
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({
-      businessNumber: '222222226',
       startDate: '2026-01-01',
       endDate: '2026-12-31',
     });
     request.flush({});
   });
 
-  it('transfers and polls only by internal submission id and business', () => {
-    service.transferUniformFileSubmission('222222226', 91).subscribe();
-    const transfer = http.expectOne(
-      `${environment.apiUrl}shaam/uniform-file/submissions/91/transfer?businessNumber=222222226`,
-    );
-    expect(transfer.request.method).toBe('POST');
-    expect(transfer.request.body).toEqual({});
-    transfer.flush({});
-
+  it('polls only by internal submission id and business', () => {
     service.pollUniformFileSubmission('222222226', 91).subscribe();
+
     const poll = http.expectOne(
       `${environment.apiUrl}shaam/uniform-file/submissions/91/poll?businessNumber=222222226`,
     );
     expect(poll.request.method).toBe('POST');
+    expect(poll.request.body).toEqual({});
     poll.flush({});
   });
 
-  it('reloads a prepared submission by internal id and business', () => {
+  it('reloads a submission by internal id and business', () => {
     service.getUniformFileSubmission('222222226', 91).subscribe();
 
     const request = http.expectOne(

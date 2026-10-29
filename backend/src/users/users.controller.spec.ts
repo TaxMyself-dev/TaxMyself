@@ -1,82 +1,67 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { HttpException, NotFoundException } from '@nestjs/common';
 import { UsersController } from './users.controller';
-import { UsersService } from './users.service';
-import { AuthService } from './auth.service';
-import { User } from './user.entity';
-import { NotFoundException } from '@nestjs/common';
 
 describe('UsersController', () => {
-  let controller: UsersController;
-  let fakeUsersService: Partial<UsersService>;
-  let fakeAuthService: Partial<AuthService>;
-
-  beforeEach(async () => {
-    fakeUsersService = {
-      findOne: (id: number) => {
-        return Promise.resolve({
-          id,
-          email: 'asdf@asdf.com',
-          password: 'asdf',
-        } as User);
-      },
-      find: (email: string) => {
-        return Promise.resolve([{ id: 1, email, password: 'asdf' } as User]);
-      },
-      // remove: () => {},
-      // update: () => {},
+  function subject(overrides: Record<string, unknown> = {}) {
+    const userService = {
+      signup: jest.fn().mockResolvedValue(undefined),
+      signin: jest.fn().mockResolvedValue({ firebaseId: 'firebase-1' }),
+      findFireUser: jest.fn().mockResolvedValue({ firebaseId: 'firebase-1' }),
+      isAdmin: jest.fn().mockResolvedValue(true),
+      getAllUsers: jest.fn().mockResolvedValue([{ firebaseId: 'firebase-1' }]),
+      ...overrides,
     };
-    fakeAuthService = {
-      // signup: () => {},
-      signin: (email: string, password: string) => {
-        return Promise.resolve({ id: 1, email, password } as User);
-      },
-    };
-
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [UsersController],
-      providers: [
-        {
-          provide: UsersService,
-          useValue: fakeUsersService,
-        },
-        {
-          provide: AuthService,
-          useValue: fakeAuthService,
-        },
-      ],
-    }).compile();
-
-    controller = module.get<UsersController>(UsersController);
-  });
+    const controller = new UsersController(
+      userService as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    return { controller, userService };
+  }
 
   it('should be defined', () => {
-    expect(controller).toBeDefined();
+    expect(subject().controller).toBeDefined();
   });
 
-  it('findAllUsers returns a list of users with the given email', async () => {
-    const users = await controller.findAllUsers('asdf@asdf.com');
-    expect(users.length).toEqual(1);
-    expect(users[0].email).toEqual('asdf@asdf.com');
+  it('delegates signup and returns the accepted DTO', async () => {
+    const { controller, userService } = subject();
+    const dto = { email: 'new-user@example.com' } as any;
+
+    await expect(controller.createUser(dto)).resolves.toBe(dto);
+    expect(userService.signup).toHaveBeenCalledWith(dto);
   });
 
-  it('findUser returns a single user with the given id', async () => {
-    const user = await controller.findUser('1');
-    expect(user).toBeDefined();
+  it('signs in the authenticated Firebase identity', async () => {
+    const { controller, userService } = subject();
+    const request = {
+      user: { firebaseId: 'firebase-1' },
+      query: {},
+    } as any;
+
+    await expect(controller.signin(request)).resolves.toEqual({ firebaseId: 'firebase-1' });
+    expect(userService.signin).toHaveBeenCalledWith('firebase-1', false);
   });
 
-  it('findUser throws an error if user with given id is not found', async () => {
-    fakeUsersService.findOne = () => null;
-    await expect(controller.findUser('1')).rejects.toThrow(NotFoundException);
+  it('returns the authenticated user and rejects a missing one', async () => {
+    const found = subject();
+    await expect(found.controller.getUser({ user: { firebaseId: 'firebase-1' } } as any))
+      .resolves.toEqual({ firebaseId: 'firebase-1' });
+
+    const missing = subject({ findFireUser: jest.fn().mockResolvedValue(null) });
+    await expect(missing.controller.getUser({ user: { firebaseId: 'missing' } } as any))
+      .rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('signin updates session object and returns user', async () => {
-    const session = { userId: -10 };
-    const user = await controller.signin(
-      { email: 'asdf@asdf.com', password: 'asdf' },
-      session,
-    );
+  it('allows only a persisted admin to list users', async () => {
+    const allowed = subject();
+    await expect(allowed.controller.getAllUsers({ user: { firebaseId: 'admin-1' } } as any))
+      .resolves.toEqual([{ firebaseId: 'firebase-1' }]);
+    expect(allowed.userService.isAdmin).toHaveBeenCalledWith('admin-1');
 
-    expect(user.id).toEqual(1);
-    expect(session.userId).toEqual(1);
+    const denied = subject({ isAdmin: jest.fn().mockResolvedValue(false) });
+    await expect(denied.controller.getAllUsers({ user: { firebaseId: 'user-1' } } as any))
+      .rejects.toBeInstanceOf(HttpException);
   });
 });

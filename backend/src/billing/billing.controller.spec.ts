@@ -17,7 +17,6 @@ describe('BillingController — owner-mutation actor context', () => {
   let billingService: {
     createCheckout: jest.Mock;
     changePaymentMethod: jest.Mock;
-    upgradeToReferralOpenBankingPlan: jest.Mock;
     cancelScheduledPlanChange: jest.Mock;
     cancelSubscription: jest.Mock;
     withdrawSubscriptionCancellation: jest.Mock;
@@ -29,9 +28,6 @@ describe('BillingController — owner-mutation actor context', () => {
       changePaymentMethod: jest
         .fn()
         .mockResolvedValue({ paymentUrl: 'url', lowProfileId: 'lp' }),
-      upgradeToReferralOpenBankingPlan: jest
-        .fn()
-        .mockResolvedValue({ planId: 1 }),
       cancelScheduledPlanChange: jest.fn(),
       cancelSubscription: jest.fn(),
       withdrawSubscriptionCancellation: jest.fn(),
@@ -142,23 +138,7 @@ describe('BillingController — owner-mutation actor context', () => {
     });
   });
 
-  describe('upgradeToOpenBanking', () => {
-    it('forwards the real actor context', async () => {
-      const request = {
-        user: { firebaseId: 'client-1', actorFirebaseId: 'admin-1' },
-        isAdminImpersonation: true,
-      } as any;
-
-      await controller.upgradeToOpenBanking(request);
-
-      expect(
-        billingService.upgradeToReferralOpenBankingPlan,
-      ).toHaveBeenCalledWith({
-        actorFirebaseId: 'admin-1',
-        subjectFirebaseId: 'client-1',
-        isDelegatedAccess: false,
-        isAdminImpersonation: true,
-      });
-    });
+  it('does not expose the legacy direct referral upgrade endpoint', () => {
+    expect((BillingController.prototype as any).upgradeToOpenBanking).toBeUndefined();
   });
 });

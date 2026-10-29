@@ -1,9 +1,10 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, computed, signal, inject } from '@angular/core';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ArchiveDocumentClassification, DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData, ISelectItem } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData, ISelectItem } from 'src/app/shared/interface';
 import { BusinessStatus, BusinessType, FormTypes, ICellRenderer, VATReportingType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.component';
@@ -92,7 +93,7 @@ export class ArchivedDocumentsPage implements OnInit {
   rawItems = signal<ArchivedItem[]>([]);
   selectedStatus = signal<string>('ACTIVE');
   selectedDocumentType = signal<string>('');
-  fileActions = signal<ITableRowAction[]>([]);
+  fileActions = signal<IGenericTableAction[]>([]);
   approvalDialogItem = signal<ArchivedItem | null>(null);
   classificationDialogItem = signal<ArchivedItem | null>(null);
   rejectionReasonEditorVisible = signal(false);
@@ -314,9 +315,9 @@ export class ArchivedDocumentsPage implements OnInit {
     this.fileActions.set([
       {
         name: 'approve-expense',
+        desktopDisplay: 'icon',
         icon: 'pi pi-check-circle',
         title: 'אשר כהוצאה',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           ['DOCUMENT', 'EXPENSE', 'TRANSACTION'].includes((row as any).itemType)
           && !!(row as any).canResolve
@@ -325,9 +326,9 @@ export class ArchivedDocumentsPage implements OnInit {
       },
       {
         name: 'edit-pending-expense',
+        desktopDisplay: 'icon',
         icon: 'pi pi-pencil',
         title: 'ערוך הוצאה לפני אישור',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'EXPENSE'
           && (row as any).status === 'PENDING'
@@ -336,9 +337,9 @@ export class ArchivedDocumentsPage implements OnInit {
       },
       {
         name: 'reclassify-document',
+        desktopDisplay: 'icon',
         icon: 'pi pi-tag',
         title: 'שנה סיווג',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT' && !!(row as any).canReclassify,
         action: (_event: any, row: IRowDataTable) =>
@@ -346,9 +347,9 @@ export class ArchivedDocumentsPage implements OnInit {
       },
       {
         name: 'preview',
+        desktopDisplay: 'icon',
         icon: 'pi pi-eye',
         title: 'הצג קובץ',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) => !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewClicked(row);
@@ -356,9 +357,9 @@ export class ArchivedDocumentsPage implements OnInit {
       },
       {
         name: 'delete',
+        desktopDisplay: 'icon',
         icon: 'pi pi-trash',
         title: 'מחק מסמך',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status !== 'DELETED'
@@ -371,9 +372,9 @@ export class ArchivedDocumentsPage implements OnInit {
       },
       {
         name: 'restore',
+        desktopDisplay: 'icon',
         icon: 'pi pi-refresh',
         title: 'שחזר מסמך',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) =>
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status === 'DELETED'

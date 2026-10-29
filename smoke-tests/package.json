@@ -1,0 +1,17 @@
+{
+  "name": "keepintax-production-smoke-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.unit.test.js",
+    "smoke:readiness": "playwright test tests/production-readiness.spec.js",
+    "smoke:readonly": "playwright test tests/production-readonly.spec.js",
+    "smoke:signup": "node run-signup-smoke.js"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,9 +1,10 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { EMPTY } from 'rxjs';
 import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   ExpenseFormColumns,
@@ -61,7 +62,7 @@ export class ExpensesPage implements OnInit {
   isLoadingDataTable = signal<boolean>(false);
   myExpenses: any;          // P&L (regular) expenses — bound to the main table
   myAnnualExpenses: any;    // annual-report-only expenses — separate section
-  fileActions = signal<ITableRowAction[]>([]);
+  fileActions = signal<IGenericTableAction[]>([]);
 
   // ===========================
   // Table config
@@ -365,9 +366,9 @@ export class ExpensesPage implements OnInit {
     this.fileActions.set([
       {
         name: 'edit',
+        desktopDisplay: 'icon',
         icon: 'pi pi-pencil',
         title: 'ערוך',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) => !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onEditExpense(row);
@@ -375,9 +376,9 @@ export class ExpensesPage implements OnInit {
       },
       {
         name: 'delete',
+        desktopDisplay: 'icon',
         icon: 'pi pi-trash',
         title: 'מחק',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) => !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteExpense(row);
@@ -385,9 +386,9 @@ export class ExpensesPage implements OnInit {
       },
       {
         name: 'preview',
+        desktopDisplay: 'icon',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) => this.hasFile(row),
         action: (event: any, row: IRowDataTable) => {
           this.onPreviewFile(row);
@@ -398,9 +399,9 @@ export class ExpensesPage implements OnInit {
         // instead of the (useless) preview icon. Opens the edit dialog where
         // the user can attach the missing file.
         name: 'addFile',
+        desktopDisplay: 'icon',
         icon: 'pi pi-upload',
         title: 'הוסף קובץ',
-        alwaysShow: true,
         showWhen: (row: IRowDataTable) => !this.hasFile(row) && !!(row as any).canManageExpenses,
         action: (event: any, row: IRowDataTable) => {
           this.onAddFile(row);

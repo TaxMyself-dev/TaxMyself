@@ -161,6 +161,34 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
     expect(rows[1].querySelector('.billing-exception-flag')).toBeNull();
   });
 
+  it('filters the table by active, trial, and expired-trial status', async () => {
+    await render([
+      subscription(1, { status: 'ACTIVE' }),
+      subscription(2, { status: 'TRIAL' }),
+      subscription(3, { status: 'TRIAL_EXPIRED' }),
+      subscription(4, { status: 'CANCELED' }),
+      subscription(5, { status: 'TRIAL_EXPIRED', billingAccessMode: 'COMPLIMENTARY_FULL' }),
+    ]);
+
+    expect(component.tableRows().map(row => row['subscriptionId'])).toEqual([1, 2, 3, 4, 5]);
+
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('[aria-label="סינון מנויים לפי סטטוס"]');
+    select.value = 'TRIAL';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(component.tableRows().map(row => row['subscriptionId'])).toEqual([2]);
+
+    select.value = 'TRIAL_EXPIRED';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(component.tableRows().map(row => row['subscriptionId'])).toEqual([3]);
+
+    select.value = 'ACTIVE';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(component.tableRows().map(row => row['subscriptionId'])).toEqual([1]);
+  });
+
   it('lazily loads and renders UNKNOWN / MANUAL_REVIEW details in Hebrew, read-only', async () => {
     await render(
       [subscription(7)],

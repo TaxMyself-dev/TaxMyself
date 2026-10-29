@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -15,7 +16,6 @@ import {
   IColumnDataTable,
   IMobileCardConfig,
   IRowDataTable,
-  ITableRowAction,
 } from 'src/app/shared/interface';
 
 /** Hebrew labels for each subscription status. */
@@ -54,7 +54,7 @@ export class MySubscriptionTabComponent implements OnInit {
 
   readonly paymentHistory = signal<PaymentHistoryRow[]>([]);
   readonly historyLoading = signal(false);
-  /** eventId whose receipt download is in flight (disables that row's button). */
+  /** Event whose authenticated document read is in flight (preview or download). */
   readonly downloadingEventId = signal<number | null>(null);
   /** True while the change-payment-method request is in flight (before redirect). */
   readonly changingPaymentMethod = signal(false);
@@ -232,7 +232,16 @@ export class MySubscriptionTabComponent implements OnInit {
     highlightedValueFormat: 'plain',
   };
 
-  readonly historyRowActions: ITableRowAction[] = [
+  readonly historyRowActions: IGenericTableAction[] = [
+    {
+      name: 'viewReceipt',
+      icon: 'pi pi-eye',
+      title: 'צפייה במסמך',
+      isLoading: () => this.downloadingEventId() !== null,
+      action: (_, row) => {
+        if (row) this.viewReceipt(Number(row['eventId']));
+      },
+    },
     {
       // Always shown (no showWhen). If the receipt is unavailable the backend
       // returns 404 and we surface a friendly toast — hiding the button would
@@ -290,6 +299,28 @@ export class MySubscriptionTabComponent implements OnInit {
     if (this.changingPaymentMethod() || !this.canChangePaymentMethod()) return;
 
     this.changePmDialogOpen.set(true);
+  }
+
+  private viewReceipt(eventId: number): void {
+    if (this.downloadingEventId() !== null) return;
+    // Reserve the tab during the click, before the authenticated asynchronous fetch.
+    const preview = window.open('about:blank', '_blank');
+    if (!preview) {
+      this.messageService.add({ severity: 'info', summary: 'צפייה במסמך',
+        detail: 'יש לאפשר פתיחת חלונות לצפייה במסמך, או לבחור הורדה.', life: 4000, key: 'br' });
+      return;
+    }
+    preview.opener = null;
+    this.downloadingEventId.set(eventId);
+    this.billingStateService.getReceiptBlob(eventId)
+      .then(blob => this.filesService.previewFile3(blob, preview))
+      .catch(err => {
+        preview.close();
+        this.messageService.add({ severity: 'error', summary: 'שגיאה',
+          detail: err?.status === 404 ? 'לא קיים מסמך עבור תשלום זה'
+            : 'לא ניתן להציג את המסמך. נסה שוב מאוחר יותר.', life: 4000, key: 'br' });
+      })
+      .finally(() => this.downloadingEventId.set(null));
   }
 
   private downloadReceipt(eventId: number): void {

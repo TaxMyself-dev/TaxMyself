@@ -1,5 +1,47 @@
 ## Purpose
+System subscription refunds use createBillingSystemCredit: one credit invoice
+per refund attempt via existing UNIQUE documents.billing_attempt_id. It links
+the original company TAX_INVOICE_RECEIPT and freezes its recipient/VAT rate;
+amounts come from the validated refund allocation. Numbering, document and journal
+are created in the existing createDoc transaction; signed PDFs/email follow via
+the billing finalizer. Retries reuse the document, never create another journal.
+
 Handles the full lifecycle of official documents the user issues (invoices, receipts, credit notes — Israeli tax-authority formats), plus the inbound OCR pipeline that extracts structured data from documents received from suppliers via Google Drive.
+
+## SHAAM allocation finalization
+
+`finalizeAllocation` rejects finalization without a stored allocation while
+the latest attempt is `PROCESSING` or `UNKNOWN_OUTCOME`. With a stored
+allocation, retries perform local work only and never call SHAAM again.
+
+## PDF rendering and signing
+
+- `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler fonts via Chromium. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.
+- Local development and the standalone PDF service reuse one Chromium process with a fresh BrowserContext per render; contexts close on success/error. Disconnected browsers relaunch on the next request, without retrying a failed issuance. Service failures/timeouts retire the process; failed local context cleanup also retires it. Browser cleanup is bounded and module destruction/service shutdown closes the cached browser. Recycle after 100 renders (local recycling waits until no other render is active). Existing concurrency limits remain unchanged. HTML waits for load followed by explicit font readiness and image decoding; failed assets prevent printing. The standalone deadline and bounded cleanup still apply.
+- Development-only `pdf/pdf-diagnostics.ts` correlates full create/preview HTTP requests via AsyncLocalStorage and `X-Pdf-Diagnostic-Id`. It records DTO prep, sequential creation stages, original/copy rendering/signing and transport spans, linking HTTP render IDs to service logs. Optional `PDF_DIAGNOSTICS_FILE` captures sanitized JSONL only in development. Parent and nested spans overlap; do not sum both. Never include document/user data or credentials in diagnostic events. Signing failures expose only a development-only HTTP status/allowlisted network code or invalid-envelope category; response bodies and tokens remain hidden. Failed creation timing separates the interrupted stage from rollback/release.
+- Manual `createDoc` prepares one request-scoped PDF model/logo for original and copy. It renders the original, overlaps original signing with copy rendering, then signs the copy (signing calls remain sequential). Both signed PDFs are uploaded concurrently; wait for both upload outcomes and attempt cleanup of successful siblings before propagating failure/rolling back. DB numbering/journal/commit, preview signing policy and existing issued files are unchanged. Pending-allocation finalization and system billing retain their existing orchestration; the local/shared renderer readiness change applies to all render callers.
+- Numeric/date columns and headings remain on one line. Automatic table layout allocates numeric columns their intrinsic width, including grouped digits and cents; descriptions/payment details may wrap. Summary labels and amounts do not wrap or shrink; the summary block can expand rightward. Browser layout checks cover large and negative amounts without changing the strings or accounting calculations.
+- `PDF_SERVICE_URL` routes previews and issuance rendering to the private standalone `pdf-service` over synchronous IAM-authenticated HTTP. Cloud Run fails closed if it is missing; never fall back to launching a browser in the backend after a remote failure. Local development without it retains the installed-browser renderer. The backend Dockerfile/Node 18 environment is unchanged. See `pdf-service/README.md` for setup, verification and future queue boundaries.
+- Previews are unsigned; issuance always calls FillFaster in the backend. Never return an unsigned PDF on signing failure. `FILLFASTER_API_TOKEN` remains backend-only. Signing uses the verified clean template `3IfhJjgmAp`, fixed in code. Signing envelope presence is checked in code; certificate trust is separate.
+- Issuer details and `Business.logoPath` are resolved from the current business when generating a PDF, including pending-allocation finalization. No issuer snapshot column is required. Already-issued PDFs are served from their stored paths; changing a logo does not rewrite them. System billing receipts retain the explicitly supplied company identity. Only the two image-path columns require schema preparation.
+- Renderer reuses existing sums/item/payment transforms and does not alter accounting calculations. Payment details column appears only when populated. Both `docSubtitle` (linked-document text) and `docDescription` (free note) are rendered; empty allocation/note fields are omitted.
+- Standalone `scripts/render-document-samples.ts` produces visual fixtures without starting Nest, a database, or a provider session. See `docs/features/document-pdf-redesign.md` for configuration and rollout evidence.
+
+## Discount behavior
+
+- PDFs show before-discount and discount summary rows for every business and
+  supported document type when a positive discount exists. Item tables expose
+  the net line discount and display the net line total after discount. Exempt
+  summaries read the persisted `sumBefDisBefVat` field rather than reconstructed
+  `sumWithoutVat`.
+- Mixed-VAT PDFs derive the after-discount untaxed amount from document lines
+  for both fresh string VAT options and persisted numeric enum values. The
+  taxable row excludes that amount, and credit invoices include the untaxed row,
+  so displayed components reconcile with the final total.
+- Frontend document aggregation uses each line's before-VAT discount. For
+  VAT-inclusive input, the gross discount entered by the user is converted once
+  at line level and the net value is used consistently by the document summary,
+  persisted header, allocation payload and journal flow.
 
 ## Key entities/files
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.
@@ -29,7 +71,9 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
   allocation number, so a PDF/upload failure is safely retryable.
 - `allocationNum` is `varchar(50)` because the production Invoice Information
   v2 portal schema permits `confirmation_number` values up to 50 characters;
-  never truncate an upstream allocation number.
+  never truncate an upstream allocation number in storage. The issued PDF
+  displays only its nine rightmost characters under `מספר הקצאה`, as required
+  by the Tax Authority's software guidance.
 - `POST|GET|DELETE /documents/save-draft|load-draft|delete-draft` — draft persistence.
   Issuance removes the matching saved draft inside the same transaction after
   reserving the official number and before inserting the document row. This

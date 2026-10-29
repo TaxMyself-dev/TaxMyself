@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AdminPanelService, DriveSyncResult, ExtractedDocRow } from 'src/app/services/admin-panel.service';
@@ -12,6 +13,8 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 
 interface AdminSourceRow {
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   type: 'bank' | 'card';
   paymentIdentifier: string;
   consentStatus: string;
@@ -34,6 +37,8 @@ export class ClientsDashboardComponent implements OnInit {
   filteredUsers: any[] = [];
   visibleFeezbackDialog = signal<boolean>(false);
   selectedClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingBusy = signal(false);
 
   // Admin: live accounts/cards diagnostic dialog
   accountsDialogVisible = signal<boolean>(false);
@@ -69,7 +74,7 @@ export class ClientsDashboardComponent implements OnInit {
   readonly ButtonSize = ButtonSize;
 
   sourceKey(src: AdminSourceRow): string {
-    return `${src.type}_${src.paymentIdentifier}`;
+    return src.sourceRecordId ? String(src.sourceRecordId) : `${src.type}_${src.connectionRole}_${src.resourceId}_${src.paymentIdentifier}`;
   }
 
   /**
@@ -100,7 +105,7 @@ export class ClientsDashboardComponent implements OnInit {
       const rawId = iban?.trim().slice(-7);
       if (!rawId) continue;
       rows.push({
-        type: 'bank',
+        type: 'bank', sourceRecordId: acc.sourceRecordId, connectionRole: acc.connectionRole,
         paymentIdentifier: this.deriveSourceName(rawId, acc?.currency),
         consentStatus: acc?.consentStatus ?? '—',
         ownerName: acc?.ownerName ?? acc?.name ?? null,
@@ -115,7 +120,7 @@ export class ClientsDashboardComponent implements OnInit {
       const rawId = typeof maskedPan === 'string' ? maskedPan.match(/(\d{4})$/)?.[1] : undefined;
       if (!rawId) continue;
       rows.push({
-        type: 'card',
+        type: 'card', sourceRecordId: card.sourceRecordId, connectionRole: card.connectionRole,
         paymentIdentifier: this.deriveSourceName(rawId, card?.currency),
         consentStatus: card?.consentStatus ?? '—',
         ownerName: card?.ownerName ?? card?.name ?? null,
@@ -142,39 +147,46 @@ export class ClientsDashboardComponent implements OnInit {
     { name: 'subscriptionEndDate', value: 'תאריך סיום מנוי', type: FormTypes.DATE },
   ];
 
-  fileActions: ITableRowAction[] = [
+  fileActions: IGenericTableAction[] = [
+    {
+      name: 'manageOpenBanking', desktopDisplay: 'icon', icon: 'pi pi-link',
+      title: 'ניהול הרשאות וניתוק מבנקאות פתוחה',
+      action: (_event: any, row: IRowDataTable) => this.bankingClient.set({
+        firebaseId: row['firebaseId'] as string, name: row['fullName'] as string,
+      }),
+    },
     {
       name: 'enterAsUser',
+      desktopDisplay: 'icon',
       icon: 'pi pi-sign-in',
       title: 'כניסה כמשתמש',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.confirmEnterAsUser(row);
       }
     },
     {
       name: 'feezback',
+      desktopDisplay: 'icon',
       icon: 'pi pi-cloud-download',
       title: 'טען תנועות מ-Feezback',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openFeezbackDialog(row);
       }
     },
     {
       name: 'getAccounts',
+      desktopDisplay: 'icon',
       icon: 'pi pi-list',
       title: 'הצגת חשבונות וכרטיסים',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openClientAccountsDialog(row);
       }
     },
     {
       name: 'refreshSources',
+      desktopDisplay: 'icon',
       icon: 'pi pi-refresh',
       title: 'רענון מקורות',
-      alwaysShow: true,
       // No isLoading getter — feedback is shown in a modal dialog (driven by
       // refreshingSourcesFor) instead of a button spinner. The dialog's mask
       // also blocks duplicate clicks.
@@ -184,9 +196,9 @@ export class ClientsDashboardComponent implements OnInit {
     },
     {
       name: 'clearCache',
+      desktopDisplay: 'icon',
       icon: 'pi pi-trash',
       title: 'מחק מטמון תנועות',
-      alwaysShow: true,
       isLoading: () => this.isClearingCache(),
       action: (event: any, row: IRowDataTable) => {
         this.confirmClearCache(row);
@@ -194,9 +206,9 @@ export class ClientsDashboardComponent implements OnInit {
     },
     {
       name: 'pullDriveDocs',
+      desktopDisplay: 'icon',
       icon: 'pi pi-google',
       title: 'משוך מסמכים מ-Drive',
-      alwaysShow: true,
       action: (event: any, row: IRowDataTable) => {
         this.openDriveDataDialog(row);
       }
@@ -494,8 +506,8 @@ export class ClientsDashboardComponent implements OnInit {
 
   /**
    * Pull transactions for one specific account/card of the client whose
-   * accounts dialog is open. Reuses the admin pull-source endpoint (which
-   * self-heals by running discovery if the source isn't registered yet).
+   * accounts dialog is open. The permanent source ID selects the provider identity;
+   * undiscovered sources can be registered using the explicit refresh action.
    */
   onPullSource(src: AdminSourceRow): void {
     const firebaseId = this.accountsDialogClientFirebaseId();
@@ -503,7 +515,7 @@ export class ClientsDashboardComponent implements OnInit {
     const key = this.sourceKey(src);
     this.pullingSourceKey.set(key);
 
-    this.feezbackService.adminPullSource(firebaseId, src.type, src.paymentIdentifier)
+    this.feezbackService.adminPullSource(firebaseId, src.type, src.paymentIdentifier, src.sourceRecordId)
       .pipe(
         catchError(err => {
           const error = err?.error?.message ?? err?.message ?? 'משיכת התנועות נכשלה';

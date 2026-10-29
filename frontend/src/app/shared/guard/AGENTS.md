@@ -12,6 +12,7 @@ entitlements, referral consent, offline navigation and view-only delegation.
   sessions whose ID token contains second-factor proof enter protected routes.
 - `admin-route.guard.ts` keeps non-admin profiles out of `/admin-panel`; backend
   `AdminGuard` remains the authoritative security boundary.
+- `accountant-route.guard.ts` keeps regular profiles out of `/client-panel`, allowing only the real ACCOUNTANT/ADMIN identity; the delegation endpoint repeats the role check server-side.
 - `startup-redirect.guard.ts` resolves the post-login destination.
 - `billing.guard.ts` and `module-access.guard.ts` enforce subscription/module
   access while preserving approved admin impersonation behavior.

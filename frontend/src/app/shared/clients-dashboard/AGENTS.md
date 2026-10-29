@@ -6,6 +6,18 @@ Admin-panel tab listing all end users/clients with subscription and open-banking
 - `clients-dashboard.component.html` — search bar, stats, `app-generic-table`, several `p-dialog`s for the above actions.
 
 ## Main flows
+- The "ניהול הרשאות וניתוק מבנקאות פתוחה" row action opens the shared
+  `OpenBankingManagementComponent` with an explicit client Firebase ID. The
+  server authorizes the real admin actor; the UI previews consent-wide effects,
+  separates single-consent cancellation from full primary/spouse disconnection,
+  retains partial/unknown outcomes, and refreshes the client list after mutations.
+  The action does not delete stored sources or classifications, change billing,
+  or initiate a new consent on behalf of a client.
+
+- Operational buttons use unified generic-table `actions` with explicit
+  desktop icon presentation and no file requirement. The same actions are
+  automatically available in mobile table-row menus; cache clearing retains
+  its loading indicator and cannot execute while busy.
 - List & search users; view subscription status and open-banking connection state. The open-banking table column uses the shared boolean status icons instead of text.
 - Enter-as-user: `ClientPanelService.setSelectedClient()` + `AuthService.loadViewAsUserData()` then navigate to `/my-account` (same mechanism used for accountant delegation).
 - Pull a client's transactions from Feezback for a specific bank account/card source.

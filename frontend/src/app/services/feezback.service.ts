@@ -8,6 +8,33 @@ export interface AdminAccountsAndCardsResponse {
   cards: any;
 }
 
+export interface BankingConsent {
+  consentId: string;
+  connectionRole: 'primary' | 'spouse';
+  status: string;
+  sources: { sourceRecordId: number | null; resourceId?: string; sourceName: string; sourceType: 'BANK_ACCOUNT' | 'CREDIT_CARD' }[];
+}
+export interface BankingTargets {
+  consents: BankingConsent[];
+  complete: boolean;
+  hasOpenBanking: boolean;
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
+}
+export interface BankingDisconnectRequest {
+  firebaseId?: string;
+  scope: 'all' | 'consent';
+  consentId?: string;
+  connectionRole?: 'primary' | 'spouse';
+}
+export interface BankingDisconnectResult {
+  status: 'success' | 'partial';
+  remainingConsents: BankingConsent[];
+  complete: boolean;
+  hasOpenBanking: boolean;
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
+  results: { consentId: string; connectionRole: string; status: 'terminated' | 'failed' | 'pending' }[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -15,14 +42,28 @@ export class FeezbackService {
 
   constructor(private http: HttpClient) { }
 
+  disconnectionTargets(firebaseId?: string): Observable<BankingTargets> {
+    return this.http.get<BankingTargets>(`${environment.apiUrl}feezback/disconnection-targets`, {
+      params: firebaseId ? { firebaseId } : {},
+    });
+  }
+
+  disconnect(request: BankingDisconnectRequest): Observable<BankingDisconnectResult> {
+    return this.http.post<BankingDisconnectResult>(`${environment.apiUrl}feezback/disconnect`, request);
+  }
+
   /**
    * Creates a consent link for Feezback open banking
    * @returns Observable with the response containing the link
    */
-  createConsentLink(): Observable<any> {
+  connectionOptions(): Observable<{ offerSpouse: boolean }> {
+    return this.http.get<{ offerSpouse: boolean }>(`${environment.apiUrl}feezback/connection-options`);
+  }
+
+  createConsentLink(spouse = false): Observable<any> {
     const url = `${environment.apiUrl}feezback/consent-link`;
     // The Authorization header is automatically added by AuthInterceptor
-    return this.http.post<any>(url, {});
+    return this.http.post<any>(url, spouse ? { spouse: true } : {});
   }
 
   /**
@@ -63,10 +104,11 @@ export class FeezbackService {
     firebaseId: string,
     type: 'bank' | 'card',
     sourceId: string,
+    sourceRecordId?: number,
   ): Observable<AdminPullSourceResult> {
     return this.http.post<AdminPullSourceResult>(
       `${environment.apiUrl}feezback/admin/pull-source/${firebaseId}`,
-      { type, sourceId },
+      { type, sourceId, sourceRecordId },
     );
   }
 }
@@ -74,6 +116,8 @@ export class FeezbackService {
 export interface AdminPullSourceResult {
   type: 'bank' | 'card';
   sourceId: string;
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   resourceId?: string;
   consentId?: string;
   /** 'skipped_direct' = Direct/Debit card — card feed intentionally not pulled (bank feed covers it). */

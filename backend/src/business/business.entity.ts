@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
-import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } from 'src/enum';
+import { BusinessType, BusinessFieldType, BusinessProprietorRole, TaxReportingType, VATReportingType } from 'src/enum';
 
 
 // Named explicitly per the schema-drift convention. Nullable column — MySQL
@@ -7,12 +7,23 @@ import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } f
 @Entity('business')
 @Index('ux_business_number', ['businessNumber'], { unique: true })
 export class Business {
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  logoPath: string | null;
+
 
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
   firebaseId: string;
+
+  @Column({
+    type: 'enum',
+    enum: BusinessProprietorRole,
+    enumName: 'BusinessProprietorRole',
+    default: BusinessProprietorRole.PRIMARY,
+  })
+  proprietorRole: BusinessProprietorRole;
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessName: string | null;

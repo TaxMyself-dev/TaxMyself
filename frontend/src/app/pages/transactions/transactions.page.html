@@ -3,10 +3,35 @@
   <div class="content-wrapper">
 
     <p class="block-title">התזרים שלי</p>
+    @if (hasOpenBanking() === false) {
+      <section class="banking-banner" dir="rtl">
+        <div class="banking-banner__text">
+          <p class="banking-banner__title">{{ isDelegatedClientView() ? 'אין חיבור לבנקאות פתוחה' : 'רוצה לראות את התנועות בחשבון שלך?' }}</p>
+          <p class="banking-banner__body">{{ isDelegatedClientView() ? 'לחיבור החשבונות והכרטיסים יש לפנות לבעל החשבון.' : 'באמצעות חיבור לבנקאות פתוחה תוכל לקבל תמונה רחבה יותר על החשבון שלך, גישה ליכולות נוספות ושליטה טובה יותר בניהול הכסף' }}</p>
+        </div>
+        @if (!isDelegatedClientView()) {
+          <app-p-button [buttonText]="'אני רוצה'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL" (onButtonClicked)="connectToOpenBanking()"></app-p-button>
+        }
+      </section>
+    }
+    <p-dialog header="חיבור לבנקאות פתוחה" [visible]="consentDialogVisible()" (visibleChange)="consentDialogVisible.set($event)" [modal]="true" [style]="{width: '32rem', maxWidth: '95vw'}">
+      <div dir="rtl">
+        <p>רק רגע לפני שממשיכים — הנה מה שהולך לקרות</p>
+        <p>תועבר/י לממשק הבנקאות הפתוחה של <strong>Feezback</strong>, שם תוכל/י לבחור לאילו חשבונות בנק וכרטיסי אשראי הנך מאפשר/ת גישה <strong>לצפייה בלבד</strong> למייצגים מטעם חברת <strong>KeepInTax</strong></p>
+        <p>הנתונים הפיננסיים <strong>אינם נשמרים אצלנו</strong> — הם נמשכים מ-Feezback בכל כניסה למערכת</p>
+        <p>המידע משמש אך ורק לצורך הצגת התנועות בתוך המערכת לצרכי הנהלת חשבונות וניהול ומעקב אחר התזרים</p>
+        <label><input type="checkbox" [checked]="consentChecked()" (change)="consentChecked.set($any($event.target).checked)" /> הבנתי ואני מאשר/ת את החיבור לבנקאות הפתוחה</label>
+        <div class="banking-consent-actions">
+          <app-p-button buttonText="המשך" [disabled]="!consentChecked()" [buttonColor]="buttonColor.BLACK" (onButtonClicked)="confirmConsentAndConnect()"></app-p-button>
+          <app-p-button buttonText="ביטול" [buttonColor]="buttonColor.WHITE" (onButtonClicked)="consentDialogVisible.set(false)"></app-p-button>
+        </div>
+      </div>
+    </p-dialog>
 
 
     <!-- expenses table -->
     <div class="table-wrap">
+      @if (hasOpenBanking() !== false) {
       <div class="filter-table">
         <div class="sort-button">
           <app-p-button (onButtonClicked)="openFilterDialod()" [class]="visibleFilterPannel() ? 'clicked' : ''"
@@ -30,11 +55,13 @@
         </div>
         <!-- <app-filter-panel></app-filter-panel> -->
       </div>
+      }
 
       <app-generic-table (resetFilters)="resetFilters($event)" [arrayFilters]="filterData()"
-        [isLoadingState]="isLoadingStateTable()" [rowActions]="expenseRowActions"
+        [isLoadingState]="isLoadingStateTable()" [actions]="expenseRowActions"
         [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הוצאות'" [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="filteredExpensesData()" [tableHeight]="'500px'"
+        [emptyText]="tableEmptyText()"
         [useSyncState]="true" [processStatus]="syncProcessStatus()"
         (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"></app-generic-table>
@@ -43,8 +70,9 @@
     <div class="table-wrap">
       <app-generic-table [incomeMode]="true"
         [isLoadingState]="isLoadingStateTable()"
-        [rowActions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
+        [actions]="incomeRowActions" [placeholderSearch]="'חיפוש לפי שם עסק'" [title]="'הכנסות'"
         [columnsTitle]="fieldsNamesIncome()" [dataTable]="filteredIncomesData()" [tableHeight]="'500px'"
+        [emptyText]="tableEmptyText()"
         [useSyncState]="true" [processStatus]="syncProcessStatus()"
         (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"></app-generic-table>

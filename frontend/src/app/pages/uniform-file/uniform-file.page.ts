@@ -12,7 +12,9 @@ import { FilterField, FilterFieldType } from 'src/app/components/filter-tab/filt
 import { MessageService } from 'primeng/api';
 import {
   ShaamService,
-  UniformFileSubmissionView,
+  UniformFileRemoteStatus,
+  UniformFileSubmission,
+  UniformFileSubmissionState,
 } from 'src/app/services/shaam.service';
 
 export interface ReportDetails {
@@ -23,18 +25,6 @@ export interface ReportDetails {
   downloadLink: string;
   // structureLink: string;
 }
-
-interface UniformFileShaamResumeContext {
-  version: 1;
-  submissionId: number;
-  businessNumber: string;
-  businessName: string;
-  startDate: string;
-  endDate: string;
-  downloadLink: string;
-}
-
-const SHAAM_RESUME_STORAGE_KEY = 'uniform-file-shaam-resume-v1';
 
 @Component({
     selector: 'app-uniform-file',
@@ -60,12 +50,13 @@ export class UniformFilePage implements OnInit {
   endDate: string;
   totalExpense: number = 0;
   businessNames: ISelectItem[] = [];
+  uniformConnectionStatus: 'checking' | 'connected' | 'disconnected' | 'reauth-required' | 'error' = 'checking';
+  uniformSubmission: UniformFileSubmission | null = null;
+  isSubmittingToShaam = false;
+  isPollingShaam = false;
 
   reportingPeriodType = ReportingPeriodType;
   reportDetails: ReportDetails | null = null;
-  shaamSubmission: UniformFileSubmissionView | null = null;
-  shaamConnected = false;
-  shaamBusy = false;
 
   // Business related
   businessNumber = signal<string>("");
@@ -162,7 +153,7 @@ export class UniformFilePage implements OnInit {
       },
     ];
 
-    void this.restoreShaamResumeContext();
+    this.loadUniformConnectionStatus();
 
   }
 
@@ -180,6 +171,15 @@ export class UniformFilePage implements OnInit {
     try {
     if (formValues) {
       // Handle period values from filter-tab
+      console.log('[uniform-file] submit with formValues', {
+        periodMode: formValues?.periodMode,
+        year: formValues?.year,
+        month: formValues?.month,
+        startDateRaw: formValues?.startDate,
+        endDateRaw: formValues?.endDate,
+        startDateType: typeof formValues?.startDate,
+        endDateType: typeof formValues?.endDate,
+      });
       const { startDate: periodStartDate, endDate: periodEndDate } = this.dateService.getStartAndEndDates(
         formValues.periodMode,
         formValues.year,
@@ -189,6 +189,7 @@ export class UniformFilePage implements OnInit {
       );
       startDate = this.dateService.toIsoDate(periodStartDate);
       endDate = this.dateService.toIsoDate(periodEndDate);
+      console.log('[uniform-file] parsed period dates', { startDate, endDate });
       // Get businessNumber from formValues (selected by user) or fallback to signal
       businessNumber = formValues.businessNumber || this.businessNumber();
       // Update the signal with the selected business number
@@ -201,6 +202,13 @@ export class UniformFilePage implements OnInit {
       startDate = this.dateService.toIsoDate(formData.startDate);
       endDate = this.dateService.toIsoDate(formData.endDate);
       businessNumber = formData.businessNumber || this.businessNumber();
+      console.log('[uniform-file] submit with uniformFileForm', {
+        startDateRaw: formData?.startDate,
+        endDateRaw: formData?.endDate,
+        businessNumber,
+        startDateType: typeof formData?.startDate,
+        endDateType: typeof formData?.endDate,
+      });
       // Update the signal with the selected business number
       if (formData.businessNumber) {
         this.businessNumber.set(formData.businessNumber);
@@ -208,9 +216,10 @@ export class UniformFilePage implements OnInit {
     }
 
     this.reportClick = false;
-    this.clearShaamResumeContext();
-    this.shaamSubmission = null;
-    this.shaamConnected = false;
+    this.startDate = startDate;
+    this.endDate = endDate;
+    this.uniformSubmission = null;
+    this.loadUniformConnectionStatus();
 
     // Find business name from businesses list
     const businesses = this.gs.businesses();
@@ -246,11 +255,139 @@ export class UniformFilePage implements OnInit {
   }
 
 
+  loadUniformConnectionStatus(): void {
+    const businessNumber = this.businessNumber();
+    if (!businessNumber) return;
+    this.uniformConnectionStatus = 'checking';
+    this.shaamService
+      .getConnectionStatus(businessNumber, 'UNIFORM_FILE')
+      .subscribe({
+        next: (status) => {
+          this.uniformConnectionStatus = status.connected
+            ? 'connected'
+            : status.requiresReauthorization
+            ? 'reauth-required'
+            : 'disconnected';
+        },
+        error: () => {
+          this.uniformConnectionStatus = 'error';
+        },
+      });
+  }
+
+  connectUniformFile(): void {
+    this.shaamService.initiateOAuthFlow(
+      this.businessNumber(),
+      () => this.showShaamError('לא ניתן להתחיל את החיבור לרשות המסים'),
+      'uniform-file',
+      'UNIFORM_FILE',
+    );
+  }
+
+  submitUniformFileToShaam(): void {
+    if (!this.reportDetails || !this.startDate || !this.endDate) {
+      this.showShaamError('יש להפיק תחילה את קובצי המבנה האחיד');
+      return;
+    }
+    if (this.uniformConnectionStatus !== 'connected') {
+      this.showShaamError('יש להתחבר תחילה לרשות המסים באמצעות Daily Token');
+      return;
+    }
+    this.isSubmittingToShaam = true;
+    this.shaamService
+      .createUniformFileSubmission(
+        this.businessNumber(),
+        this.startDate,
+        this.endDate,
+      )
+      .pipe(finalize(() => (this.isSubmittingToShaam = false)))
+      .subscribe({
+        next: (submission) => {
+          this.uniformSubmission = submission;
+          if (submission.state === 'AUTH_REQUIRED') {
+            this.uniformConnectionStatus = 'reauth-required';
+          }
+        },
+        error: () => this.showShaamError('שליחת הקבצים לרשות המסים נכשלה'),
+      });
+  }
+
+  pollUniformFileStatus(): void {
+    if (!this.uniformSubmission) return;
+    this.isPollingShaam = true;
+    this.shaamService
+      .pollUniformFileSubmission(
+        this.businessNumber(),
+        this.uniformSubmission.id,
+      )
+      .pipe(finalize(() => (this.isPollingShaam = false)))
+      .subscribe({
+        next: (submission) => {
+          this.uniformSubmission = submission;
+          if (submission.state === 'AUTH_REQUIRED') {
+            this.uniformConnectionStatus = 'reauth-required';
+          }
+        },
+        error: () => this.showShaamError('בדיקת סטטוס הקבצים נכשלה'),
+      });
+  }
+
+  connectionStatusLabel(): string {
+    const labels = {
+      checking: 'בודק חיבור...',
+      connected: 'מחובר לרשות המסים',
+      disconnected: 'נדרש חיבור Daily Token',
+      'reauth-required': 'נדרש חיבור מחדש',
+      error: 'לא ניתן לבדוק את מצב החיבור',
+    };
+    return labels[this.uniformConnectionStatus];
+  }
+
+  submissionStateLabel(state: UniformFileSubmissionState): string {
+    const labels: Record<UniformFileSubmissionState, string> = {
+      GENERATED: 'הקבצים הופקו',
+      AUTH_REQUIRED: 'נדרש חיבור לרשות המסים',
+      LINKS_RESERVED: 'קישורי העלאה התקבלו',
+      INI_UPLOADED: 'קובץ INI הועלה',
+      PAIR_UPLOADED: 'שני הקבצים הועלו',
+      PROCESSING: 'ממתין לעיבוד ברשות המסים',
+      APPROVED: 'שני הקבצים אושרו',
+      REJECTED: 'אחד הקבצים נדחה',
+      RETRYABLE_FAILURE: 'ניתן לנסות שוב',
+      UNKNOWN_OUTCOME: 'התוצאה אינה ודאית — נדרשת בדיקת סטטוס',
+    };
+    return labels[state];
+  }
+
+  fileStatusLabel(status: UniformFileRemoteStatus | null): string {
+    if (status === 'UPLOADED') return 'הועלה וממתין לעיבוד';
+    if (status === 'APPROVED') return 'אושר';
+    if (status === 'REJECTED') return 'נדחה';
+    return 'טרם התקבל סטטוס';
+  }
+
+  canPollUniformFile(): boolean {
+    return !!this.uniformSubmission &&
+      this.uniformSubmission.state !== 'APPROVED' &&
+      this.uniformSubmission.state !== 'REJECTED';
+  }
+
+  private showShaamError(detail: string): void {
+    this.messageService.add({
+      severity: 'error',
+      summary: 'שגיאה',
+      detail,
+      life: 5000,
+      key: 'br',
+    });
+  }
+
   createUniformFile(startDate: string, endDate: string, businessNumber: string): Promise<{ document_summary: any[]; list_summary: any[]; filePath: string; file: string }> {
     return firstValueFrom(
       this.fileService.createUniformFile(startDate, endDate, businessNumber).pipe(
         tap((response) => this.downloadBase64Zip(response.file)),
         map((response) => {
+          console.log("response in uniform file page: ", response);
           const document_summary = (response.document_summary ?? []).map(row => ({
             ...row,
             totalDocs: this.genericService.addComma(Math.abs(row.totalDocs as number)),
@@ -265,270 +402,6 @@ export class UniformFilePage implements OnInit {
         })
       )
     );
-  }
-
-  async prepareShaamSubmission(): Promise<void> {
-    if (!this.reportDetails || this.shaamBusy) return;
-    await this.runShaamAction(async () => {
-      this.shaamSubmission = await firstValueFrom(
-        this.shaamService.prepareUniformFileSubmission(
-          this.reportDetails!.businessNumber,
-          this.reportDetails!.startDate,
-          this.reportDetails!.endDate,
-        ),
-      );
-      await this.refreshShaamConnection(false);
-      this.showSuccess('הקובץ הוכן לשליחה לשע״מ');
-    });
-  }
-
-  async refreshShaamConnection(showToast = true): Promise<void> {
-    if (!this.reportDetails) return;
-    const status = await firstValueFrom(
-      this.shaamService.getConnectionStatus(
-        this.reportDetails.businessNumber,
-        'UNIFORM_FILE',
-      ),
-    );
-    this.shaamConnected = status.connected;
-    if (showToast) {
-      if (status.connected) {
-        this.showSuccess('החיבור לשע״מ פעיל');
-      } else {
-        this.messageService.add({
-          severity: 'info',
-          summary: 'נדרש חיבור לשע״מ',
-          detail: 'יש להתחבר לשע״מ לפני שליחת הקבצים',
-          life: 5000,
-          key: 'br',
-        });
-      }
-    }
-  }
-
-  async checkShaamConnection(): Promise<void> {
-    if (this.shaamBusy) return;
-    await this.runShaamAction(() => this.refreshShaamConnection());
-  }
-
-  async connectShaam(): Promise<void> {
-    if (!this.reportDetails || this.shaamBusy) return;
-    await this.runShaamAction(async () => {
-      const { url } = await firstValueFrom(
-        this.shaamService.getAuthorizeUrl(
-          this.reportDetails!.businessNumber,
-          'UNIFORM_FILE',
-        ),
-      );
-      this.storeShaamResumeContext();
-      window.location.assign(url);
-    });
-  }
-
-  async transferShaamSubmission(): Promise<void> {
-    if (!this.reportDetails || !this.shaamSubmission || this.shaamBusy) return;
-    await this.runShaamAction(async () => {
-      this.shaamSubmission = await firstValueFrom(
-        this.shaamService.transferUniformFileSubmission(
-          this.reportDetails!.businessNumber,
-          this.shaamSubmission!.id,
-        ),
-      );
-      this.showSuccess(this.shaamSubmission.state === 'APPROVED'
-        ? 'הקבצים אושרו בשע״מ'
-        : 'הקבצים נשלחו וממתינים לעיבוד');
-    });
-  }
-
-  async pollShaamSubmission(): Promise<void> {
-    if (!this.reportDetails || !this.shaamSubmission || this.shaamBusy) return;
-    await this.runShaamAction(async () => {
-      this.shaamSubmission = await firstValueFrom(
-        this.shaamService.pollUniformFileSubmission(
-          this.reportDetails!.businessNumber,
-          this.shaamSubmission!.id,
-        ),
-      );
-      this.showSuccess('סטטוס שע״מ עודכן');
-    });
-  }
-
-  shaamStateLabel(state: string): string {
-    if (state === 'RETRYABLE_FAILURE') {
-      return this.shaamConnected
-        ? 'מוכן לניסיון נוסף'
-        : 'נדרשת התחברות לשע״מ';
-    }
-    const labels: Record<string, string> = {
-      GENERATED: 'מוכן לשליחה',
-      AUTH_REQUIRED: 'נדרש חיבור לשע״מ',
-      LINKS_RESERVED: 'קישורי העלאה הוזמנו',
-      INI_UPLOADED: 'קובץ INI הועלה',
-      PAIR_UPLOADED: 'שני הקבצים הועלו',
-      PROCESSING: 'ממתין לעיבוד בשע״מ',
-      APPROVED: 'אושר בשע״מ',
-      REJECTED: 'נדחה בשע״מ',
-      UNKNOWN_OUTCOME: 'תוצאת השליחה אינה ידועה',
-    };
-    return labels[state] ?? state;
-  }
-
-  shaamErrorLabel(): string | null {
-    if (!this.shaamSubmission?.errorMessage) return null;
-    if (this.shaamSubmission.state === 'RETRYABLE_FAILURE') {
-      return this.shaamConnected
-        ? null
-        : 'ניסיון השליחה הקודם נכשל. יש להתחבר לשע״מ ולנסות שוב.';
-    }
-    const labels: Record<string, string> = {
-      'SHAAM outcome is unknown; poll before retrying':
-        'תוצאת השליחה עדיין אינה ידועה. יש לעדכן סטטוס לפני ניסיון נוסף.',
-      'SHAAM transfer failed': 'ניסיון השליחה לשע״מ נכשל.',
-    };
-    return labels[this.shaamSubmission.errorMessage]
-      ?? 'אירעה שגיאה בתהליך השליחה לשע״מ.';
-  }
-
-  canPollShaam(): boolean {
-    return !!this.shaamSubmission && [
-      'LINKS_RESERVED', 'INI_UPLOADED', 'PAIR_UPLOADED', 'PROCESSING',
-      'UNKNOWN_OUTCOME',
-    ].includes(this.shaamSubmission.state);
-  }
-
-  private async runShaamAction(action: () => Promise<void>): Promise<void> {
-    this.shaamBusy = true;
-    try {
-      await action();
-    } catch (error: any) {
-      this.messageService.add({
-        severity: 'error',
-        summary: 'שגיאה בתהליך שע״מ',
-        detail: error?.error?.message || error?.message || 'לא ניתן להשלים את הפעולה',
-        life: 6000,
-        key: 'br',
-      });
-    } finally {
-      this.shaamBusy = false;
-    }
-  }
-
-  private showSuccess(detail: string): void {
-    this.messageService.add({
-      severity: 'success',
-      summary: 'הפעולה הושלמה',
-      detail,
-      life: 4000,
-      key: 'br',
-    });
-  }
-
-  private storeShaamResumeContext(): void {
-    if (!this.reportDetails || !this.shaamSubmission) {
-      throw new Error('לא ניתן לשמור את מצב השליחה לפני החיבור לשע״מ');
-    }
-    const context: UniformFileShaamResumeContext = {
-      version: 1,
-      submissionId: this.shaamSubmission.id,
-      businessNumber: this.reportDetails.businessNumber,
-      businessName: this.reportDetails.businessName,
-      startDate: this.reportDetails.startDate,
-      endDate: this.reportDetails.endDate,
-      downloadLink: this.reportDetails.downloadLink,
-    };
-    try {
-      sessionStorage.setItem(SHAAM_RESUME_STORAGE_KEY, JSON.stringify(context));
-    } catch {
-      throw new Error('לא ניתן לשמור את מצב השליחה בדפדפן');
-    }
-  }
-
-  private async restoreShaamResumeContext(): Promise<void> {
-    const context = this.readShaamResumeContext();
-    if (!context) return;
-
-    this.shaamBusy = true;
-    try {
-      const submission = await firstValueFrom(
-        this.shaamService.getUniformFileSubmission(
-          context.businessNumber,
-          context.submissionId,
-        ),
-      );
-      if (
-        submission.businessNumber !== context.businessNumber ||
-        submission.periodStart !== context.startDate ||
-        submission.periodEnd !== context.endDate
-      ) {
-        throw new Error('Stored uniform-file context does not match the submission');
-      }
-
-      this.businessNumber.set(context.businessNumber);
-      this.generatedAt = new Date(submission.generatedAt);
-      this.reportDetails = {
-        businessNumber: context.businessNumber,
-        businessName: context.businessName,
-        startDate: context.startDate,
-        endDate: context.endDate,
-        downloadLink: context.downloadLink,
-      };
-      this.uniformFileDocumentSummary = [];
-      this.uniformFileListSummary = [];
-      this.shaamSubmission = submission;
-      await this.refreshShaamConnection(false);
-    } catch {
-      this.clearShaamResumeContext();
-      this.messageService.add({
-        severity: 'error',
-        summary: 'לא ניתן לשחזר את תהליך השליחה',
-        detail: 'יש להפיק מחדש את הקבצים עבור התקופה שנבחרה',
-        life: 6000,
-        key: 'br',
-      });
-    } finally {
-      this.shaamBusy = false;
-    }
-  }
-
-  private readShaamResumeContext(): UniformFileShaamResumeContext | null {
-    let raw: string | null;
-    try {
-      raw = sessionStorage.getItem(SHAAM_RESUME_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-    if (!raw) return null;
-
-    try {
-      const value = JSON.parse(raw) as Partial<UniformFileShaamResumeContext>;
-      if (
-        value.version !== 1 ||
-        !Number.isSafeInteger(value.submissionId) ||
-        (value.submissionId as number) <= 0 ||
-        !/^\d{9}$/.test(value.businessNumber || '') ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(value.startDate || '') ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(value.endDate || '') ||
-        typeof value.businessName !== 'string' ||
-        value.businessName.length > 255 ||
-        typeof value.downloadLink !== 'string' ||
-        value.downloadLink.length > 1000
-      ) {
-        this.clearShaamResumeContext();
-        return null;
-      }
-      return value as UniformFileShaamResumeContext;
-    } catch {
-      this.clearShaamResumeContext();
-      return null;
-    }
-  }
-
-  private clearShaamResumeContext(): void {
-    try {
-      sessionStorage.removeItem(SHAAM_RESUME_STORAGE_KEY);
-    } catch {
-      // Storage can be unavailable in restricted browser modes.
-    }
   }
 
 private downloadBase64Zip(base64: string) {

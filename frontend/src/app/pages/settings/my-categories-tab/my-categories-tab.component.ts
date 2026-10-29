@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -11,7 +12,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
-import { Business, IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { Business, IColumnDataTable, IMobileCardConfig, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
@@ -118,7 +119,7 @@ export class MyCategoriesTabComponent {
     highlightedValueFormat: 'plain',
   };
 
-  rulesRowActions: ITableRowAction[] = [
+  rulesRowActions: IGenericTableAction[] = [
     {
       name: 'editRule',
       icon: 'pi pi-pencil',
@@ -165,7 +166,7 @@ export class MyCategoriesTabComponent {
   readonly categoriesRowClass = (row: IRowDataTable): string =>
     row['rowType'] === 'category' ? 'gt-row--group-header' : '';
 
-  categoriesRowActions: ITableRowAction[] = [
+  categoriesRowActions: IGenericTableAction[] = [
     {
       name: 'deleteCategory',
       icon: 'pi pi-trash',

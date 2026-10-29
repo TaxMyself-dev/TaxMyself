@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"]
+  },
+  "include": [
+    "src/app/pages/book-keeping/incomes/incomes-shaam-confirmation.spec.ts",
+    "src/app/pages/doc-create/doc-create-request.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

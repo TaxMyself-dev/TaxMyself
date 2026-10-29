@@ -43,6 +43,10 @@ export class AppComponent implements OnInit {
 
   // Show the blocking billing dialog when the backend reports a blocking status,
   // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
+  openBankingManagement(): void {
+    void this.router.navigate(['/billing/open-banking/manage']);
+  }
+
   protected readonly showBillingDialog = computed(() => {
     const url = this.currentUrl();
     if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {
@@ -190,11 +194,8 @@ export class AppComponent implements OnInit {
       if (reconnectedAt === 0) {
         return; // Initial value — no outage has ended yet.
       }
-      // refreshSharedState() synchronously reads billing/loading signals before
-      // its first await. Without this boundary those signals become dependencies
-      // of this effect, and each response can start another billing/business
-      // refresh loop. Reconnect time is the only intended dependency.
-      untracked(() => void this.appRefresh.refreshSharedState());
+      // Only reconnect events trigger recovery; refreshed service signals are not dependencies.
+      untracked(() => { void this.appRefresh.refreshSharedState(); });
     });
   }
 
@@ -385,7 +386,9 @@ export class AppComponent implements OnInit {
       // keeps evaluating against whichever identity's billing state loaded
       // first, so entering or exiting client view silently shows the wrong
       // person's access instead of "exactly what the client sees".
-      this.billingStateService.refreshBillingState();
+      if (this.authService.isLoggedIn) {
+        this.billingStateService.refreshBillingState();
+      }
       if (id) {
         this.authService.loadViewAsUserData().subscribe((data) => {
           if (data) {

@@ -10,6 +10,7 @@
   <div>
   <app-clients-dashboard *ngIf="selectedTab === 'clients-dashboard'">
   </app-clients-dashboard>
+  <app-admin-tax-file *ngIf="selectedTab === 'tax-file'"></app-admin-tax-file>
   <section *ngIf="selectedTab === 'catalog-management'" class="catalog-management">
     <app-tab-bar
       [tabs]="catalogTabs"
@@ -24,6 +25,7 @@
   <app-trans-management *ngIf="selectedTab === 'trans-management'"></app-trans-management>
   <app-demo-data *ngIf="selectedTab === 'demo-data'"></app-demo-data>
   <app-admin-billing *ngIf="selectedTab === 'billing'"></app-admin-billing>
+  <app-admin-shaam-allocations *ngIf="selectedTab === 'shaam-allocations'"></app-admin-shaam-allocations>
   <app-admin-content *ngIf="selectedTab === 'content'"></app-admin-content>
   <app-admin-documentation *ngIf="selectedTab === 'documentation'"></app-admin-documentation>
 </div>

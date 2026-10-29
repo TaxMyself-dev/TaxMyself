@@ -42,6 +42,7 @@
       </div>
       <ng-template pTemplate="footer">
         <div dir="rtl" class="billing-dialog-footer">
+          <button class="billing-cta-btn" (click)="openBankingManagement()">ניהול הרשאות וניתוק מבנקאות פתוחה</button>
           <button
             class="billing-cta-btn"
             [disabled]="resolvingMissingSubscription()"

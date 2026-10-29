@@ -10,7 +10,7 @@ Manages accountant-client relationships ("delegations"): granting/viewing permis
 ## Main flows
 - `POST /delegations/invite` — accountant invites a user by email; sends a JWT-token approval link via `MailService`.
 - `GET /delegations/approve-delegation?token=` — user approves the delegation, creating an `ACTIVE` `Delegation` row.
-- `GET /delegations/users-for-agent/:agentId` — list of users (with business rows) delegated to a given agent/accountant.
+- `GET /delegations/users-for-agent/:agentId` — list of users (with business rows) delegated to a given agent/accountant; backend requires the real actor to be an ACCOUNTANT querying themself or an ADMIN.
 - `GET /delegations/my-permissions` (auth) — list of agents who have permission on the current user's data.
 - `POST /delegations/grant-view` (auth) — grant `DOCUMENTS_READ` scope to another user by email, with a notification email.
 - `POST /delegations/create-client` (auth, accountant-only) — creates a Firebase Auth user, a `User` row, a `Business` row, a trial `Subscription`, a `Delegation` (`DOCUMENTS_READ`+`DOCUMENTS_WRITE`), and provisions Google Drive folders for the client (shared with the accountant).

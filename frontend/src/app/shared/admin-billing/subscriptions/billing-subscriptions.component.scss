@@ -18,6 +18,46 @@
   color: #1f2937;
 }
 
+.table-title-and-filter {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4b5563;
+
+  select {
+    min-width: 120px;
+    padding: 7px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #111827;
+    font: inherit;
+  }
+}
+
+@media (max-width: 640px) {
+  .table-header-row,
+  .table-title-and-filter {
+    align-items: stretch;
+  }
+
+  .table-header-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .table-title-and-filter {
+    flex-wrap: wrap;
+  }
+}
+
 // ── Status badges ─────────────────────────────────────────────────────────────
 
 .sub-status-badge {

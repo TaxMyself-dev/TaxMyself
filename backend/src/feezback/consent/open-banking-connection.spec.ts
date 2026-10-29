@@ -1,4 +1,4 @@
-import { validConnectedSources } from './open-banking-connection';
+import { validConnectedSources, connectedSourcesWithCurrentConsent } from './open-banking-connection';
 describe('verified Feezback connection', () => {
   const now = new Date('2026-10-07');
   const consent = { resourceId: 'c1', consentStatus: 'valid', validUntil: '2027-01-01' };
@@ -19,4 +19,12 @@ describe('verified Feezback connection', () => {
     expect(validConnectedSources([{ ...consent, consentStatus: 'revoked' }, { ...consent, resourceId: 'c2' }],
       [source, { resourceId: 'card1', relatedConsents: [{ resourceId: 'c2' }] }], now)).toHaveLength(1);
   });
+  it('keeps a valid direct consent before valid related alternatives and preserves raw inputs', () => {
+    const raw = { ...source, relatedConsents: [{ resourceId: 'c2' }] };
+    const result = connectedSourcesWithCurrentConsent([consent, { ...consent, resourceId: 'c2' }], [raw], now);
+    expect(result[0].consentId).toBe('c1');
+    expect(result[0]).not.toBe(raw);
+    expect(raw.consentId).toBe('c1');
+  });
+
 });

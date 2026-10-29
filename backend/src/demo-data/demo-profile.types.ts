@@ -1,5 +1,6 @@
 import {
   BusinessFieldType,
+  BusinessProprietorRole,
   BusinessType,
   DocumentType,
   EmploymentType,
@@ -30,6 +31,15 @@ export interface DemoProfile {
   /** Sign-in credentials. The admin sees these on Set so they can log in. */
   email: string;
   password: string;
+
+  /** Grants the signed-in primary user access to the self-service reset endpoint. */
+  allowSelfReset?: boolean;
+
+  /**
+   * The Open-Banking graph is a stable fixture rather than a live provider
+   * connection. Login/manual sync paths must not call Feezback for it.
+   */
+  syntheticOpenBanking?: boolean;
 
   /** Primary user (the one who signs in with `email`/`password`). */
   user: DemoUser;
@@ -178,6 +188,8 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
+  /** Explicit owner; when omitted the seeder derives it from the two IDs. */
+  proprietorRole?: BusinessProprietorRole;
   /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: BusinessFieldType;
@@ -203,6 +215,8 @@ export interface DemoSource {
    *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
   sourceName: string;
   sourceType: SourceType;
+  /** Which member of a couple owns the provider source. Defaults to primary. */
+  connectionRole?: 'primary' | 'spouse';
   /**
    * Card sources only — mirrors `Source.isDirect`.
    *   true  — Direct/Debit card: its transactions arrive through the BANK feed,
@@ -325,7 +339,9 @@ export interface DemoTransactionTemplate {
   /** Negative for expenses, positive for income (matches existing convention). */
   amount: number;
   /** Subtracted from `today` at seed time to get transactionDate. */
-  daysAgo: number;
+  daysAgo?: number;
+  /** Fixed UTC calendar date (`YYYY-MM-DD`) that remains stable across resets. */
+  transactionDate?: string;
   /**
    * ISO-4217 currency code. Defaults to 'ILS'. For non-ILS values the seed
    * also stamps `ilsAmount` + `fxRateToIls` using hardcoded demo rates so the

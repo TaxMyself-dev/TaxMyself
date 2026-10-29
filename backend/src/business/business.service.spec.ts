@@ -1,9 +1,9 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { BusinessService } from './business.service';
-import { BusinessType, VATReportingType } from 'src/enum';
+import { BusinessProprietorRole, BusinessType, VATReportingType } from 'src/enum';
 
 describe('BusinessService VAT reporting invariant', () => {
-  const makeService = (business: any) => {
+  const makeService = (business: any, user: any = { isCompany: false, spouseId: null }) => {
     const save = jest.fn().mockImplementation(async (value: any) => value);
     const emptySelectQb = {
       where: jest.fn().mockReturnThis(),
@@ -39,7 +39,7 @@ describe('BusinessService VAT reporting invariant', () => {
       exist: jest.fn().mockResolvedValue(false),
     } as any;
     const usersService = {
-      findByFirebaseId: jest.fn().mockResolvedValue({ isCompany: false }),
+      findByFirebaseId: jest.fn().mockResolvedValue(user),
     } as any;
     const sharedService = {
       buildReportPeriodLabel: jest.fn().mockReturnValue('1-2/2026'),
@@ -236,5 +236,43 @@ describe('BusinessService VAT reporting invariant', () => {
 
     expect((service as any).vatPeriodAnchor('3-4/2026', new Date('2026-01-01')))
       .toEqual(new Date(Date.UTC(2026, 3, 1)));
+  });
+
+  it('accepts spouse ownership only when the account has a spouse identity', async () => {
+    const business = {
+      id: 1,
+      firebaseId: 'uid',
+      proprietorRole: BusinessProprietorRole.PRIMARY,
+      businessType: BusinessType.EXEMPT,
+      vatReportingType: VATReportingType.NOT_REQUIRED,
+    };
+    const { service, businessRepo } = makeService(business, {
+      isCompany: false,
+      spouseId: '222222222',
+    });
+
+    await service.updateBusiness('uid', {
+      id: 1,
+      proprietorRole: BusinessProprietorRole.SPOUSE,
+    });
+
+    expect(businessRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+      proprietorRole: BusinessProprietorRole.SPOUSE,
+    }));
+  });
+
+  it('rejects spouse ownership when no spouse identity exists', async () => {
+    const { service } = makeService({
+      id: 1,
+      firebaseId: 'uid',
+      proprietorRole: BusinessProprietorRole.PRIMARY,
+      businessType: BusinessType.EXEMPT,
+      vatReportingType: VATReportingType.NOT_REQUIRED,
+    });
+
+    await expect(service.updateBusiness('uid', {
+      id: 1,
+      proprietorRole: BusinessProprietorRole.SPOUSE,
+    })).rejects.toBeInstanceOf(BadRequestException);
   });
 });

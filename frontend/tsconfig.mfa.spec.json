@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"]
+  },
+  "include": [
+    "src/app/services/mfa.service.spec.ts",
+    "src/app/shared/guard/auth.guard.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

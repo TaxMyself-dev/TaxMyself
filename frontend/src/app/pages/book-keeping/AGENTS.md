@@ -1,10 +1,16 @@
 ## Purpose
 Container page + tab shell for day-to-day bookkeeping: issued documents (incomes), expenses, clients, suppliers, and (currently hidden) tasks — each a lazy-loaded child route/module under `book-keeping/`.
 
+## Pending allocation documents
+
+The incomes page reads the sanitized allocation status before acting. It never
+calls customer-side recovery. `PROCESSING` and `UNKNOWN_OUTCOME` block resend
+and finalization without an allocation; a stored allocation resumes local work.
+
 ## Key entities/files
-- `book-keeping.page.ts` — `BookKeepingPage`; renders a `TabMenu` of child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL.
+- `book-keeping.page.ts` — `BookKeepingPage`; renders the current PrimeNG `Tabs` navigation for child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL. Do not reintroduce deprecated `TabMenu`: in PrimeNG 19 it collides with legacy `TabView` dynamic styles under the shared `tabs` style key.
 - `book-keeping-routing.module.ts` — lazy-loads child modules: `incomes`, `expenses`, `clients`, `suppliers`, `archived-documents`, `tasks` (client-tasks); `incomes`/`expenses` are gated by `ModuleAccessGuard`.
-- `incomes/incomes.page.ts` — `IncomesPage`: lists issued documents (invoices/receipts), supports client-side free-text search across the displayed document fields, and resumes pending SHAAM allocation. Resume attempts official recovery first; only a definitive not-found result permits a new Approval request. Uses `DocumentsService` and `ShaamService`.
+- `incomes/incomes.page.ts` — `IncomesPage`: lists issued documents (invoices/receipts), supports client-side free-text search across the displayed document fields, and resumes pending SHAAM allocation. Resume requires explicit confirmation containing the document number, then attempts official recovery first; only a definitive not-found result permits a new Approval request. Uses `DocumentsService` and `ShaamService`.
 - `expenses/expenses.page.ts` — `ExpensesPage`: lists/manages P&L and annual-report-only expenses and file attachments by document date (independent of VAT claim periods), with client-side free-text search in both expense tables. An asset acquisition appears only in its acquisition-date range while generated depreciation remains journal-only. Its formatted table amount is display-only; it retains a separate raw ILS amount for edit prefill, while the manual-expense dialog prefills foreign rows from `originalSum`/`originalCurrency` and sends those source values back for server-side conversion. Fixed assets expose both the statutory depreciation rate and the separate income-tax recognition percentage. Uses `ExpenseDataService`, `FilesService`.
 - `clients/clients.page.ts` — `ClientsPage`: lists/edits/deletes the business's own clients (used for invoicing), via `DocCreateService.getClients/deleteClient` and the shared `AddClientComponent` dialog.
 - `suppliers/suppliers.page.ts` — `SuppliersPage`: lists/edits suppliers via `ExpenseDataService` and the shared `AddSupplierComponent` dialog.
@@ -12,6 +18,15 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 - `client-tasks/client-tasks.page.ts` — `ClientTasksPage` (route `tasks`, tab currently hidden in `book-keeping.page.ts`): shows the user's own report workflows (VAT/advance-tax/annual), lets self-served users mark/dismiss/file, or delegated users confirm upload-completion to their accountant. Uses `ReportWorkflowService`.
 
 ## Main flows
+
+- All issued-document, expense, archive, client and supplier tables pass the
+  unified generic-table `actions` input; mobile menus are automatic and use
+  the same predicates as desktop. File-independent page actions have no file
+  requirement. Issued-document preview/download/cancel/opposite actions retain
+  their stored-file requirement; allocation actions remain available without
+  a file and precede them. Opposite-document visibility reads docStatusOriginal
+  before the translated status label. Archive permission/status predicates now
+  apply on mobile too.
 - Tab navigation between incomes/expenses/clients/suppliers (tasks hidden), each tab lazy-loaded as its own module/route.
 - Incomes: list documents and safely recover/resume Tax Authority allocation for persisted pending invoices; a stored allocation finalizes without another Approval request.
 - Expenses: list/filter expenses, split between regular and annual-report-only.

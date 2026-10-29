@@ -1,3 +1,5 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
+import { BillingRefundDialogComponent } from './billing-refund-dialog.component';
 import {
   Component,
   computed,
@@ -33,7 +35,7 @@ import {
   RenewalOutcome,
   RenewalResult,
 } from 'src/app/services/admin-billing.service';
-import { IColumnDataTable, IRowDataTable, ISelectItem, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IRowDataTable, ISelectItem } from 'src/app/shared/interface';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import {
   ADMIN_SUBSCRIPTION_SAVE_BUTTON_COLOR,
@@ -48,6 +50,7 @@ import {
 } from './billing-subscriptions.presentation';
 
 export type DiscountKind = 'NONE' | 'PERCENT' | 'AMOUNT';
+export type SubscriptionStatusFilter = 'ALL' | 'ACTIVE' | 'TRIAL' | 'TRIAL_EXPIRED';
 
 /** ISelectItem format required by app-input-select (name/value, not label/value). */
 const DISCOUNT_KIND_OPTIONS: ISelectItem[] = [
@@ -86,6 +89,7 @@ export const STATUS_LABELS: Record<string, string> = {
   templateUrl: './billing-subscriptions.component.html',
   styleUrls: ['./billing-subscriptions.component.scss'],
   imports: [
+    BillingRefundDialogComponent,
     CommonModule,
     ReactiveFormsModule,
     DrawerModule,
@@ -127,8 +131,10 @@ export class BillingSubscriptionsComponent implements OnInit {
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
 
   subscriptions = signal<AdminSubscription[]>([]);
+  readonly statusFilter = signal<SubscriptionStatusFilter>('ALL');
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
+  refundSub = signal<AdminSubscription | null>(null);
   showDrawer = signal(false);
   /** Read-only billing exceptions of the open drawer's subscription, loaded lazily on open. */
   exceptionAttempts = signal<AdminUnresolvedBillingAttempt[]>([]);
@@ -226,7 +232,12 @@ export class BillingSubscriptionsComponent implements OnInit {
     { name: 'cardTokenExists',    value: 'כרטיס',           cellRenderer: ICellRenderer.CHECKBOX },
   ]);
 
-  readonly rowActions: ITableRowAction[] = [
+  readonly rowActions: IGenericTableAction[] = [
+    {
+      name: 'refund', icon: 'pi pi-undo', title: 'זיכוי',
+      action: (_: any, row: IRowDataTable) => this.refundSub.set(
+        this.subscriptions().find(s => s.subscriptionId === row['subscriptionId']) ?? null),
+    },
     {
       name: 'edit',
       icon: 'pi pi-pencil',
@@ -237,15 +248,22 @@ export class BillingSubscriptionsComponent implements OnInit {
       name: 'chargeNow',
       icon: 'pi pi-credit-card',
       title: 'חיוב ידני',
-      alwaysShow: true,
       showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL',
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
     },
   ];
 
+  readonly filteredSubscriptions = computed(() => {
+    const status = this.statusFilter();
+    return status === 'ALL'
+      ? this.subscriptions()
+      : this.subscriptions().filter(subscription =>
+          subscription.billingAccessMode !== 'COMPLIMENTARY_FULL' && subscription.status === status);
+  });
+
   readonly tableRows = computed<IRowDataTable[]>(() =>
-    this.subscriptions().map(s => ({
+    this.filteredSubscriptions().map(s => ({
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
       businessName:            s.businessName ?? '—',
@@ -273,6 +291,10 @@ export class BillingSubscriptionsComponent implements OnInit {
       ),
     }))
   );
+
+  onStatusFilterChange(event: Event): void {
+    this.statusFilter.set((event.target as HTMLSelectElement).value as SubscriptionStatusFilter);
+  }
 
   ngOnInit(): void {
     this.loadSubscriptions();

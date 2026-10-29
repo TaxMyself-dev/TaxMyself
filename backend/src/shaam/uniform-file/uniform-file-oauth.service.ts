@@ -31,7 +31,7 @@ export class UniformFileOauthService {
     const params = new URLSearchParams({
       response_type: 'code',
       client_id: this.config.clientId,
-      scope: this.config.scopes.join(' '),
+      scope: this.scopeParameter(),
       redirect_uri: this.config.redirectUri,
       state,
     });
@@ -50,7 +50,7 @@ export class UniformFileOauthService {
       grant_type: 'authorization_code',
       code,
       redirect_uri: this.config.redirectUri,
-      scope: this.config.scopes.join(' '),
+      scope: this.scopeParameter(),
     });
 
     try {
@@ -93,7 +93,9 @@ export class UniformFileOauthService {
     }
 
     if (data.scope) {
-      const returnedScopes = new Set(data.scope.split(/\s+/).filter(Boolean));
+      const returnedScopes = new Set(
+        data.scope.split(/[\s,]+/).filter(Boolean),
+      );
       if (this.config.scopes.some((scope) => !returnedScopes.has(scope))) {
         throw new BadGatewayException('SHAAM Daily Token is missing a required scope');
       }
@@ -106,5 +108,9 @@ export class UniformFileOauthService {
     if (!this.config.enabled) {
       throw new ServiceUnavailableException('Uniform-file SHAAM OAuth is disabled');
     }
+  }
+
+  private scopeParameter(): string {
+    return this.config.scopes.join(',');
   }
 }

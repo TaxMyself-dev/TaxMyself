@@ -1,5 +1,7 @@
 import { SourceType } from 'src/enum';
 import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
+import { DESIGNER_SANDBOX_PROFILE } from './designer-sandbox.profile';
+import { PARTNER_CANDIDATE_COUPLE_PROFILE } from './partner-candidate-couple.profile';
 import { DEMO_PROFILES, findDemoProfileByEmail, isDemoEmail } from './index';
 
 /**
@@ -113,19 +115,32 @@ describe('DIRECT_CARD_DEMO_PROFILE legacyDuplicateScenario', () => {
   });
 });
 
-/** Backwards compatibility: the new optional fields must stay opt-in. */
-describe('existing demo profiles', () => {
-  const others = DEMO_PROFILES.filter((p) => p.id !== DIRECT_CARD_DEMO_PROFILE.id);
+/** Optional Open-Banking fixture fields must stay explicit and isolated. */
+describe('demo profiles with source-state metadata', () => {
+  const expectedFixtureProfileIds = [
+    DESIGNER_SANDBOX_PROFILE.id,
+    DIRECT_CARD_DEMO_PROFILE.id,
+    PARTNER_CANDIDATE_COUPLE_PROFILE.id,
+  ].sort();
 
-  it('declare no sourceSyncStates, isDirect flags or scenario', () => {
-    for (const p of others) {
-      expect(p.sourceSyncStates).toBeUndefined();
-      expect(p.legacyDuplicateScenario).toBeUndefined();
-      const allSources = [...p.bills.flatMap((b) => b.sources), ...(p.standaloneSources ?? [])];
-      for (const s of allSources) {
-        expect(s.isDirect).toBeUndefined();
-      }
-    }
+  it('limits sourceSyncStates and explicit isDirect metadata to fixture profiles', () => {
+    const withSyncStates = DEMO_PROFILES
+      .filter((p) => p.sourceSyncStates !== undefined)
+      .map((p) => p.id)
+      .sort();
+    const withDirectMetadata = DEMO_PROFILES
+      .filter((p) => [...p.bills.flatMap((b) => b.sources), ...(p.standaloneSources ?? [])]
+        .some((source) => source.isDirect !== undefined))
+      .map((p) => p.id)
+      .sort();
+
+    expect(withSyncStates).toEqual(expectedFixtureProfileIds);
+    expect(withDirectMetadata).toEqual(expectedFixtureProfileIds);
+  });
+
+  it('limits the legacy duplicate scenario to the Direct-card demo', () => {
+    expect(DEMO_PROFILES.filter((p) => p.legacyDuplicateScenario).map((p) => p.id))
+      .toEqual([DIRECT_CARD_DEMO_PROFILE.id]);
   });
 
   it('keeps every profile id and email unique', () => {

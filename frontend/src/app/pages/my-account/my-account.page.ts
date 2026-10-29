@@ -1,3 +1,5 @@
+import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -27,10 +29,11 @@ import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enums';
-import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITableRowAction, ITransactionData, IUserData } from 'src/app/shared/interface';
+import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
 import { TransactionsService } from '../transactions/transactions.page.service';
+import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
 import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
@@ -38,13 +41,14 @@ import { BillingStateService } from 'src/app/services/billing-state.service';
 import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
+import { AdminPanelService } from 'src/app/services/admin-panel.service';
 
 @Component({
   selector: 'app-my-account',
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [
+  imports: [AccountImageComponent,
     CommonModule,
     FormsModule,
     IonicModule,
@@ -68,6 +72,7 @@ export class MyAccountPage implements OnInit {
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
   expenseService = inject(ExpenseDataService);
+  private readonly openBankingNavigation = inject(OpenBankingNavigationService);
   feezbackService = inject(FeezbackService);
   messageService = inject(MessageService);
   private readonly syncStatusService = inject(SyncStatusService);
@@ -76,6 +81,7 @@ export class MyAccountPage implements OnInit {
   private readonly accessService = inject(AccessService);
   private readonly accessHandlerService = inject(AccessHandlerService);
   private readonly clientPanelService = inject(ClientPanelService);
+  private readonly adminPanelService = inject(AdminPanelService);
 
   readonly access = {
     createDocumentRecommended: computed(() => this.accessService.getFeatureState(AppFeature.DOC_CREATE_BUTTON_RECOMMENDED_PIVOT)),
@@ -125,6 +131,7 @@ export class MyAccountPage implements OnInit {
   isLoadingFeezback = signal<boolean>(false);
   isLoadingUserAccounts = signal<boolean>(false);
   userData: IUserData;
+  readonly isResettingDemoData = signal(false);
   transToClassify: Observable<ITransactionData[]>;
 
   buttonSize = ButtonSize;
@@ -395,6 +402,38 @@ export class MyAccountPage implements OnInit {
     return this.clientPanelService.getSelectedClientId() != null;
   }
 
+  resetDemoData(): void {
+    if (!this.userData?.canSelfResetDemoData || this.isDelegatedClientView() || this.isResettingDemoData()) return;
+    if (!window.confirm('לאפס את סביבת הדמו? כל השינויים שביצעת בנתוני הדמו יימחקו.')) return;
+
+    this.isResettingDemoData.set(true);
+    this.adminPanelService.resetDemoTestData()
+      .pipe(finalize(() => this.isResettingDemoData.set(false)))
+      .subscribe({
+        next: () => {
+          this.messageService.add({
+            severity: 'success',
+            summary: 'סביבת הדמו אופסה',
+            detail: 'נתוני הבנקאות הוחזרו לנקודת ההתחלה.',
+            life: 4000,
+            key: 'br',
+          });
+          this.transactionService.getAllBills();
+          this.getTransToClassify();
+          this.startSyncStatusPolling();
+        },
+        error: (error) => {
+          this.messageService.add({
+            severity: 'error',
+            summary: 'האיפוס נכשל',
+            detail: error?.error?.message ?? 'לא הצלחנו לאפס את סביבת הדמו. נסי שוב.',
+            life: 5000,
+            key: 'br',
+          });
+        },
+      });
+  }
+
   // ─── Column definitions: derived from shared config ───────────────────────
   fieldsNamesExpenses = computed(() =>
     buildTransactionColumns({
@@ -433,7 +472,7 @@ export class MyAccountPage implements OnInit {
   }
 
   // ─── Row actions ─────────────────────────────────────────────────────────
-  rowActions: ITableRowAction[] = [
+  rowActions: IGenericTableAction[] = [
     {
       name: 'associate',
       icon: 'pi pi-link',
@@ -462,7 +501,25 @@ export class MyAccountPage implements OnInit {
     private authService: AuthService,
     private route: ActivatedRoute,
     private router: Router,
-  ) { }
+  ) {
+    this.observeOwnerProfile();
+  }
+
+  private observeOwnerProfile(): void {
+    this.authService.ownerProfileUpdates$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(profile => {
+      if (profile && !this.isDelegatedClientView() && !this.authService.isViewingAsClient() &&
+        this.authService.getCurrentAuthUser()?.uid === profile.firebaseId) {
+        this.userData = profile;
+        this.hasOpenBanking.set(!!profile.hasOpenBanking);
+      }
+    });
+  }
+
+  ionViewWillEnter(): void {
+    // Ionic may retain this page while Settings updates the owner's profile.
+    const profile = this.authService.getUserDataFromLocalStorage();
+    if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
+  }
 
   ngOnInit() {
     console.log("MyAccountPage initialized");
@@ -543,6 +600,11 @@ export class MyAccountPage implements OnInit {
     const simulate = this.route.snapshot.queryParamMap.get('simulate') === 'true';
     const scenario = this.route.snapshot.queryParamMap.get('scenario') ?? 'success';
     if (status !== 'success' && status !== 'failure') return;
+    if (status === 'failure') {
+      void this.openBankingNavigation.returnToOrigin();
+      return;
+    }
+    this.openBankingNavigation.clear();
     this.pendingPostConsentScenario = scenario;
 
     void this.router.navigate(['/my-account'], {
@@ -585,11 +647,6 @@ export class MyAccountPage implements OnInit {
       } else {
         this.pollForWebhookReady();
       }
-    } else if (status === 'failure') {
-      this.feezbackDialogStatus.set('failure');
-      this.feezbackDialogTitle.set('משהו בדרך השתבש והחיבור לבנקאות פתוחה לא הצליח...');
-      this.feezbackDialogIcon.set('error');
-      this.feezbackDialogVisible.set(true);
     }
   }
 
@@ -1086,9 +1143,9 @@ export class MyAccountPage implements OnInit {
         },
       });
   }
-  onRetrySource(type: 'bank' | 'card', sourceId: string): void {
-    this.isRetryingSource.set(sourceId);
-    this.syncStatusService.retrySource(type, sourceId)
+  onRetrySource(type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): void {
+    this.isRetryingSource.set(String(sourceRecordId ?? sourceId));
+    this.syncStatusService.retrySource(type, sourceId, sourceRecordId)
       .pipe(
         catchError(err => {
           console.error('[MyAccount] retrySource failed:', err);
@@ -1111,7 +1168,7 @@ export class MyAccountPage implements OnInit {
       )
       .subscribe(result => {
         this.syncSourceResults.update(results =>
-          results.map(r => r.sourceId === sourceId ? result : r)
+          results.map(r => (sourceRecordId ? r.sourceRecordId === sourceRecordId : r.sourceId === sourceId) ? result : r)
         );
         if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'failure') {
           // Re-classify after the retry — may flip to success, or stay failure with

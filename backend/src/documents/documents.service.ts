@@ -1,6 +1,6 @@
-import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import axios, { AxiosInstance } from 'axios';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
 import { Documents } from './documents.entity';
@@ -19,7 +19,6 @@ import * as admin from 'firebase-admin';
 import { createHash, randomUUID } from 'crypto';
 import { ImportedDocument } from 'src/document-import/entities/imported-document.entity';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
-import * as fs from 'fs';
 import * as path from 'path';
 import { CreateDocDto } from './dtos/create-doc.dto';
 import { BusinessService } from 'src/business/business.service';
@@ -35,6 +34,12 @@ import { Expense } from '../expenses/expenses.entity';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
 import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { UsersService } from '../users/users.service';
+import { DocumentPdfRenderer } from './pdf/document-pdf-renderer.service';
+import { FillFasterSigner } from './pdf/fillfaster-signer.service';
+import { DocumentPdfModel } from './pdf/document-pdf.template';
+import { ImageStorageService } from '../identity-images/image-storage.service';
+import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
+import { ShaamInvoiceAllocationAttemptState } from '../shaam/entities/shaam.enums';
 // Business is already imported above as part of Bookkeeping/Issued-Documents logic.
 
 /**
@@ -158,7 +163,6 @@ export class DocumentsService {
   private activeInboxOcr = 0;
   private readonly inboxOcrWaiters: Array<() => void> = [];
 
-  private readonly apiClient: AxiosInstance;
   sessionID: string;
 
   constructor(
@@ -194,6 +198,8 @@ export class DocumentsService {
     private expenseRepo: Repository<Expense>,
     @InjectRepository(ImportedDocument)
     private importedDocumentRepo: Repository<ImportedDocument>,
+    @InjectRepository(ShaamInvoiceAllocationAttempt)
+    private shaamAllocationAttemptRepo: Repository<ShaamInvoiceAllocationAttempt>,
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly documentProcessor: DocumentProcessorService,
@@ -201,7 +207,10 @@ export class DocumentsService {
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     private readonly fxRateService: FxRateService,
-    private dataSource: DataSource
+    private dataSource: DataSource,
+    private readonly documentPdfRenderer: DocumentPdfRenderer,
+    private readonly fillFasterSigner: FillFasterSigner,
+    private readonly imageStorage: ImageStorageService,
   ) { }
 
   isIncrement: boolean = false;
@@ -599,150 +608,141 @@ export class DocumentsService {
     return err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY';
   }
 
-
-  async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    // FID mapping based on environment and document type
-    const fidMap = {
-      // Production FIDs
-      prod: {
-        receipt: 'EaHjg6fsRL',
-        // invoice: 'AKmqQkevbM',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE
-        invoice: 'TrBvfW6p6P'
-      },
-      // Development FIDs
-      dev: {
-        receipt: '95gqltPdeC',          // RECEIPT, TAX_INVOICE_RECEIPT (with payments)
-        invoice: 'zjnzfjd1K3',           // TAX_INVOICE, TRANSACTION_INVOICE, CREDIT_INVOICE (no payments)
-      }
-    };
-
-    let fid: string;
-    let prefill_data: any;
-
-    const url = 'https://api.fillfaster.com/v1/generatePDF';
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImluZm9AdGF4bXlzZWxmLmNvLmlsIiwic3ViIjo5ODUsInJlYXNvbiI6IkFQSSIsImlhdCI6MTczODIzODAxMSwiaXNzIjoiaHR0cHM6Ly9maWxsZmFzdGVyLmNvbSJ9.DdKFDTxNWEXOVkEF2TJHCX0Mu2AbezUBeWOWbpYB2zM';
-    const docType = data.docData.docType;
-
-    // Read draft image and convert to base64 only for previewDoc
-    let draftImageBase64: string | null = null;
-    if (templateType === 'previewDoc') {
-      try {
-        const draftImagePath = path.resolve(__dirname, '..', 'assets', 'draft.jpeg');
-        // const draftImagePath = path.join(__dirname, '..', '..', 'src', 'assets', 'draft.jpeg');
-        const imageBuffer = fs.readFileSync(draftImagePath);
-        draftImageBase64 = `data:image/jpeg;base64,${imageBuffer.toString('base64')}`;
-      } catch (error) {
-        console.error('❌ Error reading draft image:', error);
-      }
-    }
-
-    switch (templateType) {
-      case 'createDoc':
-      case 'previewDoc':
-        const envFids = isProduction ? fidMap.prod : fidMap.dev;
-        if (['RECEIPT', 'TAX_INVOICE_RECEIPT'].includes(docType)) {
-          fid = envFids.receipt;
-        } else if (['TAX_INVOICE', 'TRANSACTION_INVOICE', 'CREDIT_INVOICE', 'PRICE_QUOTE', 'WORK_ORDER'].includes(docType)) {
-          // PRICE_QUOTE and WORK_ORDER share the invoice template — same
-          // layout, no payment section.
-          fid = envFids.invoice;
-        } else {
-          fid = 'UNKNOWN FID';
-        }
-
-        const hebrewNameDoc = data.docData.docType === DocumentType.RECEIPT ? 'קבלה' :
-          data.docData.docType === DocumentType.TAX_INVOICE ? 'חשבונית מס' :
-            data.docData.docType === DocumentType.TAX_INVOICE_RECEIPT ? 'חשבונית מס קבלה' :
-              data.docData.docType === DocumentType.TRANSACTION_INVOICE ? 'חשבון עסקה' :
-                data.docData.docType === DocumentType.CREDIT_INVOICE ? 'חשבונית זיכוי' :
-                  data.docData.docType === DocumentType.PRICE_QUOTE ? 'הצעת מחיר' :
-                    data.docData.docType === DocumentType.WORK_ORDER ? 'הזמנת עבודה' : '';
-        prefill_data = {
-          recipientName: data.docData.recipientName,
-          recipientTaxNumber: data.docData.recipientId ? `מ.ע. / ח.פ.:  ${data.docData.recipientId}` : null,
-          docTitle: `${hebrewNameDoc} מספר ${data.docData.docNumber}`,
-          docSubtitle: data.docData.docSubtitle ?? null,
-          allocationNum: data.docData.allocationNum ? `מספר הקצאה: ${data.docData.allocationNum}` : null,
-          docDate: this.formatDateToDDMMYYYY(data.docData.docDate),
-          issuerName: data.docData.issuerName ? `שם העסק: ${data.docData.issuerName}` : null,
-          issuerDetails: [
-            data.docData.issuerBusinessNumber ? `מ.ע. / ח.פ.:  ${data.docData.issuerBusinessNumber}` : null,
-            data.docData.issuerPhone ? `טלפון:  ${data.docData.issuerPhone}` : null,
-            data.docData.issuerEmail ? `כתובת מייל:  ${data.docData.issuerEmail}` : null,
-            data.docData.issuerAddress ? `כתובת:  ${data.docData.issuerAddress}` : null,
-          ].filter(Boolean).join('\n'),
-          items_table: await this.transformLinesToItemsTable(data.linesData),
-          sumTable: await this.transformSumsToSumTable(data.docData, data.docData.issuerBusinessNumber),
-          documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
-          paymentMethod: data.docData.paymentMethod,
-          draft_image: templateType === 'previewDoc' ? draftImageBase64 : null
-        };
-
-        // Add VAT-related fields only for non-receipts
-        const isReceipt = docType === 'RECEIPT';
-        if (!isReceipt) {
-          prefill_data.vatableAmountLabel = 'חייב במע"מ';
-          prefill_data.vatableAmount = `${data.docData.sumAftDisBefVAT - data.docData.sumWithoutVat} ש"ח`;
-          prefill_data.vatLabel = 'מע"מ';
-          prefill_data.vat = `${data.docData.vatSum} ש"ח`;
-        }
-
-        if (data.paymentData && data.paymentData.length > 0) {
-          prefill_data.payments_table = await this.transformLinesToPaymentsTable(data.paymentData);
-          prefill_data.sumPaymentsTable = await this.transformPaymentsToSumTable(data.paymentData, data.docData);
-        }
-
-
-        break;
-
-
-      default:
-        throw new Error(`Unknown template type: ${templateType}`);
-    }
-
-    const payload = {
-      fid,
-      digitallySign: templateType === 'createDoc',
-      prefill_data,
-    };
-
-    const headers = {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-
-    try {
-
-      const response = await axios.post<Blob>(url, payload, {
-        headers,
-        responseType: 'arraybuffer',
-      });
-
-      if (!response.data) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      return response.data;
-    } catch (error: any) {
-      console.error('❌ FillFaster API Error:');
-      console.error('   Status:', error.response?.status);
-      console.error('   Status Text:', error.response?.statusText);
-      console.error('   URL:', url);
-      console.error('   FID:', fid);
-
-      console.error('   Error code:', error.code || 'UNKNOWN');
-      console.error('   Error message:', error.message || 'Unknown FillFaster error');
-
-      throw new HttpException(
-        `FillFaster API error: ${error.response?.status || 'Unknown'} - ${error.response?.statusText || error.message}`,
-        error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+  private allocationNumberForDisplay(value: unknown): string | null {
+    const normalized = String(value ?? '').trim();
+    return normalized ? normalized.slice(-9) : null;
   }
 
+  private async preparePdfModel(data: any, preview: boolean, isCopy: boolean): Promise<DocumentPdfModel> {
+    const doc = data.docData;
+    const names: Partial<Record<DocumentType, string>> = {
+      [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+      [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה', [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
+      [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי', [DocumentType.PRICE_QUOTE]: 'הצעת מחיר', [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
+    };
+    if (!names[doc.docType]) throw new BadRequestException('Unsupported document type for local PDF');
+    // Resolve current branding at PDF generation, including pending-allocation
+    // documents. Already-issued PDFs are served from their existing stored files.
+    // System billing receipts explicitly provide their company identity instead.
+    const business = doc.issuerIdentitySource === 'system' ? null
+      : await measurePdfStage('BUSINESS_LOOKUP', () => this.businessService.getBusinessByNumber(doc.issuerBusinessNumber));
+    const identity = business ? {
+      issuerName: business.businessName,
+      issuerAddress: business.businessAddress,
+      issuerPhone: business.businessPhone,
+      issuerEmail: business.businessEmail,
+      logoPath: business.logoPath,
+    } : { ...doc, logoPath: null };
+    let logoDataUri: string;
+    if (identity.logoPath) {
+      const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath));
+      logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
+    }
+    const lines = data.linesData ?? [];
+    // `doc.sumWithoutVat` comes from different sources: fresh requests carry
+    // the pre-discount untaxed amount, while persisted-document reconstruction
+    // carries the after-discount amount. Derive the PDF split from line facts so
+    // both paths label taxable and untaxed totals consistently.
+    const sumWithoutVatAfterDiscount = lines
+      .filter((line: any) => String(line.vatOpts).toUpperCase() === 'WITHOUT'
+        || Number(line.vatOpts) === VatOptions.WITHOUT)
+      .reduce((sum: number, line: any) => {
+        const unitPrice = Number(line.sumBefVatPerUnit || line.sum || 0);
+        const quantity = Number(line.unitQuantity || 1);
+        const discount = Number(line.disBefVatPerLine ?? line.discount ?? 0);
+        return sum + Number(line.sumAftDisBefVatPerLine
+          ?? (unitPrice * quantity - discount));
+      }, 0);
+    const pdfDoc = lines.length > 0
+      ? { ...doc, sumWithoutVat: sumWithoutVatAfterDiscount }
+      : doc;
+    const summary = await this.transformSumsToSumTable(pdfDoc, doc.issuerBusinessNumber);
+    // Credit invoices used the separate legacy VAT fields rather than VAT rows
+    // in sumTable. Preserve those displayed values in the local summary too.
+    if (doc.docType === DocumentType.CREDIT_INVOICE && !isExemptBusinessType(doc.businessType)) {
+      const creditVatRows = [
+        { 'תיאור': 'סה״כ חייב במע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(pdfDoc.sumAftDisBefVAT || 0) - Number(pdfDoc.sumWithoutVat || 0))}` },
+        { 'תיאור': 'מע״מ:', 'סכום': `₪${this.formatNumberWithCommas(Number(doc.vatSum || 0))}` },
+      ];
+      if (Number(pdfDoc.sumWithoutVat || 0) > 0) {
+        creditVatRows.push({
+          'תיאור': 'סה״כ ללא מע״מ:',
+          'סכום': `₪${this.formatNumberWithCommas(Number(pdfDoc.sumWithoutVat))}`,
+        });
+      }
+      summary.splice(Math.max(0, summary.length - 1), 0, ...creditVatRows);
+    }
+    const allocationNumber = this.allocationNumberForDisplay(doc.allocationNum);
+    const model: DocumentPdfModel = {
+      title: `${names[doc.docType]} מספר ${doc.docNumber}`,
+      issuerName: identity.issuerName ? `שם העסק: ${identity.issuerName}` : null,
+      issuerDetails: [
+        doc.issuerBusinessNumber ? `מ.ע. / ח.פ.: ${doc.issuerBusinessNumber}` : null,
+        identity.issuerPhone ? `טלפון: ${identity.issuerPhone}` : null,
+        identity.issuerEmail ? `כתובת אימייל: ${identity.issuerEmail}` : null,
+        identity.issuerAddress ? `כתובת: ${identity.issuerAddress}` : null,
+      ].filter(Boolean).join('\n'),
+      recipientName: doc.recipientName,
+      recipientTaxNumber: doc.recipientId ? `מספר עוסק: ${doc.recipientId}` : null,
+      date: this.formatDateToDDMMYYYY(doc.docDate), documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
+      subtitle: doc.docSubtitle, note: doc.docDescription,
+      allocation: allocationNumber ? `מספר הקצאה: ${allocationNumber}` : null,
+      logoDataUri, preview,
+      items: await this.transformLinesToItemsTable(data.linesData ?? []),
+      totals: summary,
+      payments: await this.transformLinesToPaymentsTable(data.paymentData ?? []),
+      paymentTotals: await this.transformPaymentsToSumTable(data.paymentData ?? [], doc),
+    };
+    return model;
+  }
+
+  private async generateLocalPdf(data: any, preview: boolean, isCopy: boolean): Promise<Buffer> {
+    const model = await this.preparePdfModel(data, preview, isCopy);
+    return measurePdfStage(isCopy ? 'COPY_RENDER' : 'ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+  }
+
+  private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
+    const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
+    const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
+    // Only one render at a time. Settle both operations before rollback on either failure.
+    const [original, copyPdf] = await Promise.allSettled([
+      measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf)),
+      measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' })),
+    ]);
+    if (original.status === 'rejected') throw original.reason;
+    if (copyPdf.status === 'rejected') throw copyPdf.reason;
+    const copy = await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyPdf.value));
+    return { original: original.value, copy };
+  }
+
+  private async uploadPdfPair(data: any, original: Buffer, copy: Buffer): Promise<[string, string]> {
+    const outcomes = await Promise.allSettled([
+      measurePdfStage('UPLOAD_ORIGINAL', () => this.uploadToFirebase(original,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'original')),
+      measurePdfStage('UPLOAD_COPY', () => this.uploadToFirebase(copy,
+        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+        data.docData.docType, data.docData.docDescription, 'copy')),
+    ]);
+    const failure = outcomes.find(outcome => outcome.status === 'rejected');
+    if (failure?.status === 'rejected') {
+      // Wait for both uploads, then remove every successful sibling before rollback.
+      // Preserve the triggering error even if cleanup itself fails.
+      await Promise.allSettled(outcomes.filter((outcome): outcome is PromiseFulfilledResult<string> =>
+        outcome.status === 'fulfilled').map(outcome => this.deleteFromFirebase(outcome.value)));
+      throw failure.reason;
+    }
+    return outcomes.map(outcome => (outcome as PromiseFulfilledResult<string>).value) as [string, string];
+  }
+
+  async generatePDF(data: any, templateType: string, isCopy: boolean = false): Promise<Blob> {
+    if (!['previewDoc', 'createDoc'].includes(templateType)) {
+      throw new BadRequestException('Unknown document operation');
+    }
+    const preview = templateType === 'previewDoc';
+    const pdf = await measurePdfStage(isCopy ? 'COPY_PREPARE_RENDER' : 'ORIGINAL_PREPARE_RENDER', () => this.generateLocalPdf(data, preview, isCopy));
+    return (preview ? pdf : await measurePdfStage(isCopy ? 'COPY_SIGN' : 'ORIGINAL_SIGN', () => this.fillFasterSigner.sign(pdf))) as unknown as Blob;
+  }
 
   /**
    * Format a number with commas as thousand separators and 2 decimal places
@@ -760,7 +760,7 @@ export class DocumentsService {
     // Use businessType from docData (DTO) to avoid an extra DB query
     const businessType = docData.businessType ?? null;
     const docType = docData.docType;
-    const sumBefDisBefVat = Number(docData.sumWithoutVat || 0);
+    const sumBefDisBefVat = Number(docData.sumBefDisBefVat || 0);
     const disSum = Number(docData.disSum || 0);
     const sumAftDisWithVAT = Number(docData.sumAftDisWithVAT || 0);
     const sumAftDisBefVAT = Number(docData.sumAftDisBefVAT || 0);
@@ -769,23 +769,21 @@ export class DocumentsService {
 
     const sumTable: any[] = [];
 
-    // For EXEMPT (עוסק פטור / שותפות פטורה)
-    if (isExemptBusinessType(businessType)) {
-      // If discount is 0, show only total; otherwise show all fields
-      if (disSum > 0) {
-        // Show: סה"כ לפני הנחה
-        sumTable.push({
+    if (disSum > 0) {
+      sumTable.push(
+        {
           'תיאור': 'סה"כ לפני הנחה:',
           'סכום': `₪${this.formatNumberWithCommas(sumBefDisBefVat)}`,
-        });
-
-        // Show: הנחה
-        sumTable.push({
+        },
+        {
           'תיאור': 'הנחה:',
           'סכום': `₪${this.formatNumberWithCommas(disSum)}`,
-        });
-      }
+        },
+      );
+    }
 
+    // For EXEMPT (עוסק פטור / שותפות פטורה)
+    if (isExemptBusinessType(businessType)) {
       // Always show: סה"כ 
       sumTable.push({
         'תיאור': 'סה"כ:',
@@ -799,7 +797,7 @@ export class DocumentsService {
         // סה"כ חייב במע"מ
         sumTable.push({
           'תיאור': 'סה"כ חייב במע"מ:',
-          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT)}`,
+          'סכום': `₪${this.formatNumberWithCommas(sumAftDisBefVAT - sumWithoutVat)}`,
         });
 
         // מע"מ
@@ -838,8 +836,13 @@ export class DocumentsService {
     return lines.map(line => {
       const unitQuantity = Number(line.unitQuantity);
       const sumBefVatPerUnit = Number(line.sumBefVatPerUnit);
+      const discount = Number(line.disBefVatPerLine || 0);
+      const totalAfterDiscount = Number(
+        line.sumAftDisBefVatPerLine ?? (sumBefVatPerUnit * unitQuantity - discount),
+      );
       return {
-        'סה"כ': `₪${this.formatNumberWithCommas(sumBefVatPerUnit * unitQuantity)}`,
+        'סה"כ': `₪${this.formatNumberWithCommas(totalAfterDiscount)}`,
+        'הנחה': `₪${this.formatNumberWithCommas(discount)}`,
         'מחיר': `₪${this.formatNumberWithCommas(sumBefVatPerUnit)}`,
         'כמות': this.formatNumberWithCommas(unitQuantity),
         'פירוט': line.description || ""
@@ -946,7 +949,7 @@ export class DocumentsService {
   }
 
 
-  async transformDocumentData(dto: CreateDocDto): Promise<any> {
+  async transformDocumentData(dto: CreateDocDto, firebaseId?: string): Promise<any> {
 
     // ============================================================================
     // 1. TRANSFORM DOCDATA (Documents entity fields)
@@ -977,7 +980,8 @@ export class DocumentsService {
     }
 
     // Get business details
-    const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber);
+    const business = await this.businessService.getBusinessByNumber(docData.issuerBusinessNumber, firebaseId);
+    if (!business) throw new ForbiddenException('Business not found or not owned by user');
 
     // Transform Documents entity fields
     const transformedDocData: any = {
@@ -1145,6 +1149,7 @@ export class DocumentsService {
 
   async createDoc(data: any, userId: string, generatePdf: boolean = true): Promise<any> {
 
+    const pdfTimings = createPdfTimings('pdf_create_stages');
     // Ensure docStatus is not DRAFT when creating actual document
     // Remove any DRAFT status that might have been set from draft restoration
     if (data.docData && data.docData.docStatus === DocumentStatusType.DRAFT) {
@@ -1163,6 +1168,7 @@ export class DocumentsService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+    pdfTimings.mark('DB_CONNECT_BEGIN');
 
     try {
 
@@ -1186,6 +1192,7 @@ export class DocumentsService {
       }
 
       console.log(new Date().toLocaleTimeString(), 'Step 1 complete - General index reserved');
+      pdfTimings.mark('RESERVE_GENERAL_INDEX');
 
       // 2. Increment document-specific index
       const docDetails = await this.incrementCurrentIndex(userId, data.docData.issuerBusinessNumber, data.docData.docType, queryRunner.manager, data.docData.docNumber);
@@ -1200,6 +1207,7 @@ export class DocumentsService {
       // is the only safe source of truth for the document being saved.
       data.docData.docNumber = String(docDetails.currentIndex - 1);
       console.log(new Date().toLocaleTimeString(), 'Step 2 complete - Document number reserved');
+      pdfTimings.mark('RESERVE_DOCUMENT_NUMBER');
 
       // A saved OAuth draft may still hold the same peeked document number that
       // was just reserved above. Remove that draft inside this transaction before
@@ -1221,14 +1229,17 @@ export class DocumentsService {
         throw new HttpException('Error in saveDocInfo', HttpStatus.INTERNAL_SERVER_ERROR);
       }
       console.log(new Date().toLocaleTimeString(), "Step 3 complete - Document info saved");
+      pdfTimings.mark('DRAFT_CLEANUP_DOCUMENT_SAVE');
 
       // 4. Save line items (now with the correct incremented generalDocIndex)
       await this.saveLinesInfo(userId, data.linesData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 4 complete - Lines info saved");
+      pdfTimings.mark('LINES_SAVE');
 
       // 5. Save payments (now with the correct incremented generalDocIndex)
       await this.savePaymentsInfo(userId, data.paymentData, queryRunner.manager);
       console.log(new Date().toLocaleTimeString(), "Step 5 complete - Payments info saved");
+      pdfTimings.mark('PAYMENTS_SAVE');
 
       // 6. Bookkeeping entry - only for specific document types
       const docTypesWithJournalEntry = [
@@ -1290,54 +1301,17 @@ export class DocumentsService {
         console.log(new Date().toLocaleTimeString(), "Step 6 skipped - Document type does not require journal entry");
       }
 
+      pdfTimings.mark('JOURNAL');
       // 7. Generate both PDFs (original and copy)
       let originalFilePath: string | null = null;
       let copyFilePath: string | null = null;
 
       if (generatePdf) {
         try {
-          // Generate original PDF (מקור)
-          const originalPdfBlob = await this.generatePDF(data, "createDoc");
-          if (!originalPdfBlob) {
-            throw new Error("Original PDF generation failed");
-          }
-          const originalBuffer = Buffer.from(originalPdfBlob as any);
-
-          // Generate copy PDF (העתק נאמן למקור)
-          const copyData = {
-            ...data,
-            docData: {
-              ...data.docData,
-              // Mark as certified copy
-            }
-          };
-          const copyPdfBlob = await this.generatePDF(copyData, "createDoc", true); // Pass true for copy
-          if (!copyPdfBlob) {
-            throw new Error("Copy PDF generation failed");
-          }
-          const copyBuffer = Buffer.from(copyPdfBlob as any);
-          console.log(new Date().toLocaleTimeString(), "Step 7 complete - PDFs generated");
-
-          // 8. Upload both PDFs to Firebase
-          originalFilePath = await this.uploadToFirebase(
-            originalBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'original'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.1 complete - Original PDF uploaded");
-
-          copyFilePath = await this.uploadToFirebase(
-            copyBuffer,
-            data.docData.issuerBusinessNumber,
-            data.docData.generalDocIndex,
-            data.docData.docType,
-            data.docData.docDescription,
-            'copy'
-          );
-          console.log(new Date().toLocaleTimeString(), "Step 8.2 complete - Copy PDF uploaded");
+          const { original: originalBuffer, copy: copyBuffer } = await this.generatePdfPair(data);
+          pdfTimings.mark('SHARED_PREPARE_RENDER_SIGN_PAIR');
+          [originalFilePath, copyFilePath] = await this.uploadPdfPair(data, originalBuffer, copyBuffer);
+          pdfTimings.mark('UPLOAD_PAIR');
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);
@@ -1345,6 +1319,7 @@ export class DocumentsService {
           newDoc.copyFile = copyFilePath;
           await documentsRepo.save(newDoc);
           console.log(new Date().toLocaleTimeString(), "Step 9 complete - files paths saved to document");
+          pdfTimings.mark('FILE_PATHS_SAVE');
 
           // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
           if (data.docData.parentDocType && data.docData.parentDocNumber) {
@@ -1367,6 +1342,7 @@ export class DocumentsService {
             }
           }
 
+          pdfTimings.mark('PARENT_STATUS_UPDATE');
           // 11. Send email to recipient if requested
           console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
           console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
@@ -1466,8 +1442,10 @@ ${finalOwnerName}`;
 
       }
 
+      pdfTimings.mark('OPTIONAL_EMAIL');
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
+      pdfTimings.mark('COMMIT');
 
       console.log(`📄 Document created — docType: ${data.docData.docType}`);
 
@@ -1484,13 +1462,17 @@ ${finalOwnerName}`;
 
     } catch (error) {
 
+      pdfTimings.mark('FAILED_STAGE');
       console.error('❌ Error in createDoc transaction:', error);
       // 🔁 Rollback anything saved so far
       await queryRunner.rollbackTransaction();
+      pdfTimings.mark('ROLLBACK');
       throw error;
 
     } finally {
       await queryRunner.release();
+      pdfTimings.mark('RELEASE_OR_ERROR_CLEANUP');
+      pdfTimings.finish();
     }
   }
 
@@ -1539,6 +1521,47 @@ ${finalOwnerName}`;
 
     if (!doc) {
       throw new NotFoundException('Document not found');
+    }
+
+    if (!doc.allocationNum) {
+      const latestAllocationAttempt = await this.shaamAllocationAttemptRepo.findOne({
+        where: { documentId: doc.id },
+        order: { attemptNumber: 'DESC' },
+      });
+      if (
+        latestAllocationAttempt?.state === ShaamInvoiceAllocationAttemptState.PROCESSING &&
+        (!latestAllocationAttempt.leaseExpiresAt || latestAllocationAttempt.leaseExpiresAt.getTime() <= Date.now())
+      ) {
+        latestAllocationAttempt.state = ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME;
+        latestAllocationAttempt.unknownSince = new Date();
+        latestAllocationAttempt.completedAt = new Date();
+        latestAllocationAttempt.leaseExpiresAt = null;
+        latestAllocationAttempt.failureCategory = 'lease_expired';
+        await this.shaamAllocationAttemptRepo.save(latestAllocationAttempt);
+        this.logger.warn('SHAAM allocation lease expired during local finalization check', {
+          operation: 'invoice_allocation',
+          stage: 'lease_expired',
+          requestId: latestAllocationAttempt.requestId,
+          attemptId: latestAllocationAttempt.id,
+          fromState: ShaamInvoiceAllocationAttemptState.PROCESSING,
+          toState: ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME,
+          environment: latestAllocationAttempt.environment,
+        });
+      }
+      if (
+        latestAllocationAttempt &&
+        [
+          ShaamInvoiceAllocationAttemptState.PROCESSING,
+          ShaamInvoiceAllocationAttemptState.UNKNOWN_OUTCOME,
+        ].includes(latestAllocationAttempt.state)
+      ) {
+        throw new ConflictException({
+          code: latestAllocationAttempt.state === ShaamInvoiceAllocationAttemptState.PROCESSING
+            ? 'ALLOCATION_REQUEST_IN_PROGRESS'
+            : 'ALLOCATION_OUTCOME_UNKNOWN',
+          message: 'Cannot finalize while the Tax Authority allocation outcome is unresolved',
+        });
+      }
     }
 
     // PENDING means the doc was never finalized — full PDF generation + journal
@@ -2018,6 +2041,7 @@ ${finalOwnerName}`;
         issuerPhone,
         issuerEmail,
         issuerAddress,
+        issuerIdentitySource: 'system',
         businessType,
         sumWithoutVat,
         paymentMethod: null,
@@ -2146,6 +2170,54 @@ ${finalOwnerName}`;
     return doc
       ? { receiptDocId: doc.id, docNumber: doc.docNumber, generalDocIndex: doc.generalDocIndex }
       : null;
+  }
+
+  /** Same numbering/journal transaction as billing receipts; provenance is UNIQUE.
+   * Amounts are the refund's frozen allocation of the original VAT, never today's price/rate. */
+  async createBillingSystemCredit(params: {
+    issuer: { systemUserId: string; issuerBusinessNumber: string; issuerBusinessType: BusinessType };
+    sourceDocId: number; billingAttemptId: number; amountAgorot: number;
+    amountBeforeVatAgorot: number; vatAmountAgorot: number; reason: string;
+  }): Promise<{ receiptDocId: number; docNumber: string; generalDocIndex: string }> {
+    const existing = await this.findBillingReceiptByAttemptId(params.billingAttemptId);
+    if (existing) return existing;
+    const source = await this.documentsRepo.findOneByOrFail({ id: params.sourceDocId });
+    if (source.issuerBusinessNumber !== params.issuer.issuerBusinessNumber ||
+      source.docType !== DocumentType.TAX_INVOICE_RECEIPT || source.currency !== Currency.ILS ||
+      ![params.amountAgorot, params.amountBeforeVatAgorot, params.vatAmountAgorot].every(Number.isSafeInteger) ||
+      params.amountAgorot <= 0 || params.amountBeforeVatAgorot < 0 || params.vatAmountAgorot < 0 ||
+      params.amountBeforeVatAgorot + params.vatAmountAgorot !== params.amountAgorot) {
+      throw new BadRequestException('Invalid billing credit source or amounts');
+    }
+    const { issuer } = params;
+    const docType = DocumentType.CREDIT_INVOICE;
+    const { docIndex, isInitial } = await this.getCurrentIndexes(issuer.systemUserId, docType, issuer.issuerBusinessNumber);
+    const amount = params.amountAgorot / 100, net = params.amountBeforeVatAgorot / 100, vat = params.vatAmountAgorot / 100;
+    try {
+      const result = await this.createDoc({ docData: {
+        issuerBusinessNumber: issuer.issuerBusinessNumber, businessType: issuer.issuerBusinessType,
+        docType, docNumber: String(isInitial ? DEFAULT_INITIAL_DOC_INDEX[docType] : docIndex),
+        docVatRate: Number(source.docVatRate), currency: source.currency,
+        sumBefDisBefVat: net, disSum: 0, sumAftDisBefVAT: net, vatSum: vat, sumAftDisWithVAT: amount,
+        withholdingTaxAmount: 0, recipientName: source.recipientName, recipientEmail: source.recipientEmail,
+        recipientId: source.recipientId, docDate: new Date(),
+        parentDocType: source.docType, parentDocNumber: source.docNumber,
+        docSubtitle: `זיכוי עבור מסמך ${source.docNumber}`, docDescription: params.reason,
+        billingAttemptId: params.billingAttemptId,
+      }, linesData: [{ issuerBusinessNumber: issuer.issuerBusinessNumber, docType,
+        lineNumber: '1', transType: '3', description: `זיכוי מנוי KeepInTax — מסמך ${source.docNumber}`,
+        unitType: UnitOfMeasure.UNIT, unitQuantity: 1, sumBefVatPerUnit: net, disBefVatPerLine: 0,
+        sumAftDisBefVatPerLine: net, vatOpts: VatOptions.EXCLUDE, vatRate: Number(source.docVatRate), vatPerLine: vat,
+      }], paymentData: [{ issuerBusinessNumber: issuer.issuerBusinessNumber, paymentLineNumber: '1',
+        paymentMethod: 'CREDIT_CARD', paymentDate: new Date(), paymentAmount: amount }] }, issuer.systemUserId, false);
+      return { receiptDocId: result.id, docNumber: result.docNumber, generalDocIndex: result.generalDocIndex };
+    } catch (error) {
+      // A concurrent creator may have won the document key. Its entire document/
+      // numbering/journal transaction committed, so reuse it after our rollback.
+      const winner = await this.findBillingReceiptByAttemptId(params.billingAttemptId);
+      if (winner) return winner;
+      throw error;
+    }
   }
 
   /**

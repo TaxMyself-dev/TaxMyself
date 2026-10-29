@@ -17,15 +17,18 @@
       
       <p class="result-message">
         החיבור לרשות המיסים (SHAAM) הושלם בהצלחה.<br>
-        @if (isUniformFile) {
-          כעת ניתן לחזור לעמוד מבנה קבצים אחיד ולהמשיך בשליחה.
-        } @else {
-          כעת תוכל לשלוח חשבוניות לאישור ולקבל מספר הקצאה.
-        }
+        כעת תוכל לשלוח חשבוניות לאישור ולקבל מספר הקצאה.
       </p>
 
       <div class="result-actions">
-        @if (isUniformFile) {
+        @if (isSettingsOrigin) {
+          <app-p-button
+            [buttonText]="'חזרה לניהול הרשאות'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.BLACK"
+            (onButtonClicked)="navigateToSettings()">
+          </app-p-button>
+        } @else if (isUniformFileOrigin) {
           <app-p-button
             [buttonText]="'חזרה למבנה קבצים אחיד'"
             [buttonSize]="buttonSize.BIG"
@@ -39,13 +42,13 @@
             [buttonColor]="buttonColor.BLACK"
             (onButtonClicked)="navigateToDocCreate()">
           </app-p-button>
+          <app-p-button
+            [buttonText]="'חזור לדף הבית'"
+            [buttonSize]="buttonSize.BIG"
+            [buttonColor]="buttonColor.WHITE"
+            (onButtonClicked)="navigateToHome()">
+          </app-p-button>
         }
-        <app-p-button 
-          [buttonText]="'חזור לדף הבית'" 
-          [buttonSize]="buttonSize.BIG"
-          [buttonColor]="buttonColor.WHITE"
-          (onButtonClicked)="navigateToHome()">
-        </app-p-button>
       </div>
     }
 

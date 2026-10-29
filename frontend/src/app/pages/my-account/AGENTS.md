@@ -1,5 +1,10 @@
 ## Purpose
 Main integration keeps server verification authoritative: returning from Feezback does not optimistically set hasOpenBanking in UI or local storage.
+The dashboard subscribes to validated owner-profile cache updates so cancellation
+updates `hasOpenBanking` and the existing yellow disconnected banner without a
+browser reload, including when Ionic retains the page. Owner events are ignored
+in represented-client mode and when the Firebase UID differs. `ionViewWillEnter`
+also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
@@ -8,6 +13,10 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
 ## Main flows
+
+- The unclassified-transactions table passes `rowActions` through unified
+  `actions`. Mobile inherits account-association/classification predicates
+  automatically, including quick-classification loading state.
 - KT-053: accepted banking consent routes through /billing/open-banking before
   requesting a Feezback link. Browser consent success no longer writes a local
   connected flag; completed discovery reloads the provider-confirmed user flag.
@@ -25,10 +34,15 @@ Main dashboard/home page shown after login: account sync status, transactions-to
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
-- Demo users receive the same dashboard actions as regular users. During view-as, document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only. Demo profile creation/reset remains in the admin panel and no reset control is exposed on this page.
+- Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 
 ## Related topics
 Backend: transactions, expenses, feezback, billing, demo-data
 Frontend pages: doc-create, transactions
 Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-tran modals used here live under `src/app/components/`, not `src/app/shared/`)
+
+## Profile avatar
+- The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.
+
+Optional spouse source keys end in _spouse; sync result labels render this as בן/בת הזוג, while retries retain the exact internal source key. Identity selection is handled immediately before the provider redirect on /billing/open-banking.

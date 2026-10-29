@@ -2434,6 +2434,16 @@ PREPARE billing_enum_stmt FROM @billing_enum_sql;
 EXECUTE billing_enum_stmt;
 DEALLOCATE PREPARE billing_enum_stmt;
 
+-- 2026-10-13: approved document PDF redesign + identity images. Prepared only.
+-- Nullable metadata preserves existing rows and does not rewrite any documents.
+SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='business' AND COLUMN_NAME='logoPath'), 'SELECT 1', 'ALTER TABLE `business` ADD COLUMN `logoPath` VARCHAR(255) NULL DEFAULT NULL');
+PREPARE document_image_stmt FROM @document_image_ddl;
+EXECUTE document_image_stmt;
+DEALLOCATE PREPARE document_image_stmt;
+SET @document_image_ddl = IF(EXISTS(SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='profileImagePath'), 'SELECT 1', 'ALTER TABLE `user` ADD COLUMN `profileImagePath` VARCHAR(255) NULL DEFAULT NULL');
+PREPARE document_image_stmt FROM @document_image_ddl;
+EXECUTE document_image_stmt;
+DEALLOCATE PREPARE document_image_stmt;
 -- SECTION 24 (2026-10-14): Invoice Information v2 allocation-number width.
 -- The production portal schema permits confirmation_number up to 50 chars.
 -- Widen only; never truncate existing values or shrink a wider future column.
@@ -2449,3 +2459,206 @@ DEALLOCATE PREPARE kt070_stmt;
 -- Verification: must return varchar(50) or a wider varchar.
 -- SELECT COLUMN_TYPE, IS_NULLABLE FROM information_schema.COLUMNS
 -- WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='documents' AND COLUMN_NAME='allocationNum';
+
+-- Feezback optional spouse identity (approved 2026-10-15). Run once before deploying this feature.
+ALTER TABLE `user` ADD COLUMN `hasSpouseFeezbackIdentity` tinyint NOT NULL DEFAULT 0;
+
+
+-- 2026-10-20: optional spouse identity on permanent source records.
+-- Apply once with application/sync writers paused and a verified backup.
+-- DEV already applied; do not rerun there. Existing rows/consents remain intact.
+-- Precondition: every sync row joins source by its original userId+sourceId;
+-- abort if this query returns any rows, resolve ownership before proceeding:
+-- SELECT ss.id FROM user_source_sync_state ss LEFT JOIN source s
+--   ON s.userId=ss.userId AND s.sourceName=ss.sourceId WHERE s.id IS NULL;
+ALTER TABLE source ADD COLUMN connectionRole enum('primary','spouse') NOT NULL DEFAULT 'primary';
+ALTER TABLE user_source_sync_state ADD COLUMN sourceRecordId int NULL;
+ALTER TABLE full_transactions_cache ADD COLUMN sourceRecordId int NULL;
+UPDATE user_source_sync_state ss JOIN source s
+  ON s.userId=ss.userId AND s.sourceName=ss.sourceId SET ss.sourceRecordId=s.id;
+UPDATE full_transactions_cache c JOIN source s
+  ON s.userId=c.userId AND s.sourceName=c.paymentIdentifier SET c.sourceRecordId=s.id;
+ALTER TABLE source ADD UNIQUE INDEX UQ_source_user_type_name_role
+  (userId,sourceType,sourceName,connectionRole), DROP INDEX IDX_source_userId_sourceName;
+ALTER TABLE user_source_sync_state ADD UNIQUE INDEX UQ_source_sync_user_record
+  (userId,sourceRecordId), DROP INDEX UQ_source_sync_user_source;
+START TRANSACTION;
+UPDATE source SET connectionRole=CASE WHEN RIGHT(sourceName,7)='_spouse' THEN 'spouse' ELSE 'primary' END,
+  sourceName=CASE WHEN RIGHT(sourceName,7)='_spouse' THEN LEFT(sourceName,CHAR_LENGTH(sourceName)-7) ELSE sourceName END;
+UPDATE user_source_sync_state ss JOIN source s ON s.id=ss.sourceRecordId AND s.userId=ss.userId
+  SET ss.sourceId=s.sourceName;
+UPDATE full_transactions_cache c JOIN source s ON s.id=c.sourceRecordId AND s.userId=c.userId
+  SET c.paymentIdentifier=s.sourceName;
+COMMIT;
+ALTER TABLE user_source_sync_state MODIFY sourceRecordId int NOT NULL,
+  ADD CONSTRAINT FK_sync_source_record FOREIGN KEY (sourceRecordId) REFERENCES source(id) ON DELETE RESTRICT;
+ALTER TABLE full_transactions_cache ADD CONSTRAINT FK_cache_source_record
+  FOREIGN KEY (sourceRecordId) REFERENCES source(id) ON DELETE RESTRICT;
+-- Verify zero broken links; opaque externalTransactionId and slim state are unchanged.
+
+-- SECTION 25 (2026-10-21): durable SHAAM invoice-allocation attempts (KT-085).
+-- Prepared only. Do not deploy the application until this table exists.
+CREATE TABLE IF NOT EXISTS `shaam_invoice_allocation_attempt` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `document_id` INT NOT NULL,
+  `attempt_number` INT UNSIGNED NOT NULL,
+  `request_id` CHAR(36) NOT NULL,
+  `actor_firebase_id` VARCHAR(255) NOT NULL,
+  `effective_firebase_id` VARCHAR(255) NOT NULL,
+  `environment` VARCHAR(16) NOT NULL,
+  `state` VARCHAR(32) NOT NULL,
+  `payload_sha256` CHAR(64) NOT NULL,
+  `lease_expires_at` DATETIME NULL DEFAULT NULL,
+  `provider_http_status` SMALLINT UNSIGNED NULL DEFAULT NULL,
+  `failure_category` VARCHAR(64) NULL DEFAULT NULL,
+  `provider_error_code` VARCHAR(128) NULL DEFAULT NULL,
+  `submitted_at` DATETIME NOT NULL,
+  `unknown_since` DATETIME NULL DEFAULT NULL,
+  `completed_at` DATETIME NULL DEFAULT NULL,
+  `resolution_action` VARCHAR(32) NULL DEFAULT NULL,
+  `resolution_evidence` VARCHAR(100) NULL DEFAULT NULL,
+  `resolved_by_firebase_id` VARCHAR(255) NULL DEFAULT NULL,
+  `resolved_at` DATETIME NULL DEFAULT NULL,
+  `created_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_shaam_allocation_attempt_number` (`document_id`, `attempt_number`),
+  UNIQUE KEY `ux_shaam_allocation_request_id` (`request_id`),
+  KEY `ix_shaam_allocation_document_state` (`document_id`, `state`, `created_at`),
+  KEY `ix_shaam_allocation_state_created` (`state`, `created_at`),
+  CONSTRAINT `fk_shaam_allocation_attempt_document`
+    FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- Verification: must return 1 before deploying KT-085.
+-- SELECT COUNT(*) FROM information_schema.TABLES
+-- WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='shaam_invoice_allocation_attempt';
+
+-- 2026-10-21 Admin refunds: approved/applied in keepintax-dev ONLY.
+-- NOT APPROVED FOR PRODUCTION. This cumulative record is not an instruction to
+-- run the full cutover. The idempotent dev runner is backend/scripts/migrate-admin-refunds.js.
+-- Existing amounts remain positive on attempts; only REFUND_SUCCESS history is negative.
+-- MySQL 8.0.37 disallows CHECK on cascading FK columns. Equivalent BEFORE triggers
+-- enforce operation and refund-event invariants without changing FK actions.
+-- This block describes the delta from the pre-refund schema; do not rerun on an
+-- already prepared schema. The dev runner checks each object and preserves enum values.
+/* DEV-ONLY DDL RECORD (intentionally non-executable in the cumulative production script)
+ALTER TABLE billing_attempt
+  ADD COLUMN operation enum('CHARGE','REFUND') NOT NULL DEFAULT 'CHARGE',
+  ADD COLUMN source_payment_event_id int NULL,
+  ADD COLUMN request_id varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  ADD COLUMN requested_by_firebase_id varchar(255) NULL,
+  ADD COLUMN refund_reason varchar(500) NULL,
+  ADD COLUMN refund_provider_transaction_id varchar(128) GENERATED ALWAYS AS
+    (CASE WHEN operation = 'REFUND' THEN cardcom_transaction_id ELSE NULL END) STORED,
+  MODIFY COLUMN obligation_id int NULL,
+  MODIFY COLUMN plan_id int NULL,
+  MODIFY COLUMN `trigger` enum('CHECKOUT','RENEWAL','RECOVERY','MANUAL_RETRY','REFUND') NOT NULL,
+  MODIFY COLUMN charge_mode enum('TOKEN_TRANSACTION','LOW_PROFILE_HOSTED','TRANSACTION_REFUND') NOT NULL,
+  ADD UNIQUE KEY ux_billing_attempt_request (request_id),
+  ADD KEY ix_billing_attempt_refund_source (source_payment_event_id,operation,status),
+  ADD KEY ix_billing_attempt_operation_action (operation,status,next_action_at),
+  ADD UNIQUE KEY ux_billing_attempt_refund_provider (provider_terminal_ref,refund_provider_transaction_id),
+  ADD CONSTRAINT fk_billing_attempt_refund_source FOREIGN KEY (source_payment_event_id)
+    REFERENCES billing_event(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE billing_event MODIFY COLUMN event_type enum(
+  'CHECKOUT_CREATED','WEBHOOK_RECEIVED','PAYMENT_VERIFIED','PAYMENT_SUCCESS','PAYMENT_FAILED',
+  'SUBSCRIPTION_ACTIVATED','SUBSCRIPTION_CANCELED','RENEWAL_SUCCESS','RENEWAL_FAILED',
+  'RETRY_SCHEDULED','PLAN_CHANGE_REQUESTED','PLAN_CHANGED','PAYMENT_METHOD_UPDATE_REQUESTED',
+  'PAYMENT_METHOD_UPDATED','PAYMENT_METHOD_UPDATE_FAILED','COUPON_REDEEMED','PROMOTION_APPLIED',
+  'DISCOUNT_APPLIED','RECEIPT_FAILED','DUPLICATE_PAYMENT_IGNORED','BILLING_EXEMPTION_GRANTED',
+  'BILLING_EXEMPTION_REVOKED','REFUND_REQUESTED','REFUND_SUCCESS','REFUND_FAILED','REFUND_RESOLUTION') NOT NULL;
+ALTER TABLE billing_event
+  ADD COLUMN refund_success_attempt_id int GENERATED ALWAYS AS
+    (CASE WHEN event_type = 'REFUND_SUCCESS' THEN billing_attempt_id ELSE NULL END) VIRTUAL,
+  ADD UNIQUE KEY ux_billing_event_refund_success (refund_success_attempt_id);
+DELIMITER $$
+CREATE TRIGGER ck_billing_attempt_operation_insert BEFORE INSERT ON billing_attempt FOR EACH ROW
+BEGIN
+  IF COALESCE((
+    (NEW.operation = 'CHARGE' AND NEW.obligation_id IS NOT NULL AND NEW.plan_id IS NOT NULL
+      AND NEW.source_payment_event_id IS NULL AND NEW.`trigger` <> 'REFUND' AND NEW.charge_mode <> 'TRANSACTION_REFUND')
+    OR (NEW.operation = 'REFUND' AND NEW.obligation_id IS NULL AND NEW.source_payment_event_id IS NOT NULL
+      AND NEW.request_id IS NOT NULL AND NEW.requested_by_firebase_id IS NOT NULL
+      AND NEW.refund_reason IS NOT NULL AND CHAR_LENGTH(TRIM(NEW.refund_reason)) > 0
+      AND NEW.provider_terminal_ref IS NOT NULL AND NEW.amount_agorot > 0
+      AND NEW.`trigger` = 'REFUND' AND NEW.charge_mode = 'TRANSACTION_REFUND')
+  ),0) = 0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ck_billing_attempt_operation'; END IF;
+END$$
+CREATE TRIGGER ck_billing_attempt_operation_update BEFORE UPDATE ON billing_attempt FOR EACH ROW
+BEGIN
+  IF COALESCE((
+    (NEW.operation = 'CHARGE' AND NEW.obligation_id IS NOT NULL AND NEW.plan_id IS NOT NULL
+      AND NEW.source_payment_event_id IS NULL AND NEW.`trigger` <> 'REFUND' AND NEW.charge_mode <> 'TRANSACTION_REFUND')
+    OR (NEW.operation = 'REFUND' AND NEW.obligation_id IS NULL AND NEW.source_payment_event_id IS NOT NULL
+      AND NEW.request_id IS NOT NULL AND NEW.requested_by_firebase_id IS NOT NULL
+      AND NEW.refund_reason IS NOT NULL AND CHAR_LENGTH(TRIM(NEW.refund_reason)) > 0
+      AND NEW.provider_terminal_ref IS NOT NULL AND NEW.amount_agorot > 0
+      AND NEW.`trigger` = 'REFUND' AND NEW.charge_mode = 'TRANSACTION_REFUND')
+  ),0) = 0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ck_billing_attempt_operation'; END IF;
+END$$
+CREATE TRIGGER ck_billing_event_refund_success_insert BEFORE INSERT ON billing_event FOR EACH ROW
+BEGIN
+  IF COALESCE((NEW.event_type <> 'REFUND_SUCCESS' OR (
+    NEW.billing_attempt_id IS NOT NULL AND NEW.amount_agorot IS NOT NULL AND NEW.amount_agorot < 0
+    AND NEW.amount_before_vat_agorot IS NOT NULL AND NEW.amount_before_vat_agorot <= 0
+    AND NEW.vat_amount_agorot IS NOT NULL AND NEW.vat_amount_agorot <= 0
+    AND NEW.amount_before_vat_agorot + NEW.vat_amount_agorot = NEW.amount_agorot)),0) = 0
+    THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ck_billing_event_refund_success'; END IF;
+END$$
+CREATE TRIGGER ck_billing_event_refund_success_update BEFORE UPDATE ON billing_event FOR EACH ROW
+BEGIN
+  IF COALESCE((NEW.event_type <> 'REFUND_SUCCESS' OR (
+    NEW.billing_attempt_id IS NOT NULL AND NEW.amount_agorot IS NOT NULL AND NEW.amount_agorot < 0
+    AND NEW.amount_before_vat_agorot IS NOT NULL AND NEW.amount_before_vat_agorot <= 0
+    AND NEW.vat_amount_agorot IS NOT NULL AND NEW.vat_amount_agorot <= 0
+    AND NEW.amount_before_vat_agorot + NEW.vat_amount_agorot = NEW.amount_agorot)),0) = 0
+    THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ck_billing_event_refund_success'; END IF;
+END$$
+DELIMITER ;
+*/
+
+-- 2026-10-22 Admin refunds production release preparation (REVIEW ONLY).
+-- Owner requested SQL/runbook for approval, NOT execution, merge or deployment.
+-- The approved dev-only delta above is unchanged. Do not execute the cumulative
+-- cutover to release refunds. Standalone one-shot package preserves existing
+-- enum values/order and includes approval/baseline guards plus four triggers:
+-- backend/scripts/migrations/2026-10-22_admin_refunds_preflight.sql (read only)
+-- backend/scripts/migrations/2026-10-22_admin_refunds_apply.sql (pending approval)
+-- backend/scripts/migrations/2026-10-22_admin_refunds_verify.sql (read only)
+-- Operator order, paused writers/backup, configuration and rollback limits:
+-- docs/features/admin-refunds-release.md
+-- No production access or DDL execution was performed during this preparation.
+-- KT-091: explicit business proprietor (2026-10-22)
+SET @kt091_add_proprietor_role = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'business' AND COLUMN_NAME = 'proprietorRole'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `business` ADD COLUMN `proprietorRole` ENUM(''PRIMARY'',''SPOUSE'') NOT NULL DEFAULT ''PRIMARY'' AFTER `firebaseId`'
+);
+PREPARE kt091_stmt FROM @kt091_add_proprietor_role;
+EXECUTE kt091_stmt;
+DEALLOCATE PREPARE kt091_stmt;
+
+UPDATE `business` b
+INNER JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+SET b.`proprietorRole` = 'SPOUSE'
+WHERE u.`isCompany` = 0
+  AND u.`spouseId` IS NOT NULL
+  AND u.`spouseId` <> ''
+  AND b.`businessNumber` = u.`spouseId`
+  AND (u.`id` IS NULL OR b.`businessNumber` <> u.`id`);
+
+UPDATE `business` b
+INNER JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+SET b.`proprietorRole` = 'PRIMARY'
+WHERE u.`isCompany` = 1;
+
+SELECT b.`id`, b.`firebaseId`, b.`businessNumber`, b.`proprietorRole`
+FROM `business` b
+LEFT JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+WHERE u.`firebaseId` IS NULL
+   OR (b.`proprietorRole` = 'SPOUSE' AND (u.`isCompany` = 1 OR u.`spouseId` IS NULL OR u.`spouseId` = ''));

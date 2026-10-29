@@ -1,6 +1,6 @@
 # KT-104 - Complete and integrate the Uniform File branch
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary chat
 - Worker: Codex primary chat
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\eharel-branch-0`
@@ -15,15 +15,15 @@ verified result to `main` without enabling production or sending taxpayer data.
 
 ## Acceptance criteria
 
-- [ ] Reconcile the branch's Uniform File, SHAAM security, MFA and observability
+- [x] Reconcile the branch's Uniform File, SHAAM security, MFA and observability
       commits with current `origin/main` without regressing newer behavior.
-- [ ] Preserve the fail-closed production boundary, server-only tokens and
+- [x] Preserve the fail-closed production boundary, server-only tokens and
       capabilities, owner/business authorization, idempotent submission state
       and the ZIP fallback.
-- [ ] Close documentation and test gaps that can be completed locally; record
+- [x] Close documentation and test gaps that can be completed locally; record
       portal, tsandbox, Firebase and Cloud configuration as explicit external
       gates rather than claiming they passed.
-- [ ] Run the affected focused backend tests, backend build and frontend build;
+- [x] Run the affected focused backend tests, backend build and frontend build;
       classify any frontend test-runner blocker accurately.
 - [ ] Review the complete integrated diff, verify no secrets/build output/temp
       evidence are committed, then fast-forward and push `main` only if every
@@ -46,19 +46,39 @@ verified result to `main` without enabling production or sending taxpayer data.
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+- Result: complete locally; current `origin/main` is reconciled with the
+  branch's verified Uniform File sandbox behavior, owner-only SHAAM boundary,
+  SMS MFA foundation and security observability.
+- Commit hash(es): merge commit pending.
+- Changed files: SHAAM Uniform File API/config/orchestration/controller and
+  focused tests; SHAAM connection/security boundary; SMS MFA/auth guard and UI;
+  compliance/topic/task documentation; current `origin/main` changes preserved.
+- Tests and exact results: backend focused Jest 10 suites / 96 tests passed;
+  Nest build passed; Angular production build passed; dedicated Uniform File
+  and MFA TypeScript spec programs passed with zero errors.
+- Known pre-existing failures: the repository-wide Karma target compiles legacy
+  specs despite `--include` and stops on stale component imports/Angular
+  `async`, missing Node typings in ExcelJS/Tesseract and unrelated `process`/
+  `console` usage. The selected specs produced no error after the stale SHAAM
+  service spec was aligned; they were separately type-checked successfully.
+- Schema / production / security / accounting / external impact: no new schema,
+  production data, deployment, accounting totals or external call. Security is
+  stricter: SHAAM network operations are owner-only; rejected product tokens
+  are cleared and require reauthorization; production remains fail-closed.
+- Risks and manual checks: interactive Daily Token/tsandbox acceptance,
+  production portal URLs/subscriptions/callback and authorized canary remain
+  external gates. Firebase SMS MFA and Cloud alert channels/policies remain
+  disabled until configured and manually verified. `output/` remains untracked
+  and untouched.
+- Documentation updated: SHAAM, business, Uniform File and compliance topic
+  docs; requirements matrix; KT-090; this task.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
+- Reviewed by: Codex primary chat; semantic conflicts reviewed against current
+  `origin/main`, superseded parallel upload code removed, duplicate task IDs
+  removed from the merge result.
+- Integrated commit: pending.
+- Combined verification: passed locally as recorded above.
 - `origin/main` verification:
 - User-visible run instructions:

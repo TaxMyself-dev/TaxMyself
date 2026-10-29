@@ -23,6 +23,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
+    "smoke:cleanup": "node dist/smoke/cleanup-smoke-user.js",
+    "smoke:verify": "node dist/smoke/verify-smoke-user.js",
     "clear:dev": "ts-node scripts/clear-dev-data.ts"
   },
   "dependencies": {
@@ -56,8 +58,10 @@
     "nodemailer": "^6.9.16",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.15.2",
+    "puppeteer-core": "^24.17.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.2.0",
+    "sharp": "^0.34.5",
     "sib-api-v3-sdk": "^8.5.0",
     "typeorm": "^0.3.17",
     "xlsx": "^0.18.5"

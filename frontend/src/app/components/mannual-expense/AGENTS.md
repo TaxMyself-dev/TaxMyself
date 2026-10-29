@@ -20,6 +20,10 @@ supplier defaults, equipment, VAT periods, files and foreign currency.
   amount.
 - Equipment, VAT, tax, recognition and reporting-period changes cross into
   bookkeeping/report behavior; follow the redesign plan and relevant tests.
+- Category and sub-category resources are business-scoped. Sub-category
+  loading must depend on both the selected category and selected business so a
+  multi-business user cannot retain an empty or stale response when switching
+  businesses (including the forced fixed-asset category).
 - Duplicate override is an explicit second save; cancelled/failed uploads must
   preserve cleanup and retry behavior.
 

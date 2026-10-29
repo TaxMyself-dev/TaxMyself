@@ -1,0 +1,91 @@
+# Document PDF redesign and identity images
+
+- Status: `VERIFIED_FOR_MAIN_DELIVERY`
+- Task manager: current document redesign chat
+- Branch: `codex/document-pdf-redesign`
+- Base commit: `df7fd270f793e2cf77bf262c6def4cc1c1719907`
+
+## Business outcome
+
+Locally rendered Hebrew documents match the approved spacious receipt mockup (logo left, issuer right, date/original in recipient band, centered title). FillFaster signs the completed PDF. Users can upload, replace, preview and remove business logos and personal profile images.
+
+## Acceptance criteria
+
+- [x] Local PDF preview and mandatory local-render/sign issuance retain existing accounting and document lifecycle behavior (focused tests and verified clean-template probes).
+- [x] All supported document types, copy/original, optional subtitle/note/allocation, multi-page tables and Hebrew render correctly.
+- [x] Owner-scoped validated image upload endpoints and persistent image references; existing delegation rules preserved (mocked DB/storage tests).
+- [x] Settings image upload UI and profile avatars use shared image control.
+- [x] Focused tests, backend/frontend builds and rendered sample QA.
+- [x] Live signing success is independently verified before enabling local issuance; no production database/service access.
+
+## Scope and constraints
+
+User explicitly approved implementation plan including image persistence/schema and new existing-provider request shape. On 2026-10-14 the user clarified current branding at PDF generation, rejected the issuer snapshot, and explicitly authorized applying the two image-column statements to the development database. Do not change accounting, auth guards, AI-chat branches, production credentials or external templates. Do not merge/push main in this task; user requested an isolated branch. Use only the new renderer; user explicitly requested removing the old route and rollout switches.
+
+Workers: `codex/document-image-backend` (backend assets/business/user; own schema SQL) and `codex/document-image-frontend` (frontend settings/avatar; no backend changes). Manager owns documents renderer/signing integration and combined review. Each worker has its own isolated worktree at recorded base; no shared dependencies or governance edits.
+
+## Handoff
+
+Integrated worker commits on `codex/document-pdf-redesign`: `505dfe1b`, `17121530`, `8d044dde`, `03c8d907`. Main/AI-chat refs untouched by implementation. No push or deployment.
+
+- Backend: focused PDF/image suites 35/35 passed (33 initial plus two reviewed credit-VAT/issuer-ownership regressions), existing document/business regression suites 30/30 passed. Nest build passed.
+- Frontend: production Angular build passed (existing style/bundle budget and CommonJS warnings). Targeted browser suite 12/12 passed, including real PNG profile crop and transparent logo preservation. Original frontend lockfile retained.
+- One legacy `users.service.spec.ts` fails to supply SharedService; reproduced unchanged on a separate clean worktree at `df7fd270`, not caused by this feature.
+- Local dependency verification required an uncommitted Windows sandbox native-realpath fallback; frontend lock's existing versionless encoding entry was repaired temporarily for installation then restored. No dependency directories/tooling/credentials are committed.
+- Visual fixtures: logo/no-logo one-page receipts and 55-row/four-page invoice rendered and inspected, including repeated table headers and final totals.
+- Real provider development probe: CMS content digest/RSA signature passed independent verification; issuer certificate validity recorded. Trust chain/revocation not assessed. Visual acceptance failed because old template overlays remain; nine existing account templates contain no clean signature-only template.
+- Originally prepared only: schema SQL and guarded cutover appendix. On 2026-10-14 the snapshot proposal was removed and only `business.logoPath` / `user.profileImagePath` were added to verified `keepintax-dev` at the user's request, each VARCHAR(255), nullable, default NULL. No snapshot column existed or was added. No production service, provider template or credential changed.
+- Provider gate resolved: user supplied `3IfhJjgmAp` with optional empty `placeholder`. One-/four-page signatures passed independent CMS verification; page counts unchanged, all four invoice raster pages identical to inputs. One-page receipt visually unchanged. Subsequent user approval made this verified fid a code constant and local rendering/signing the only issuance route.
+- Pending: live authenticated storage/browser integration checks and environment configuration. No main merge or deployment. Database image-column application completed on 2026-10-14; current-branding/unchanged stored-PDF regression tests added.
+
+## 2026-10-14 current-branding correction
+
+- Removed issuer snapshot Entity/property/migration and its cutover statement. Only business/user image references are persisted.
+- Current business identity and logo are loaded at PDF generation; explicit system billing identity is preserved. Existing stored PDFs are not regenerated merely because branding changed.
+- Verified `keepintax-dev` from configured local development connection, added the two missing columns, then re-read information_schema: both VARCHAR(255), nullable YES, default NULL. No issuer snapshot column existed; documents schema was unchanged. No Nest bootstrap, seeds, other cutover statements or production connection.
+- Verification: four affected backend suites passed 29 tests; after adding the stored-PDF regression, the final PDF-routing suite passed 16/16. Nest build exit 0. No frontend code changed.
+
+## 2026-10-14 new renderer only
+
+User requested fixed signing template `3IfhJjgmAp` in code and removal of rendering/validation/browser configuration switches. Only the API token remains external. Removed legacy provider layout generation; previews always render locally and issuance always renders then signs. Chromium is auto-detected. No DB or frontend changes.
+
+Verification: four PDF Jest suites passed 28/28; Nest build passed. Standalone Chrome auto-detection produced logo/no-logo receipts and a multi-page invoice without PDF configuration variables (local browser connection required sandbox escalation). No schema, accounting, frontend or provider-contract changes. API token remains secret configuration.
+
+Local worktree run configuration: backend ignored .env uses PORT=3001; frontend local and mobile environments target port 3001. Hosted development/production endpoints unchanged.
+Verification: port settings and development serve configuration checked; git diff --check passed. Angular development build did not complete in the local sandbox (no progress after bundle setup); no successful build claimed for this configuration-only change.
+
+## Startup dependency injection correction
+
+Removed duplicate DocumentsService provider from AppModule; the imported DocumentsModule owns and exports the service with its renderer/signer dependencies. This fixes the reported AppModule resolution failure without duplicating PDF providers. No database or accounting changes.
+Verification: Nest build and 17 PDF-routing tests passed. Module registrations reviewed: DocumentsModule owns DocumentsService and exports it; AppModule imports it without recreating the provider. Full application restart remains to be verified by the running development session.
+
+Port correction: reset local .env PORT to 3001 (observed 3000) and removed start:billing hardcoded override; launcher now respects configured PORT, retaining 3000 only as fallback. Dry-run intercepted child spawn and verified PORT=3001 without app/DB startup.
+
+## Avatar and PDF preview fixes
+
+Header avatar spans greeting/last-login rows only, with actions below. Image editor placeholder text is centered, padded, constrained and wrapped. Desktop preview opens synchronously on user action and uses a Blob URL (released on pagehide), avoiding delayed-popup blocking and large data URLs; blocked popups use the existing in-app viewer. Preview failure closes the reserved popup. Business logos retain original aspect ratio without circular crop.
+Verification: TypeScript and Angular template compilation (--noEmit), SCSS compilation and git diff --check passed. Isolated execution of the actual FilesService checked a 4MB PDF uses a Blob URL, reserved popup reuse, URL release on pagehide and no render for a closed popup. Live uploaded-logo preview and visual acceptance in the user browser remain to confirm; supplied backend log showed no PDF exception. No backend/schema/accounting changes.
+
+## Circular business logo
+
+User explicitly requested circular logo cropping, superseding the original-aspect-ratio presentation preference. Settings preview and new PDFs now center-crop the logo with object-fit: cover and a circular mask. Uploaded originals and already-issued PDFs are unchanged. Presentation-only change; no schema or accounting changes.
+Verification: five existing PDF template tests passed; image-editor style compilation and git diff --check passed. No executable TypeScript changed; full app builds were not repeated for this CSS-only update.
+
+## Approved main delivery (2026-10-15)
+
+User accepted the feature and authorized merging to main after remote refresh. origin is https://github.com/TaxMyself-dev/TaxMyself.git; main and origin/main matched 020632b2 after fetch. Integrated that baseline; resolved provider logging/legacy-generator conflict by retaining the approved new signer path, and preserved both identity-image and SHAAM SQL additions. No SQL executed during integration. Other feature branches untouched.
+
+Combined integration verification passed: 39 PDF/image tests + 21 document/business regression tests (60 backend total), Nest build, Angular production build and 12 ChromeHeadless image tests. Existing Angular budget/CommonJS warnings remain; Chrome reported slow shutdown after all tests succeeded. Conflict markers absent; staged diff whitespace check passed. No production access or deployment.
+
+## Container startup permissions correction (2026-10-15)
+
+User-provided Cloud Run logs identify EACCES creating /usr/src/app/src during Multer diskStorage initialization in ReportsController. The production USER node change exposed legacy runtime output directories under a root-owned WORKDIR. Pre-create and grant node ownership only to src/generated, src/debug, src/feezback/transactions-data and debug-imports; preserve non-root runtime and the root-owned application directory. Added an image-build assertion running as node to verify directory write access. No port, DB, accounting or API change. Docker is unavailable on this host; actual Linux image build is not locally verified. No production connectivity or deployment performed.
+
+## Restore original production runtime user
+
+Elazar explicitly requested a separate commit restoring root and pushing only main. Production stage now explicitly uses USER root; removed the directory ownership workaround and node-only build assertion. Chromium installation and PDF/image functionality retained. Development/build stage users unchanged. Dockerfile stage checked and diff whitespace validated; Docker unavailable locally, so container build was not executed. No deployment or production access performed.
+
+## Root Chromium launch correction
+
+User screenshot identifies Chromium refusing root without --no-sandbox. Cloud Run does not guarantee a /.dockerenv marker. Renderer now detects effective uid 0 directly and adds the existing browser launch flag automatically, preserving JavaScript/network isolation. No new environment variable, DB or API change. Added regression coverage for a root Linux process.
+Verification: four renderer tests and Nest build passed; diff whitespace check passed. Current main also contains unrelated table-action changes; renderer fix is isolated to backend and task documentation. No live Cloud Run or Docker-container validation was performed.

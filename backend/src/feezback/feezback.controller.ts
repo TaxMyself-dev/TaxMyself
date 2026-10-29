@@ -1,3 +1,4 @@
+import { FeezbackDisconnectionService, DisconnectRequest } from './feezback-disconnection.service';
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, Param, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
 import type { SourceResult } from '../transactions/user-source-sync-state.entity';
 import { FeezbackService } from './feezback.service';
@@ -27,6 +28,7 @@ export class FeezbackController {
     private readonly routerService: FeezbackWebhookRouterService,
     private readonly userSyncStateService: UserSyncStateService,
     @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly disconnection?: FeezbackDisconnectionService,
   ) { }
 
   @Post('webhook-router')
@@ -41,9 +43,50 @@ export class FeezbackController {
     });
   }
 
+  private async disconnectionSubject(req: AuthenticatedRequest, target?: string): Promise<string> {
+    const subject = target ?? req.user?.firebaseId;
+    const actor = req.user?.actorFirebaseId ?? req.user?.firebaseId;
+    if (typeof subject !== 'string' || !subject.trim() || !actor) throw new ForbiddenException('Authentication required');
+    if (actor !== subject || req.isDelegatedAccess || req.isAdminImpersonation) {
+      if (!await this.usersService.isAdmin(actor)) throw new ForbiddenException('Only the owner or an administrator may disconnect open banking');
+    }
+    return subject;
+  }
+
+  @Get('disconnection-targets')
+  @UseGuards(FirebaseAuthGuard)
+  async disconnectionTargets(@Req() req: AuthenticatedRequest, @Query('firebaseId') firebaseId?: string) {
+    return this.disconnection!.targets(await this.disconnectionSubject(req, firebaseId));
+  }
+
+  @Post('disconnect')
+  @UseGuards(FirebaseAuthGuard)
+  async disconnect(@Req() req: AuthenticatedRequest, @Body() body: DisconnectRequest & { firebaseId?: string }) {
+    return this.disconnection!.disconnect(await this.disconnectionSubject(req, body?.firebaseId), body);
+  }
+
+  @Get('connection-options')
+  @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
+  async connectionOptions(@Req() req: AuthenticatedRequest) {
+    const firebaseId = req.user!.firebaseId;
+    try {
+      // Reconcile stale connection flags before deciding whether to offer the
+      // spouse choice. This only reads provider state; it never revokes consent.
+      await this.disconnection!.targets(firebaseId);
+    } catch (error) {
+      const response = error instanceof BadRequestException ? error.getResponse() : null;
+      // Synthetic demos intentionally have local connection flags and no live
+      // provider registration. Preserve that existing behavior, not other errors.
+      if (!response || typeof response !== 'object' ||
+        (response as { code?: string }).code !== 'SYNTHETIC_OPEN_BANKING') throw error;
+    }
+    return this.feezbackService.getConnectionOptions(firebaseId);
+  }
+
   @Post('consent-link')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
-  async createConsentLink(@Req() req: AuthenticatedRequest) {
+  async createConsentLink(@Req() req: AuthenticatedRequest, @Body() body: { spouse?: boolean } = {}) {
+    if (body.spouse !== undefined && typeof body.spouse !== 'boolean') throw new BadRequestException('spouse must be boolean');
     const firebaseId = req.user?.firebaseId;
 
     if (!firebaseId) {
@@ -82,7 +125,8 @@ export class FeezbackController {
       this.logger.log(`[ConsentLink] markConsentInitiated skipped (dedup ${CLICK_DEDUP_MS}ms) firebaseId=${masked}`);
     }
 
-    return this.feezbackService.createConsentLink(firebaseId);
+    return body.spouse === true ? this.feezbackService.createConsentLink(firebaseId, true)
+      : this.feezbackService.createConsentLink(firebaseId);
   }
 
 
@@ -348,7 +392,7 @@ export class FeezbackController {
   async adminPullSource(
     @Req() req: AuthenticatedRequest,
     @Param('firebaseId') targetFirebaseId: string,
-    @Body() body: { type: 'bank' | 'card'; sourceId: string },
+    @Body() body: { type: 'bank' | 'card'; sourceId: string; sourceRecordId?: number },
   ): Promise<SourceResult> {
     const adminFirebaseId = req.user?.firebaseId;
     const isAdmin = await this.usersService.isAdmin(adminFirebaseId);
@@ -357,7 +401,7 @@ export class FeezbackController {
     if (!body?.type || !body?.sourceId) throw new BadRequestException('type and sourceId are required');
 
     const targetMask = `${targetFirebaseId.substring(0, 8)}...`;
-    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(targetFirebaseId, body.type, body.sourceId, body.sourceRecordId);
     this.logger.log(
       `[Admin][PullSource] Done | target=${targetMask} | type=${body.type} | sourceId=${body.sourceId} | status=${result.status} | count=${result.transactionCount}`,
     );

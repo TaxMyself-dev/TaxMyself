@@ -67,7 +67,7 @@
             @if (syncSourceResults().length > 0) {
               <div class="source-results-panel source-results-panel--dialog">
                 <div class="source-results-panel__list">
-                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                  @for (source of syncSourceResults(); track source.sourceRecordId ?? source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
                          [class.source-result-item--failed]="source.status === 'failed'"
@@ -79,7 +79,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -92,8 +92,8 @@
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
-                          [isLoading]="isRetryingSource() === source.sourceId"
-                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                          [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
                         </app-p-button>
                       }
                       @if (needsSourceReconnect(source)) {
@@ -126,7 +126,7 @@
             @if (syncSourceResults().length > 0) {
               <div class="source-results-panel source-results-panel--dialog">
                 <div class="source-results-panel__list">
-                  @for (source of syncSourceResults(); track source.type + '_' + source.sourceId + '_' + source.status) {
+                  @for (source of syncSourceResults(); track source.sourceRecordId ?? source.type + '_' + source.sourceId + '_' + source.status) {
                     <div class="source-result-item"
                          [class.source-result-item--success]="source.status === 'success'"
                          [class.source-result-item--failed]="source.status === 'failed'"
@@ -138,7 +138,7 @@
                          [class.pi-info-circle]="source.status === 'skipped_direct'">
                       </i>
                       <span class="source-result-item__name">
-                        {{ source.sourceId }}
+                        {{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}
                       </span>
                       @if (source.status === 'success') {
                         <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
@@ -151,8 +151,8 @@
                           [buttonText]="'נסה שוב'"
                           [buttonColor]="buttonColor.YELLOW"
                           [buttonSize]="buttonSize.SMALL"
-                          [isLoading]="isRetryingSource() === source.sourceId"
-                          (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+                          [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+                          (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
                         </app-p-button>
                       }
                       @if (needsSourceReconnect(source)) {
@@ -289,7 +289,7 @@
                     <div class="mobile-menu-panel__user-text">
                         <span class="mobile-menu-panel__name">{{ userData?.fName }} {{ userData?.lName }}</span>
                     </div>
-                    <p-avatar icon="pi pi-user" size="large" shape="circle"></p-avatar>
+                    <app-account-image [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [fallback]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')"></app-account-image>
                 </div>
             </div>
             <hr class="mobile-menu-panel__divider" />
@@ -396,7 +396,7 @@
     <div class="user-info-block" [class.user-info-block--delegated]="isDelegatedClientView()">
         @if (!isDelegatedClientView()) {
         <div class="user-info-row">
-            <p-avatar class="my-account-avatar" [label]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')" size="xlarge" shape="circle"></p-avatar>
+            <app-account-image class="my-account-avatar" [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [fallback]="(userData?.fName?.charAt(0) || '') + (userData?.lName?.charAt(0) || '')"></app-account-image>
             <div class="user-info-text">
                 <span class="avatar-text">שלום {{ userData?.fName }} {{ userData?.lName }}</span>
                 @if (userData?.previousLoginAt) {
@@ -411,6 +411,12 @@
                     <app-p-button [buttonText]="'הארכיון שלי'" [icon]="'pi pi-folder-open'" [iconPosition]="'right'" [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
                         (onButtonClicked)="goToArchive()">
                     </app-p-button>
+                    @if (userData?.canSelfResetDemoData) {
+                    <app-p-button [buttonText]="'איפוס נתוני הדמו'" [icon]="'pi pi-refresh'" [iconPosition]="'right'"
+                        [buttonColor]="buttonColor.WHITE_BORDER_LIGHT" [buttonSize]="buttonSize.BETWEEN"
+                        [isLoading]="isResettingDemoData()" (onButtonClicked)="resetDemoData()">
+                    </app-p-button>
+                    }
                 </div>
                 <!-- Users without Open Banking already get the big "רוצה לראות את התנועות" CTA banner below, so no extra header button is needed here. -->
             </div>
@@ -481,7 +487,7 @@
   <div class="source-results-panel">
     <h3 class="source-results-panel__title">סטטוס סנכרון לפי מקור</h3>
     <div class="source-results-panel__list">
-      @for (source of syncSourceResults(); track source.sourceId) {
+      @for (source of syncSourceResults(); track source.sourceRecordId ?? source.sourceId) {
         <div class="source-result-item"
              [class.source-result-item--success]="source.status === 'success'"
              [class.source-result-item--failed]="source.status === 'failed'"
@@ -492,7 +498,7 @@
              [class.pi-clock]="source.status === 'not_synced'"
              [class.pi-info-circle]="source.status === 'skipped_direct'">
           </i>
-          <span class="source-result-item__name">{{ source.sourceId }}</span>
+          <span class="source-result-item__name">{{ source.sourceId }}{{ source.connectionRole === 'spouse' ? ' (בן/בת הזוג)' : '' }}</span>
           @if (source.status === 'success') {
             <span class="source-result-item__count">{{ source.transactionCount }} תנועות</span>
           }
@@ -504,8 +510,8 @@
               [buttonText]="'נסה שוב'"
               [buttonColor]="buttonColor.YELLOW"
               [buttonSize]="buttonSize.SMALL"
-              [isLoading]="isRetryingSource() === source.sourceId"
-              (onButtonClicked)="onRetrySource(source.type, source.sourceId)">
+              [isLoading]="isRetryingSource() === (source.sourceRecordId ? source.sourceRecordId.toString() : source.sourceId)"
+              (onButtonClicked)="onRetrySource(source.type, source.sourceId, source.sourceRecordId)">
             </app-p-button>
           }
           @if (needsSourceReconnect(source)) {
@@ -530,7 +536,7 @@
     <app-generic-table
         [title]="isMobile() ? 'התנועות הלא מסווגות שלי' : null"
         class="table"
-        [rowActions]="rowActions"
+        [actions]="rowActions"
         [isLoadingState]="isLoadingDataTable()"
         [columnsTitle]="fieldsNamesExpenses()"
         [dataTable]="$any(transToClassify | async)"

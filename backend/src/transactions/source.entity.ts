@@ -3,14 +3,11 @@ import { Bill } from './bill.entity';
 import { SourceType } from 'src/enum';
 
 
-// Named explicitly — found unnamed during the schema-drift.md Gap 7 audit
-// (2026-07-12). Name confirmed against a fresh re-import of
-// _prod_dump/keepintax-prod.sql (ground truth): production's real
-// constraint name is IDX_source_userId_sourceName, NOT a hash TypeORM
-// would compute for an unnamed decorator — same drop-risk pattern as the
-// other 5 tables in Gap 7.
+// Identity is stored once here; sync/cache rows reference this permanent source.
+export type ConnectionRole = 'primary' | 'spouse';
+
 @Entity()
-@Unique('IDX_source_userId_sourceName', ['userId', 'sourceName'])
+@Unique('UQ_source_user_type_name_role', ['userId', 'sourceType', 'sourceName', 'connectionRole'])
 export class Source {
 
   @PrimaryGeneratedColumn()
@@ -21,6 +18,9 @@ export class Source {
 
   @Column()
   sourceName: string;
+
+  @Column({ type: 'enum', enum: ['primary', 'spouse'], default: 'primary' })
+  connectionRole: ConnectionRole;
 
   @Column({
     type: 'enum',

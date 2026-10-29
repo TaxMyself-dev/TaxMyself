@@ -6,6 +6,12 @@
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessName'"
       [labelText]="'שם העסק'" [placeholder]="'שם העסק'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+    @if (!isCompany()) {
+      <app-input-select [parentForm]="addBusinessFormGroup" [controlName]="'proprietorRole'"
+        [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+        (onChangeInputSelect)="syncBusinessNumberToProprietor(addBusinessFormGroup, $event)"
+        [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+    }
     <app-input-text [parentForm]="addBusinessFormGroup" [controlName]="'businessNumber'"
       [labelText]="'מספר עסק'" [placeholder]="'מספר עסק'"
       [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
@@ -82,6 +88,7 @@
       <!-- ─── פרטי משתמש ראשי ─── -->
       <div class="personal-subsection">
         <h3 class="subsection-title">{{ isCompany() ? 'פרטי חברה' : 'פרטי משתמש ראשי' }}</h3>
+        <app-account-image [editable]="true" [imagePath]="userData?.profileImagePath" [contextKey]="userData?.firebaseId || ''" [disabled]="authService.isViewingAsClient()" (imageChanged)="onProfileImageChanged($event)"></app-account-image>
         <div class="details-container details-container-fixed">
           <div class="detail-row three-fields">
             <div class="detail-field">
@@ -258,9 +265,25 @@
             <div class="business-header">
               <h3 class="business-name">{{ biz?.businessName || 'עסק חדש' }}</h3>
             </div>
+            @if (biz?.id != null) {
+              <app-account-image [editable]="true" label="לוגו העסק" [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId" (imageChanged)="onLogoChanged($index, $event)"></app-account-image>
+            }
             <div class="business-details details-container details-container-fixed">
-              <!-- שורה 1: מספר עסק, אימייל, כתובת, טלפון, סוג עסק -->
-              <div class="detail-row three-fields">
+              <!-- פרטי העסק נפרסים לגריד רספונסיבי כדי למנוע חפיפה -->
+              <div class="detail-row three-fields business-fields-grid">
+                <div class="detail-field">
+                  <app-input-text [parentForm]="bizGroup" [controlName]="'businessName'"
+                    [labelText]="'שם העסק'" [placeholder]="'שם העסק'"
+                    [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                </div>
+                @if (!isCompany()) {
+                  <div class="detail-field">
+                    <app-input-select [parentForm]="bizGroup" [controlName]="'proprietorRole'"
+                      [items]="proprietorOptions()" [labelText]="'בעל/ת העוסק'" [placeholder]="'בחר/י'"
+                      (onChangeInputSelect)="syncBusinessNumberToProprietor(bizGroup, $event)"
+                      [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-select>
+                  </div>
+                }
                 <div class="detail-field">
                   <app-input-text [parentForm]="bizGroup" [controlName]="'businessNumber'"
                     [labelText]="'מספר עסק'" [placeholder]="'מספר עסק'"
@@ -294,7 +317,7 @@
                 </div>
               </div>
               <!-- שורה 2: ביטוח לאומי, מע"מ (תלוי בסוג), מקדמות, אחוז מקדמות -->
-              <div class="detail-row three-fields">
+              <div class="detail-row three-fields business-fields-grid">
                 <div class="detail-field">
                   <app-input-select [parentForm]="bizGroup" [controlName]="'nationalInsRequired'"
                     [items]="nationalInsOptions" [labelText]="'ביטוח לאומי'" [placeholder]="'בחר/י'"
@@ -384,9 +407,59 @@
         <app-gmail-integration></app-gmail-integration>
       </div>
 
-      @if (hasOpenBankingAccess()) {
-        <div class="accounts-management">
-          <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+      <div class="permissions-inner-frame shaam-connection-section">
+        <div>
+          <h3 class="subsection-title">חיבור לרשות המסים</h3>
+          <p class="shaam-connection-description">החיבור משמש לבקשת מספרי הקצאה עבור מסמכי העסק.</p>
+        </div>
+
+        @if (businesses().length === 0) {
+          <p class="permissions-empty">לא נמצא עסק לחיבור.</p>
+        } @else {
+          <div class="shaam-business-list">
+            @for (business of businesses(); track business.id ?? business.businessNumber) {
+              <div class="shaam-business-row">
+                <div class="shaam-business-details">
+                  <strong>{{ business.businessName || 'עסק ללא שם' }}</strong>
+                  @if (business.businessNumber) {
+                    <span>{{ business.businessNumber }}</span>
+                  }
+                </div>
+
+                @if (!business.businessNumber) {
+                  <span class="shaam-status shaam-status-error">חסר מספר עסק</span>
+                } @else {
+                  <span class="shaam-status"
+                    [class.shaam-status-connected]="shaamConnectionStatus(business.businessNumber) === 'connected'"
+                    [class.shaam-status-muted]="shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked'"
+                    [class.shaam-status-error]="shaamConnectionStatus(business.businessNumber) === 'error' || shaamConnectionStatus(business.businessNumber) === 'reauth-required'">
+                    @switch (shaamConnectionStatus(business.businessNumber)) {
+                      @case ('loading') { בודק חיבור... }
+                      @case ('connected') { מחובר }
+                      @case ('disconnected') { לא מחובר }
+                      @case ('reauth-required') { נדרשת הרשאה חדשה מרשות המסים }
+                      @case ('sandbox-blocked') { סביבת הבדיקות מוגבלת לעסק הדמו של רשות המסים }
+                      @case ('error') { לא ניתן לבדוק את החיבור }
+                    }
+                  </span>
+                  <app-p-button
+                    [buttonText]="shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked' ? 'חיבור לא זמין בסביבת הבדיקות' : ((shaamConnectionStatus(business.businessNumber) === 'connected' || shaamConnectionStatus(business.businessNumber) === 'reauth-required') ? 'חיבור מחדש לרשות המסים' : 'חיבור לרשות המסים')"
+                    [buttonColor]="buttonColor.WHITE_BORDER"
+                    [buttonSize]="buttonSize.SMALL"
+                    [isLoading]="connectingShaamBusinessNumber() === business.businessNumber"
+                    [disabled]="shaamConnectionStatus(business.businessNumber) === 'loading' || shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked' || connectingShaamBusinessNumber() !== null"
+                    (onButtonClicked)="connectShaam(business.businessNumber)">
+                  </app-p-button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="accounts-management">
+        <h3 class="subsection-title">ניהול חשבונות בבנקאות פתוחה</h3>
+        @if (hasOpenBankingAccess()) {
 
           @if (accountSourcesLoading()) {
             <p class="permissions-loading">טוען...</p>
@@ -396,12 +469,18 @@
             <app-generic-table
               [dataTable]="accountSourcesTableData()"
               [columnsTitle]="$any(accountSourcesColumns)"
-              [rowActions]="accountSourcesRowActions"
+              [actions]="accountSourcesRowActions"
               [mobileCardConfig]="accountSourcesMobileCardConfig">
             </app-generic-table>
           }
-        </div>
-      }
+        }
+        <app-open-banking-management
+          #bankingManagement
+          [embedded]="true"
+          [externalBusy]="accountSourcesLoading() || retryingSourceId() !== null || deletingSourceId() !== null"
+          (connectionChanged)="onBankingConnectionChanged()">
+        </app-open-banking-management>
+      </div>
 
       <div class="permissions-inner-frame">
         <h3 class="subsection-title">ניהול הרשאות</h3>
@@ -447,3 +526,10 @@
   }
 </div>
 
+
+<p-confirmdialog
+  key="payment-source"
+  position="center"
+  appendTo="body"
+  [style]="{ width: '28rem', maxWidth: 'calc(100vw - 2rem)' }">
+</p-confirmdialog>

@@ -12,7 +12,11 @@ import {
   UNIFORM_FILE_OAUTH_CONFIG,
 } from './uniform-file/uniform-file-oauth.config';
 import { UniformFileOauthService } from './uniform-file/uniform-file-oauth.service';
-import { UniformFileUploadService } from './uniform-file/uniform-file-upload.service';
+import {
+  loadUniformFileApiConfig,
+  UNIFORM_FILE_API_CONFIG,
+} from './uniform-file/uniform-file-api.config';
+import { UniformFileApiService } from './uniform-file/uniform-file-api.service';
 import { ShaamConnection } from './entities/shaam-connection.entity';
 import { ShaamOauthState } from './entities/shaam-oauth-state.entity';
 import { UniformFileSubmission } from './entities/uniform-file-submission.entity';
@@ -23,7 +27,9 @@ import { Delegation } from '../delegation/delegation.entity';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { Documents } from '../documents/documents.entity';
 import { DocumentsModule } from '../documents/documents.module';
-import { ShaamDocumentAllocationService } from './services/shaam-document-allocation.service';
+import { ShaamAllocationOrchestratorService } from './services/shaam-allocation-orchestrator.service';
+import { ShaamInvoiceAllocationAttempt } from './entities/shaam-invoice-allocation-attempt.entity';
+import { UsersModule } from '../users/users.module';
 import { ReportsModule } from '../reports/reports.module';
 import { UniformFileSubmissionService } from './services/uniform-file-submission.service';
 
@@ -41,35 +47,41 @@ import { UniformFileSubmissionService } from './services/uniform-file-submission
       User,
       Delegation,
       Documents,
+      ShaamInvoiceAllocationAttempt,
     ]),
     BusinessModule,
     DocumentsModule,
+    UsersModule,
     ReportsModule,
   ],
   controllers: [ShaamSecureController],
   providers: [
     ShaamOauthService,
     ShaamInvoicesService,
-    ShaamDocumentAllocationService,
+    ShaamAllocationOrchestratorService,
     {
       provide: UNIFORM_FILE_OAUTH_CONFIG,
       useFactory: loadUniformFileOauthConfig,
     },
+    {
+      provide: UNIFORM_FILE_API_CONFIG,
+      useFactory: loadUniformFileApiConfig,
+    },
     UniformFileOauthService,
-    UniformFileUploadService,
+    UniformFileApiService,
+    UniformFileSubmissionService,
     ShaamConnectionService,
     ShaamOauthStateService,
-    UniformFileSubmissionService,
     FirebaseAuthGuard,
   ],
   exports: [
     ShaamOauthService,
     ShaamInvoicesService,
     UniformFileOauthService,
-    UniformFileUploadService,
+    UniformFileApiService,
+    UniformFileSubmissionService,
     ShaamConnectionService,
     ShaamOauthStateService,
-    UniformFileSubmissionService,
   ],
 })
 export class ShaamModule {}

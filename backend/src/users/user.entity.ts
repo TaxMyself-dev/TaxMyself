@@ -12,6 +12,9 @@ import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatu
 @Entity()
 @Index('ux_user_referral_code', ['referralCode'], { unique: true })
 export class User {
+    @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+    profileImagePath: string | null;
+
 
     @PrimaryGeneratedColumn()
     index: number;
@@ -117,6 +120,10 @@ export class User {
 
     @Column({ default: false })
     hasOpenBanking: boolean;
+
+    /** Spouse webhook verified; retained after expiry, reset after verified complete disconnection. */
+    @Column({ default: false })
+    hasSpouseFeezbackIdentity: boolean;
     
     @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
     driveFolderId: string | null;

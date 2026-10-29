@@ -1,0 +1,263 @@
+<section class="tax-file" dir="rtl">
+  <header class="hero">
+    <div class="hero-copy">
+      <img class="brand-logo" src="assets/login_logo.svg" alt="KeepInTax">
+      <span class="eyebrow">גרסה ראשונית · {{ taxYear }}</span>
+      <h1>תיק המס שלי</h1>
+      <p>תמונה פשוטה של מס הכנסה וביטוח לאומי — ומה כדאי לעשות כדי להגיע לסוף השנה בראש שקט.</p>
+    </div>
+  </header>
+
+  <section class="client-picker panel" aria-labelledby="client-picker-title">
+    <div>
+      <span class="step">1</span>
+      <div>
+        <h2 id="client-picker-title">על מי מסתכלים?</h2>
+        <p>בחירת לקוח טוענת את נתוני העסק שכבר קיימים במערכת.</p>
+      </div>
+    </div>
+
+    <div class="picker-grid single-picker">
+      <label>
+        <span>לקוח</span>
+        <select [(ngModel)]="selectedUserId" (change)="onClientChange()" [disabled]="loadingUsers">
+          <option value="">בחרו לקוח</option>
+          <option *ngFor="let user of users" [value]="user.firebaseId">{{ userLabel(user) }}</option>
+        </select>
+      </label>
+
+    </div>
+  </section>
+
+  <div class="loading-state panel" *ngIf="loadingUsers || loadingReport">
+    <ion-spinner name="crescent"></ion-spinner>
+    <span>אוספים את הנתונים ומכינים תחזית…</span>
+  </div>
+
+  <div class="error-state" *ngIf="errorMessage">
+    <span>{{ errorMessage }}</span>
+    <button type="button" *ngIf="businesses.length" (click)="loadAllReports()">לנסות שוב</button>
+  </div>
+
+  <div class="empty-state panel" *ngIf="selectedUserId && !loadingReport && !businesses.length && !errorMessage">
+    <div>📁</div>
+    <h2>עוד אין עסק שאפשר לחשב עבורו</h2>
+    <p>ללקוח שנבחר אין כרגע עסק עם מספר עסק במערכת.</p>
+  </div>
+
+  <ng-container *ngIf="result as plan">
+    <section class="headline-card" [class.complete]="paymentsKnown">
+      <div class="status-icon" aria-hidden="true">{{ paymentsKnown ? '✓' : '≈' }}</div>
+      <div class="headline-copy">
+        <span class="status-label">{{ paymentsKnown ? 'התמונה מעודכנת' : 'תחזית ראשונית' }}</span>
+        <h2>
+          <ng-container *ngIf="paymentsKnown; else estimatedHeadline">
+            כדאי לשמור בצד עוד {{ formatCurrency(amountToReserve) }}
+          </ng-container>
+          <ng-template #estimatedHeadline>
+            החבות העסקית הצפויה היא כ־{{ formatCurrency(amountToReserve) }}
+          </ng-template>
+        </h2>
+        <p>
+          כ־{{ formatCurrency(monthlyReserve) }} לחודש עד סוף השנה.
+          <span *ngIf="!paymentsKnown">הזנת התשלומים שכבר בוצעו תהפוך את המספר ליתרה צפויה.</span>
+        </p>
+      </div>
+      <div class="confidence">
+        <span>רמת דיוק</span>
+        <strong>{{ paymentsKnown ? 'טובה' : 'בסיסית' }}</strong>
+      </div>
+    </section>
+
+    <section class="panel section-block">
+      <div class="section-heading">
+        <div>
+          <span class="step">2</span>
+          <div><h2>מה קרה עד עכשיו?</h2><p>נתוני רווח והפסד מתחילת {{ taxYear }} ועד היום.</p></div>
+        </div>
+        <span class="source-pill">נמשך אוטומטית מהמערכת</span>
+      </div>
+
+      <div class="business-list">
+        <article class="business-card" *ngFor="let report of businessReports" [class.spouse-business]="report.owner === 'spouse'">
+          <header>
+            <div><span class="source-pill">{{ ownerLabel(report) }}</span><h3>{{ businessLabel(report.business) }}</h3></div>
+            <span class="business-number">מספר עסק {{ report.business.businessNumber }}</span>
+          </header>
+
+          <div class="metric-grid business-metrics">
+            <article><span>סוג העסק</span><strong>{{ businessTypeLabel(report.business.businessType) }}</strong></article>
+            <article><span>ביטוח לאומי</span><strong>{{ nationalInsuranceStatus(report.business) }}</strong></article>
+            <article><span>אחוז מקדמות</span><strong>{{ formatAdvancePercent(report.business.advanceTaxPercent) }}</strong></article>
+            <article><span>יעד מקדמות מתחילת השנה</span><strong>{{ formatCurrency(report.advance?.totalAdvanceTax) }}</strong></article>
+            <article><span>ניכוי מס במקור</span><strong>{{ formatCurrency(report.advance?.taxWithholdingAtSource) }}</strong></article>
+            <article class="accent"><span>לתשלום בדוח המקדמות</span><strong>{{ formatCurrency(report.advance?.totalToPay) }}</strong></article>
+          </div>
+
+          <div class="metric-grid" *ngIf="report.pnl; else unavailableBusiness">
+            <article><span>הכנסות</span><strong>{{ formatCurrency(report.pnl?.income) }}</strong></article>
+            <article><span>הוצאות מוכרות</span><strong>{{ formatCurrency(reportExpenses(report.pnl)) }}</strong></article>
+            <article class="accent"><span>רווח עסקי</span><strong>{{ formatCurrency(report.pnl?.netProfitBeforeTax) }}</strong></article>
+          </div>
+          <ng-template #unavailableBusiness><p class="business-error">הנתונים של העסק הזה לא נטענו.</p></ng-template>
+        </article>
+      </div>
+
+      <div class="owner-summary" *ngIf="clientReports.length > 1 || hasSpouseBusinesses">
+        <h3>סיכום העסקים של {{ clientOwnerLabel }}</h3>
+        <div class="metric-grid actuals">
+          <article><span>הכנסות</span><strong>{{ formatCurrency(actualIncome) }}</strong></article>
+          <article><span>הוצאות מוכרות</span><strong>{{ formatCurrency(actualExpenses) }}</strong></article>
+          <article class="accent"><span>רווח עסקי</span><strong>{{ formatCurrency(actualProfit) }}</strong></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel accuracy-panel">
+      <div class="accuracy-summary">
+        <div>
+          <span class="step">3</span>
+          <div><h2>יש גם משכורת כשכיר?</h2><p>זה הנתון היחיד שחייבים להוסיף כדי לחבר נכון בין השכר לעסק.</p></div>
+        </div>
+        <label class="salary-input">
+          <span>ברוטו חודשי משוער</span>
+          <div><input type="number" min="0" step="500" [(ngModel)]="monthlySalary"><span>₪</span></div>
+        </label>
+      </div>
+
+      <button type="button" class="accuracy-toggle" (click)="showAccuracyInputs = !showAccuracyInputs">
+        <span>{{ showAccuracyInputs ? 'פחות פרטים' : 'רוצים לדייק את התוצאה?' }}</span>
+        <span aria-hidden="true">{{ showAccuracyInputs ? '−' : '+' }}</span>
+      </button>
+
+      <div class="accuracy-fields" *ngIf="showAccuracyInputs">
+        <label>
+          <span>נקודות זיכוי</span>
+          <input type="number" min="0" step="0.25" [(ngModel)]="creditPoints">
+          <small>ברירת המחדל היא 2.25. בהמשך נחבר שאלון אישי קצר.</small>
+        </label>
+        <label>
+          <span>מקדמות מס ששולמו השנה</span>
+          <div class="money-input"><input type="number" min="0" [(ngModel)]="incomeTaxPaid"><span>₪</span></div>
+          <small>אם לא ידוע, אפשר להשאיר ריק.</small>
+        </label>
+        <label>
+          <span>ביטוח לאומי ששולם השנה</span>
+          <div class="money-input"><input type="number" min="0" [(ngModel)]="nationalInsurancePaid"><span>₪</span></div>
+          <small>אם לא ידוע, אפשר להשאיר ריק.</small>
+        </label>
+      </div>
+    </section>
+
+    <section class="section-block results-block">
+      <div class="section-heading simple">
+        <div><span class="step">4</span><div><h2>מה צפוי עד סוף השנה?</h2><p>המערכת ממשיכה את קצב הפעילות הנוכחי עד דצמבר.</p></div></div>
+      </div>
+
+      <div class="forecast-strip">
+        <div><span>הכנסה עסקית צפויה</span><strong>{{ formatCurrency(plan.projectedIncome) }}</strong></div>
+        <div><span>רווח עסקי צפוי</span><strong>{{ formatCurrency(plan.projectedProfit) }}</strong></div>
+        <div><span>שכר שנתי משוער</span><strong>{{ formatCurrency(plan.annualSalary) }}</strong></div>
+      </div>
+
+      <div class="liability-grid">
+        <article class="liability-card income-tax">
+          <div class="card-title"><span class="card-icon">₪</span><h3>מס הכנסה</h3></div>
+          <strong>{{ formatCurrency(plan.incomeTax) }}</strong>
+          <p>חבות שנתית משוערת על השכר והרווח העסקי יחד.</p>
+          <dl>
+            <div><dt>מס משוער דרך השכר</dt><dd>{{ formatCurrency(plan.estimatedSalaryTax) }}</dd></div>
+            <div><dt>יעד מקדמות לפי אחוזים עד היום</dt><dd>{{ formatCurrency(currentAdvanceTarget) }}</dd></div>
+            <div><dt>מקדמות ששולמו והוזנו</dt><dd>{{ formatCurrency(incomeTaxPaid) }}</dd></div>
+            <div class="balance"><dt>נותר לעסק</dt><dd>{{ formatCurrency(plan.incomeTaxBalance) }}</dd></div>
+          </dl>
+        </article>
+
+        <article class="liability-card insurance">
+          <div class="card-title"><span class="card-icon">♥</span><h3>ביטוח לאומי ובריאות</h3></div>
+          <strong>{{ formatCurrency(plan.nationalInsurance) }}</strong>
+          <p>תחזית שנתית לפי הרווח, השכר והסטטוס הרשום בעסק.</p>
+          <dl>
+            <div><dt>סטטוס במערכת</dt><dd>{{ clientInsuranceStatusLabel }}</dd></div>
+            <div><dt>שולם לפי ההזנה</dt><dd>{{ formatCurrency(nationalInsurancePaid) }}</dd></div>
+            <div class="balance"><dt>נותר לתשלום</dt><dd>{{ formatCurrency(plan.nationalInsuranceBalance) }}</dd></div>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel recommendations">
+      <div class="section-heading simple">
+        <div><span class="step">5</span><div><h2>מה כדאי לעשות עכשיו?</h2><p>המלצות קצרות בלבד — בלי משימות ובלי מעקב.</p></div></div>
+      </div>
+
+      <div class="recommendation-list">
+        <article class="recommendation important">
+          <span class="recommendation-number">1</span>
+          <div><h3>לשמור {{ formatCurrency(monthlyReserve) }} בכל חודש</h3><p>כך הסכום הצפוי למס הכנסה ולביטוח לאומי לא יגיע כהפתעה בסוף השנה.</p></div>
+          <span class="priority">מומלץ עכשיו</span>
+        </article>
+
+        <article class="recommendation" *ngIf="!paymentsKnown">
+          <span class="recommendation-number">2</span>
+          <div><h3>להוסיף שני סכומים שכבר שולמו</h3><p>מקדמות מס וביטוח לאומי יהפכו את התחזית מ״כמה צפוי״ ל״כמה נשאר״.</p></div>
+          <button type="button" (click)="showAccuracyInputs = true">לדייק</button>
+        </article>
+
+        <article class="recommendation">
+          <span class="recommendation-number">{{ paymentsKnown ? 2 : 3 }}</span>
+          <div><h3>לבדוק הפקדה לקרן השתלמות עד {{ formatCurrency(plan.studyFundTarget) }}</h3><p>החיסכון המשוער במס הוא עד {{ formatCurrency(plan.studyFundTaxSaving) }}, לפי מדרגת מס של {{ formatPercent(plan.marginalRate) }} ולפני הפקדות שכבר בוצעו.</p></div>
+          <span class="soft-tag">הערכה</span>
+        </article>
+
+        <article class="recommendation">
+          <span class="recommendation-number">{{ paymentsKnown ? 3 : 4 }}</span>
+          <div><h3>לבדוק את מצב ההפקדות לפנסיה</h3><p>בגרסה הבאה נוסיף סכום השלמה אישי. כרגע ההמלצה אינה מחליפה בדיקת זכאות ותקרות.</p></div>
+          <span class="soft-tag">בקרוב</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel spouse-panel">
+      <div class="spouse-toggle" *ngIf="hasSpouseBusinesses; else optionalSpouse">
+        <span><strong>חישוב נפרד לבן או בת הזוג</strong><small>המערכת זיהתה עסק לפי מספר הזהות של בן/בת הזוג ולכן הוא אינו נכלל בחישוב של הלקוח.</small></span>
+      </div>
+      <ng-template #optionalSpouse><label class="spouse-toggle">
+        <input type="checkbox" [(ngModel)]="includeSpouse">
+        <span><strong>להוסיף חישוב נפרד לבן או בת זוג</strong><small>אופציונלי, ולא משפיע על החישוב של הלקוח.</small></span>
+      </label></ng-template>
+
+      <div class="spouse-content" *ngIf="includeSpouse">
+        <div class="spouse-fields">
+          <label><span>ברוטו חודשי משוער</span><div class="money-input"><input type="number" min="0" [(ngModel)]="spouseMonthlySalary"><span>₪</span></div></label>
+          <label *ngIf="!hasSpouseBusinesses"><span>רווח עסקי שנתי משוער</span><div class="money-input"><input type="number" min="0" [(ngModel)]="spouseAnnualBusinessProfit"><span>₪</span></div></label>
+          <label><span>נקודות זיכוי</span><input type="number" min="0" step="0.25" [(ngModel)]="spouseCreditPoints"></label>
+          <label class="inline-check" *ngIf="!hasSpouseBusinesses"><input type="checkbox" [(ngModel)]="spouseNationalInsuranceRequired"><span>עצמאי שעונה להגדרה</span></label>
+        </div>
+        <div class="spouse-result" *ngIf="spouseResult as spouse">
+          <div><span>מס הכנסה משוער</span><strong>{{ formatCurrency(spouse.incomeTax) }}</strong></div>
+          <div><span>ביטוח לאומי משוער</span><strong>{{ formatCurrency(spouse.nationalInsurance) }}</strong></div>
+          <div *ngIf="hasSpouseBusinesses"><span>רווח עסקי צפוי</span><strong>{{ formatCurrency(spouse.projectedProfit) }}</strong></div>
+          <p>החישוב נפרד ואינו נשמר כרגע.</p>
+        </div>
+      </div>
+    </section>
+
+    <details class="assumptions panel">
+      <summary>איך חישבנו את התחזית?</summary>
+      <ul>
+        <li>הכנסות, הוצאות ורווח נלקחו מדוח רווח והפסד מתחילת השנה.</li>
+        <li>יתרת השנה חושבה לפי קצב הפעילות הממוצע עד היום; עונתיות או אירוע חד־פעמי עדיין אינם מזוהים.</li>
+        <li>מס הכנסה מחושב לפי מדרגות ונקודת זיכוי של {{ taxYear }}. הטבות אישיות נוספות אינן כלולות עדיין.</li>
+        <li>המס המשוער בשכר מחושב אוטומטית ואינו תחליף לנתוני תלוש בפועל.</li>
+        <li>זהו כלי תכנון ראשוני ולא שומה או ייעוץ מס מחייב.</li>
+      </ul>
+    </details>
+  </ng-container>
+
+  <div class="welcome-state panel" *ngIf="!selectedUserId && !loadingUsers">
+    <div class="welcome-art" aria-hidden="true">☂</div>
+    <h2>מתחילים מבחירת לקוח</h2>
+    <p>בתוך רגע תופיע כאן תמונת מצב ברורה, תחזית לסוף השנה והמלצות לפעולה.</p>
+  </div>
+</section>

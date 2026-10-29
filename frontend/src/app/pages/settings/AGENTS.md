@@ -8,6 +8,18 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows
+
+- User payment history has view and download document actions for charge and
+  refund rows. Preview reserves a tab during the click, fetches the existing
+  owner-authorized receipt Blob, and passes it to FilesService.previewFile3.
+  Popup blocking/missing PDFs show friendly messages; document reads share a
+  busy guard. No public storage URL, document issuance or financial action.
+
+- Account sources, subscription history, classification rules and category
+  tables use unified generic-table `actions`. Mobile menus inherit their
+  existing showWhen predicates and show loading state; no mobile override is
+  required. Direct-card pull restrictions and category/subcategory distinctions
+  remain in their page predicates.
 - KT-053: My Subscription shows PREPARE/READY trial banking enrollment and
   links to continuation or withdrawal into a non-banking plan. Withdrawal
   preserves the trial and card, without scheduling an automatic lower-plan
@@ -24,9 +36,21 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
   open banking; Feezback account deletion is a separate task.
 - Personal / spouse details: forms patched from `AuthService.getUserDataFromLocalStorage()` + refreshed via `AuthService.restoreUserData()`; `updatePersonalDetails`/`updateSpouseDetails` PATCH via `AuthService.updateUser`.
 - Children: `loadChildren`/`updateChildrenDetails`/`confirmDeleteChild` via `AuthService.getChildren/updateChildren/deleteChild`, backed by a dynamic `childrenFormArray`.
-- Businesses: `loadBusinesses`/`saveBusiness`/`openAddBusinessModal`+`submitAddBusiness`/`deleteBusiness` all delegate to `GenericService` (`loadBusinessesFromServer`, `createBusiness`, `updateBusiness`, `deleteBusiness`, backed by a dynamic `businessesFormArray` synced to the `Business[]` signal.
+- Businesses: `loadBusinesses`/`saveBusiness`/`openAddBusinessModal`+`submitAddBusiness`/`deleteBusiness` all delegate to `GenericService` (`loadBusinessesFromServer`, `createBusiness`, `updateBusiness`, `deleteBusiness`, backed by a dynamic `businessesFormArray` synced to the `Business[]` signal. Existing business cards expose `businessName` as an editable field and persist it through `saveBusiness`. Private accounts must select the primary user or an existing spouse as `proprietorRole` when adding/editing a business; selecting the proprietor immediately replaces `businessNumber` with that person's identity number, and a new-business form defaults both fields to the primary user. Company accounts hide the selector and retain their existing business-number behavior. The selector presents only each person's full name (no primary/secondary role copy), and existing-business fields use an auto-fitting grid so controls never overlap.
 - Categories tab: visible to every authenticated user and delegated entirely to `MyCategoriesTabComponent`.
 - Permissions tab ("ניהול הרשאות וחשבונות", visible to every authenticated user): `fetchMyPermissions`/`grantViewPermission` via `MyPermissionsService` (view-permission grants to other users). Its account-source subsection remains conditional on `ModuleName.OPEN_BANKING`; eligible users get `fetchAccountSources`/`onPullSource` via `TransactionsService.getSourcesWithTypes` and `SyncStatusService.retrySource` (per-source manual transaction pull retry), rendered through `GenericTableComponent`.
+- The permissions tab also shows the SHAAM invoice-allocation connection status
+  for every numbered business. Initial connect and explicit reconnect both use
+  the hardened server-side OAuth flow; reconnect deliberately bypasses the
+  status pre-flight so the callback replaces the stored grant and scopes.
+  A refresh `invalid_scope` marks the saved connection as requiring a new
+  authorization; settings shows that state explicitly and its reconnect button
+  starts `/oauth/authorize` directly without deleting the old grant first.
+  Settings initiation records only the bounded callback origin `settings`, so
+  successful authorization returns to the permissions tab and never offers a
+  document-issuance action.
+  The expected `SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED` response is presented as
+  a disabled sandbox limitation, not as an unknown connection failure.
 - Subscription tab: a `COMPLIMENTARY_FULL` subscription is shown as "גישה מלאה ללא חיוב", with no plan, monthly charge, next billing date, or payment-method replacement controls.
 - Subscription status card offers "החלפת תוכנית" for ACTIVE owners without
   billing overrides. It navigates to /billing/plans using the existing plan
@@ -43,3 +67,37 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Backend: auth (user/spouse/children CRUD), business (business CRUD), transactions (account sources, retry-source), delegation (view-permission grants via MyPermissionsService).
 - Frontend shared: category-management is a related but separate topic — `my-categories-tab` here is settings-local category *rule* editing, not the same component as shared `category-management`.
 - Frontend pages: transactions (via `TransactionsService` for account sources).
+
+## Account images
+- Personal settings and existing business cards use the standalone `AccountImageComponent` for select, preview, save, replace, cancel and remove. Uploads are explicit and separate from detail-form saves. View-as client mode disables personal-profile mutations. Business logo editing follows existing business-save behavior, including delegated editing; server permissions remain authoritative.
+- `AccountImagesService` uses authenticated HttpClient GET/POST/DELETE for `/auth/profile-image` and `/business/:id/logo`, with multipart `file`, Blob reads and `{ imagePath }` mutations. No public storage URL or Firebase Auth photoURL is used.
+- PNG/JPEG/WebP up to 5MB are checked before upload. Decoded images above 16 million pixels are rejected; profile uploads are center-cropped to a square (up to 1024px), logos preserve original proportions/transparency. Backend validation remains required.
+- Blob URLs are revoked on replacement/destroy; context changes cancel stale loads. Profile and business logo paths update the existing tab-scoped caches after success.
+
+## Open-banking payment source deletion
+Authoritative complete consent discovery and every completed disconnect response
+refresh the owner profile before emitting `connectionChanged`. Parent account-source
+reloads therefore observe the new profile rather than racing a stale cached flag.
+Explicit admin targets do not refresh or overwrite the admin's own profile.
+The permissions tab embeds `OpenBankingManagementComponent` directly below its
+existing account-source table. Owner row actions preview cancellation of the
+whole consent (all associated accounts/cards) or start reconnect for a disconnected
+source; full disconnection and discovery refresh are below the table. Discovery
+and mutations share guards with existing source pull/delete actions. Active-consent
+rows expose cancellation instead of source deletion. The embedded footer stays outside the
+OPEN_BANKING entitlement gate, so an owner can revoke consent after losing module
+access. It previews server-reported consents and every associated source, supports
+single-consent revocation separately from full primary/spouse disconnection,
+and never deletes sources, classifications, associations or approved expenses.
+Incomplete provider discovery and partial termination remain explicit retry states.
+Represented-client mode cannot use owner controls. Reconnect uses the existing
+`/billing/open-banking` enrollment and identity-selection flow. Changes refresh
+auth state and (when entitled) the account-source list.
+Expired/blocked subscriptions also have an auth-only `/billing/open-banking/manage`
+page, linked directly from the global billing-block dialog. Existing Settings
+billing guards remain unchanged. The billing-route dialog exemption keeps consent
+management usable without unlocking other protected pages.
+
+Disconnected sources retain an explicit delete action identified by sourceRecordId (including spouse sources with matching numbers). Active-consent rows instead offer consent cancellation with a complete affected-source preview. Deletion requires confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the existing explanation. Historical transactions are retained.
+
+Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.

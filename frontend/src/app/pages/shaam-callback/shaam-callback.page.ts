@@ -8,6 +8,10 @@ import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
 import { environment } from 'src/environments/environment';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
+import {
+  SHAAM_OAUTH_ORIGIN_STORAGE_KEY,
+  ShaamOAuthOrigin,
+} from 'src/app/services/shaam.service';
 
 @Component({
   selector: 'app-shaam-callback',
@@ -29,19 +33,23 @@ export class ShaamCallbackPage implements OnInit {
   isSuccess = false;
   isError = false;
   errorMessage = '';
-  product = '';
+  connectionOrigin: ShaamOAuthOrigin = 'document';
 
-  get isUniformFile(): boolean {
-    return this.product === 'UNIFORM_FILE';
+  get isSettingsOrigin(): boolean {
+    return this.connectionOrigin === 'settings';
+  }
+
+  get isUniformFileOrigin(): boolean {
+    return this.connectionOrigin === 'uniform-file';
   }
 
   ngOnInit() {
+    this.connectionOrigin = this.consumeConnectionOrigin();
     // Get query parameters from SHAAM redirect or backend redirect
     this.route.queryParams.subscribe(params => {
       const connected = params['connected'];
       const error = params['error'];
       const errorDescription = params['error_description'];
-      this.product = params['product'] || '';
 
       // Handle error from SHAAM or backend
       if (error) {
@@ -99,12 +107,25 @@ export class ShaamCallbackPage implements OnInit {
     }
   }
 
+  navigateToSettings(): void {
+    this.router.navigate(['/settings'], { queryParams: { tab: 'permissions' } });
+  }
+
   navigateToUniformFile(): void {
     this.router.navigate(['/uniform-file']);
   }
 
   tryAgain(): void {
     this.navigateToHome();
+  }
+
+  private consumeConnectionOrigin(): ShaamOAuthOrigin {
+    const storedOrigin = sessionStorage.getItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
+    sessionStorage.removeItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
+    if (storedOrigin === 'settings' || storedOrigin === 'uniform-file') {
+      return storedOrigin;
+    }
+    return 'document';
   }
 }
 

@@ -14,11 +14,13 @@ describe('UniformFileOauthService', () => {
     environment: ShaamEnvironment.TSANDBOX,
     clientId: 'uniform-client',
     clientSecret: 'uniform-secret',
-    redirectUri: 'http://localhost:3000/shaam/uniform-file/oauth/callback',
+    redirectUri: 'http://localhost:3000/shaam/oauth/callback',
     authorizeUrl: 'https://openapi.taxes.gov.il/authorize',
     tokenUrl: 'https://openapi.taxes.gov.il/token',
-    uploadLinksUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
-    statusUrl: 'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
+    uploadLinksUrl:
+      'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+    statusUrl:
+      'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
     sandboxCaseNumberOverride: null,
     scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
@@ -34,7 +36,7 @@ describe('UniformFileOauthService', () => {
               access_token: 'daily-token',
               token_type: 'Bearer',
               expires_in: 43_200,
-              scope: 'UniStructFileUploadLinks_scope FilesStatus_scope',
+              scope: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
             } as const),
         }),
       ),
@@ -51,7 +53,7 @@ describe('UniformFileOauthService', () => {
 
     expect(url.searchParams.get('client_id')).toBe('uniform-client');
     expect(url.searchParams.get('scope')).toBe(
-      'UniStructFileUploadLinks_scope FilesStatus_scope',
+      'UniStructFileUploadLinks_scope,FilesStatus_scope',
     );
     expect(url.searchParams.get('state')).toBe('signed-state');
   });
@@ -66,7 +68,9 @@ describe('UniformFileOauthService', () => {
     const [url, body, options] = httpService.post.mock.calls[0];
     expect(url).toBe(config.tokenUrl);
     expect(body).toContain('code=one-time-code');
-    expect(body).toContain('UniStructFileUploadLinks_scope+FilesStatus_scope');
+    expect(new URLSearchParams(body).get('scope')).toBe(
+      'UniStructFileUploadLinks_scope,FilesStatus_scope',
+    );
     expect(options.headers.Authorization).toMatch(/^Basic /);
   });
 
@@ -75,11 +79,37 @@ describe('UniformFileOauthService', () => {
       access_token: 'token',
       token_type: 'Bearer',
       expires_in: 43_201,
-      scope: 'UniStructFileUploadLinks_scope FilesStatus_scope',
+      scope: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
     });
 
     await expect(service.exchangeCodeForDailyToken('code')).rejects.toThrow(
       BadGatewayException,
+    );
+  });
+
+  it('accepts provider-returned scopes separated by whitespace', async () => {
+    const { service } = setup({
+      access_token: 'token',
+      token_type: 'Bearer',
+      expires_in: 43_200,
+      scope: 'UniStructFileUploadLinks_scope FilesStatus_scope',
+    });
+
+    await expect(service.exchangeCodeForDailyToken('code')).resolves.toMatchObject({
+      access_token: 'token',
+    });
+  });
+
+  it('rejects a Daily Token missing either required scope', async () => {
+    const { service } = setup({
+      access_token: 'token',
+      token_type: 'Bearer',
+      expires_in: 43_200,
+      scope: 'UniStructFileUploadLinks_scope',
+    });
+
+    await expect(service.exchangeCodeForDailyToken('code')).rejects.toThrow(
+      'SHAAM Daily Token is missing a required scope',
     );
   });
 

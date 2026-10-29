@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -28,6 +28,7 @@ import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
 import { BillingService } from '../billing/services/billing.service';
+import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
 type SimSpec = {
@@ -152,12 +153,13 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async retrySource(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { type: 'card' | 'bank'; sourceId: string },
+    @Body() body: { type: 'card' | 'bank'; sourceId: string; sourceRecordId?: number },
   ) {
     const userId = request.user?.firebaseId;
     if (!body?.type || !body?.sourceId) {
       throw new BadRequestException('type and sourceId are required');
     }
+    await this.assertLiveSyncAllowed(userId);
 
     // Block per-source retry while a full sync is running — both paths write to
     // user_source_sync_state and call processingService.process(); racing them
@@ -167,7 +169,7 @@ export class TransactionsController {
       throw new ConflictException('Sync is already running — please wait for it to finish');
     }
 
-    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId, body.sourceRecordId);
     return result;
   }
 
@@ -205,6 +207,7 @@ export class TransactionsController {
   @HttpCode(HttpStatus.OK)
   async triggerSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
     const userId = request.user?.firebaseId;
+    await this.assertLiveSyncAllowed(userId);
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
     this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
@@ -227,6 +230,13 @@ export class TransactionsController {
     );
 
     return { status: 'started' };
+  }
+
+  private async assertLiveSyncAllowed(firebaseId: string): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (usesSyntheticOpenBanking(user?.email)) {
+      throw new ConflictException('נתוני הבנקאות בחשבון הדמו הם סינתטיים ומתעדכנים באמצעות איפוס הנתונים');
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -327,7 +337,7 @@ export class TransactionsController {
     // Register discovered sources as 'not_synced' (discovered, not yet pulled)
     // and stamp the freshness marker so hasUnprocessedConsentFlow() → false
     // (post-consent-sync flips to 'completed' → FE enables the pull button).
-    await this.userSyncStateService.updateSourceResults(
+    await this.userSyncStateService.updateSimulatedSourceResults(
       userId,
       sim.sources.map(s => ({ ...s, status: 'not_synced' as const, transactionCount: 0, error: undefined })),
     );
@@ -380,7 +390,7 @@ export class TransactionsController {
 
     // Seed the finished sync state with the scenario's per-source results.
     await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
+    await this.userSyncStateService.updateSimulatedSourceResults(userId, sim.sources);
     return { status: 'pull-simulated', scenario };
   }
 
@@ -611,7 +621,7 @@ export class TransactionsController {
     @Body() body: any,
   ): Promise<Source> {
     const userId = request.user?.firebaseId;
-    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
+    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId, body.sourceRecordId);
   }
 
 
@@ -628,6 +638,13 @@ export class TransactionsController {
   async getSources(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.getSources(userId);
+  }
+
+  @Delete('sources/:sourceRecordId')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteSource(@Req() request: AuthenticatedRequest, @Param('sourceRecordId', ParseIntPipe) sourceRecordId: number) {
+    if (sourceRecordId <= 0) throw new BadRequestException('Invalid sourceRecordId');
+    return this.transactionsService.deleteDisconnectedSource(request.user?.firebaseId, sourceRecordId);
   }
 
   @Get('get-sources-with-types')

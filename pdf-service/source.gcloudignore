@@ -1,0 +1,19 @@
+# Submit from the repository root with this explicit allowlist.
+**
+!pdf-service/
+!pdf-service/**
+!backend/
+!backend/src/
+!backend/src/documents/
+!backend/src/documents/pdf/
+!backend/src/documents/pdf/document-pdf.template.ts
+!backend/src/assets/
+!backend/src/assets/document-fonts/
+!backend/src/assets/document-fonts/**
+**/node_modules/**
+**/dist/**
+**/artifacts/**
+**/.env
+**/.env.*
+**/*.key
+**/*.pem

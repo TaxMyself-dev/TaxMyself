@@ -27,6 +27,12 @@ export enum BusinessType {
   EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP',
 }
 
+/** Which household identity is the registered proprietor of a business. */
+export enum BusinessProprietorRole {
+  PRIMARY = 'PRIMARY',
+  SPOUSE = 'SPOUSE',
+}
+
 /**
  * Business-model taxonomy (Phase 3, Step 1 — 2026-08-17): what kind of
  * business this is (service/retail/contracting), independent of

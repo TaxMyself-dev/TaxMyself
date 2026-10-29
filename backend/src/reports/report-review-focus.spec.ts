@@ -14,6 +14,7 @@ describe('ReportsController focused archive review', () => {
       convertStringToDateObject: jest.fn((value: string) =>
         value === '2026-01-01' ? from : value === '2026-12-31' ? to : null,
       ),
+      isRepresentedByAccountant: jest.fn().mockResolvedValue(false),
     };
     const controller = new ReportsController(
       {} as any,

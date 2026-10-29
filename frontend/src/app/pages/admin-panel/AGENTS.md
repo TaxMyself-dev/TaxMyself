@@ -1,6 +1,12 @@
 ## Purpose
 Internal admin console (tabbed) for staff to manage clients dashboard, the unified categories/cards catalog area, transactions, demo data, billing/Cardcom, educational content, and the product documentation center — the single page most non-client-facing admin tools live under. SHAAM allocation is performed from document flows, not from this console.
 
+## SHAAM unknown-outcome resolution
+
+The SHAAM allocations tab lists unresolved attempts for admins. Operators
+record externally confirmed non-acceptance or a verified allocation number,
+together with a bounded evidence reference.
+
 ## Key entities/files
 - `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown.
 - `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`).

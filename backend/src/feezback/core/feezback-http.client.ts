@@ -1,3 +1,4 @@
+import { isConfiguredKeyLookupPost, isPublicKeyLookupFailure, PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS } from './feezback-key-lookup-retry';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { AxiosRequestConfig, AxiosResponse } from 'axios';
@@ -27,7 +28,7 @@ export interface FeezbackDebugHttpCall {
   receivedAt?: string;
   durationMs?: number;
   status?: number;
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'DELETE';
   url: string;
   attempt: number;
   maxAttempts: number;
@@ -56,6 +57,10 @@ export class FeezbackHttpClient {
     return this.request<T>('POST', path, body, options);
   }
 
+  async delete<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+    return this.request<T>('DELETE', path, undefined, options);
+  }
+
   /** Capture the exact provider HTTP calls made by one async operation. */
   async withDebugTrace<T>(
     operation: () => Promise<T>,
@@ -66,13 +71,14 @@ export class FeezbackHttpClient {
   }
 
   private async request<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     path: string,
     body: unknown,
     options: RequestOptions,
   ): Promise<T> {
     const url = this.resolveUrl(path);
     const { maxRetries } = FEEZBACK_RETRY;
+    let keyLookupRetried = false;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Rebuild auth headers on every attempt so a fresh token is used after long back-offs.
@@ -98,7 +104,7 @@ export class FeezbackHttpClient {
         const response: AxiosResponse<T> = await firstValueFrom(
           method === 'GET'
             ? this.http.get<T>(url, config)
-            : this.http.post<T>(url, body, config),
+            : method === 'DELETE' ? this.http.delete<T>(url, config) : this.http.post<T>(url, body, config),
         );
 
         const durationMs = Date.now() - sentAt;
@@ -114,8 +120,21 @@ export class FeezbackHttpClient {
         traceEntry.durationMs = failedAt - sentAt;
         traceEntry.status = mapped.status;
 
+        // Record each failed transaction attempt, including failures recovered by retry.
+        if (method === 'GET' && /\/transactions\/?$/.test(new URL(url).pathname)) {
+          const credentials = Object.entries(headers)
+            .filter(([name]) => /authorization|token|api[-_]?key|cookie/i.test(name))
+            .flatMap(([, value]) => [value, value.replace(/^Bearer\s+/i, '')]);
+          this.logger.error('[FeezbackResponse] ' + feeZbackErrorDiagnostic(mapped,
+            [...credentials, options.sub ?? ''], {
+              attempt: attempt + 1, maxAttempts: maxRetries + 1, durationMs: failedAt - sentAt,
+            }));
+        }
+
         const rateLimit = isRateLimitError(mapped);
-        const shouldRetry = isRetryableFeezbackError(mapped);
+        const keyLookupRetry = !keyLookupRetried && isPublicKeyLookupFailure(mapped) &&
+          isConfiguredKeyLookupPost(method, url, [this.authService.getTokenUrl?.(), this.authService.getLgsUrl?.()]);
+        const shouldRetry = keyLookupRetry || isRetryableFeezbackError(mapped);
 
         if (!shouldRetry || attempt === maxRetries) {
           if (method === 'POST' && /\/(link|token)\/?(?:\?|$)/.test(url)) {
@@ -125,8 +144,9 @@ export class FeezbackHttpClient {
           throw mapped;
         }
 
+        if (keyLookupRetry) keyLookupRetried = true;
         const retryAfterMs = rateLimit ? parseRetryAfterMs(mapped.headers) : null;
-        const waitMs = retryAfterMs ?? calcBackoffMs(attempt);
+        const waitMs = keyLookupRetry ? PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS : retryAfterMs ?? calcBackoffMs(attempt);
 
         await sleep(waitMs);
       }
@@ -165,7 +185,7 @@ export class FeezbackHttpClient {
   }
 
   private buildRedactedCurl(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'DELETE',
     url: string,
     headers: Record<string, string>,
     body: unknown,

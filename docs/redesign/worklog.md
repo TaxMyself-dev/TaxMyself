@@ -2621,3 +2621,69 @@ No plan-checkbox changes (documentation reconciliation only).
   production-data execution occurred.
 - Focused Jest passed 4 suites / 21 tests. Nest and Angular production builds
   passed; Angular reported the existing bundle-budget/CommonJS warnings.
+
+## Feezback spouse and source-deletion integration — 2026-10-20
+
+Elazar requested merging codex/feezback-spouse (25864c52) and its dependent
+codex/feezback-delete-payment-source (2275965d). Fetched origin and updated
+clean main from 72098ca9 to d59ee789 before staging on codex/integration.
+Both merges applied without conflicts. Combined review/checks passed:
+14 backend suites / 105 tests, 33 isolated frontend tests, Nest build and
+Angular production build. Desktop/mobile local API URLs are 3000. Details
+and exact commands: docs/tasks/archive/2026.md (Feezback main delivery, 2026-10-20).
+Prior approved user/source/FK SQL is included but was not executed during
+integration. No production access, provider calls or deployment occurred.
+
+Delivery verified: 461885a2 on local main, origin/main and both integration refs; both requested feature tips are included. Task records archived after delivery. No production deployment.
+
+## 2026-10-22 — Explicit proprietor for each private-account business
+
+- Added `business.proprietorRole` (`PRIMARY` / `SPOUSE`) so each sole
+  proprietorship is linked to one household member rather than inferred from
+  row order or business number.
+- Registration assigns the primary/spouse business sections explicitly.
+  Settings requires the proprietor on private-account create/edit and only
+  offers an existing spouse. Company accounts remain primary-only. Existing
+  private-account restrictions continue to reject company and partnership
+  business types at both UI and backend boundaries.
+- P&L owner-name output now uses the stored proprietor; the trade name remains
+  `businessName`. Legacy signed-in compatibility fields and implicit import
+  routing also use the explicit role.
+- Added idempotent schema SQL and deterministic legacy backfill to
+  `docs/redesign/cutover.sql`: an unambiguous spouse-ID match becomes SPOUSE;
+  ambiguous and unmatched rows remain PRIMARY. After delivery, Elazar
+  explicitly requested applying it to `keepintax-dev`: 36 businesses resolved
+  to 33 PRIMARY / 3 SPOUSE, with zero invalid spouse assignments. The verifier
+  also reported nine pre-existing orphan Business rows; they were not deleted
+  or otherwise modified. Production was not accessed or deployed.
+- Verification: backend Jest 4 suites / 20 tests; focused frontend tests 2/2;
+  focused frontend TypeScript check; Nest and Angular production builds. All
+  passed; Angular retains existing size/CommonJS warnings.
+- Delivery verified at `abb2e4bc` on local main, `origin/main`, and
+  `origin/codex/integration-kt091` before the final delivery-record commit. No
+  production SQL or deployment was performed.
+
+## 2026-10-22 — Business proprietor Settings UI polish
+
+- The proprietor selector now shows only the primary user's and spouse's full
+  names. Missing names use the neutral `שם חסר` fallback instead of account-role
+  terms.
+- Existing-business fields now use an auto-fitting 220px-minimum grid and
+  collapse to one column on mobile, preventing the overlap visible in the
+  previous fixed-width row.
+- No backend, schema, data, report, tax-law, production, or deployment change.
+  Focused TypeScript validation and Karma tests (3/3) passed, and the Angular
+  production build passed with the existing budget/CommonJS warnings.
+
+## 2026-10-22 — Business number follows the selected proprietor
+
+- In private-account Settings, selecting the primary user or spouse as the
+  proprietor now immediately replaces the form's business number with that
+  person's identity number. New-business forms default to the primary user and
+  primary identity number.
+- Company-account behavior is unchanged. Existing business forms are not
+  rewritten merely by loading the page; the replacement occurs on an explicit
+  proprietor selection.
+- No backend, schema, data, report, tax-law, production, or deployment change.
+  Focused TypeScript validation and Karma tests (5/5) passed, and the Angular
+  production build passed with the existing budget/CommonJS warnings.

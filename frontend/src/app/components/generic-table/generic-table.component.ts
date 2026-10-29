@@ -13,7 +13,9 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ButtonComponent } from "../button/button.component";
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shared/interface';
+import { IGenericTableAction, hasStoredTableFile, resolveTableActions } from './table-actions';
+import { TableRowActionsMenuComponent } from '../table-row-actions-menu/table-row-actions-menu.component';
 import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 import { DateFormatPipe } from 'src/app/pipes/date-format.pipe';
 import { TruncatePointerDirective } from '../../directives/truncate-pointer.directive';
@@ -40,7 +42,7 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
   ],
   templateUrl: './generic-table.component.html',
   styleUrls: ['./generic-table.component.scss'],
-  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent],
+  imports: [CommonModule, InputIcon, IconField, InputGroupModule, InputGroupAddonModule, InputTextModule, ButtonComponent, TableModule, TooltipModule, TruncatePointerDirective, HighlightPipe, ButtonModule, ButtonGroupModule, DateFormatPipe, MobileRowCardComponent, TableRowActionsMenuComponent],
   providers: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
 
@@ -63,8 +65,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   genericService = inject(GenericService);
   title = input<string>();
-  fileActions = input<ITableRowAction[]>([]);
-  rowActions = input<ITableRowAction[]>([]);
+  emptyText = input<string>('אויש, לא מצאנו את מה שחיפשת');
+  readonly displayedEmptyText = computed(() => this.dataTable()?.length
+    ? 'אויש, לא מצאנו את מה שחיפשת' : this.emptyText());
+  actions = input<IGenericTableAction[]>([]);
+  /** Opt-in legacy attach fallback; ordinary row actions never create an upload control. */
+  fileAttachmentEnabled = input<boolean>(false);
   immediateActions = input<boolean>(true);
   filesAttached = input<Map<number, File>>(new Map());
   immediateFileOperation = input<boolean>(false);
@@ -87,7 +93,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   dataTable = input<IRowDataTable[]>([]);
   columnsTitle = input<IColumnDataTable<TFormColumns, TFormHebrewColumns>[]>([]);
   mobileCardConfig = input<IMobileCardConfig>();
-  mobileCardActions = input<ITableRowAction[]>();
   /** When true, negative `sum` (expenses) renders red and positive (income) green; expects `__sumNumeric` on rows. */
   sumSignColors = input<boolean>(false);
   /** When true, unlinked account column shows fixed "לא משוייך" in red (My Account unclassified). */
@@ -96,7 +101,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   rowClass = input<((row: IRowDataTable) => string) | null>(null);
   /** When true, the hover row-actions strip renders each action's icon
    *  alongside its (always-visible) label (default: label-only, unchanged
-   *  for every other consumer of `rowActions`). Opt-in per page — see
+   *  for every other consumer of labelled `actions`). Opt-in per page — see
    *  report-review. */
   showRowActionIcons = input<boolean>(false);
 
@@ -285,21 +290,20 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.mobileTableExpanded.update(v => !v);
   }
 
-  /** Returns rowActions filtered by showWhen for the given row. */
-  getRowActions(row: IRowDataTable): ITableRowAction[] {
-    if (!row) return [];
-    return this.rowActions().filter(a => !a.showWhen || a.showWhen(row));
+  /** A single row-aware list supplies desktop buttons and both mobile layouts. */
+  getActionsForRow(row: IRowDataTable): IGenericTableAction[] {
+    return resolveTableActions(this.actions(), row, {
+      fileEditingEnabled: this.fileEditingEnabled(),
+      fileAttachmentEnabled: this.fileAttachmentEnabled(),
+      filesAttached: this.filesAttached(),
+    }, target => this.triggerFileInput(target));
   }
 
-  /** Actions passed to a mobile card: mobileCardActions override takes priority,
-   *  otherwise use the row-filtered rowActions. */
-  mobileActionsForRow(row: IRowDataTable): ITableRowAction[] {
-    const override = this.mobileCardActions();
-    if (override?.length) return override;
-    return this.getRowActions(row);
-  }
+  needsFileInput = computed(() => this.fileEditingEnabled()
+    && (this.fileAttachmentEnabled() || this.actions().some(a => a.execution === 'fileInput')));
 
-
+  private pendingFileRow: IRowDataTable | null = null;
+  private fileSelectionMode: 'attachment' | 'action' | null = null;
 
   constructor() {
     effect(() => {
@@ -504,32 +508,22 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   //   this.visibleAccountAssociationDialog.set(true);
   // }
 
-  onCardActionClicked(event: { action: ITableRowAction; row: IRowDataTable }): void {
-    event.action.action(undefined, event.row);
+  onCardActionClicked(event: { action: IGenericTableAction; row: IRowDataTable }): void {
+    this.executeAction(event.action, event.row);
   }
 
-  // applyFilters(filters: FormGroup): void {
-  //   console.log('applyFilters', filters);
-  //   this.visibleFilterPannel.set(false);
-  //   this.filters.emit(filters);
-  // }
-
-  onFileChange(event: Event, row?: IRowDataTable) {
+  onFileChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-
-    if (!file) {
-      return;
-    }
-
-    // Use provided row or get from hoveredRowInfo
-    const targetRow = row || this.hoveredRowInfo()?.row;
-    if (!targetRow) {
-      return;
-    }
-
-    this.fileChange.emit({ row: targetRow, file });
-    input.value = "";
+    const row = this.pendingFileRow;
+    const mode = this.fileSelectionMode;
+    this.pendingFileRow = null;
+    this.fileSelectionMode = null;
+    // Replacement callbacks own their change subscription. Do not clear the
+    // input before they read it or emit a second upload through fileChange.
+    if (mode !== 'attachment') return;
+    const file = input.files?.[0];
+    if (row && file) this.fileChange.emit({ row, file });
+    input.value = '';
   }
 
   getFileName(row?: IRowDataTable): string {
@@ -544,23 +538,33 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     return row['fileName'] as string || 'קובץ מצורף';
   }
 
-  executeAction(action: ITableRowAction, row: IRowDataTable, fileInput?: HTMLInputElement): void {
-    if (action.action) {
-      // Use provided fileInput or fallback to ViewChild reference
-      const inputElement = fileInput || this.fileInput?.nativeElement;
-      // For actions that need file input (like edit)
-      if (action.name === 'edit' && inputElement) {
-        action.action(inputElement, row);
-      } else {
-        action.action(null, row);
-      }
+  executeAction(action: IGenericTableAction, row: IRowDataTable): void {
+    const current = this.getActionsForRow(row).find(candidate => candidate.name === action.name);
+    if (!current || current.isLoading?.()) return;
+    if (current.execution === 'fileInput') {
+      const input = this.fileInput?.nativeElement;
+      if (!input || !this.fileEditingEnabled()) return;
+      input.value = '';
+      this.pendingFileRow = row;
+      this.fileSelectionMode = 'action';
+      current.action(input, row);
+    } else {
+      current.action(null, row);
     }
   }
 
-  triggerFileInput(): void {
-    if (this.fileInput?.nativeElement) {
-      this.fileInput.nativeElement.click();
-    }
+  onFileSelectionCanceled(): void {
+    this.pendingFileRow = null;
+    this.fileSelectionMode = null;
+  }
+
+  triggerFileInput(row: IRowDataTable): void {
+    const input = this.fileInput?.nativeElement;
+    if (!input || !row || !this.fileEditingEnabled()) return;
+    input.value = '';
+    this.pendingFileRow = row;
+    this.fileSelectionMode = 'attachment';
+    input.click();
   }
 
   showAttachButton(row: IRowDataTable): boolean {
@@ -570,12 +574,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   }
 
   hasStoredFile(row?: IRowDataTable): boolean {
-    if (!row) return false;
-
-    const file = row['file'];
-    const hasLegacyFile = typeof file === 'string' && file.trim() !== '';
-    const hasSourceDocument = Number(row['sourceDocumentId'] ?? 0) > 0;
-    return hasLegacyFile || hasSourceDocument;
+    return hasStoredTableFile(row);
   }
 
   hasFileAttached(row?: IRowDataTable): boolean {
@@ -590,34 +589,6 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   getCurrentRow(): IRowDataTable | undefined {
     return this.hoveredRowInfo()?.row;
-  }
-
-  hasAlwaysShowAction(): boolean {
-    return this.fileActions().some(action => action.alwaysShow);
-  }
-
-  shouldShowAction(action: ITableRowAction): boolean {
-    if (!action.alwaysShow) return false;
-    const row = this.hoveredRowInfo()?.row;
-    if (action.showWhen && row && !action.showWhen(row)) return false;
-    if (action.name === 'close') {
-      if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  shouldShowFileAction(action: ITableRowAction): boolean {
-    if (action.alwaysShow) return false;
-    const row = this.hoveredRowInfo()?.row;
-    if (action.showWhen && row && !action.showWhen(row)) return false;
-    if (action.name === 'close') {
-      if (row && row['docStatus']?.toUpperCase() === 'CLOSE') {
-        return false;
-      }
-    }
-    return true;
   }
 
 }

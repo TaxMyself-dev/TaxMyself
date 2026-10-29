@@ -437,6 +437,11 @@ export enum BusinessType {
   EXEMPT_PARTNERSHIP = 'EXEMPT_PARTNERSHIP'
 }
 
+export enum BusinessProprietorRole {
+  PRIMARY = 'PRIMARY',
+  SPOUSE = 'SPOUSE'
+}
+
 export const BusinessTypeLabels = {
   [BusinessType.EXEMPT]: 'עוסק פטור',
   [BusinessType.LICENSED]: 'עוסק מורשה',

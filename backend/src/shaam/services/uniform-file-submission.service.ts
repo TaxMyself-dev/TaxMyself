@@ -1,472 +1,522 @@
+import { createHash } from 'crypto';
 import {
   BadRequestException,
-  ConflictException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { createHash } from 'crypto';
-import { IsNull, Repository } from 'typeorm';
-import { ReportsService, UniformFileArtifacts } from '../../reports/reports.service';
-import { ShaamEnvironment } from '../shaam.constants';
+import { Repository } from 'typeorm';
+import { Business } from '../../business/business.entity';
+import { ReportsService } from '../../reports/reports.service';
 import { UniformFileSubmission } from '../entities/uniform-file-submission.entity';
 import {
+  ShaamProduct,
   UniformFileRemoteStatus,
   UniformFileSubmissionState,
 } from '../entities/shaam.enums';
+import { ShaamEnvironment } from '../shaam.constants';
 import {
+  UniformFileApiService,
+  UniformFileClientError,
   UniformFileStatusResult,
-  UniformFileUploadService,
-} from '../uniform-file/uniform-file-upload.service';
-
-export interface PrepareUniformFileSubmissionInput {
-  businessId: number;
-  businessNumber: string;
-  ownerFirebaseId: string;
-  actorFirebaseId: string;
-  environment: ShaamEnvironment;
-  periodStart: string;
-  periodEnd: string;
-}
+} from '../uniform-file/uniform-file-api.service';
+import {
+  UNIFORM_FILE_OAUTH_CONFIG,
+  UniformFileOauthConfig,
+} from '../uniform-file/uniform-file-oauth.config';
+import { ShaamConnectionService } from './shaam-connection.service';
 
 export interface UniformFileSubmissionView {
   id: number;
-  businessNumber: string;
-  environment: ShaamEnvironment;
+  state: UniformFileSubmissionState;
   periodStart: string;
   periodEnd: string;
-  state: UniformFileSubmissionState;
   iniStatus: UniformFileRemoteStatus | null;
   bkmStatus: UniformFileRemoteStatus | null;
   errorCategory: string | null;
   errorCode: string | null;
   errorMessage: string | null;
-  iniByteLength: string;
-  bkmByteLength: string;
   generatedAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  reused: boolean;
-}
-
-interface GeneratedPair {
-  artifacts: UniformFileArtifacts;
-  iniSha256: string;
-  bkmSha256: string;
-  generatedAt: Date;
+  uploadedAt: Date | null;
+  lastPolledAt: Date | null;
+  completedAt: Date | null;
 }
 
 @Injectable()
 export class UniformFileSubmissionService {
+  private readonly logger = new Logger(UniformFileSubmissionService.name);
+
   constructor(
     @InjectRepository(UniformFileSubmission)
     private readonly repo: Repository<UniformFileSubmission>,
     private readonly reports: ReportsService,
-    private readonly uploads: UniformFileUploadService,
+    private readonly connections: ShaamConnectionService,
+    private readonly api: UniformFileApiService,
+    @Inject(UNIFORM_FILE_OAUTH_CONFIG)
+    private readonly uniformConfig: UniformFileOauthConfig,
   ) {}
 
-  async prepare(input: PrepareUniformFileSubmissionInput): Promise<UniformFileSubmissionView> {
-    this.assertPeriod(input.periodStart, input.periodEnd);
-
-    const latest = await this.repo.findOne({
+  async submit(
+    effectiveUserId: string,
+    actorFirebaseId: string,
+    business: Business,
+    startDate: string,
+    endDate: string,
+    representorCompanyId?: string,
+  ): Promise<UniformFileSubmissionView> {
+    this.assertDates(startDate, endDate);
+    const resumable = await this.repo.findOne({
       where: {
-        businessId: input.businessId,
-        environment: input.environment,
-        periodStart: input.periodStart,
-        periodEnd: input.periodEnd,
+        environment: this.uniformConfig.environment,
+        businessId: business.id,
+        periodStart: startDate,
+        periodEnd: endDate,
       },
-      order: { generatedAt: 'DESC', id: 'DESC' },
+      order: { createdAt: 'DESC' },
     });
+    if (resumable && !this.canAttemptReservation(resumable)) {
+      return this.view(resumable);
+    }
+    const artifacts = await this.reports.createUniformFile(
+      effectiveUserId,
+      startDate,
+      endDate,
+      business.businessNumber,
+    );
+    let submission = await this.findOrCreate(
+      business,
+      actorFirebaseId,
+      startDate,
+      endDate,
+      representorCompanyId ?? null,
+      artifacts.iniBuffer,
+      artifacts.bkmvdataBuffer,
+      resumable ?? undefined,
+    );
 
-    if (latest) {
-      const regenerated = await this.generate(input, new Date(latest.generatedAt));
-      if (
-        regenerated.iniSha256 === latest.iniSha256 &&
-        regenerated.bkmSha256 === latest.bkmSha256
-      ) {
-        return this.toView(latest, true);
-      }
+    if (!this.canAttemptReservation(submission)) {
+      return this.view(submission);
+    }
+    const accessToken = await this.connections.getValidAccessToken(
+      business.id,
+      ShaamProduct.UNIFORM_FILE,
+      this.uniformConfig.environment,
+    );
+    if (!accessToken) {
+      submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
+      submission.errorCategory = 'authorization_required';
+      submission.errorCode = null;
+      submission.errorMessage = 'Tax Authority connection is required';
+      submission = await this.repo.save(submission);
+      return this.view(submission);
     }
 
-    const generatedAt = this.nextGenerationTimestamp(latest?.generatedAt);
-    const generated = await this.generate(input, generatedAt);
-    const submission = this.repo.create({
-      businessId: input.businessId,
-      businessNumberSnapshot: input.businessNumber,
-      actorFirebaseId: input.actorFirebaseId,
-      environment: input.environment,
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      representorCompanyId: null,
-      state: UniformFileSubmissionState.GENERATED,
-      iniStatus: null,
-      bkmStatus: null,
-      iniSha256: generated.iniSha256,
-      bkmSha256: generated.bkmSha256,
-      iniByteLength: String(generated.artifacts.iniBuffer.length),
-      bkmByteLength: String(generated.artifacts.bkmvdataBuffer.length),
-      shaamUniqueId: null,
-      iniFileName: null,
-      bkmFileName: null,
-      iniFileUniqueId: null,
-      bkmFileUniqueId: null,
-      errorCategory: null,
+    const replacingReconciledPair =
+      submission.errorCategory === 'reconciled_not_found';
+    const claimPatch: Partial<UniformFileSubmission> = {
+      state: UniformFileSubmissionState.UNKNOWN_OUTCOME,
+      errorCategory: 'links_reservation_in_progress',
       errorCode: null,
       errorMessage: null,
-      retryCount: 0,
-      generatedAt,
-      uploadedAt: null,
-      lastPolledAt: null,
-      completedAt: null,
-    });
+    };
+    if (replacingReconciledPair) {
+      Object.assign(claimPatch, {
+        shaamUniqueId: null,
+        iniFileName: null,
+        bkmFileName: null,
+        iniFileUniqueId: null,
+        bkmFileUniqueId: null,
+        iniStatus: null,
+        bkmStatus: null,
+      });
+    }
+    const claimed = await this.repo.update(
+      { id: submission.id, state: submission.state },
+      claimPatch,
+    );
+    if (claimed.affected !== 1) {
+      return this.view(await this.loadOwned(submission.id, business.id));
+    }
+    Object.assign(submission, claimPatch);
 
     try {
-      return this.toView(await this.repo.save(submission), false);
-    } catch (error: any) {
-      if (!this.isDuplicate(error)) throw error;
-      const concurrent = await this.repo.findOne({
-        where: {
-          environment: input.environment,
-          businessId: input.businessId,
-          periodStart: input.periodStart,
-          periodEnd: input.periodEnd,
-          iniSha256: generated.iniSha256,
-          bkmSha256: generated.bkmSha256,
-        },
+      const pair = await this.api.reserveUploadLinks(accessToken, {
+        caseNumber: business.businessNumber,
+        startPeriod: startDate,
+        endPeriod: endDate,
+        representorCompanyId,
       });
-      if (!concurrent) throw error;
-      return this.toView(concurrent, true);
-    }
-  }
-
-  async status(businessId: number, submissionId: number): Promise<UniformFileSubmissionView> {
-    const submission = await this.repo.findOne({
-      where: { id: submissionId, businessId },
-    });
-    if (!submission) throw new NotFoundException('Uniform-file submission not found');
-    return this.toView(submission, false);
-  }
-
-  async transfer(
-    businessId: number,
-    submissionId: number,
-    ownerFirebaseId: string,
-    accessToken: string,
-  ): Promise<UniformFileSubmissionView> {
-    let submission = await this.findScoped(businessId, submissionId);
-    if (submission.iniFileUniqueId || submission.bkmFileUniqueId) {
-      return this.pollLoaded(submission, accessToken);
-    }
-    if (
-      ![
-        UniformFileSubmissionState.GENERATED,
-        UniformFileSubmissionState.AUTH_REQUIRED,
-        UniformFileSubmissionState.RETRYABLE_FAILURE,
-      ].includes(submission.state)
-    ) {
-      if (submission.state === UniformFileSubmissionState.LINKS_RESERVED) {
-        await this.fail(submission, UniformFileSubmissionState.UNKNOWN_OUTCOME, 'INTERRUPTED',
-          'Upload-link reservation outcome is unknown');
-      }
-      throw new ConflictException('Uniform-file submission cannot reserve new links');
-    }
-
-    const generated = await this.generate(
-      {
-        businessId: submission.businessId,
-        businessNumber: submission.businessNumberSnapshot,
-        ownerFirebaseId,
-        actorFirebaseId: submission.actorFirebaseId,
-        environment: submission.environment,
-        periodStart: submission.periodStart,
-        periodEnd: submission.periodEnd,
-      },
-      new Date(submission.generatedAt),
-    );
-    this.assertStoredArtifact(submission, generated);
-
-    const claimed = await this.repo.update(
-      {
-        id: submission.id,
-        businessId,
-        state: submission.state,
-        shaamUniqueId: IsNull(),
-      },
-      {
+      this.api.assertWithinReservedSize(pair.ini, artifacts.iniBuffer);
+      this.api.assertWithinReservedSize(pair.bkm, artifacts.bkmvdataBuffer);
+      Object.assign(submission, {
         state: UniformFileSubmissionState.LINKS_RESERVED,
+        shaamUniqueId: pair.uniqueId,
+        iniFileName: pair.ini.fileName,
+        bkmFileName: pair.bkm.fileName,
+        iniFileUniqueId: pair.ini.fileUniqueId,
+        bkmFileUniqueId: pair.bkm.fileUniqueId,
         errorCategory: null,
         errorCode: null,
         errorMessage: null,
-      },
-    );
-    if (claimed.affected !== 1) {
-      submission = await this.findScoped(businessId, submissionId);
-      if (submission.iniFileUniqueId || submission.bkmFileUniqueId) {
-        return this.pollLoaded(submission, accessToken);
-      }
-      throw new ConflictException('Uniform-file submission is already being transferred');
-    }
-    submission.state = UniformFileSubmissionState.LINKS_RESERVED;
-
-    try {
-      const reservation = await this.uploads.reserveUploadLinks(accessToken, {
-        caseNumber: submission.businessNumberSnapshot,
-        startPeriod: submission.periodStart,
-        endPeriod: submission.periodEnd,
-        ...(submission.representorCompanyId
-          ? { representorCompanyId: submission.representorCompanyId }
-          : {}),
       });
-      submission.shaamUniqueId = reservation.uniqueId;
-      submission.iniFileName = reservation.ini.fileName;
-      submission.bkmFileName = reservation.bkm.fileName;
-      submission.iniFileUniqueId = reservation.ini.fileUniqueId;
-      submission.bkmFileUniqueId = reservation.bkm.fileUniqueId;
       submission = await this.repo.save(submission);
 
-      await this.uploads.uploadFile(reservation.ini, generated.artifacts.iniBuffer);
-      submission.state = UniformFileSubmissionState.INI_UPLOADED;
-      submission = await this.repo.save(submission);
-
-      await this.uploads.uploadFile(
-        reservation.bkm,
-        generated.artifacts.bkmvdataBuffer,
+      submission = await this.uploadOne(
+        submission,
+        'ini',
+        pair.ini,
+        artifacts.iniBuffer,
+      );
+      submission = await this.uploadOne(
+        submission,
+        'bkm',
+        pair.bkm,
+        artifacts.bkmvdataBuffer,
       );
       submission.state = UniformFileSubmissionState.PAIR_UPLOADED;
       submission.uploadedAt = new Date();
+      submission.errorCategory = null;
       submission = await this.repo.save(submission);
-      return this.pollLoaded(submission, accessToken);
+      return await this.pollWithToken(submission, accessToken);
     } catch (error) {
-      if (submission.errorCode === 'STATUS_UNAVAILABLE') throw error;
-      const ambiguous = error instanceof ServiceUnavailableException;
-      await this.fail(
-        submission,
-        ambiguous
-          ? UniformFileSubmissionState.UNKNOWN_OUTCOME
-          : UniformFileSubmissionState.RETRYABLE_FAILURE,
-        ambiguous ? 'AMBIGUOUS_EXTERNAL_OUTCOME' : 'EXTERNAL_REQUEST_FAILED',
-        ambiguous
-          ? 'SHAAM outcome is unknown; poll before retrying'
-          : 'SHAAM transfer failed',
-      );
-      throw error;
+      submission = await this.persistExternalFailure(submission, error);
+      return this.view(submission);
     }
   }
 
-  async poll(
-    businessId: number,
+  async get(
     submissionId: number,
-    accessToken: string,
+    businessId: number,
   ): Promise<UniformFileSubmissionView> {
-    return this.pollLoaded(await this.findScoped(businessId, submissionId), accessToken);
+    return this.view(await this.loadOwned(submissionId, businessId));
   }
 
-  private async pollLoaded(
-    submission: UniformFileSubmission,
-    accessToken: string,
+  async poll(
+    submissionId: number,
+    businessId: number,
   ): Promise<UniformFileSubmissionView> {
+    const submission = await this.loadOwned(submissionId, businessId);
     if (
       submission.state === UniformFileSubmissionState.APPROVED ||
       submission.state === UniformFileSubmissionState.REJECTED
     ) {
-      return this.toView(submission, false);
+      return this.view(submission);
     }
     if (!submission.iniFileUniqueId || !submission.bkmFileUniqueId) {
-      throw new ConflictException('Uniform-file submission has no remote file identifiers');
+      return this.view(submission);
     }
-    try {
-      const statuses = await this.uploads.getFileStatuses(accessToken, [
-        submission.iniFileUniqueId,
-        submission.bkmFileUniqueId,
-      ]);
-      const ini = statuses.find((item) => item.fileName === submission.iniFileUniqueId);
-      const bkm = statuses.find((item) => item.fileName === submission.bkmFileUniqueId);
-      if (!ini || !bkm) throw new ConflictException('SHAAM file statuses are incomplete');
-      this.applyRemoteStatuses(submission, ini, bkm);
-      submission.lastPolledAt = new Date();
-      return this.toView(await this.repo.save(submission), false);
-    } catch (error) {
-      if (!(error instanceof ConflictException)) {
-        await this.fail(
-          submission,
-          UniformFileSubmissionState.UNKNOWN_OUTCOME,
-          'STATUS_UNAVAILABLE',
-          'SHAAM file status is temporarily unavailable',
-        );
-      }
-      throw error;
-    }
-  }
-
-  private async generate(
-    input: PrepareUniformFileSubmissionInput,
-    generatedAt: Date,
-  ): Promise<GeneratedPair> {
-    const uniqueId = this.deriveUniqueId(input, generatedAt);
-    const artifacts = await this.reports.createUniformFile(
-      input.ownerFirebaseId,
-      input.periodStart,
-      input.periodEnd,
-      input.businessNumber,
-      { uniqueId, generatedAt },
+    const accessToken = await this.connections.getValidAccessToken(
+      businessId,
+      ShaamProduct.UNIFORM_FILE,
+      submission.environment,
     );
-    return {
-      artifacts,
-      iniSha256: this.sha256(artifacts.iniBuffer),
-      bkmSha256: this.sha256(artifacts.bkmvdataBuffer),
-      generatedAt,
-    };
+    if (!accessToken) {
+      submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
+      submission.errorCategory = 'authorization_required';
+      submission.errorCode = null;
+      submission.errorMessage = 'Tax Authority connection is required';
+      return this.view(await this.repo.save(submission));
+    }
+    return this.pollWithToken(submission, accessToken);
   }
 
-  private deriveUniqueId(
-    input: PrepareUniformFileSubmissionInput,
-    generatedAt: Date,
-  ): string {
-    const seed = [
-      input.environment,
-      input.businessId,
-      input.businessNumber,
-      input.periodStart,
-      input.periodEnd,
-      generatedAt.toISOString(),
-    ].join('|');
-    const digest = createHash('sha256').update(seed, 'utf8').digest('hex');
-    // Twelve hex digits fit safely inside JavaScript's integer precision. The
-    // offset guarantees an exact 15-digit decimal identifier.
-    return String(parseInt(digest.slice(0, 12), 16) + 100000000000000);
-  }
-
-  private sha256(buffer: Buffer): string {
-    return createHash('sha256').update(buffer).digest('hex');
-  }
-
-  private assertStoredArtifact(
+  private async pollWithToken(
     submission: UniformFileSubmission,
-    generated: GeneratedPair,
-  ): void {
-    if (
-      generated.iniSha256 !== submission.iniSha256 ||
-      generated.bkmSha256 !== submission.bkmSha256 ||
-      String(generated.artifacts.iniBuffer.length) !== submission.iniByteLength ||
-      String(generated.artifacts.bkmvdataBuffer.length) !== submission.bkmByteLength
-    ) {
-      throw new ConflictException('Prepared uniform-file artifact has changed');
+    accessToken: string,
+  ): Promise<UniformFileSubmissionView> {
+    submission.state = UniformFileSubmissionState.PROCESSING;
+    submission.lastPolledAt = new Date();
+    submission.errorCategory = 'status_poll_in_progress';
+    submission.errorCode = null;
+    submission.errorMessage = null;
+    submission = await this.repo.save(submission);
+    try {
+      const statuses = await this.api.getFileStatuses(accessToken, [
+        submission.iniFileUniqueId!,
+        submission.bkmFileUniqueId!,
+      ]);
+      this.applyStatuses(submission, statuses);
+      return this.view(await this.repo.save(submission));
+    } catch (error) {
+      if (
+        error instanceof UniformFileClientError &&
+        error.category === 'authorization'
+      ) {
+        await this.markUniformFileReauthorizationRequired(submission);
+        submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
+      } else {
+        submission.state = UniformFileSubmissionState.PROCESSING;
+      }
+      submission.errorCategory = this.errorCategory(error);
+      submission.errorCode = this.errorCode(error);
+      submission.errorMessage = this.safeErrorMessage(error);
+      return this.view(await this.repo.save(submission));
     }
   }
 
-  private applyRemoteStatuses(
+  private async uploadOne(
     submission: UniformFileSubmission,
-    ini: UniformFileStatusResult,
-    bkm: UniformFileStatusResult,
+    kind: 'ini' | 'bkm',
+    reservation: Parameters<
+      UniformFileApiService['initiateResumableUpload']
+    >[0],
+    buffer: Buffer,
+  ): Promise<UniformFileSubmission> {
+    submission.state = UniformFileSubmissionState.UNKNOWN_OUTCOME;
+    submission.errorCategory = `${kind}_upload_in_progress`;
+    submission.errorCode = null;
+    submission.errorMessage = null;
+    submission = await this.repo.save(submission);
+    const sessionUrl = await this.api.initiateResumableUpload(
+      reservation,
+      buffer,
+    );
+    await this.api.uploadBuffer(sessionUrl, buffer);
+    submission.state =
+      kind === 'ini'
+        ? UniformFileSubmissionState.INI_UPLOADED
+        : UniformFileSubmissionState.PAIR_UPLOADED;
+    submission.errorCategory = null;
+    return this.repo.save(submission);
+  }
+
+  private applyStatuses(
+    submission: UniformFileSubmission,
+    statuses: UniformFileStatusResult[],
   ): void {
-    submission.iniStatus = this.toRemoteStatus(ini);
-    submission.bkmStatus = this.toRemoteStatus(bkm);
+    const byId = new Map(
+      statuses.map((status) => [status.fileUniqueId, status]),
+    );
+    const ini = byId.get(submission.iniFileUniqueId!);
+    const bkm = byId.get(submission.bkmFileUniqueId!);
+    if (!ini || !bkm) {
+      throw new BadRequestException('Incomplete SHAAM status response');
+    }
+    submission.iniStatus = ini.status;
+    submission.bkmStatus = bkm.status;
+    submission.lastPolledAt = new Date();
     submission.errorCategory = null;
     submission.errorCode = null;
     submission.errorMessage = null;
-    if (ini.status === 'Rejected' || bkm.status === 'Rejected') {
+
+    if (
+      ini.status === UniformFileRemoteStatus.REJECTED ||
+      bkm.status === UniformFileRemoteStatus.REJECTED
+    ) {
       submission.state = UniformFileSubmissionState.REJECTED;
       submission.completedAt = new Date();
-      submission.errorCategory = 'SHAAM_REJECTED';
-      submission.errorCode = ini.errorCode || bkm.errorCode || null;
-      submission.errorMessage = ini.description || bkm.description || 'SHAAM rejected a file';
-    } else if (ini.status === 'Approved' && bkm.status === 'Approved') {
+      submission.errorCategory = 'provider_rejected';
+      submission.errorMessage =
+        [ini.description, bkm.description].find(Boolean) ||
+        'Tax Authority rejected one of the files';
+      return;
+    }
+    if (
+      ini.status === UniformFileRemoteStatus.APPROVED &&
+      bkm.status === UniformFileRemoteStatus.APPROVED
+    ) {
       submission.state = UniformFileSubmissionState.APPROVED;
       submission.completedAt = new Date();
-    } else {
-      submission.state = UniformFileSubmissionState.PROCESSING;
-      submission.completedAt = null;
+      return;
+    }
+    if (!ini.found || !bkm.found) {
+      const missing = [ini, bkm].filter((item) => !item.found);
+      const conclusivelyNotFound =
+        missing.length === 2 &&
+        missing.every((item) => /not found/i.test(item.errorMessage || ''));
+      submission.state = conclusivelyNotFound
+        ? UniformFileSubmissionState.RETRYABLE_FAILURE
+        : UniformFileSubmissionState.UNKNOWN_OUTCOME;
+      submission.errorCategory = conclusivelyNotFound
+        ? 'reconciled_not_found'
+        : 'status_reconciliation_required';
+      submission.errorCode = missing[0]?.errorCode || null;
+      submission.errorMessage =
+        missing[0]?.errorMessage ||
+        'Tax Authority could not resolve both files';
+      return;
+    }
+    submission.state = UniformFileSubmissionState.PROCESSING;
+  }
+
+  private async findOrCreate(
+    business: Business,
+    actorFirebaseId: string,
+    periodStart: string,
+    periodEnd: string,
+    representorCompanyId: string | null,
+    iniBuffer: Buffer,
+    bkmBuffer: Buffer,
+    resumable?: UniformFileSubmission,
+  ): Promise<UniformFileSubmission> {
+    const iniSha256 = this.hash(iniBuffer);
+    const bkmSha256 = this.hash(bkmBuffer);
+    const where = {
+      environment: this.uniformConfig.environment,
+      businessId: business.id,
+      periodStart,
+      periodEnd,
+      iniSha256,
+      bkmSha256,
+    };
+    if (resumable) {
+      Object.assign(resumable, {
+        ...where,
+        actorFirebaseId,
+        representorCompanyId,
+        businessNumberSnapshot: business.businessNumber,
+        iniByteLength: String(iniBuffer.length),
+        bkmByteLength: String(bkmBuffer.length),
+        generatedAt: new Date(),
+      });
+      return this.repo.save(resumable);
+    }
+    const existing = await this.repo.findOne({ where });
+    if (existing) return existing;
+    const created = this.repo.create({
+      ...where,
+      businessNumberSnapshot: business.businessNumber,
+      actorFirebaseId,
+      representorCompanyId,
+      state: UniformFileSubmissionState.GENERATED,
+      iniStatus: null,
+      bkmStatus: null,
+      iniByteLength: String(iniBuffer.length),
+      bkmByteLength: String(bkmBuffer.length),
+      generatedAt: new Date(),
+    });
+    try {
+      return await this.repo.save(created);
+    } catch (error: any) {
+      if (error?.code !== 'ER_DUP_ENTRY') throw error;
+      const concurrent = await this.repo.findOne({ where });
+      if (!concurrent) throw error;
+      return concurrent;
     }
   }
 
-  private toRemoteStatus(
-    result: UniformFileStatusResult,
-  ): UniformFileRemoteStatus | null {
-    if (!result.isFound || !result.status) return null;
-    if (result.status === 'Uploaded') return UniformFileRemoteStatus.UPLOADED;
-    if (result.status === 'Approved') return UniformFileRemoteStatus.APPROVED;
-    return UniformFileRemoteStatus.REJECTED;
+  private canAttemptReservation(submission: UniformFileSubmission): boolean {
+    if (
+      submission.state === UniformFileSubmissionState.GENERATED ||
+      submission.state === UniformFileSubmissionState.AUTH_REQUIRED
+    ) {
+      return !submission.shaamUniqueId;
+    }
+    return (
+      submission.state === UniformFileSubmissionState.RETRYABLE_FAILURE &&
+      (!submission.shaamUniqueId ||
+        submission.errorCategory === 'reconciled_not_found')
+    );
   }
 
-  private async findScoped(
-    businessId: number,
+  private async persistExternalFailure(
+    submission: UniformFileSubmission,
+    error: unknown,
+  ): Promise<UniformFileSubmission> {
+    const clientError =
+      error instanceof UniformFileClientError ? error : undefined;
+    if (clientError?.category === 'authorization') {
+      await this.markUniformFileReauthorizationRequired(submission);
+      submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
+    } else if (submission.shaamUniqueId || clientError?.ambiguous) {
+      submission.state = UniformFileSubmissionState.UNKNOWN_OUTCOME;
+    } else {
+      submission.state = UniformFileSubmissionState.RETRYABLE_FAILURE;
+    }
+    submission.errorCategory = this.errorCategory(error);
+    submission.errorCode = this.errorCode(error);
+    submission.errorMessage = this.safeErrorMessage(error);
+    return this.repo.save(submission);
+  }
+
+  private errorCategory(error: unknown): string {
+    return error instanceof UniformFileClientError
+      ? `${error.stage}_${error.category}`
+      : 'internal_failure';
+  }
+
+  private async markUniformFileReauthorizationRequired(
+    submission: UniformFileSubmission,
+  ): Promise<void> {
+    this.logger.warn(
+      JSON.stringify({
+        event: 'security_event',
+        securityEvent: 'shaam_connection_reauthorization_required',
+        severity: 'WARNING',
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: submission.environment,
+      }),
+    );
+    try {
+      await this.connections.markReauthorizationRequired(
+        submission.businessId,
+        ShaamProduct.UNIFORM_FILE,
+        submission.environment,
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        JSON.stringify({
+          event: 'security_event',
+          securityEvent: 'shaam_reauthorization_state_update_failed',
+          severity: 'ERROR',
+          product: ShaamProduct.UNIFORM_FILE,
+          environment: submission.environment,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        }),
+      );
+    }
+  }
+
+  private errorCode(error: unknown): string | null {
+    return error instanceof UniformFileClientError && error.httpStatus
+      ? String(error.httpStatus)
+      : null;
+  }
+
+  private safeErrorMessage(error: unknown): string {
+    return error instanceof UniformFileClientError
+      ? error.message
+      : 'Uniform File processing failed';
+  }
+
+  private async loadOwned(
     submissionId: number,
+    businessId: number,
   ): Promise<UniformFileSubmission> {
     const submission = await this.repo.findOne({
       where: { id: submissionId, businessId },
     });
-    if (!submission) throw new NotFoundException('Uniform-file submission not found');
+    if (!submission) throw new NotFoundException('Submission not found');
     return submission;
   }
 
-  private async fail(
-    submission: UniformFileSubmission,
-    state: UniformFileSubmissionState,
-    code: string,
-    message: string,
-  ): Promise<void> {
-    submission.state = state;
-    submission.errorCategory = 'SHAAM_TRANSFER';
-    submission.errorCode = code;
-    submission.errorMessage = message;
-    submission.retryCount += 1;
-    await this.repo.save(submission);
-  }
-
-  private nextGenerationTimestamp(previous?: Date): Date {
-    const now = new Date();
-    now.setMilliseconds(0);
-    if (!previous) return now;
-    const previousTime = new Date(previous).getTime();
-    return now.getTime() > previousTime
-      ? now
-      : new Date(previousTime + 1000);
-  }
-
-  private assertPeriod(start: string, end: string): void {
-    if (!this.isCanonicalDate(start) || !this.isCanonicalDate(end)) {
-      throw new BadRequestException('Uniform-file period must use YYYY-MM-DD');
-    }
-    const startTime = Date.parse(`${start}T00:00:00Z`);
-    const endTime = Date.parse(`${end}T00:00:00Z`);
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || startTime > endTime) {
-      throw new BadRequestException('Invalid uniform-file period');
+  private assertDates(startDate: string, endDate: string): void {
+    if (startDate > endDate) {
+      throw new BadRequestException('startDate must not be after endDate');
     }
   }
 
-  private isCanonicalDate(value: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    const date = new Date(`${value}T00:00:00Z`);
-    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  private hash(buffer: Buffer): string {
+    return createHash('sha256').update(buffer).digest('hex');
   }
 
-  private isDuplicate(error: any): boolean {
-    return error?.code === 'ER_DUP_ENTRY' || error?.errno === 1062;
-  }
-
-  private toView(
-    submission: UniformFileSubmission,
-    reused: boolean,
-  ): UniformFileSubmissionView {
+  private view(submission: UniformFileSubmission): UniformFileSubmissionView {
     return {
       id: submission.id,
-      businessNumber: submission.businessNumberSnapshot,
-      environment: submission.environment,
+      state: submission.state,
       periodStart: submission.periodStart,
       periodEnd: submission.periodEnd,
-      state: submission.state,
       iniStatus: submission.iniStatus,
       bkmStatus: submission.bkmStatus,
       errorCategory: submission.errorCategory,
       errorCode: submission.errorCode,
       errorMessage: submission.errorMessage,
-      iniByteLength: submission.iniByteLength,
-      bkmByteLength: submission.bkmByteLength,
       generatedAt: submission.generatedAt,
-      createdAt: submission.createdAt,
-      updatedAt: submission.updatedAt,
-      reused,
+      uploadedAt: submission.uploadedAt,
+      lastPolledAt: submission.lastPolledAt,
+      completedAt: submission.completedAt,
     };
   }
 }

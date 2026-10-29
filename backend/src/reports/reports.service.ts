@@ -13,7 +13,7 @@ import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-rep
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
+import { BusinessProprietorRole, BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import * as path from 'path';
@@ -809,9 +809,12 @@ export class ReportsService {
     const netProfitBeforeTax = effectiveIncome - totalExpenses;
     const owner = await this.userRepo.findOne({
       where: { firebaseId },
-      select: ['fName', 'lName'],
+      select: ['fName', 'lName', 'spouseFName', 'spouseLName'],
     });
-    const businessOwnerName = [owner?.fName, owner?.lName]
+    const proprietorNameParts = business.proprietorRole === BusinessProprietorRole.SPOUSE
+      ? [owner?.spouseFName, owner?.spouseLName]
+      : [owner?.fName, owner?.lName];
+    const businessOwnerName = proprietorNameParts
       .filter((part): part is string => !!part?.trim())
       .join(' ')
       .trim() || business.businessName || businessNumber;
