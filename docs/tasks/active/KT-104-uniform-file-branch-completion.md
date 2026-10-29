@@ -1,6 +1,6 @@
 # KT-104 - Complete and integrate the Uniform File branch
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary chat
 - Worker: Codex primary chat
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\eharel-branch-0`
@@ -25,7 +25,7 @@ verified result to `main` without enabling production or sending taxpayer data.
       gates rather than claiming they passed.
 - [x] Run the affected focused backend tests, backend build and frontend build;
       classify any frontend test-runner blocker accurately.
-- [ ] Review the complete integrated diff, verify no secrets/build output/temp
+- [x] Review the complete integrated diff, verify no secrets/build output/temp
       evidence are committed, then fast-forward and push `main` only if every
       applicable quality gate passes.
 
@@ -49,7 +49,7 @@ verified result to `main` without enabling production or sending taxpayer data.
 - Result: complete locally; current `origin/main` is reconciled with the
   branch's verified Uniform File sandbox behavior, owner-only SHAAM boundary,
   SMS MFA foundation and security observability.
-- Commit hash(es): merge commit pending.
+- Commit hash(es): integration merge `fed29415`.
 - Changed files: SHAAM Uniform File API/config/orchestration/controller and
   focused tests; SHAAM connection/security boundary; SMS MFA/auth guard and UI;
   compliance/topic/task documentation; current `origin/main` changes preserved.
@@ -78,7 +78,11 @@ verified result to `main` without enabling production or sending taxpayer data.
 - Reviewed by: Codex primary chat; semantic conflicts reviewed against current
   `origin/main`, superseded parallel upload code removed, duplicate task IDs
   removed from the merge result.
-- Integrated commit: pending.
+- Integrated commit: `fed29415`.
 - Combined verification: passed locally as recorded above.
-- `origin/main` verification:
-- User-visible run instructions:
+- `origin/main` verification: `main` fast-forwarded from `e236585d` to
+  `fed29415` and the normal, non-force push completed successfully on
+  2026-10-29.
+- User-visible run instructions: no production run was performed. Remaining
+  external gates require operator-owned portal/Firebase/Cloud configuration
+  and an explicitly authorized sandbox/canary verification.

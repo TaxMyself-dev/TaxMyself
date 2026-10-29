@@ -1,5 +1,17 @@
 # Primary manager state
 
+## KT-104 Uniform File branch completion — 2026-10-29
+
+Reconciled the long-lived Uniform File branch with current `main`, preserving
+the newer restart-safe submission architecture while adding verified tsandbox
+response handling, owner-only SHAAM network operations, token-rejection
+recovery, SMS MFA foundations and security monitoring documentation. Focused
+backend verification passed 10 suites / 96 tests; Nest and Angular production
+builds passed; dedicated Uniform File and MFA TypeScript spec programs passed.
+Integration `fed29415` was pushed by normal fast-forward to the feature branch
+and `main`. No production, taxpayer-data, portal, Firebase or Cloud mutation
+was performed; those external activation gates remain explicit.
+
 ## KT-106 Allowlisted Cloud Run startup diagnostics — 2026-10-27
 
 Stage 8 no longer retrieves arbitrary ERROR messages and then attempts to
