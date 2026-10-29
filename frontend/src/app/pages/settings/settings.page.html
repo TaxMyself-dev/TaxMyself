@@ -271,6 +271,11 @@
             <div class="business-details details-container details-container-fixed">
               <!-- פרטי העסק נפרסים לגריד רספונסיבי כדי למנוע חפיפה -->
               <div class="detail-row three-fields business-fields-grid">
+                <div class="detail-field">
+                  <app-input-text [parentForm]="bizGroup" [controlName]="'businessName'"
+                    [labelText]="'שם העסק'" [placeholder]="'שם העסק'"
+                    [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
+                </div>
                 @if (!isCompany()) {
                   <div class="detail-field">
                     <app-input-select [parentForm]="bizGroup" [controlName]="'proprietorRole'"
