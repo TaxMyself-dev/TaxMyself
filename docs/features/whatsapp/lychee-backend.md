@@ -16,8 +16,10 @@ ngrok for dev). Both hops verify the same raw-body HMAC and channel.
    `LYCHEE_API_KEY` in ignored server environment. The secret is supplied by
    Lychee after subscription setup. API key requires conversations:read;
    this implementation has no send client and does not use write access.
-3. Set `LYCHEE_MEDIA_HOSTS` to a comma-separated list of EXACT media hostnames
-   confirmed by Lychee. The API documentation gives only a placeholder URL.
+3. Set `LYCHEE_MEDIA_HOSTS` to `shxsdijepxzybjjhxxjz.supabase.co`, confirmed
+   by Lychee. The allowed path is `/storage/v1/object/sign/wap-media-private/`.
+   Links expire per `expires_in_seconds`; a fresh URL is requested on every
+   download attempt and never persisted. Redirects are not followed.
    Download fails closed until configured. Only public IPv4 DNS answers are
    supported; redirects, private destinations and API credential forwarding
    to media storage are prohibited.

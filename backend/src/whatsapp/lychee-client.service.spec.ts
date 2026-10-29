@@ -19,7 +19,7 @@ describe('Lychee media download boundary', () => {
     get
       .mockResolvedValueOnce({
         data: {
-          url: 'https://media.example.com/file?signature=test',
+          url: 'https://media.example.com/storage/v1/object/sign/wap-media-private/file?signature=test',
           file_name: 'test.pdf',
         },
       })
@@ -42,7 +42,7 @@ describe('Lychee media download boundary', () => {
     );
     expect(lookup).not.toHaveBeenCalled();
     get.mockResolvedValueOnce({
-      data: { url: 'https://media.example.com/file' },
+      data: { url: 'https://media.example.com/storage/v1/object/sign/wap-media-private/file' },
     });
     (lookup as jest.Mock).mockResolvedValue([
       { address: '127.0.0.1', family: 4 },
@@ -51,5 +51,14 @@ describe('Lychee media download boundary', () => {
       'Non-public media destination',
     );
     expect(get).toHaveBeenCalledTimes(2);
+  });
+  it('rejects other buckets and unsigned paths on an otherwise allowed host', async () => {
+    for (const path of ['/storage/v1/object/public/wap-media-private/file',
+      '/storage/v1/object/sign/other-bucket/file', '/file']) {
+      get.mockResolvedValueOnce({ data: { url: 'https://media.example.com' + path } });
+      await expect(new LycheeClient().download('msg')).rejects.toThrow('Untrusted media path');
+    }
+    expect(lookup).not.toHaveBeenCalled();
+    expect(get).toHaveBeenCalledTimes(3);
   });
 });

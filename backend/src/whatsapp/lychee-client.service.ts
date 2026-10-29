@@ -37,6 +37,9 @@ export class LycheeClient {
       !allowed.includes(url.hostname)
     )
       throw new Error('Untrusted media host');
+    if (!url.pathname.startsWith('/storage/v1/object/sign/wap-media-private/')) {
+      throw new Error('Untrusted media path');
+    }
     const addresses = await lookup(url.hostname, { all: true });
     // Pin the resolved public IPv4 address for this request (prevent DNS rebinding).
     const address = addresses.find(
