@@ -1,6 +1,12 @@
 const express = require("express");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
+// Only copies used for diagnostics are redacted; outgoing headers stay intact.
+function logHeaders(headers) {
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) =>
+    [key, /authorization|token|cookie|secret|api[-_]?key/i.test(key) ? '[REDACTED]' : value]));
+}
+
 const app = express();
 // const PORT = 8080;
 const PORT = process.env.PORT || 8080;
@@ -282,7 +288,7 @@ app.use(
         const targetUrl = `${target}${cleanPath}`;
         
         // Log incoming Authorization header for debugging
-        console.log("🔍 INCOMING Authorization from client:", req.headers.authorization ? req.headers.authorization.substring(0, 30) + "..." : "(missing)");
+        console.log("🔍 INCOMING Authorization from client:", req.headers.authorization ? "[REDACTED]" : "(missing)");
         
         // Ensure Authorization header is set for TPP requests (backup in case proxyReqOptDecorator didn't work)
         if (target === TPP_TARGET && req.headers.authorization) {
@@ -308,7 +314,7 @@ app.use(
           const setHeader = proxyReq.getHeader("Authorization");
           console.log("🔑 Authorization header set on proxyReq (backup)");
           console.log("   Length:", setHeader ? setHeader.length : 0);
-          console.log("   First 50 chars:", setHeader ? setHeader.substring(0, 50) : "NOT SET");
+          console.log("   Authorization:", setHeader ? "[REDACTED]" : "NOT SET");
         }
         
         // Get request body if available (but skip for accounts endpoint)
@@ -336,12 +342,7 @@ app.use(
         }
         
         // Get headers for logging
-        const headers = { ...proxyReq.getHeaders() };
-        // Note: Authorization header is shown in logs for debugging
-        // If you want to hide it, uncomment the next lines:
-        // if (headers.authorization) {
-        //   headers.authorization = '[REDACTED]';
-        // }
+        const headers = logHeaders(proxyReq.getHeaders());
         
         console.log("🔥 PROXY REQ FIRED");
         console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -355,7 +356,7 @@ app.use(
         const authHeader = proxyReq.getHeader("Authorization");
         const authHeaderLower = proxyReq.getHeader("authorization");
         if (authHeader) {
-          console.log("   🔑 Authorization (exact):", authHeader.substring(0, 50) + "..." + " (length: " + authHeader.length + ")");
+          console.log("   🔑 Authorization (exact):", "[REDACTED]" + " (length: " + authHeader.length + ")");
           // Check if there are any special characters or issues
           if (authHeader.includes('\n') || authHeader.includes('\r')) {
             console.log("   ⚠️ WARNING: Authorization header contains newline characters!");
@@ -364,14 +365,14 @@ app.use(
             console.log("   ⚠️ WARNING: Authorization header has leading/trailing whitespace!");
           }
         } else if (authHeaderLower) {
-          console.log("   🔑 Authorization (lowercase):", authHeaderLower.substring(0, 50) + "..." + " (length: " + authHeaderLower.length + ")");
+          console.log("   🔑 Authorization (lowercase):", "[REDACTED]" + " (length: " + authHeaderLower.length + ")");
           console.log("   ⚠️ WARNING: Authorization header is lowercase, not 'Authorization'!");
         } else {
           console.log("   🔑 Authorization: (missing)");
         }
         console.log("   Headers:", JSON.stringify(headers, null, 2));
         if (bodyStr && !isAccountsEndpoint) {
-          console.log("   Body:", bodyStr);
+          console.log("   Body: (omitted from logs)");
         } else {
           console.log("   Body: (empty)");
         }
@@ -382,7 +383,7 @@ app.use(
         let curlCmd = `curl --location --request ${req.method} '${targetUrl}'`;
         
         // Add headers
-        const allHeaders = proxyReq.getHeaders();
+        const allHeaders = headers;
         for (const [key, value] of Object.entries(allHeaders)) {
           // Skip some headers that curl adds automatically
           if (key.toLowerCase() !== 'host' && key.toLowerCase() !== 'connection' && key.toLowerCase() !== 'content-length') {
@@ -390,11 +391,9 @@ app.use(
           }
         }
         
-        // Add body if exists
-        if (bodyStr && !isAccountsEndpoint && bodyStr !== '(empty - accounts endpoint)') {
-          // Escape single quotes in body for curl
-          const escapedBody = bodyStr.replace(/'/g, "'\\''");
-          curlCmd += ` \\\n  --data '${escapedBody}'`;
+        // Request bodies may contain signed JWTs (token/link); never print them.
+        if (bodyStr && !isAccountsEndpoint) {
+          curlCmd += " --data '[BODY OMITTED]'";
         }
         
         console.log(curlCmd);
