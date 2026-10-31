@@ -735,7 +735,33 @@ export class UsersService {
           user.email,
         );
         user.driveFolderId = folderId;
-        await this.user_repo.save(user);
+        // Use a constrained UPDATE rather than save(entity). If a concurrent
+        // account cleanup deleted this row while Drive was creating the
+        // folder, TypeORM save() would INSERT the stale entity again.
+        const update = await this.user_repo.update(
+          { index: user.index, firebaseId: user.firebaseId },
+          { driveFolderId: folderId },
+        );
+        if (update.affected !== 1) {
+          // Some MySQL configurations report zero changed rows when the same
+          // folder ID was already stored. Distinguish that benign case from a
+          // row deleted by cleanup before removing the newly created folder.
+          const persisted = await this.user_repo.findOne({
+            where: { index: user.index, firebaseId: user.firebaseId },
+            select: ['driveFolderId'],
+          });
+          if (!persisted) {
+            await this.googleDriveService.deleteFile(folderId);
+            this.logger.warn(
+              `[Drive] discarded folder ${folderId}; user disappeared during provisioning | ${userTag}`,
+            );
+            return;
+          }
+          user.driveFolderId = persisted.driveFolderId;
+          this.logger.log(
+            `[Drive] folder persistence already settled concurrently | ${userTag}`,
+          );
+        }
         createdUserFolder = true;
         this.logger.log(
           `[Drive] ✓ ${previousId ? `replaced stale user folder ${previousId} with` : 'created user folder'} ${folderId} for ${userTag}`,

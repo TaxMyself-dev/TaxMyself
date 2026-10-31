@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ReadinessService } from './readiness.service';
 //Modules
 import { HttpModule } from '@nestjs/axios';
 import { ClientsModule } from './clients/clients.module';
@@ -222,7 +223,7 @@ new Logger('Bootstrap').log(
     ScheduleModule.forRoot(),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
-  providers: [AppService, MailService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

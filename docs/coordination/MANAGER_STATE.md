@@ -1,5 +1,122 @@
 # Primary manager state
 
+## KT-104 Uniform File branch completion — 2026-10-29
+
+Reconciled the long-lived Uniform File branch with current `main`, preserving
+the newer restart-safe submission architecture while adding verified tsandbox
+response handling, owner-only SHAAM network operations, token-rejection
+recovery, SMS MFA foundations and security monitoring documentation. Focused
+backend verification passed 10 suites / 96 tests; Nest and Angular production
+builds passed; dedicated Uniform File and MFA TypeScript spec programs passed.
+Integration `fed29415` was pushed by normal fast-forward to the feature branch
+and `main`. No production, taxpayer-data, portal, Firebase or Cloud mutation
+was performed; those external activation gates remain explicit.
+
+## KT-106 Allowlisted Cloud Run startup diagnostics — 2026-10-27
+
+Stage 8 no longer retrieves arbitrary ERROR messages and then attempts to
+redact them. Its exact-revision Cloud Logging query now accepts only explicitly
+allowlisted safe prefixes, and the local parser requires a complete approved
+shape before reconstructing output from constrained numeric captures. The
+current allowlist contains only catalog-integrity failures; unknown messages,
+stacks, probes, and secret-bearing free text retain the original gcloud error.
+Release regressions passed in Windows PowerShell 5.1 and PowerShell 7.
+Delivery `8fcdef24` is ready for push; Codex performed no production action.
+
+## KT-105 Cloud Run startup failure diagnostics — 2026-10-27
+
+Failed Stage 8 candidate deployments now query ERROR logs for only the exact
+expected Cloud Run revision and surface one concise application exception as
+the terminal failure reason. Generic startup probes no longer hide the real
+cause. Output is single-line, capped at 500 characters, and redacts common
+credential fields and bearer tokens; raw JSON and stacks are not persisted.
+Empty logging results retry briefly, while log-read failures retain the
+original gcloud error. Release regressions passed in Windows PowerShell 5.1 and
+PowerShell 7. Delivery `452e640a` is ready for push; Codex performed no
+production action.
+
+## KT-104 Public registration smoke gate — 2026-10-27
+
+Stage 13 was traced from its Playwright artifact: `GET /auth/get-cities`
+succeeded with 200, while an unauthenticated root-app refresh called
+`GET /billing/me`, received 401, and could race the public registration route
+back to login. Billing refresh on selected-client emissions is now gated on an
+authenticated user. The read-only smoke requires cities status 200 and reports
+critical HTTP failures with exact status, method, and URL. Focused frontend
+tests 2/2, smoke unit tests 8/8, and the Angular production build passed.
+Delivery `1f33b6b8` is ready for push; Codex performed no production action.
+
+## KT-103 Cloud Run job environment arguments — 2026-10-27
+
+The guarded release again stopped safely at Stage 10 because the custom gcloud
+dictionary delimiter was escaped for a different shell layer and rejected by
+Windows PowerShell/gcloud. Job environment and secret flags now use sorted,
+comma-separated `KEY=VALUE` entries; plain values remain Base64 encoded and
+comma/newline input is rejected. Exact encoding and unsafe-input regressions,
+the full release fixture suite, parser checks and 8 smoke config tests passed.
+Delivery `5986c185` was pushed and verified on local/remote `main`. The operator's
+candidate remained at zero traffic; Codex performed no production action.
+
+## KT-102 native stderr release logging — 2026-10-27
+
+The first quiet-console Apply incorrectly treated gcloud's successful
+"browser opened" stderr progress as a terminating Windows PowerShell 5.1 error.
+Native stdout/stderr now streams to the detailed log while native failure is
+classified exclusively by exit code; stdout-only JSON capture remains isolated.
+Nested smoke scripts run through the same boundary in child PowerShell
+processes. Fixtures cover stderr+exit 0, stdout with simultaneous stderr, and
+exit 7. Release regressions, parser checks and 8 smoke config tests passed.
+Delivery `f34bb513` was pushed and verified on local/remote `main`. Codex ran no
+production command or deployment.
+
+## KT-101 quiet production release logging — 2026-10-27
+
+The guarded production release now prints only the detailed-log path, stage
+START/COMPLETE progress, concise failure/safety/rollback status and final
+outcome. Full command, npm, test, build and cloud output streams in real time to
+a unique UTF-8 file under git-ignored `deployment-logs/`; successful and failed
+runs record a stage summary and full failure record. Fixture-backed quiet-output
+and failure-log regression tests, PowerShell parsing and 8 smoke config tests
+passed. Delivery `89bbe32d` was pushed and verified on local/remote `main`.
+Dependencies were not changed, and Codex performed no production action.
+
+## KT-100 smoke job optional environment repair — 2026-10-27
+
+The first guarded production release reached a healthy zero-traffic candidate
+but stopped safely before promotion because the smoke-job configurator read an
+optional Cloud Run `valueFrom` property directly under PowerShell strict mode.
+Both source-inventory scripts now read optional plain/secret environment fields
+and network annotations safely. Fixture coverage reproduces all-plain production
+shape plus mixed Secret Manager shape under strict mode. Release regression,
+three PowerShell parser checks and all 8 smoke config tests passed. Delivery
+`6513b882` was pushed and verified on local/remote `main`. Codex performed no
+production access, job update, traffic change or deployment.
+
+## KT-099 backend test baseline repair — 2026-10-27
+
+The backend regression gate exposed by the guarded release attempt was restored
+without changing runtime behavior. Ten stale assertions were aligned with the
+current document, report, catalog, demo-data and user contracts; two additional
+legacy user/auth suites were rewritten against the current APIs. The complete
+backend run passed 188 suites and 1,820 tests, followed by a successful Nest
+build and `git diff --check`. Delivery `85361511` was pushed and verified on
+local `main`, `origin/main` and the remote branch. No schema, production data,
+credential, production access or deployment action occurred.
+
+## KT-098 production release orchestrator — 2026-10-26
+
+The guarded PowerShell release orchestrator was locally verified and pushed to
+`origin/main` as `1d79885d`. It validates a clean synchronized main branch,
+performs interactive gcloud/Firebase login, builds and tests locally, deploys a
+zero-traffic backend candidate, binds private smoke jobs to its immutable image,
+promotes exact backend/frontend versions, runs signup/login/cleanup smoke, and
+attempts rollback after post-promotion failures. Release-script regression
+tests, six PowerShell parse checks, eight smoke unit tests, exact-image fixture
+validation, and `git diff --check` passed. No production read, deployment,
+database access, schema change, credential access, or live smoke run was
+performed by Codex; production plan/apply remains an operator action under
+`PRODUCTION_POLICY.md`.
+
 ## Open banking disconnection source delivery — 2026-10-25
 
 User explicitly authorized final tests, main merge and GitHub push without

@@ -386,7 +386,9 @@ export class AppComponent implements OnInit {
       // keeps evaluating against whichever identity's billing state loaded
       // first, so entering or exiting client view silently shows the wrong
       // person's access instead of "exactly what the client sees".
-      this.billingStateService.refreshBillingState();
+      if (this.authService.isLoggedIn) {
+        this.billingStateService.refreshBillingState();
+      }
       if (id) {
         this.authService.loadViewAsUserData().subscribe((data) => {
           if (data) {

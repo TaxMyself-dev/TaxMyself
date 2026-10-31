@@ -16,6 +16,7 @@ describe('UniformFileApiService', () => {
     clientId: 'client-id',
     uploadLinksUrl: 'https://t-ita-api.taxes.gov.il/upload-links',
     statusUrl: 'https://t-ita-api.taxes.gov.il/status',
+    sandboxCaseNumberOverride: null,
   };
   const pairResponse = {
     success: true,
@@ -23,20 +24,20 @@ describe('UniformFileApiService', () => {
       uniqueId: 'pair-id',
       files: [
         {
-          fileName: 'FROMBKM_TEST_BKMVDATA.pdf',
-          signUrl: 'https://storage.googleapis.com/bucket/bkm?signature=secret',
-          fileUniqueId: 'bkm-id.txt',
-          headers: {
-            'x-goog-content-length-range': '0,53687091200',
-            'x-goog-resumable': 'start',
-          },
-        },
-        {
-          fileName: 'INI_TEST.pdf',
+          fileName: 'opaque-first-name.pdf',
           signUrl: 'https://storage.googleapis.com/bucket/ini?signature=secret',
           fileUniqueId: 'ini-id.txt',
           headers: {
             'x-goog-content-length-range': '0,1048576',
+            'x-goog-resumable': 'start',
+          },
+        },
+        {
+          fileName: 'opaque-second-name.pdf',
+          signUrl: 'https://storage.googleapis.com/bucket/bkm?signature=secret',
+          fileUniqueId: 'bkm-id.txt',
+          headers: {
+            'x-goog-content-length-range': '0,53687091200',
             'x-goog-resumable': 'start',
           },
         },
@@ -53,7 +54,7 @@ describe('UniformFileApiService', () => {
     };
   }
 
-  it('reserves and identifies one strict INI/BKM pair independent of order', async () => {
+  it('maps the official first/second response order to INI/BKM', async () => {
     const { service, http } = setup();
     http.post.mockReturnValue(of({ status: 200, data: pairResponse }));
 
@@ -73,6 +74,52 @@ describe('UniformFileApiService', () => {
       startPeriod: '2025-01-01',
       endPeriod: '2025-12-31',
     });
+  });
+
+  it('uses the explicit sandbox case fixture without changing local ownership', async () => {
+    const http = { post: jest.fn(), put: jest.fn() };
+    const service = new UniformFileApiService(http as any, {
+      ...config,
+      sandboxCaseNumberOverride: '777777723',
+    });
+    http.post.mockReturnValue(of({ status: 200, data: pairResponse }));
+
+    await service.reserveUploadLinks('daily-token', {
+      caseNumber: '123456789',
+      startPeriod: '2025-01-01',
+      endPeriod: '2025-12-31',
+    });
+
+    expect(http.post.mock.calls[0][1].caseNumber).toBe(777777723);
+  });
+
+  it('accepts an empty reservation id only in tsandbox', async () => {
+    const { service, http } = setup();
+    http.post.mockReturnValue(
+      of({
+        status: 200,
+        data: { ...pairResponse, data: { ...pairResponse.data, uniqueId: '' } },
+      }),
+    );
+    await expect(
+      service.reserveUploadLinks('daily-token', {
+        caseNumber: '777777745',
+        startPeriod: '2025-01-01',
+        endPeriod: '2025-12-31',
+      }),
+    ).resolves.toMatchObject({ uniqueId: '' });
+
+    const production = new UniformFileApiService(http as any, {
+      ...config,
+      environment: ShaamEnvironment.PRODUCTION,
+    });
+    await expect(
+      production.reserveUploadLinks('daily-token', {
+        caseNumber: '777777745',
+        startPeriod: '2025-01-01',
+        endPeriod: '2025-12-31',
+      }),
+    ).rejects.toMatchObject({ category: 'validation' });
   });
 
   it('rejects malformed, duplicate or untrusted upload reservations', async () => {
@@ -212,6 +259,43 @@ describe('UniformFileApiService', () => {
       expect.objectContaining({ status: UniformFileRemoteStatus.APPROVED }),
       expect.objectContaining({ status: UniformFileRemoteStatus.UPLOADED }),
     ]);
+  });
+
+  it('normalizes the observed mocked status only in tsandbox', async () => {
+    const { service, http } = setup();
+    http.post.mockReturnValue(
+      of({
+        status: 200,
+        data: [
+          { fileName: 'ini-id.txt', status: 'Mocked Status', isFound: true },
+          { fileName: 'bkm-id.txt', status: 'Mocked Status', isFound: true },
+        ],
+      }),
+    );
+    await expect(
+      service.getFileStatuses('daily-token', ['ini-id.txt', 'bkm-id.txt']),
+    ).resolves.toEqual([
+      expect.objectContaining({ status: UniformFileRemoteStatus.UPLOADED }),
+      expect.objectContaining({ status: UniformFileRemoteStatus.UPLOADED }),
+    ]);
+
+    const production = new UniformFileApiService(http as any, {
+      ...config,
+      environment: ShaamEnvironment.PRODUCTION,
+    });
+    await expect(
+      production.getFileStatuses('daily-token', ['ini-id.txt', 'bkm-id.txt']),
+    ).rejects.toMatchObject({ category: 'validation' });
+  });
+
+  it('classifies a uniform-file 406 as a rejected Daily Token', async () => {
+    const { service, http } = setup();
+    http.post.mockReturnValue(
+      throwError(() => ({ response: { status: 406, data: { secret: 'no' } } })),
+    );
+    await expect(
+      service.getFileStatuses('daily-token', ['ini-id.txt', 'bkm-id.txt']),
+    ).rejects.toMatchObject({ category: 'authorization', httpStatus: 406 });
   });
 
   it('returns per-file permission/not-found outcomes without inventing a status', async () => {

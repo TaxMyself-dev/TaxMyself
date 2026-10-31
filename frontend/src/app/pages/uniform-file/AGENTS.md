@@ -18,6 +18,9 @@ Generates the "מבנה קבצים אחיד" (Israeli Uniform File Format) expor
   rendered as waiting for processing, never as approval; both files must be
   `Approved` for the pair to appear approved. Polling is an explicit user
   action and stops being offered after approval or rejection.
+- SHAAM connection, submission and remote polling are owner-only backend
+  operations. A delegated accountant may generate/download the ZIP and inspect
+  safe local metadata but cannot bypass that policy from this page.
 - Errors during generation surface as a toast via `MessageService`.
 
 ## Related topics

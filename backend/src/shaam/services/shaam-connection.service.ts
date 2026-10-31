@@ -223,6 +223,24 @@ export class ShaamConnectionService {
     return refreshed.access_token;
   }
 
+  async markReauthorizationRequired(
+    businessId: number,
+    product: ShaamProduct,
+    environment: ShaamEnvironment,
+  ): Promise<void> {
+    const row = await this.repo.findOne({
+      where: { businessId, product, environment },
+    });
+    if (!row) return;
+
+    row.status = ShaamConnectionStatus.REAUTH_REQUIRED;
+    row.accessToken = null;
+    row.refreshToken = null;
+    row.expiresAt = null;
+    row.scopes = null;
+    await this.repo.save(row);
+  }
+
   private requiredScopes(
     product: ShaamProduct,
     environment: ShaamEnvironment,

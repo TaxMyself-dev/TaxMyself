@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -45,6 +46,8 @@ export interface UniformFileSubmissionView {
 
 @Injectable()
 export class UniformFileSubmissionService {
+  private readonly logger = new Logger(UniformFileSubmissionService.name);
+
   constructor(
     @InjectRepository(UniformFileSubmission)
     private readonly repo: Repository<UniformFileSubmission>,
@@ -241,6 +244,7 @@ export class UniformFileSubmissionService {
         error instanceof UniformFileClientError &&
         error.category === 'authorization'
       ) {
+        await this.markUniformFileReauthorizationRequired(submission);
         submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
       } else {
         submission.state = UniformFileSubmissionState.PROCESSING;
@@ -414,6 +418,7 @@ export class UniformFileSubmissionService {
     const clientError =
       error instanceof UniformFileClientError ? error : undefined;
     if (clientError?.category === 'authorization') {
+      await this.markUniformFileReauthorizationRequired(submission);
       submission.state = UniformFileSubmissionState.AUTH_REQUIRED;
     } else if (submission.shaamUniqueId || clientError?.ambiguous) {
       submission.state = UniformFileSubmissionState.UNKNOWN_OUTCOME;
@@ -430,6 +435,38 @@ export class UniformFileSubmissionService {
     return error instanceof UniformFileClientError
       ? `${error.stage}_${error.category}`
       : 'internal_failure';
+  }
+
+  private async markUniformFileReauthorizationRequired(
+    submission: UniformFileSubmission,
+  ): Promise<void> {
+    this.logger.warn(
+      JSON.stringify({
+        event: 'security_event',
+        securityEvent: 'shaam_connection_reauthorization_required',
+        severity: 'WARNING',
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: submission.environment,
+      }),
+    );
+    try {
+      await this.connections.markReauthorizationRequired(
+        submission.businessId,
+        ShaamProduct.UNIFORM_FILE,
+        submission.environment,
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        JSON.stringify({
+          event: 'security_event',
+          securityEvent: 'shaam_reauthorization_state_update_failed',
+          severity: 'ERROR',
+          product: ShaamProduct.UNIFORM_FILE,
+          environment: submission.environment,
+          errorType: error instanceof Error ? error.constructor.name : typeof error,
+        }),
+      );
+    }
   }
 
   private errorCode(error: unknown): string | null {

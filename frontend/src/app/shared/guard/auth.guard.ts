@@ -9,6 +9,8 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { StartupService } from '../../services/startup.service';
 import { isTransportError } from '../errors/auth-unavailable.error';
+import { MfaService } from '../../services/mfa.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -18,6 +20,7 @@ export class AuthGuard {
     public authService: AuthService,
     public router: Router,
     private startup: StartupService,
+    private mfa: MfaService,
   ) {}
 
   async canActivate(
@@ -33,6 +36,16 @@ export class AuthGuard {
     if (!this.authService.isLoggedIn) {
       console.warn('AuthGuard: no restored Firebase session - redirecting to login');
       return this.router.createUrlTree(['/login']);
+    }
+
+    if (environment.requireMfa) {
+      const mfaState = await this.mfa.sessionState();
+      if (mfaState === 'NOT_ENROLLED') {
+        return this.router.createUrlTree(['/mfa/setup']);
+      }
+      if (mfaState !== 'VERIFIED') {
+        return this.router.createUrlTree(['/login']);
+      }
     }
 
     const userData = this.authService.getUserDataFromLocalStorage();

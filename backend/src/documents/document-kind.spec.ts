@@ -17,7 +17,7 @@ import { BadRequestException, HttpException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { deriveDocumentKind } from './document-kind.util';
 import { ExtractedDocStatus, ExtractedDocumentType } from './extracted-document.entity';
-import { DocumentKind, DocumentArchiveStatus } from '../enum';
+import { ArchiveItemStatus, DocumentKind } from '../enum';
 
 describe('deriveDocumentKind (D8)', () => {
   it.each([
@@ -93,7 +93,11 @@ describe('DocumentsService.fileDocumentAsAnnual (D8 "תייק")', () => {
     );
     expect(fakeThis.extractedDocRepo.update).toHaveBeenCalledWith(
       { id: 9 },
-      { status: ExtractedDocStatus.NOT_AN_EXPENSE },
+      expect.objectContaining({
+        status: ExtractedDocStatus.NOT_AN_EXPENSE,
+        matchedTransactionId: null,
+        matchStatus: null,
+      }),
     );
   });
 
@@ -194,9 +198,9 @@ describe('QA regression: D8 "תייק" end-to-end (setDocumentKind -> fileDocume
     // filters strictly on status = PENDING_REVIEW — this row no longer matches.
     expect(doc.status).not.toBe(ExtractedDocStatus.PENDING_REVIEW);
 
-    // The archive tab must now label it FILED_ANNUAL (DocumentsService.deriveArchiveStatus).
-    const archiveStatus = (DocumentsService.prototype as any).deriveArchiveStatus
+    // The archive tab must now label it FILED_ANNUAL.
+    const archiveStatus = (DocumentsService.prototype as any).archiveItemStatusForDocument
       .call(fakeThis, doc, new Map());
-    expect(archiveStatus).toBe(DocumentArchiveStatus.FILED_ANNUAL);
+    expect(archiveStatus).toBe(ArchiveItemStatus.FILED_ANNUAL);
   });
 });

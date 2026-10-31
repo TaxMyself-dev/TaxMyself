@@ -90,6 +90,7 @@ describe('UniformFileSubmissionService', () => {
     };
     const connections = {
       getValidAccessToken: jest.fn().mockResolvedValue('daily-token'),
+      markReauthorizationRequired: jest.fn().mockResolvedValue(undefined),
     };
     const api = {
       reserveUploadLinks: jest.fn().mockResolvedValue(pair),
@@ -167,6 +168,34 @@ describe('UniformFileSubmissionService', () => {
 
     expect(result.state).toBe(UniformFileSubmissionState.AUTH_REQUIRED);
     expect(api.reserveUploadLinks).not.toHaveBeenCalled();
+  });
+
+  it('clears the saved Daily Token after an upstream authorization rejection', async () => {
+    const { service, connections, api } = setup();
+    api.reserveUploadLinks.mockRejectedValue(
+      new UniformFileClientError(
+        'SHAAM Uniform File request failed',
+        'reserve_links',
+        'authorization',
+        false,
+        406,
+      ),
+    );
+
+    const result = await service.submit(
+      'owner',
+      'owner',
+      business,
+      '2025-01-01',
+      '2025-12-31',
+    );
+
+    expect(result.state).toBe(UniformFileSubmissionState.AUTH_REQUIRED);
+    expect(connections.markReauthorizationRequired).toHaveBeenCalledWith(
+      7,
+      'UNIFORM_FILE',
+      ShaamEnvironment.TSANDBOX,
+    );
   });
 
   it('does not reserve a second pair after an ambiguous reservation outcome', async () => {

@@ -1,5 +1,5 @@
 import { HttpService } from '@nestjs/axios';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { firstValueFrom, timeout } from 'rxjs';
 import { UniformFileRemoteStatus } from '../entities/shaam.enums';
 import { REQUEST_TIMEOUT_MS } from '../shaam.constants';
@@ -81,6 +81,8 @@ export function uniformFileChunkSize(totalBytes: number): number {
 
 @Injectable()
 export class UniformFileApiService {
+  private readonly logger = new Logger(UniformFileApiService.name);
+
   constructor(
     private readonly http: HttpService,
     @Inject(UNIFORM_FILE_API_CONFIG)
@@ -101,7 +103,12 @@ export class UniformFileApiService {
       throw this.validationError('Daily Token is required', 'reserve_links');
     }
     const payload: Record<string, number | string> = {
-      caseNumber: this.numericIdentifier(request.caseNumber, 'caseNumber'),
+      caseNumber: this.numericIdentifier(
+        this.config.environment === 'tsandbox'
+          ? this.config.sandboxCaseNumberOverride ?? request.caseNumber
+          : request.caseNumber,
+        'caseNumber',
+      ),
       startPeriod: this.isoDate(request.startPeriod, 'startPeriod'),
       endPeriod: this.isoDate(request.endPeriod, 'endPeriod'),
     };
@@ -267,18 +274,19 @@ export class UniformFileApiService {
       !Array.isArray(value.data.files) ||
       value.data.files.length !== 2
     ) {
+      this.logInvalidReservationEnvelope(value);
       throw this.validationError(
         'SHAAM returned an invalid upload-link pair',
         'reserve_links',
       );
     }
-    const uniqueId = this.boundedText(value.data.uniqueId, 255, 'uniqueId');
-    const files = value.data.files.map((file: any) =>
-      this.validateReservation(file),
-    );
-    const ini = files.find((file) => file.kind === 'ini');
-    const bkm = files.find((file) => file.kind === 'bkm');
-    if (!ini || !bkm || ini.fileUniqueId === bkm.fileUniqueId) {
+    const uniqueId = this.reservationUniqueId(value.data.uniqueId);
+    // The official output table defines the pair by position: INI first, BKM
+    // second. The live tsandbox fixture uses opaque names that do not encode
+    // either kind, so names remain bounded metadata rather than classifiers.
+    const ini = this.validateReservation(value.data.files[0], 'ini');
+    const bkm = this.validateReservation(value.data.files[1], 'bkm');
+    if (ini.fileUniqueId === bkm.fileUniqueId) {
       throw this.validationError(
         'SHAAM upload-link response must contain distinct INI and BKM files',
         'reserve_links',
@@ -287,13 +295,15 @@ export class UniformFileApiService {
     return { uniqueId, ini, bkm };
   }
 
-  private validateReservation(value: any): UniformFileUploadReservation {
+  private validateReservation(
+    value: any,
+    kind: UniformFileKind,
+  ): UniformFileUploadReservation {
     const fileName = this.boundedText(
       value?.fileName,
       MAX_FILE_NAME_LENGTH,
       'fileName',
     );
-    const kind = this.fileKind(fileName);
     const fileUniqueId = this.boundedText(
       value?.fileUniqueId,
       MAX_FILE_ID_LENGTH,
@@ -374,12 +384,14 @@ export class UniformFileApiService {
       const found = value?.isFound === true;
       let status: UniformFileRemoteStatus | null = null;
       if (found) {
-        const remoteStatus = String(value?.status || '').toUpperCase();
+        const observedStatus = this.normalizeSandboxStatus(value?.status);
+        const remoteStatus = String(observedStatus || '').toUpperCase();
         if (
           !Object.values(UniformFileRemoteStatus).includes(
             remoteStatus as UniformFileRemoteStatus,
           )
         ) {
+          this.logUnknownFileStatus(value?.status, found);
           throw this.validationError(
             'SHAAM returned an unknown file status',
             'poll_status',
@@ -404,13 +416,59 @@ export class UniformFileApiService {
     return requestedIds.map((id) => byId.get(id)!);
   }
 
-  private fileKind(fileName: string): UniformFileKind {
-    if (/^INI(?:[_.-]|$)/i.test(fileName)) return 'ini';
-    if (/BKM/i.test(fileName)) return 'bkm';
-    throw this.validationError(
-      'SHAAM returned an unexpected upload file name',
-      'reserve_links',
+  private reservationUniqueId(value: unknown): string {
+    if (value === '' && this.config.environment === 'tsandbox') return '';
+    return this.boundedText(value, 255, 'uniqueId');
+  }
+
+  private normalizeSandboxStatus(value: unknown): unknown {
+    return this.config.environment === 'tsandbox' && value === 'Mocked Status'
+      ? 'Uploaded'
+      : value;
+  }
+
+  private logInvalidReservationEnvelope(body: any): void {
+    const data = body?.data;
+    const safeKeys =
+      body && typeof body === 'object' && !Array.isArray(body)
+        ? Object.keys(body)
+            .filter((key) => /^[A-Za-z0-9_-]{1,64}$/.test(key))
+            .slice(0, 20)
+        : [];
+    this.logger.warn(
+      JSON.stringify({
+        event: 'shaam_uniform_file_invalid_reservation_envelope',
+        bodyType: this.structuralType(body),
+        topLevelKeys: safeKeys,
+        successType: this.structuralType(body?.success),
+        dataType: this.structuralType(data),
+        uniqueIdType: this.structuralType(data?.uniqueId),
+        filesType: this.structuralType(data?.files),
+        fileCount: Array.isArray(data?.files) ? data.files.length : null,
+      }),
     );
+  }
+
+  private logUnknownFileStatus(status: unknown, isFound: boolean): void {
+    const statusToken =
+      typeof status === 'string' && /^[A-Za-z][A-Za-z0-9 _-]{0,31}$/.test(status)
+        ? status
+        : null;
+    this.logger.warn(
+      JSON.stringify({
+        event: 'shaam_uniform_file_unknown_status',
+        statusToken,
+        statusType: typeof status,
+        statusLength: typeof status === 'string' ? status.length : null,
+        isFound,
+      }),
+    );
+  }
+
+  private structuralType(value: unknown): string {
+    if (value === null) return 'null';
+    if (Array.isArray(value)) return 'array';
+    return typeof value;
   }
 
   private apiHeaders(accessToken: string): Record<string, string> {
@@ -520,9 +578,9 @@ export class UniformFileApiService {
         ? httpStatus
         : null;
     const category =
-      safeStatus === 401
+      safeStatus === 401 || safeStatus === 406
         ? 'authorization'
-        : safeStatus === 403 || safeStatus === 406
+        : safeStatus === 403
         ? 'permission'
         : 'provider';
     return new UniformFileClientError(

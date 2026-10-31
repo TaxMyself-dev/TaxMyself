@@ -68,6 +68,7 @@ describe('CatalogContextService', () => {
         userId: 'client-1',
         businessNumber: '123456789',
         accountantIds: ['agent-A', 'agent-B'],
+        businessType: null,
       });
     });
 
@@ -94,9 +95,13 @@ describe('CatalogContextService', () => {
   });
 
   describe('assertBusinessAccess', () => {
-    it('passes for the owner, including the spouse business (same firebaseId)', async () => {
-      await expect(service.assertBusinessAccess('client-1', '123456789')).resolves.toBeUndefined();
-      await expect(service.assertBusinessAccess('client-1', '123456780')).resolves.toBeUndefined();
+    it('returns the owned business, including the spouse business (same firebaseId)', async () => {
+      await expect(service.assertBusinessAccess('client-1', '123456789')).resolves.toEqual(
+        expect.objectContaining({ businessNumber: '123456789', firebaseId: 'client-1' }),
+      );
+      await expect(service.assertBusinessAccess('client-1', '123456780')).resolves.toEqual(
+        expect.objectContaining({ businessNumber: '123456780', firebaseId: 'client-1' }),
+      );
     });
 
     it('rejects a foreign or unknown businessNumber', async () => {
@@ -104,9 +109,9 @@ describe('CatalogContextService', () => {
       await expect(service.assertBusinessAccess('client-1', '000000000')).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('no-ops when firebaseId or businessNumber is missing (caller-validated elsewhere)', async () => {
-      await expect(service.assertBusinessAccess(null, '123456789')).resolves.toBeUndefined();
-      await expect(service.assertBusinessAccess('client-1', null)).resolves.toBeUndefined();
+    it('returns null when firebaseId or businessNumber is missing (caller-validated elsewhere)', async () => {
+      await expect(service.assertBusinessAccess(null, '123456789')).resolves.toBeNull();
+      await expect(service.assertBusinessAccess('client-1', null)).resolves.toBeNull();
     });
   });
 

@@ -6,6 +6,7 @@
   "include": [
     "src/app/pages/uniform-file/uniform-file.page.spec.ts",
     "src/app/pages/shaam-callback/shaam-callback.page.spec.ts",
+    "src/app/services/shaam.service.spec.ts",
     "src/**/*.d.ts"
   ]
 }

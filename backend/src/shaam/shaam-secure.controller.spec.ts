@@ -1,4 +1,8 @@
-import { BadRequestException, HttpException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+} from '@nestjs/common';
 import {
   DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
   ShaamEnvironment,
@@ -12,10 +16,12 @@ describe('ShaamSecureController', () => {
     business: any = {
       id: 7,
       businessNumber: DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
+      firebaseId: 'effective-owner',
     },
   ) {
     const businessService = {
       getBusinessByNumber: jest.fn().mockResolvedValue(business),
+      getBusinessById: jest.fn().mockResolvedValue(business),
     };
     const states = {
       create: jest.fn().mockResolvedValue('opaque-state'),
@@ -27,6 +33,7 @@ describe('ShaamSecureController', () => {
         .mockResolvedValue({ connected: true, expiresAt: new Date() }),
       getValidAccessToken: jest.fn().mockResolvedValue('server-token'),
       saveToken: jest.fn().mockResolvedValue(ShaamConnectionStatus.ACTIVE),
+      markReauthorizationRequired: jest.fn().mockResolvedValue(undefined),
     };
     const allocationOauth = {
       buildAuthorizeUrl: jest
@@ -69,10 +76,10 @@ describe('ShaamSecureController', () => {
   }
 
   const request = {
-    user: { firebaseId: 'effective-owner', actorFirebaseId: 'real-actor' },
+    user: { firebaseId: 'effective-owner', actorFirebaseId: 'effective-owner' },
   };
 
-  it('scopes OAuth initiation to the effective owner and records the real actor', async () => {
+  it('scopes OAuth initiation to the owner and records the real actor', async () => {
     const { controller, businessService, states } = setup();
     await controller.authorize(request, {
       businessNumber: DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
@@ -84,7 +91,7 @@ describe('ShaamSecureController', () => {
     );
     expect(states.create).toHaveBeenCalledWith(
       7,
-      'real-actor',
+      'effective-owner',
       ShaamProduct.INVOICE_ALLOCATION,
       ShaamEnvironment.TSANDBOX,
     );
@@ -145,7 +152,7 @@ describe('ShaamSecureController', () => {
       });
       expect(states.create).toHaveBeenCalledWith(
         9,
-        'real-actor',
+        'effective-owner',
         ShaamProduct.INVOICE_ALLOCATION,
         ShaamEnvironment.PRODUCTION,
       );
@@ -170,7 +177,7 @@ describe('ShaamSecureController', () => {
     expect(documentAllocation.requestAndFinalize).toHaveBeenCalledWith(
       'server-token',
       'effective-owner',
-      'real-actor',
+      'effective-owner',
       DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
       '20000',
       'TAX_INVOICE',
@@ -204,7 +211,7 @@ describe('ShaamSecureController', () => {
 
     expect(uniformSubmissions.submit).toHaveBeenCalledWith(
       'effective-owner',
-      'real-actor',
+      'effective-owner',
       expect.objectContaining({ id: 9 }),
       '2025-01-01',
       '2025-12-31',
@@ -218,7 +225,7 @@ describe('ShaamSecureController', () => {
     const { controller, states, connections, allocationOauth } = setup();
     states.consume.mockResolvedValue({
       businessId: 7,
-      actorFirebaseId: 'real-actor',
+      actorFirebaseId: 'effective-owner',
       product: ShaamProduct.INVOICE_ALLOCATION,
       environment: ShaamEnvironment.TSANDBOX,
     });
@@ -240,5 +247,21 @@ describe('ShaamSecureController', () => {
     expect(response.redirect).not.toHaveBeenCalledWith(
       expect.stringContaining('connected=true'),
     );
+  });
+
+  it('rejects delegated or impersonated external SHAAM operations', async () => {
+    const { controller, states } = setup();
+    const delegated = {
+      user: { firebaseId: 'effective-owner', actorFirebaseId: 'accountant' },
+      isDelegatedAccess: true,
+    };
+
+    await expect(
+      controller.authorize(delegated, {
+        businessNumber: DEFAULT_SHAAM_TSANDBOX_INVOICE_BUSINESS_NUMBER,
+        product: ShaamProduct.INVOICE_ALLOCATION,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(states.create).not.toHaveBeenCalled();
   });
 });
