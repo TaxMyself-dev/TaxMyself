@@ -98,8 +98,12 @@ export class LycheeClient {
     }
     const https = await import('https');
     const agent = new https.Agent({
-      lookup: ((_host: string, _options: any, cb: any) =>
-        cb(null, address.address, 4)) as any,
+      lookup: ((_host: string, options: any, cb: any) => {
+        // Node's connection family selection requests the lookup-all contract.
+        // Return only the previously validated, pinned address in either form.
+        if (options?.all) cb(null, [{ address: address.address, family: 4 }]);
+        else cb(null, address.address, 4);
+      }) as any,
     });
     try {
       const result = await lycheeStep(

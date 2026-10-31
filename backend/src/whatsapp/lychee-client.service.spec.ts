@@ -32,6 +32,13 @@ describe('Lychee media download boundary', () => {
     expect(get.mock.calls[0][1].headers.Authorization).toBe('Bearer fake-key');
     expect(get.mock.calls[1][1].headers.Authorization).toBeUndefined();
     expect(get.mock.calls[1][1].maxRedirects).toBe(0);
+    const pinnedLookup = get.mock.calls[1][1].httpsAgent.options.lookup;
+    const single = jest.fn();
+    pinnedLookup('media.example.com', { all: false }, single);
+    expect(single).toHaveBeenCalledWith(null, '8.8.8.8', 4);
+    const all = jest.fn();
+    pinnedLookup('media.example.com', { all: true }, all);
+    expect(all).toHaveBeenCalledWith(null, [{ address: '8.8.8.8', family: 4 }]);
   });
   it('rejects unapproved hosts and non-public resolved addresses', async () => {
     get.mockResolvedValueOnce({
