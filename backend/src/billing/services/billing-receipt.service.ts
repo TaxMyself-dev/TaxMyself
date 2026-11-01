@@ -6,6 +6,7 @@ import { BusinessType, DocumentType } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
 import { MailService } from 'src/mail/mail.service';
 import { BillingEventService } from './billing-event.service';
+import { redactForLog } from './billing-lifecycle.service';
 import { BillingEventType } from '../enums/billing.enums';
 import { BillingReceiptPeriod } from '../domain/billing-receipt-period';
 import { BillingAttemptOrchestrationService } from './billing-attempt-orchestration.service';
@@ -275,7 +276,16 @@ export class BillingReceiptService {
   async sendReceiptEmailForPaymentEvent(
     paymentEventId: number,
     issuerName: string,
+    options: { manual?: boolean; actor?: string } = {},
   ): Promise<{ sent: boolean; error?: string }> {
+    const leaseId = await this.billingEventService.claimReceiptEmail(paymentEventId, options.manual, new Date(), options.actor);
+    if (!leaseId) {
+      const event = await this.billingEventService.findPaymentEventById(paymentEventId);
+      if (!options.manual && event?.metadata?.receiptEmail?.skipped === 'NO_RECIPIENT') return { sent: false };
+      return event?.receiptEmailSent && !options.manual
+        ? { sent: true }
+        : { sent: false, error: 'Receipt email is pending, busy, or has no linked document' };
+    }
     try {
       const event = await this.billingEventService.findPaymentEventById(paymentEventId);
 
@@ -283,7 +293,7 @@ export class BillingReceiptService {
         this.logger.warn(
           `sendReceiptEmailForPaymentEvent: event ${paymentEventId} has no receiptDocId — skipping`,
         );
-        return { sent: false, error: 'No receipt document linked to this event' };
+        throw new Error('No receipt document linked to this event');
       }
 
       const receipt = await this.documentsService.getBillingReceiptPdf(event.receiptDocId);
@@ -293,6 +303,7 @@ export class BillingReceiptService {
           `Receipt email skipped — no recipient email on docId=${event.receiptDocId} ` +
             `paymentEventId=${paymentEventId}`,
         );
+        await this.billingEventService.finishReceiptEmail(paymentEventId, leaseId, false, undefined, true);
         return { sent: false };
       }
 
@@ -316,7 +327,7 @@ export class BillingReceiptService {
         attachmentName,
       );
 
-      await this.billingEventService.markReceiptEmailSent(paymentEventId);
+      await this.billingEventService.finishReceiptEmail(paymentEventId, leaseId, true);
 
       console.log(
         `Receipt email sent: docId=${event.receiptDocId} paymentEventId=${paymentEventId} ` +
@@ -324,12 +335,12 @@ export class BillingReceiptService {
       );
       return { sent: true };
     } catch (err) {
-      const errorMessage = (err as Error).message ?? String(err);
+      const errorMessage = redactForLog((err as Error)?.message ?? 'Receipt email delivery failed').slice(0, 500);
       this.logger.error(
         `Receipt email failed: paymentEventId=${paymentEventId}: ${errorMessage}`,
-        (err as Error).stack,
+        // Provider exceptions may contain credentials; do not log raw stacks.
       );
-      await this.billingEventService.incrementReceiptEmailFailure(paymentEventId, errorMessage);
+      await this.billingEventService.finishReceiptEmail(paymentEventId, leaseId, false, errorMessage);
       return { sent: false, error: errorMessage };
     }
   }

@@ -6,8 +6,11 @@ describe('BillingCompletionRecoveryService', () => {
     const orchestration = { findDueCapturedAttempts: jest.fn().mockResolvedValue([]) };
     const hosted = { completeCapturedHostedAttempt: jest.fn().mockResolvedValue('COMPLETED') };
     const renewal = { completeCapturedAttempt: jest.fn().mockResolvedValue('COMPLETED') };
-    const service = new BillingCompletionRecoveryService(orchestration as any, hosted as any, renewal as any);
-    return { service, orchestration, hosted, renewal };
+    const events = { findDueReceiptEmails: jest.fn().mockResolvedValue([]) };
+    const receipts = { sendReceiptEmailForPaymentEvent: jest.fn().mockResolvedValue({ sent: true }) };
+    const issuers = { getKeepintaxIssuer: jest.fn().mockResolvedValue({ issuerName: 'Keepintax' }) };
+    const service = new BillingCompletionRecoveryService(orchestration as any, hosted as any, renewal as any, events as any, receipts as any, issuers as any);
+    return { service, orchestration, hosted, renewal, events, receipts, issuers };
   }
 
   it('completes the exact token or hosted capture independently of the renewal due-date selector', async () => {
@@ -48,5 +51,25 @@ describe('BillingCompletionRecoveryService', () => {
     await service.recover();
     await service.recover();
     expect(orchestration.findDueCapturedAttempts).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('receipt email recovery independent of captured attempts', () => {
+  it('retries legacy email failure even with no pending capture; never creates a document or charges', async () => {
+    const events = { findDueReceiptEmails: jest.fn().mockResolvedValue([{ id: 108 }]) };
+    const receipts = { sendReceiptEmailForPaymentEvent: jest.fn().mockResolvedValue({ sent: true }) };
+    const issuers = { getKeepintaxIssuer: jest.fn().mockResolvedValue({ issuerName: 'Keepintax' }) };
+    const renewal = { completeCapturedAttempt: jest.fn() };
+    const hosted = { completeCapturedHostedAttempt: jest.fn() };
+    const orchestration = { findDueCapturedAttempts: jest.fn().mockResolvedValue([]) };
+    const service = new BillingCompletionRecoveryService(orchestration as any,
+      hosted as any, renewal as any, events as any, receipts as any, issuers as any);
+    await service.recover();
+    expect(receipts.sendReceiptEmailForPaymentEvent).toHaveBeenCalledWith(108, 'Keepintax');
+    expect(renewal.completeCapturedAttempt).not.toHaveBeenCalled();
+    expect(hosted.completeCapturedHostedAttempt).not.toHaveBeenCalled();
+    orchestration.findDueCapturedAttempts.mockRejectedValueOnce(new Error('capture scan failed'));
+    await service.recover();
+    expect(receipts.sendReceiptEmailForPaymentEvent).toHaveBeenCalledTimes(2);
   });
 });

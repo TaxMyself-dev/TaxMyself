@@ -61,3 +61,40 @@ The sweep requires a running backend instance with Nest cron scheduling active.
    a live lease must exclude concurrent work, and an expired claim must recover.
 
 Production was not accessed, changed or deployed as part of this implementation.
+
+## Existing PDF / failed email follow-up (2026-11-01)
+
+Admin billing → חשבוניות ומיילים ממתינים → locate the payment/renewal event →
+שלח חשבונית קיימת במייל → confirm. The backend verifies a saved, issuer-matched
+invoice and uses its stored recipient and PDF. No receipt creation, re-signing,
+charge, journal or subscription mutation occurs. The original customer-facing
+resend endpoint remains unchanged; this is a separately authorized admin action.
+
+Email delivery has its own durable event-metadata lease and retry schedule. The
+existing recovery runner handles due failed emails even if the charge attempt is
+COMPLETED or absent. Explicit failures use 1/5/15/30-minute then hourly backoff;
+crash recovery waits for the five-minute lease plus delay. Old receiptEmail failures
+without a schedule are eligible. Success updates receipt_email_sent and receiptEmail
+together. No recipient is a recorded skip; an admin can retry after correcting the
+existing document through a separately authorized process.
+
+No new polling frequency or Cloud Tasks implementation is introduced. This
+extends the existing local recovery implementation, which remains undeployed.
+An ambiguous response/crash can duplicate an email; there is no exactly-once claim.
+
+### Manual dev verification (not yet executed)
+
+Use only a separately verified keepintax-dev connection and a test recipient.
+Do not boot the full application merely to run these checks.
+1. Use an existing dev PAYMENT_SUCCESS / RENEWAL_SUCCESS event linked to an
+   existing invoice PDF. Snapshot its document id/count and journal count.
+2. Fail the mail adapter after PDF retrieval. Check false sent flags, incremented
+   attempts, redacted lastError and future nextAttemptAt. Restore the mock adapter
+   and run recovery after the due time: same PDF, sent flags true, no schedule.
+3. Repeat with a COMPLETED attempt and with a legacy event without an attempt.
+4. Race manual resend with automatic recovery/two instances: only the delivery
+   lease owner calls the mail adapter. Kill after claim and verify crash wake-up.
+5. Non-admin and wrong issuer/type/attempt/no-PDF inputs must send nothing.
+6. Verify zero provider submissions, zero new documents/journals and unchanged
+   subscription/obligation state. Actual Brevo inbox-delivery validation remains
+   separate from mocked API acceptance.

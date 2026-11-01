@@ -252,14 +252,16 @@ export class AdminBillingController {
 
   // ─── Receipt failures (manual resolution) ────────────────────────────────────
 
-  /**
-   * GET /admin/billing/receipts/pending
-   *
-   * Lists every successful charge whose automatic receipt generation failed
-   * and was never resolved. Each one blocks its subscription from further
-   * payments (see BillingEventService.getUnresolvedReceiptFailure) until
-   * resolved via POST .../:billingEventId/generate.
-   */
+  /** Admin-only delivery of an existing payment/renewal invoice PDF. */
+  @Post('receipts/:billingEventId/resend-email')
+  @HttpCode(HttpStatus.OK)
+  async resendReceiptEmail(@Req() request: AuthenticatedRequest,
+    @Param('billingEventId', ParseIntPipe) eventId: number) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.resendReceiptEmail(eventId, request.user?.actorFirebaseId ?? request.user!.firebaseId);
+  }
+
+  /** Missing invoices and existing invoices whose email is not marked sent. */
   @Get('receipts/pending')
   async getPendingReceiptFailures(@Req() request: AuthenticatedRequest) {
     await this.assertAdmin(request);

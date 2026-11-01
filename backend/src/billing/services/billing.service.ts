@@ -1131,6 +1131,7 @@ export class BillingService {
     return this.billingReceiptService.sendReceiptEmailForPaymentEvent(
       eventId,
       issuer.issuerName,
+      { manual: true, actor: firebaseId },
     );
   }
 

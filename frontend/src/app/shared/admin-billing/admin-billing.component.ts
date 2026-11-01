@@ -21,7 +21,7 @@ export class AdminBillingComponent {
   readonly subTabs: SubTab[] = [
     { label: 'מנויים',       value: 'subscriptions' },
     { label: 'תוכניות',      value: 'plans' },
-    { label: 'קבלות חסרות',  value: 'pendingReceipts' },
+    { label: 'חשבוניות ומיילים ממתינים',  value: 'pendingReceipts' },
   ];
 
   selectedSubTab = signal<string>('subscriptions');

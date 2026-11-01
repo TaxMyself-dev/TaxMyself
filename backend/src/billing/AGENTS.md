@@ -663,3 +663,26 @@ connectionVerified under the existing enrollment rules.
 
 ## Signup transaction isolation
 UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).
+
+## Existing receipt email recovery (2026-11-01)
+
+POST /admin/billing/receipts/:billingEventId/resend-email uses the real admin
+guard and permits PAYMENT_SUCCESS / RENEWAL_SUCCESS only. It requires a linked,
+downloadable TAX_INVOICE_RECEIPT from the configured issuer and checks canonical
+attempt provenance when present. It sends the saved PDF, never generates/signs
+a document, activates a subscription or submits a payment. The actor is recorded
+in receiptEmail metadata. The pending list includes linked invoices with email
+not sent; its action is distinct from missing-document generation.
+
+All BillingReceiptService email callers share transactional event-row delivery
+claims. receiptEmail metadata persists leaseId/leaseUntil, attempts, nextAttemptAt,
+lastAttemptAt, sent, sanitized lastError and optional lastAdminActor. Five-minute
+leases serialize manual/automatic sends. Failure retries after 1/5/15/30 minutes
+then hourly; a crash wake-up is persisted before storage/mail I/O. Success sets
+both the column and metadata sent flags, clears error/schedule/lease. Missing
+recipient is explicitly skipped until a manual retry. Persistence failures throw.
+The existing recovery runner additionally selects bounded failed email events
+independently of billing_attempt status, including legacy/completed charges;
+it only downloads/sends the existing PDF. No new cron, queue or schema is added.
+Cloud Tasks remains a separate unimplemented plan. Brevo acceptance is not inbox
+delivery; ambiguous transport/crash failures can cause duplicate email on retry.

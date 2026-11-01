@@ -203,6 +203,8 @@ export interface RenewalBatchResult {
 // ─── Pending receipt failures ────────────────────────────────────────────────
 
 export interface PendingReceiptFailure {
+  receiptDocId: number | null;
+  receiptEmailSent: boolean;
   billingEventId: number;
   eventType: string;
   subscriptionId: number | null;
@@ -355,6 +357,11 @@ export class AdminBillingService {
   /** Successful charges whose receipt generation failed and was never resolved. */
   getPendingReceiptFailures(): Observable<PendingReceiptFailure[]> {
     return this.http.get<PendingReceiptFailure[]>(`${this.base}/receipts/pending`);
+  }
+
+  /** Sends only the saved invoice PDF for a payment/renewal event. */
+  resendReceiptEmail(billingEventId: number): Observable<{ sent: boolean; error?: string }> {
+    return this.http.post<{ sent: boolean; error?: string }>(`${this.base}/receipts/${billingEventId}/resend-email`, {});
   }
 
   /** Manually generates the missing receipt for one failed charge event. */

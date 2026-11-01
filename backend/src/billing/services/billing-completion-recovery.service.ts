@@ -1,3 +1,6 @@
+import { BillingEventService } from './billing-event.service';
+import { BillingReceiptService } from './billing-receipt.service';
+import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { BillingChargeMode } from '../enums/billing.enums';
@@ -15,6 +18,9 @@ export class BillingCompletionRecoveryService {
     private readonly orchestration: BillingAttemptOrchestrationService,
     private readonly hosted: BillingHostedCompletionService,
     private readonly renewal: SubscriptionRenewalService,
+    private readonly events: BillingEventService,
+    private readonly receipts: BillingReceiptService,
+    private readonly issuers: BillingIssuerConfigService,
   ) {}
 
   @Cron('*/1 * * * *', { name: 'billingCompletionRecovery', timeZone: 'Asia/Jerusalem' })
@@ -42,6 +48,19 @@ export class BillingCompletionRecoveryService {
       }
     } catch {
       this.logger.error('Could not list captured attempts for local completion');
+    }
+    try {
+      // Independent of attempt status and capture-scan failures.
+      const pendingEmails = await this.events.findDueReceiptEmails(now, 20);
+      if (pendingEmails.length) {
+        const issuer = await this.issuers.getKeepintaxIssuer();
+        for (const event of pendingEmails) {
+          try { await this.receipts.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName); }
+          catch { this.logger.error(`Receipt email #${event.id} could not resume`); }
+        }
+      }
+    } catch {
+      this.logger.error('Could not recover pending receipt emails');
     } finally {
       this.running = false;
     }
