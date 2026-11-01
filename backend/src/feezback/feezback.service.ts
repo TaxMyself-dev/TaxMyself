@@ -773,7 +773,6 @@ export class FeezbackService {
 
     let bankError: string | null = null;
     let cardError: string | null = null;
-    let moduleAccessUpdated = false;
 
     // Consent-list failure cannot prove absence. Validate before applying any source changes.
     let consents: any[];
@@ -791,7 +790,7 @@ export class FeezbackService {
       const accountsResponse = consents.length ? await this.feezbackApiService.getUserAccounts(sub, { preventUpdate: true, withInvalid: true }) : { accounts: [] };
       if (!Array.isArray(accountsResponse?.accounts) || accountsResponse.accounts.some(a => !a?.resourceId || !a?.iban)) throw new Error('Malformed sources');
       accounts = accountsResponse?.accounts ?? [];
-      const bankItems = accounts
+      const bankItems = validConnectedSources(consents, accounts)
         .map((acc: any) => {
           const rawId = acc?.iban?.trim().slice(-7);
           if (!rawId) return null;
@@ -818,7 +817,7 @@ export class FeezbackService {
       if (!Array.isArray(cardsResponse?.cards) || cardsResponse.cards.some(c => !c?.resourceId || !c?.maskedPan)) throw new Error('Malformed sources');
       cards = cardsResponse?.cards ?? [];
       const activeCardIds = new Set(validConnectedSources(consents,cards).map(c=>c.resourceId));
-      const cardItems = cards
+      const cardItems = validConnectedSources(consents, cards)
         .map((card: any) => {
           const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
           if (!rawId) return null;
@@ -846,11 +845,6 @@ export class FeezbackService {
 
     // A successful HTTP response (including an empty list) is not proof of onboarding.
     const connected = validConnectedSources(consents, [...accounts, ...cards]).length > 0;
-    if (user && (connected || (!bankError && !cardError))) {
-      // Partial failure cannot prove that the last connection disappeared.
-      // Aggregate connection state is written once, across every known identity.
-      moduleAccessUpdated = connected && !user.hasOpenBanking;
-    }
 
 
     console.log(`\n════════════════════════════════════`);
@@ -860,13 +854,15 @@ export class FeezbackService {
     }
     console.log(`  SOURCE DISCOVERY  (${eventLabel})`);
     console.log(`  User: ${userName}`);
-    console.log(`  (valid accounts below)`);
+    console.log(`  (verified active sources below; provider history is excluded)`);
     console.log(`════════════════════════════════════`);
     if (bankError) {
       console.log(`  ✗ Bank — ERROR: ${bankError}`);
     } else {
       const seenBank = new Set<string>();
-      const uniqueAccounts = accounts.filter((acc: any) => {
+      const activeAccounts = validConnectedSources(consents, accounts);
+      console.log(`  Bank provider rows: received=${accounts.length}, verifiedActive=${activeAccounts.length}, inactiveOrUnverified=${accounts.length-activeAccounts.length}`);
+      const uniqueAccounts = activeAccounts.filter((acc: any) => {
         const rawId = acc?.iban?.trim().slice(-7);
         const sn = rawId ? this.deriveSourceName(rawId, acc?.currency) : null;
         if (!sn || seenBank.has(sn)) return false;
@@ -877,15 +873,16 @@ export class FeezbackService {
       for (const acc of uniqueAccounts) {
         const rawId = acc?.iban?.trim().slice(-7);
         const sn = this.deriveSourceName(rawId, acc?.currency);
-        const cid = acc?.consentId ?? acc?.relatedConsents?.[0]?.resourceId ?? '—';
-        console.log(`    •  ***${sn.replace(/\D/g,'').slice(-4)}   hasConsent=${cid !== '—'}`);
+        console.log(`    •  ***${sn.replace(/\D/g,'').slice(-4)}   verifiedConsent=true`);
       }
     }
     if (cardError) {
       console.log(`  ✗ Cards — ERROR: ${cardError}`);
     } else {
       const seenCard = new Set<string>();
-      const uniqueCards = cards.filter((card: any) => {
+      const activeCards = validConnectedSources(consents, cards);
+      console.log(`  Card provider rows: received=${cards.length}, verifiedActive=${activeCards.length}, inactiveOrUnverified=${cards.length-activeCards.length}`);
+      const uniqueCards = activeCards.filter((card: any) => {
         const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
         const sn = rawId ? this.deriveSourceName(rawId, card?.currency) : null;
         if (!sn || seenCard.has(sn)) return false;
@@ -896,12 +893,10 @@ export class FeezbackService {
       for (const card of uniqueCards) {
         const rawId = card?.maskedPan?.match(/(\d{4})$/)?.[1];
         const sn = this.deriveSourceName(rawId, card?.currency);
-        const cid = card?.consentId ?? card?.relatedConsents?.[0]?.resourceId ?? '—';
         const directMark = this.determineIsDirect(card) ? '   [DIRECT — card feed skipped]' : '';
-        console.log(`    •  ***${sn.replace(/\D/g,'').slice(-4)}   hasConsent=${cid !== '—'}${directMark}`);
+        console.log(`    •  ***${sn.replace(/\D/g,'').slice(-4)}   verifiedConsent=true${directMark}`);
       }
     }
-    if (moduleAccessUpdated) console.log(`  ✓ Module access enabled`);
     console.log(`════════════════════════════════════\n`);
 
     // Awaited (not fire-and-forget): callers that await refreshUserSources —
@@ -909,7 +904,7 @@ export class FeezbackService {
     // immediately after. If this stayed `void`, refreshUserSources would
     // resolve before resourceId/consentId are written, and the follow-up
     // retrySource would wrongly see "resourceId not found in DB" (a race).
-    // .catch keeps a write failure non-fatal, same as before.
+    // Persistence failures propagate; discovery must not claim full success.
     await this.prePopulateSourceResults(firebaseId, connectedSourcesWithCurrentConsent(consents, accounts), connectedSourcesWithCurrentConsent(consents, cards), verifiedAt);
     const verified = [
       ...(!bankError ? [{ type: 'bank' as const, sources: connectedSourcesWithCurrentConsent(consents, accounts).map(a => this.deriveSourceName(a.iban.trim().slice(-7), a.currency)) }] : []),
@@ -918,8 +913,7 @@ export class FeezbackService {
     const protectedIds = consents.filter(c => !['valid', 'expired', 'rejected', 'revoked', 'invalid', 'revokedbypsu', 'terminatedbytpp', 'noanswer', 'suspendedbyaspsp', 'suspendedbytpp', 'received', 'partiallyauthorised', 'waitingforinitialfetch', 'initialfetchfailed'].includes(String(c.consentStatus).toLowerCase())).map(c => c.resourceId);
     await this.userSyncStateService.reconcileSourceConsents(firebaseId, this.connectionRole, verified, verifiedAt, protectedIds);
 
-    // Stamp the freshness marker — at least one of bank/card succeeded, so the
-    // login path can trust the Source rows for the next 24h.
+    // The aggregate caller stamps freshness only after complete persistence.
     const stored = await this.sourceRepository.find({ where: { userId: firebaseId, connectionRole: this.connectionRole } });
     const permissions = consents.filter(c => !['terminatedbytpp', 'revokedbypsu', 'expired', 'rejected', 'noanswer'].includes(String(c.consentStatus).toLowerCase())).map(c => ({
       consentId: c.resourceId, connectionRole: this.connectionRole, status: c.consentStatus ?? 'unknown',

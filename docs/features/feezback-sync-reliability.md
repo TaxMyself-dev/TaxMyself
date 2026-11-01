@@ -4,6 +4,8 @@
 
 Settings reads saved consent state only. Webhooks and the explicit permission-refresh action reconcile verified provider metadata into stable local sources. Refresh does not pull transactions, revoke consent, clear transaction caches, or enroll/change billing. Direct-card text follows the saved consent pointer rather than hiding missing consent.
 
+Inactive provider history is used to reconcile existing links, but does not create new permanent instruments. Only currently verified-active sources are eligible for creation. Diagnostics distinguish provider record counts from verified-active records; a consent ID alone is never reported as verified permission. Previously created historical Source rows are retained with their bookkeeping associations; this fix does not delete business data.
+
 Discovery and outcome writes continue after an individual source fails, then report an aggregate failure. Negative reconciliation requires a complete, verified scope. Partial/unavailable scopes keep their previous pointers; unknown consent states protect existing links. Timestamp comparisons and the user-row lock prevent an older completed refresh from replacing newer saved metadata. Existing source IDs, bill assignments and transaction classifications are preserved.
 
 Webhook receipt is separate from successful processing. Failed or abandoned processing can be claimed again; successful and currently claimed duplicates do not repeat processing. A ten-minute lease bounds abandoned claims. This is receipt deduplication, not an automatic recovery scheduler.

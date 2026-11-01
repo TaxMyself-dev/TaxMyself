@@ -14,6 +14,14 @@
 - Verification: 12 focused authentication/MFA tests passed and Angular production build passed with existing budget/CommonJS warnings. Initial test invocation was corrected to use explicit include filters matching the isolated tsconfig; no broad-suite success is claimed. Backend/schema/security-policy/external-contract changes: none. No DB access, app startup, production changes, main merge or push.
 - Reviewed the complete change: the runtime fix only supplies the missing router hook and compile-time interfaces. User should refresh localhost:4200 and retry login against the existing dev backend; no additional SQL or backend restart is required.
 
+## Historical-source creation and diagnostic correction — 2026-11-01
+
+- Same worktree, following the reported dev refresh. Read-only investigation found no active provider consent for the reported dev identity; the successful metadata reads returned expired/rejected/terminated permissions. Those reads did not exercise transaction ingestion or establish when provider termination happened.
+- Discovery retains withInvalid=true for reconciliation but filters permanent source creation through validConnectedSources for both accounts and cards. Source/consent status and consent expiry are checked before insertion. Existing source identities, bills and negative/partial/unknown-consent reconciliation semantics remain intact. Previously added historical rows are not deleted.
+- Discovery logs separate total provider record counts, verified-active records and inactive/unverified records; masked instrument lines are emitted only for verified-active sources. Removed the misleading identifier-presence hasConsent indicator and the premature module-access activation message. No billing policy changed.
+- Permanent regression file: backend/src/feezback/feezback-history-refresh.spec.ts. Covers terminal/pending/unknown consent statuses, date expiry, invalid sources under valid consents, spouse scope, active direct cards and mixed active/historical responses. Unknown consent correctly remains incomplete rather than proving revocation.
+- Final verification: 320 backend tests in 28 suites and 67 frontend tests passed; Nest and Angular production builds passed with existing Angular budget/CommonJS warnings. Re-review checked creation filters for both identities/source types, active direct cards, mixed historical responses, continued negative reconciliation, unchanged partial/unknown-consent protection and unchanged refresh side-effect boundaries. No additional actionable regression identified within this change. No schema changes, data cleanup, provider calls during implementation/tests, production access, integration or push.
+
 ## Acceptance criteria
 
 - Isolate per-source discovery/outcome writes and report every failed write.
