@@ -27,7 +27,7 @@
 - Frontend: **63 tests passed** in ChromeHeadless. Command: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.banking-reliability.spec.json --include=src/app/components/open-banking-management/*.spec.ts --include=src/app/components/generic-table/generic-table.component.spec.ts --include=src/app/components/generic-table/table-actions.spec.ts --include=src/app/services/sync-status.reliability.spec.ts`.
 - Angular production build: `NG_BUILD_MAX_WORKERS=2 npm run build` passed; existing style/bundle budgets and CommonJS dependency warnings remain. Commands ran on Node 24; the frontend declares Node 20.
 - Known pre-existing failure: the broader selected UI run had 68 passed / 1 failed. `table-action-consumers.spec.ts` calls `IncomesPage.confirmResumeAutomaticAllocation` on a prototype fixture without its confirmation service (`Cannot read properties of undefined (reading 'add')`). Reproduced on the exact recorded base frontend: 10 passed / 1 failed. Feature frontend files were backed up and restored around that baseline-only run in the owned worktree. No unrelated invoice code/test was changed.
-- Schema: prepared [standalone additive SQL](../../features/feezback-sync-reliability.sql), synchronized with the canonical final section in `docs/redesign/cutover.sql`; **not executed**, including against a local MySQL database. Apply/test the schema before starting the new backend.
+- Schema: [standalone SQL](../../features/feezback-sync-reliability.sql), synchronized with the canonical final section in `docs/redesign/cutover.sql`. Initially prepared only; subsequently applied to the explicitly authorized `keepintax-dev` database as recorded below. No production application.
 - Production: no production log/DB/provider access, application startup, synchronization or mutations during implementation.
 - Security: existing owner/verified-admin/tenant boundaries retained. Structured support diagnostics omit credentials/full account identifiers. Local environment files remain ignored and uncommitted.
 - Accounting: no rule/classification/calculation changes. Existing ingestion deduplication/classifications are preserved; accounting of ingestion outcomes now detects exclusions and inconsistencies instead of claiming complete success.
@@ -37,7 +37,7 @@
 
 ## Integration
 
-- Not integrated, not pushed, not deployed. No schema application authorized/performed.
+- Not integrated, not pushed, not deployed. Only the later explicitly authorized dev schema application below was performed; no production application.
 - Further GitHub pushing remains subject to Elazar's explicit manual testing of the current local main revision and renewed explicit push approval.
 
 ## Review follow-up
@@ -47,5 +47,15 @@
 - Permanent reproductions: `backend/src/feezback/feezback-review-regression.spec.ts` and `frontend/src/app/components/open-banking-management/open-banking-review-regression.spec.ts`. Added negative/in-flight/error cases and adapted the existing preview/mock contracts.
 - Follow-up review also closes false-success source outcomes/dialogs after rejected persistence, and conditionally interrupts a job whose connection disappears during its pull without reviving cleanup-cleared lifecycle state.
 - Final repeated verification: **280 backend tests in 25 suites; 63 frontend tests; Nest build and Angular production build passed**. Existing Angular budget/CommonJS warnings remain. Reports remain outside Git; no source changes followed final verification.
-- Re-review: checked the final diff against all eight findings, provider-only refresh boundaries, owner/role scope, no false success from rejected/previously cached rows, confirmation failure guards and lifecycle interruption/cleanup ordering. All original reproductions are permanent and green; no additional actionable finding remained in this local review. Actual MySQL/provider behavior was not exercised.
+- Re-review: checked the final diff against all eight findings, provider-only refresh boundaries, owner/role scope, no false success from rejected/previously cached rows, confirmation failure guards and lifecycle interruption/cleanup ordering. All original reproductions are permanent and green; no additional actionable finding remained in this local review. Live provider and transaction-processing behavior was not exercised. Later dev schema verification is recorded below.
 - No schema changes beyond the prepared, unexecuted SQL section. No production access, app startup, main integration or remote push. This review follow-up is the local feature commit containing these changes; its hash is reported to the user.
+
+## Authorized dev schema application — 2026-11-01
+
+- User explicitly requested execution after the local testing instructions. Target was checked against this worktree's environment and hard-guarded to `keepintax-dev`, port 3306, on the documented shared MySQL host. Other database targets, including production, were rejected by the execution guard.
+- MySQL: `8.0.37-google`. Preflight found only allowed status values. Existing status was `varchar(255)`; the four new columns were absent.
+- Saved the four original CREATE TABLE definitions, preflight column metadata and status counts outside Git before applying the exact standalone section. SQL SHA-256: `be55f94a1b410c35c965951260c41c34a51bd8e9b14f94e5b8d847f71d6cc586`.
+- Applied the standalone section on one connection with a migration advisory lock, bounded metadata-lock wait and strict SQL mode. No historical cutover execution, data backfill, provider calls or application startup.
+- Verified `user_source_sync_state.status` is `varchar(32) NOT NULL DEFAULT 'not_synced'`; `source.metadataVerifiedAt`, `user_source_sync_state.consentVerifiedAt` and `feezback_webhook_events.processing_started_at` are nullable `datetime(3)`; `user_sync_state.permissionsSnapshot` is nullable `json`.
+- Status counts unchanged: 9 `not_synced`, 2 `skipped_direct`, 15 `success`. No row DML was issued. Verification snapshot retained alongside the schema backup outside the repository.
+- Production untouched. No merge to main, remote push, sync or live callback configuration change. The worktree can now use this dev schema for manual application testing.

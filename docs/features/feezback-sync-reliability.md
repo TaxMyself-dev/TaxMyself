@@ -33,7 +33,7 @@ The prepared [standalone SQL section](feezback-sync-reliability.sql) is also app
 4. Use the normal **רענון בדיקת הרשאות** action to repair confirmed missing/stale links, followed by the existing explicit transaction-pull flow. Refresh alone deliberately does not restore missing transactions. Existing deduplication and classifications remain in effect. No user-specific recovery script is included.
 5. Observe partial failures and supplier errors; a local fix cannot resolve provider policy denial or missing provider consent scope.
 
-No SQL was executed, no live application was started, no production was accessed, and nothing was pushed by this implementation task. SQL has not been exercised against a MySQL database. Local builds and tests use mocks, not the copied environment's database/provider credentials. For code rollback, retain the additive nullable columns/wider status type; do not narrow the status column while `skipped_direct` rows exist.
+Implementation used mocked tests/local builds without app startup, production access or push. Following the user's subsequent explicit request, the standalone SQL was applied and verified on `keepintax-dev` (MySQL `8.0.37-google`) on 2026-11-01, after schema backup and preflight; status counts were unchanged. This does not constitute provider/application end-to-end validation or a production schema application. For code rollback, retain the additive nullable columns/wider status type; do not narrow the status column while `skipped_direct` rows exist.
 
 ## Manual acceptance checks
 
@@ -57,4 +57,4 @@ Automated verification and the known base-test failure are recorded in [the task
 - Stored management reads bypass the provider queue. Console source summaries are masked and settings logs only source counts. Structured errors retain sanitized causes and support IDs.
 - Known rejected source IDs receive failed outcomes rather than provider-read success. The dashboard terminal dialog honors aggregate support errors even if all returned source reads succeeded or no source rows are available.
 
-These cases are permanent mocked regressions in the backend and banking UI suites. Schema/production/provider verification remains outside this local task; the existing SQL section is unchanged and unexecuted.
+These cases are permanent mocked regressions in the backend and banking UI suites. The SQL artifact is unchanged; its later authorized dev-only execution is recorded above and in the task handoff. Production/provider verification remains outstanding.
