@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { DataSource } from 'typeorm';
 import { createHash } from 'node:crypto';
+import { lycheeResponseShape } from './lychee-response-shape';
+import { lycheeLog } from './lychee-log';
 import type { BusinessQuestionRequest } from './lychee-business-question';
 import {
   PromptDeliveryError,
@@ -111,8 +113,25 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
         },
       );
     } catch (error) {
+      lycheeLog(
+        questionId,
+        'business.prompt.response',
+        'failed',
+        'מבנה תשובת שגיאת השליחה בלבד; אין ערכים, כותרות או תוכן הודעה',
+        { responseShape: lycheeResponseShape((error as any)?.response?.data) },
+      );
       throw new PromptDeliveryError(promptDiagnostic(error, request));
     }
+    lycheeLog(
+      questionId,
+      'business.prompt.response',
+      'completed',
+      'התקבלה תשובת HTTP לשליחה; נרשמים שמות שדות וסוגים בלבד, לא אישור קישור מזהה',
+      {
+        httpStatus: response.status,
+        responseShape: lycheeResponseShape(response.data),
+      },
+    );
     const directId = whatsappReceipt(response.data);
     if (directId) return directId;
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Logger } from '@nestjs/common';
 import {
   LycheeHttpPromptTransport,
   NoSendPromptTransport,
@@ -142,6 +143,51 @@ describe('Question send API contract — mocked HTTP only', () => {
       new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
     ).rejects.toThrow('Question receipt unavailable');
     expect(get).not.toHaveBeenCalled();
+  });
+  it('logs response field paths and types on missing receipt without response values or secrets', async () => {
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      post.mockResolvedValue({
+        status: 200,
+        data: {
+          ok: true,
+          data: {
+            id: 'private-provider-value',
+            phone: request.phone,
+            text: request.text,
+            token: 'fake-key-for-unit-tests',
+          },
+        },
+      });
+      await expect(
+        new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).rejects.toThrow();
+      const log = debug.mock.calls
+        .map((args) => JSON.parse(args[0] as string))
+        .find((line) => line.stage === 'business.prompt.response');
+      expect(log).toMatchObject({
+        httpStatus: 200,
+        responseShape: {
+          '$.ok': 'boolean',
+          '$.data.id': 'string',
+          '$.data.phone': 'string',
+          '$.data.token': 'omitted',
+        },
+      });
+      for (const value of [
+        'private-provider-value',
+        request.phone,
+        request.text,
+        'fake-key-for-unit-tests',
+      ])
+        expect(JSON.stringify(log)).not.toContain(value);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).not.toHaveBeenCalled();
+    } finally {
+      debug.mockRestore();
+    }
   });
   it('uses the same header across transport recreation and credential rotation, isolating questions and channels', async () => {
     post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });
