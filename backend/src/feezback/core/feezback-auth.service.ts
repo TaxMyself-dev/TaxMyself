@@ -8,6 +8,9 @@ import { FeezbackJwtService } from '../feezback-jwt.service';
 import { toFeezbackHttpError } from './feezback-errors';
 import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
 
+// Feezback confirmed access tokens are valid for at most ten minutes.
+const MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 600;
+
 interface TokenCacheEntry {
   token: string;
   expiresAt: number;
@@ -88,8 +91,10 @@ export class FeezbackAuthService {
       // retry. A new JWT would hide whether the provider key lookup recovered.
       const body = { token: jwtToken };
       let response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }>;
+      let requestedAt = Date.now();
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
+          requestedAt = Date.now();
           response = await firstValueFrom(this.http.post(this.tokenUrl, body));
           break;
         } catch (error) {
@@ -105,7 +110,8 @@ export class FeezbackAuthService {
       }
 
       const expiresInSeconds = this.extractExpiresIn(response.data);
-      const expiresAt = Date.now() + expiresInSeconds * 1000;
+      // Count from the request start so network latency cannot extend validity.
+      const expiresAt = requestedAt + expiresInSeconds * 1000;
       this.tokenCache.set(sub, { token: accessToken, expiresAt });
 
       return accessToken;
@@ -117,20 +123,11 @@ export class FeezbackAuthService {
   }
 
   private extractExpiresIn(payload: { expiresIn?: number; expires_in?: number } | undefined): number {
-    const fallback = 3600; // 1 hour default
-    if (!payload) {
-      return fallback;
-    }
-
-    if (typeof payload.expiresIn === 'number' && payload.expiresIn > 0) {
-      return payload.expiresIn;
-    }
-
-    if (typeof payload.expires_in === 'number' && payload.expires_in > 0) {
-      return payload.expires_in;
-    }
-
-    return fallback;
+    const reportedLifetimes = [payload?.expiresIn, payload?.expires_in]
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+    // Respect a shorter provider lifetime, but never cache beyond ten minutes,
+    // even when expiry metadata is missing, invalid, or unexpectedly longer.
+    return Math.min(MAX_ACCESS_TOKEN_LIFETIME_SECONDS, ...reportedLifetimes);
   }
 
   private describeError(error: unknown): string {
