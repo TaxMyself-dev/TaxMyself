@@ -17,7 +17,11 @@ before storing them in the correct business Drive inbox.
 - Gmail and Mailgun callers converge here; keep dedup semantics consistent
   across channels.
 - On a database failure after a Drive upload, cleanup attempts to remove the
-  orphaned file. Preserve this compensation behavior.
+  freshly uploaded file. Preserve this compensation behavior. A recovered file
+  from an earlier attempt must never be deleted by compensation or a dedup race.
+- Before uploading, inspect only the selected owner's business inbox/processed
+  folders for unregistered identical content. MD5/size select candidates; verify
+  downloaded SHA-256 before reusing a Drive identity and completing the ledger.
 - Scope every lookup to the authenticated user and business.
 
 ## Related topics

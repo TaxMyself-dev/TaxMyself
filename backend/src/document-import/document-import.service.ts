@@ -89,13 +89,17 @@ export class DocumentImportService {
    * upload, DB insert) never throw — they come back as status SKIPPED so a
    * batch caller can continue with its remaining documents.
    */
-  async importDocument(request: DocumentImportRequest): Promise<DocumentImportResult> {
+  async importDocument(
+    request: DocumentImportRequest,
+  ): Promise<DocumentImportResult> {
     // Decide the target business first — dedup, Drive folder lookup and the
     // ledger row all key off businessNumber. When the caller supplies one it is
     // honored unchanged; when it is absent the resolver picks it.
     const businessNumber = await this.resolveBusinessNumber(request);
 
-    const contentHash = createHash('sha256').update(request.content).digest('hex');
+    const contentHash = createHash('sha256')
+      .update(request.content)
+      .digest('hex');
 
     // Dedup BEFORE any Drive work: the product manages documents, not import
     // history — identical bytes for this user+business are one document, no
@@ -118,31 +122,86 @@ export class DocumentImportService {
       };
     }
 
-    const inboxFolderId = await this.resolveInboxFolderId(
-      request.firebaseId,
-      businessNumber,
-    );
+    const { inboxFolderId, processedFolderId } =
+      await this.resolveImportFolders(request.firebaseId, businessNumber);
 
     // Collision-safe name against the CURRENT inbox listing. Listed per
     // import (not cached) so sequential batch imports see each other's
     // uploads and uniquify correctly.
     let driveFileName: string;
     let driveFileId: string;
+    let driveFolderId = inboxFolderId;
+    let uploadedHere = false;
     try {
-      const usedNames = new Set(
-        (await this.googleDriveService.listFolderFiles(inboxFolderId)).map((f) => f.name),
+      const folderIds = [
+        ...new Set(
+          [inboxFolderId, processedFolderId].filter((id): id is string => !!id),
+        ),
+      ];
+      const listings = await Promise.all(
+        folderIds.map(async (folderId) => ({
+          folderId,
+          files: await this.googleDriveService.listFolderFiles(folderId),
+        })),
       );
-      driveFileName = this.pickUniqueName(request.filename, usedNames);
-      driveFileId = await this.googleDriveService.uploadFile(
-        inboxFolderId,
-        driveFileName,
-        request.content,
-        request.mimeType ?? 'application/octet-stream',
-      );
+      // A crash can leave a complete Drive upload without a ledger row. Only
+      // inspect this owner's selected business folders. MD5 is a cheap candidate
+      // filter; never adopt a file without verifying its actual SHA-256 bytes.
+      const md5 = createHash('md5').update(request.content).digest('hex');
+      const candidates = listings
+        .flatMap(({ folderId, files }) =>
+          files
+            .filter(
+              (file) =>
+                file.md5Checksum === md5 &&
+                file.size === request.content.length,
+            )
+            .map((file) => ({ folderId, file })),
+        )
+        .sort(
+          (a, b) =>
+            (a.file.createdTime || '').localeCompare(
+              b.file.createdTime || '',
+            ) || a.file.id.localeCompare(b.file.id),
+        );
+      let recovered: (typeof candidates)[number] | undefined;
+      for (const candidate of candidates) {
+        const bytes = await this.googleDriveService.downloadFile(
+          candidate.file.id,
+        );
+        if (createHash('sha256').update(bytes).digest('hex') === contentHash) {
+          recovered = candidate;
+          break;
+        }
+      }
+      if (recovered) {
+        driveFileId = recovered.file.id;
+        driveFileName = recovered.file.name;
+        driveFolderId = recovered.folderId;
+        this.logger.log(
+          'Recovered an existing business Drive file by verified content; completing import registration without uploading again',
+        );
+      } else {
+        const usedNames = new Set(
+          listings
+            .find((list) => list.folderId === inboxFolderId)!
+            .files.map((file) => file.name),
+        );
+        driveFileName = this.pickUniqueName(request.filename, usedNames);
+        driveFileId = await this.googleDriveService.uploadFile(
+          inboxFolderId,
+          driveFileName,
+          request.content,
+          request.mimeType ?? 'application/octet-stream',
+        );
+        uploadedHere = true;
+      }
     } catch (error: any) {
       this.logger.error(
         `Drive upload failed for "${request.filename}" ` +
-          `(source=${request.source}, business=${businessNumber}): ${error?.message ?? error}`,
+          `(source=${request.source}, business=${businessNumber}): ${
+            error?.message ?? error
+          }`,
       );
       return {
         status: 'SKIPPED',
@@ -167,7 +226,7 @@ export class DocumentImportService {
           contentHash,
           driveFileId,
           driveFileName,
-          driveFolderId: inboxFolderId,
+          driveFolderId,
           filename: this.truncate(request.filename, 512) || 'attachment',
           mimeType: request.mimeType,
           size: request.content.length,
@@ -191,7 +250,8 @@ export class DocumentImportService {
       // Unique-index race: a concurrent import recorded these bytes between
       // our lookup and the insert — the document IS in the system.
       if (this.isDuplicateKeyError(error)) {
-        await this.cleanupDriveFile(driveFileId, driveFileName, 'duplicate');
+        if (uploadedHere)
+          await this.cleanupDriveFile(driveFileId, driveFileName, 'duplicate');
         const winner = await this.importedDocumentRepo.findOne({
           where: {
             firebaseId: request.firebaseId,
@@ -210,14 +270,20 @@ export class DocumentImportService {
       }
       this.logger.error(
         `imported_documents insert failed after Drive upload of "${driveFileName}" ` +
-          `(driveFileId=${driveFileId}, source=${request.source}): ${error?.message ?? error}`,
+          `(driveFileId=${driveFileId}, source=${request.source}): ${
+            error?.message ?? error
+          }`,
         (error as Error)?.stack,
       );
-      await this.cleanupDriveFile(
-        driveFileId,
-        driveFileName,
-        'db-insert-failure',
-      );
+      // A recovered file may be the only durable copy or a concurrent winner's
+      // file. Compensation is permitted only for our own fresh upload.
+      if (uploadedHere) {
+        await this.cleanupDriveFile(
+          driveFileId,
+          driveFileName,
+          'db-insert-failure',
+        );
+      }
       return {
         status: 'SKIPPED',
         reason: `db_insert_failed: ${error?.message ?? error}`,
@@ -239,13 +305,17 @@ export class DocumentImportService {
    *   home for "which business does this document belong to" (single business,
    *   or the primary for multi-business users).
    */
-  private async resolveBusinessNumber(request: DocumentImportRequest): Promise<string> {
+  private async resolveBusinessNumber(
+    request: DocumentImportRequest,
+  ): Promise<string> {
     const explicit = request.businessNumber?.trim();
     if (explicit) {
       return explicit;
     }
 
-    const business = await this.businessResolver.resolveTargetBusiness(request.firebaseId);
+    const business = await this.businessResolver.resolveTargetBusiness(
+      request.firebaseId,
+    );
     if (!business.businessNumber) {
       throw new BadRequestException(
         `Resolved business (id=${business.id}) has no business number — cannot import into it.`,
@@ -259,18 +329,23 @@ export class DocumentImportService {
    * exists but the inbox/processed pair was never provisioned, backfill it
    * via the existing GoogleDriveService helper (same as the documents flow).
    */
-  private async resolveInboxFolderId(
+  private async resolveImportFolders(
     firebaseId: string,
     businessNumber: string,
-  ): Promise<string> {
+  ): Promise<{ inboxFolderId: string; processedFolderId: string | null }> {
     const business = await this.businessRepo.findOne({
       where: { firebaseId, businessNumber },
     });
     if (!business) {
-      throw new NotFoundException(`Business ${businessNumber} not found for this user`);
+      throw new NotFoundException(
+        `Business ${businessNumber} not found for this user`,
+      );
     }
     if (business.driveInboxFolderId) {
-      return business.driveInboxFolderId;
+      return {
+        inboxFolderId: business.driveInboxFolderId,
+        processedFolderId: business.driveProcessedFolderId,
+      };
     }
     if (!business.driveFolderId) {
       throw new BadRequestException(
@@ -279,15 +354,20 @@ export class DocumentImportService {
       );
     }
     const { inboxFolderId, processedFolderId } =
-      await this.googleDriveService.ensureInboxAndProcessed(business.driveFolderId);
+      await this.googleDriveService.ensureInboxAndProcessed(
+        business.driveFolderId,
+      );
     business.driveInboxFolderId = inboxFolderId;
     business.driveProcessedFolderId = processedFolderId;
     await this.businessRepo.save(business);
-    return inboxFolderId;
+    return { inboxFolderId, processedFolderId };
   }
 
   /** "receipt.pdf" → "receipt (1).pdf", "receipt (2).pdf", ... until free. */
-  private pickUniqueName(originalFilename: string, usedNames: Set<string>): string {
+  private pickUniqueName(
+    originalFilename: string,
+    usedNames: Set<string>,
+  ): string {
     // Drive accepts most characters; slashes confuse the UI breadcrumbs
     // (same rule as GoogleDriveService.sanitizeFolderName).
     const cleaned =
@@ -326,7 +406,9 @@ export class DocumentImportService {
         reason === 'duplicate' ? 'duplicate Drive file' : 'orphaned Drive file';
       this.logger.error(
         `Could not delete ${uploadKind} "${driveFileName}" (${driveFileId}) — ` +
-          `it will sit in inbox/ untracked: ${cleanupError?.message ?? cleanupError}`,
+          `it will sit in inbox/ untracked: ${
+            cleanupError?.message ?? cleanupError
+          }`,
       );
     }
   }
