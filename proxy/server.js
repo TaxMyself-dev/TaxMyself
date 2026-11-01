@@ -8,6 +8,7 @@ function logHeaders(headers) {
 }
 
 const app = express();
+require('./lychee-webhook').registerLycheeWebhook(app, express);
 // const PORT = 8080;
 const PORT = process.env.PORT || 8080;
 

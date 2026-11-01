@@ -15,6 +15,7 @@ for (const endpoint of ['/tpp/v1/users/test/cards', '/token', '/link']) {
       require(name) {
         if (name === 'express') return express;
         if (name === 'http-proxy-middleware') return { createProxyMiddleware(value) { options = value; } };
+        if (name === './lychee-webhook') return { registerLycheeWebhook() {} };
         throw Error('Unexpected dependency: ' + name);
       },
       process: { env: { PROXY_MODE: 'feezback-prod' } }, Buffer,
