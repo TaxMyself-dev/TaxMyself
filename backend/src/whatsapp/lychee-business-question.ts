@@ -1,0 +1,41 @@
+import type { LycheeEvent } from './lychee-webhook.controller';
+
+export interface BusinessChoice {
+  businessNumber: string;
+  name: string;
+  label: string;
+}
+
+/** Vendor request preview only: this module contains no network/send operation. */
+export function buildBusinessQuestion(
+  event: LycheeEvent,
+  phone: string,
+  businesses: { businessNumber: string; businessName?: string }[],
+) {
+  if (!event.whatsapp_message_id || !phone || businesses.length < 2 ||
+      businesses.some(b => !b.businessNumber) ||
+      new Set(businesses.map(b => b.businessNumber)).size !== businesses.length) {
+    throw new Error('Invalid business question');
+  }
+  const choices: BusinessChoice[] = businesses.map((b, i) => {
+    const name = (b.businessName || '').replace(/\s+/g, ' ').trim() || b.businessNumber;
+    const prefix = `${i + 1}. `;
+    let label = prefix;
+    // Preserve whole Unicode code points while respecting the short button label.
+    for (const char of name) {
+      if (label.length + char.length > 20) break;
+      label += char;
+    }
+    return { businessNumber: b.businessNumber, name, label: businesses.length <= 3 ? label : String(i + 1) };
+  });
+  const text = choices.length <= 3 ? 'לאיזה עסק לשייך את המסמך?' :
+    'לאיזה עסק לשייך את המסמך? השב בציטוט להודעה זו עם המספר המתאים:\n' +
+    choices.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+  return { choices, preview: {
+    channel_id: event.channel_id,
+    phone,
+    text,
+    ...(choices.length <= 3 ? { buttons: choices.map(c => c.label) } : {}),
+    reply_to_whatsapp_message_id: event.whatsapp_message_id,
+  } };
+}

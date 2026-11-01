@@ -93,6 +93,13 @@ multi-connection MySQL verification remain deployment verification steps.
 
 Each document is downloaded immediately and retained in its own SQL row as
 WAITING_FOR_BUSINESS, with a snapshot of business choices. No question is sent.
+The first incremental selection checkpoint builds a vendor-compatible preview
+quoted to the original document. New choice snapshots contain short unique
+labels with business names (number fallback); up to three choices use buttons,
+larger lists use a numbered quoted text menu. The future sender must use these
+stored labels, not recalculate labels from a potentially reordered business list.
+`business.prompt.preview` logs only a count, never the question/recipient content.
+There is no send transport or automatic fake question ID at this checkpoint.
 `prompt_whatsapp_message_id` is reserved for the future authorized send adapter;
 do not populate it with a guessed or unrelated ID. Without an actual prompt
 mapping, replies are ignored and cannot assign documents.
@@ -108,7 +115,12 @@ requires a quoted message ID, and returns `{ownsReply: boolean}` from SQL.
 It matches channel, normalized sender and prompt ID, including completed
 documents for late/duplicate replies; duplicate mappings fail closed. It performs
 no queue insertion or document processing. Missing table/DB fails the lookup.
-The proxy queries this endpoint before forwarding quoted events. No new table,
+For allowlisted testers the proxy now queries the development table directly:
+a known dev question forwards only to dev, including after tests end. An unknown
+reply in active test mode returns 409 without probing production. If tests are
+inactive and no dev mapping exists, production ownership is queried as before.
+Unlisted senders can resolve production ownership only. SQL failure or duplicate
+development mappings never fall back to another environment. No new table,
 schema, proxy DB credentials or mutable in-memory proxy mappings were added.
 Support prompt ownership is not included in this document-only resolver; its
 future integration must extend the resolver without creating another webhook.

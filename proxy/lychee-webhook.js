@@ -118,17 +118,29 @@ function createHandler(config, fetchImpl = fetch, routingStore) {
           audit(event.event_id, 'reply.resolve', 'blocked', 'מזהה ההודעה המצוטטת אינו תקין');
           return res.status(400).json({ error: 'Invalid reply identifier' });
         }
-        // Persistent ownership lives in each backend DB, not in proxy instance memory.
-        const candidates = config.testPhones.has(sender) ? [config.prodUrl, config.devUrl] : [config.prodUrl];
-        audit(event.event_id, 'reply.resolve', 'started', 'בדיקת בעלות השאלה בסביבות המורשות לפני ניתוב התשובה');
-        const ownership = await Promise.all(candidates.map(url => ownsReply(url, raw, header)));
-        const matches = candidates.filter((_url, index) => ownership[index]);
-        if (matches.length !== 1) {
-          audit(event.event_id, 'reply.resolve', 'blocked', matches.length ?
-            'נמצא מיפוי בשתי סביבות; אין ניתוב אוטומטי' : 'לא נמצא מיפוי שאלה; אין העברה אוטומטית לפרוד');
-          return res.status(409).json({ error: 'Unknown or ambiguous reply ownership' });
+        // Development prompt ownership is read directly, even after tests ended.
+        let devRoute;
+        if (config.testPhones.has(sender)) {
+          if (!routingStore?.replyRoute) throw new Error('Reply routing storage unavailable');
+          audit(event.event_id, 'reply.resolve', 'started', 'בדיקת בעלות שאלת הדב ישירות במסד הדב');
+          devRoute = await routingStore.replyRoute(event, sender);
+          if (!['dev', 'prod', 'unknown'].includes(devRoute)) throw new Error('Invalid reply routing decision');
+          if (devRoute === 'unknown') {
+            audit(event.event_id, 'reply.resolve', 'blocked', 'התשובה במצב בדיקות אך לא נמצאה שאלת דב מתאימה; אין פנייה לפרוד');
+            return res.status(409).json({ error: 'Unknown development reply ownership' });
+          }
         }
-        target = matches[0];
+        if (devRoute === 'dev') {
+          audit(event.event_id, 'reply.resolve', 'completed', 'נמצאה שאלת דב תואמת; אין פנייה לבק של פרוד', { environment: 'dev' });
+          target = config.devUrl;
+        } else {
+          audit(event.event_id, 'reply.resolve', 'started', 'בדיקת בעלות השאלה בפרוד לפני ניתוב התשובה');
+          if (!await ownsReply(config.prodUrl, raw, header)) {
+            audit(event.event_id, 'reply.resolve', 'blocked', 'לא נמצא מיפוי שאלה בפרוד; אין העברה אוטומטית');
+            return res.status(409).json({ error: 'Unknown reply ownership' });
+          }
+          target = config.prodUrl;
+        }
       } else if (config.testPhones.has(sender)) {
         activeStage = 'route.resolve';
         // Development SQL is the durable authority, independent of either backend's availability.

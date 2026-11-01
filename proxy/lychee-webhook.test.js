@@ -28,7 +28,12 @@ async function invoke({ overrides = {}, eventOverrides = {}, failure = false, st
     }
     if (failure) throw new Error('offline');
     return { ok: status >= 200 && status < 300 };
-  }, { async resolve(event, sender) {
+  }, { async replyRoute() {
+    if (lookupFailure === env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner') throw new Error('dev SQL offline');
+    if (ownership[env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner']) return 'dev';
+    if (ownership[env.LYCHEE_PROD_WEBHOOK_URL + '/reply-owner']) return 'prod';
+    return routeEnvironment === 'dev' ? 'unknown' : 'prod';
+  }, async resolve(event, sender) {
     routeCalls.push({ event, sender });
     if (routeFailure) throw new Error('routing unavailable');
     const text = event.text.trim().replace(/\s+/g, ' ');
@@ -55,8 +60,8 @@ test('quoted dev question routes reply to dev without marker, preserving signed 
     text: 'business A', reply_to_whatsapp_message_id: 'wamid.dev-question' },
     ownership: { [env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner']: true } });
   assert.equal(res.code, 200);
-  assert.equal(calls.length, 3);
-  assert.equal(calls[2].url, env.LYCHEE_DEV_WEBHOOK_URL);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, env.LYCHEE_DEV_WEBHOOK_URL);
   for (const call of calls) {
     assert.strictEqual(call.options.body, bytes);
     assert.equal(call.options.headers['x-lychee-signature'], signed);
@@ -66,15 +71,14 @@ test('question owner takes precedence over the sender test mode', async () => {
   const { res, calls, routeCalls } = await invoke({ eventOverrides: { reply_to_whatsapp_message_id: 'wamid.prod-question' },
     ownership: { [env.LYCHEE_PROD_WEBHOOK_URL + '/reply-owner']: true } });
   assert.equal(res.code, 200);
-  assert.equal(calls[2].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  assert.equal(calls[1].url, env.LYCHEE_PROD_WEBHOOK_URL);
   assert.equal(routeCalls.length, 0);
 });
-test('unknown or conflicting reply ownership forwards to neither environment', async () => {
-  for (const ownership of [{}, { [env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner']: true,
-    [env.LYCHEE_PROD_WEBHOOK_URL + '/reply-owner']: true }]) {
+test('unknown dev reply forwards to neither environment and never probes production', async () => {
+  for (const ownership of [{}]) {
     const { res, calls } = await invoke({ eventOverrides: { reply_to_whatsapp_message_id: 'wamid.unknown' }, ownership });
     assert.equal(res.code, 409);
-    assert.ok(calls.every(x => x.url.endsWith('/reply-owner')));
+    assert.equal(calls.length, 0);
   }
 });
 test('unavailable dev ownership lookup never falls back to production', async () => {

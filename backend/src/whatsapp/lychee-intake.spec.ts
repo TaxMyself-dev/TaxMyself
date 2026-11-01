@@ -4,6 +4,7 @@ import { detectLycheeMime } from './lychee-client.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { lycheeSender } from './lychee-sender';
+import { buildBusinessQuestion } from './lychee-business-question';
 
 const event: any = {
   event: 'message.received',
@@ -141,6 +142,35 @@ describe('Lychee signed intake', () => {
       'prompt',
     ]);
     expect(await store.selectBusiness(event, 'owner')).toBe(false);
+  });
+
+  it('selects separate businesses for two documents answered out of order (simulated prompt IDs only)', async () => {
+    const choices = buildBusinessQuestion(event, '972501234567', [
+      { businessNumber: '123', businessName: 'נגרות' }, { businessNumber: '456', businessName: 'ייעוץ' },
+    ]).choices;
+    const rows = ['A', 'B'].map(id => ({ event_id: 'document-' + id, channel_id: 'channel1',
+      sender_phone: '972501234567', firebase_id: 'owner', prompt: 'test-only-prompt-' + id,
+      business_choices: choices, status: 'WAITING_FOR_BUSINESS', business_number: null }));
+    const db: any = { query: jest.fn(async (sql: string, args: any[]) => {
+      if (sql.trim().startsWith('SELECT')) return rows.filter(r => r.channel_id === args[0] && r.sender_phone === args[1] &&
+        r.firebase_id === args[2] && r.prompt === args[3] && r.status === 'WAITING_FOR_BUSINESS');
+      const row = rows.find(r => r.event_id === args[1] && r.status === 'WAITING_FOR_BUSINESS');
+      if (!row) return { affectedRows: 0 };
+      row.business_number = args[0]; row.status = 'PENDING';
+      return { affectedRows: 1 };
+    }) };
+    const store = new LycheeEventStore(db);
+    const reply = (id: string, label: string) => ({ ...event, has_media: false, message_type: 'text',
+      reply_to_whatsapp_message_id: 'test-only-prompt-' + id, text: label });
+    expect(await store.selectBusiness(reply('B', choices[1].label), 'wrong-owner')).toBe(false);
+    expect(await store.selectBusiness(reply('B', 'unknown business'), 'owner')).toBe(false);
+    expect(await store.selectBusiness(reply('B', choices[1].label), 'owner')).toBe(true);
+    expect(rows[0].business_number).toBeNull();
+    expect(rows[1].business_number).toBe('456');
+    expect(await store.selectBusiness(reply('A', choices[0].label), 'owner')).toBe(true);
+    expect(rows.map(r => r.business_number)).toEqual(['123', '456']);
+    expect(await store.selectBusiness(reply('B', choices[0].label), 'owner')).toBe(false);
+    expect(rows[1].business_number).toBe('456');
   });
 });
 

@@ -7,6 +7,7 @@ import { Business } from '../business/business.entity';
 import { DocumentImportService } from '../document-import/document-import.service';
 import { DocumentImportSource } from '../document-import/enums/document-import.enums';
 import { lycheeSender } from './lychee-sender';
+import { buildBusinessQuestion } from './lychee-business-question';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
 import { LycheeClient } from './lychee-client.service';
 import type { LycheeEvent } from './lychee-webhook.controller';
@@ -250,7 +251,8 @@ export class LycheeIntakeService {
       { bytes: file.content.length },
     );
     if (businesses.length > 1 && !selected) {
-      // No send API exists in this adapter. Keep each document separately.
+      // Prepare a vendor-compatible question, but never send or invent a prompt ID.
+      const question = buildBusinessQuestion(e, normalized, businesses);
       await lycheeStep(
         e.event_id,
         'business.wait',
@@ -259,14 +261,13 @@ export class LycheeIntakeService {
           this.store.waitForBusiness(
             job,
             owner,
-            businesses.map((b) => ({
-              businessNumber: b.businessNumber,
-              label: b.businessNumber,
-              name: b.businessName,
-            })),
+            question.choices,
             file,
           ),
       );
+      lycheeLog(e.event_id, 'business.prompt.preview', 'completed',
+        'הוכנה שאלת בחירת עסק בציטוט המסמך; מצב הדמיה בלבד, לא נשלחה הודעה',
+        { count: question.choices.length });
       lycheeLog(
         e.event_id,
         'business.wait',

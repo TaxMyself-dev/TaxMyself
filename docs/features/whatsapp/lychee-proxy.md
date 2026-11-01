@@ -51,21 +51,26 @@ Null, missing or blank sender_phone falls back to contact_phone; malformed or
 conflicting nonempty sender phones are rejected. Signed bytes remain unchanged.
 Never mirror or fall back to prod after a dev failure.
 Quoted replies take precedence over the current test mode. For allowlisted senders the proxy
-queries both configured receivers at `<receiver-url>/reply-owner` with the
-unchanged signed event. This endpoint only reads persistent prompt mappings;
+queries development prompt ownership directly in SQL first, scoped by channel,
+sender and quoted question ID, including completed documents. A unique dev owner
+routes to dev without a production request. Unknown replies in active test mode
+return 409 without a production request. After ending tests (or before starting),
+an unknown dev question is checked only at the production receiver's
+`<receiver-url>/reply-owner` with the unchanged signed event. This endpoint only reads persistent prompt mappings;
 it never enqueues, downloads media or processes the event. Exactly one owner is
 required, then the event is forwarded only to that receiver. Unlisted senders
-can resolve production ownership only. Zero/multiple owners return 409; failed
-lookups return 502 for retry, with no environment fallback.
-For test senders, ngrok must be reachable even to disambiguate a production
-quoted reply. Both backends must expose the ownership endpoint before deploying
-this proxy revision. No quoted reply is routed solely by its text or arrival order.
+can resolve production ownership only. Unknown ownership returns 409; failed
+lookups or ambiguous development mappings return 502 for retry, with no environment fallback.
+Dev SQL must be reachable to resolve test senders' quoted replies. A known dev
+question does not require a production backend or even an ngrok ownership probe;
+ngrok is used only to forward the actual reply. No quoted reply is routed solely
+by its button text or arrival order.
 Other unquoted messages follow the sender's persisted mode, independently of other senders.
 Configuration is read on process startup; changes require a proxy restart/deploy.
 For standalone commands and captionless dev uploads, configure and later deploy
-only this proxy, and run the normal local backend via ngrok. The existing quoted
-reply ownership flow is unchanged and still requires its two receiver endpoints;
-this task does not replace that resolver or enable outbound business questions.
+only this proxy, and run the normal local backend via ngrok. Testing quoted dev
+business replies also uses only dev SQL and the local receiver after this revision
+is deployed. This checkpoint does not enable outbound business questions.
 
 The proxy follows no redirects, forwards no API credentials, and logs no payloads.
 It waits up to 10 seconds for downstream acceptance. Any non-2xx or network
