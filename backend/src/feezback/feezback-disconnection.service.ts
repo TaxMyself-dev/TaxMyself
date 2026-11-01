@@ -66,10 +66,33 @@ export class FeezbackDisconnectionService {
     private readonly cacheCleanup: FeezbackCacheCleanupService,
   ) {}
 
+  /** Explicit provider preview used internally by consent management, never on screen initialization. */
   async targets(firebaseId: string): Promise<DisconnectionTargets> {
     return connectionOperation(firebaseId, async () => {
       const { verifiedSources, cacheProof, ...targets } = await this.readTargets(firebaseId);
       return targets;
+    });
+  }
+
+  async storedTargets(firebaseId: string): Promise<DisconnectionTargets> {
+    return connectionOperation(firebaseId, async () => {
+      const user = await this.users.findOne({ where: { firebaseId } });
+      if (!user) throw new BadRequestException('User not found');
+      if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({ code: 'SYNTHETIC_OPEN_BANKING', message: 'Synthetic connection' });
+      const snapshot = (await this.sync.getSyncState(firebaseId))?.permissionsSnapshot;
+      if (snapshot) return { ...snapshot, hasOpenBanking: user.hasOpenBanking };
+      const stored = await this.sources.find({ where: { userId: firebaseId } });
+      const rows = await this.sync.getSourceResults(firebaseId);
+      const consents: DisconnectionConsent[] = [];
+      for (const row of rows) {
+        const source = stored.find(s => s.id === row.sourceRecordId);
+        if (!source || !row.consentId) continue;
+        const role = source.connectionRole ?? 'primary';
+        let consent = consents.find(c => c.consentId === row.consentId && c.connectionRole === role);
+        if (!consent) { consent = { consentId: row.consentId, connectionRole: role, status: 'valid', sources: [] }; consents.push(consent); }
+        consent.sources.push({ sourceRecordId: source.id, sourceName: source.sourceName, sourceType: source.sourceType });
+      }
+      return { consents, complete: true, hasOpenBanking: user.hasOpenBanking, errors: [] };
     });
   }
 
@@ -78,7 +101,7 @@ export class FeezbackDisconnectionService {
     await this.sync.clearConsentInitiated(firebaseId);
   }
 
-  private async readTargets(firebaseId: string, resetFullyDisconnected = true): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>>; cacheProof: DisconnectionCacheProof }> {
+  private async readTargets(firebaseId: string): Promise<DisconnectionTargets & { verifiedSources: Map<string, Set<number>>; cacheProof: DisconnectionCacheProof }> {
     const user = await this.users.findOne({ where: { firebaseId } });
     if (!user) throw new BadRequestException('User not found');
     if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({
@@ -170,14 +193,8 @@ export class FeezbackDisconnectionService {
     // GET may clean only a fully disconnected tenant: partial GET reads do not
     // clear old consent pointers, so selective deletion could be refilled.
     // POST performs selective cleanup after its pointer reconciliation below.
-    if (resetFullyDisconnected && fullyDisconnected) await this.cacheCleanup.cleanup(firebaseId, cacheProof);
-    if (fullyDisconnected && resetFullyDisconnected) {
-      await this.resetDisconnectedFlags(firebaseId);
-      hasOpenBanking = false;
-    } else if (connected || (connectionComplete && errors.length === 0)) {
-      hasOpenBanking = connected;
-      await this.users.update({ firebaseId }, { hasOpenBanking });
-    }
+    // Provider previews never reconcile flags or delete cache. Only disconnect's verified final snapshot may do so.
+    hasOpenBanking = connected || (!connectionComplete ? user.hasOpenBanking : false);
     return { consents, complete: errors.length === 0, hasOpenBanking, errors, verifiedSources, cacheProof };
   }
 
@@ -187,7 +204,7 @@ export class FeezbackDisconnectionService {
       throw new BadRequestException('consentId and connectionRole are required');
     }
     return connectionOperation(firebaseId, async () => {
-      const before = await this.readTargets(firebaseId, false);
+      const before = await this.readTargets(firebaseId);
       const targets = request.scope === 'all' ? before.consents : before.consents.filter(c =>
         c.consentId === request.consentId && c.connectionRole === request.connectionRole);
       if (request.scope === 'consent' && !targets.length) throw new BadRequestException('Consent is not an active permission owned by this user');
@@ -197,7 +214,7 @@ export class FeezbackDisconnectionService {
           return { ...target, failed: false };
         } catch { return { ...target, failed: true }; }
       }));
-      const after = await this.readTargets(firebaseId, false);
+      const after = await this.readTargets(firebaseId);
       const results: Array<{ consentId: string; connectionRole: ConnectionRole; status: 'terminated' | 'failed' | 'pending' }> = [];
       for (const attempt of attempts) {
         const identityReadFailed = after.errors.some(error => error.connectionRole === attempt.connectionRole && error.code === 'consents_unavailable');
@@ -233,6 +250,12 @@ export class FeezbackDisconnectionService {
         (request.scope !== 'all' || after.consents.length === 0) &&
         !before.errors.some(e => e.code === 'consents_unavailable');
       if (success && after.consents.length === 0) await this.resetDisconnectedFlags(firebaseId);
+      const prior = (await this.sync.getSyncState(firebaseId))?.permissionsSnapshot;
+      const failedRoles = new Set(after.errors.map(e => e.connectionRole));
+      await this.sync.savePermissionsSnapshot(firebaseId, { observedAt: new Date().toISOString(),
+        consents: [...after.consents.filter(c => !failedRoles.has(c.connectionRole)),
+          ...(prior?.consents ?? []).filter(c => failedRoles.has(c.connectionRole))],
+        complete: after.complete, errors: after.errors });
       return { status: success ? 'success' as const : 'partial' as const, results,
         remainingConsents: after.consents, complete: after.complete,
         hasOpenBanking: after.hasOpenBanking, errors: [...before.errors, ...after.errors] };

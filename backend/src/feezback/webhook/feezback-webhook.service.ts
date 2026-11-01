@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
+import { BankingBatchError, bankingIssue } from '../core/open-banking-issue';
 import { FeezbackWebhookEvent } from './entities/feezback-webhook-event.entity';
 import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 import { computeFeezbackEventHash } from '../utils/feezback-event.utils';
@@ -23,33 +24,45 @@ export class FeezbackWebhookService {
 
     this.logger.log(`[FeezbackWebhook] Processing event=${eventType} hash=${payloadHash}`);
 
-    const eventEntity = this.webhookRepository.create({
+    let eventEntity = this.webhookRepository.create({
       eventType,
       payloadJson: body,
       payloadHash,
       processedAt: null,
       processingError: null,
+      processingStartedAt: new Date(),
     });
 
     try {
       await this.webhookRepository.save(eventEntity);
     } catch (error: any) {
       if (error?.code === 'ER_DUP_ENTRY' || error?.code === '23505') {
-        this.logger.log(`[FeezbackWebhook] Duplicate payload — skipping hash=${payloadHash} eventType=${eventType}`);
-        return;
+        const existing = await this.webhookRepository.findOne({ where: { payloadHash } });
+        if (!existing || existing.processedAt || (!existing.processingError && existing.processingStartedAt &&
+          Date.now() - new Date(existing.processingStartedAt).getTime() < 10 * 60_000)) return;
+        const lease = new Date();
+        const acquired = await this.webhookRepository.update({ id: existing.id, processedAt: IsNull(),
+          processingError: existing.processingError ?? IsNull(), processingStartedAt: existing.processingStartedAt ?? IsNull() },
+          { processingStartedAt: lease, processingError: null });
+        if (!acquired.affected) return;
+        eventEntity = Object.assign(existing, { processingStartedAt: lease });
+      } else {
+        throw error;
       }
-      this.logger.error(`[FeezbackWebhook] Failed to persist event=${eventType}: ${error?.message}`, error?.stack);
-      throw error;
     }
 
     try {
       await this.processEvent(eventEntity, body);
-      await this.webhookRepository.update(eventEntity.id, { processedAt: new Date(), processingError: null });
+      await this.webhookRepository.update({ id: eventEntity.id, processingStartedAt: eventEntity.processingStartedAt },
+        { processedAt: new Date(), processingError: null });
     } catch (error: any) {
       this.logger.error(`[FeezbackWebhook] Error processing event=${eventType}: ${error?.message}`, error?.stack);
-      await this.webhookRepository.update(eventEntity.id, {
-        processedAt: new Date(),
-        processingError: error?.message ?? 'Unknown error',
+      const userId = parseFeezbackUserIdentifier(body?.payload?.user, body?.payload?.tpp).firebaseId ?? 'unknown';
+      const issue = error instanceof BankingBatchError ? error.issues[0]
+        : bankingIssue(this.logger, 'connection_save', userId, 'webhook_processing_failed', error);
+      await this.webhookRepository.update({ id: eventEntity.id, processingStartedAt: eventEntity.processingStartedAt }, {
+        processedAt: null,
+        processingError: `${issue.code}|${issue.errorId}`,
       });
       // Do not rethrow – webhook should still respond 200
     }
@@ -85,19 +98,19 @@ export class FeezbackWebhookService {
     const payload = body?.payload as Record<string, any> | undefined;
     if (!payload) {
       this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing payload data');
-      return;
+      throw new BadRequestException('Missing webhook payload');
     }
 
     const consentId = typeof payload.consent === 'string' ? payload.consent : null;
     if (!consentId) {
       this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing consent identifier in payload');
-      return;
+      throw new BadRequestException('Missing webhook consent');
     }
 
     const currentStatus = typeof payload.currentStatus === 'string' ? payload.currentStatus : null;
     this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] consentId=${consentId} currentStatus=${currentStatus ?? 'none'}`);
 
-    const TERMINAL_STATUS_FRAGMENTS = ['REVOK', 'EXPIR', 'REJECT', 'TERMINAT', 'INVALID'];
+    const TERMINAL_STATUS_FRAGMENTS = ['REVOK', 'EXPIR', 'REJECT', 'TERMINAT', 'INVALID', 'SUSPEND', 'NOANSWER'];
     const isTerminal = !!currentStatus &&
       TERMINAL_STATUS_FRAGMENTS.some(frag => currentStatus.toUpperCase().includes(frag));
     if (!isTerminal) {
@@ -113,7 +126,7 @@ export class FeezbackWebhookService {
     }
     if (!firebaseId) {
       this.logger.warn('[FeezbackWebhook][ConsentStatusChanged] Missing firebaseId — aborting terminal cleanup.');
-      return;
+      throw new BadRequestException('Missing webhook user');
     }
 
     const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
@@ -127,6 +140,7 @@ export class FeezbackWebhookService {
       }
     } catch (error: any) {
       this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentOnSources failed firebaseId=${masked}: ${error?.message}`, error?.stack);
+      throw error;
     }
   }
 
@@ -134,7 +148,7 @@ export class FeezbackWebhookService {
     const payload = body?.payload as Record<string, any> | undefined;
     if (!payload) {
       this.logger.warn('[FeezbackWebhook][UserDataIsAvailable] Missing payload data');
-      return;
+      throw new BadRequestException('Missing webhook payload');
     }
 
     const userIdentifier = typeof payload.user === 'string' ? payload.user : null;
@@ -152,7 +166,7 @@ export class FeezbackWebhookService {
       this.logger.warn(
         `[FeezbackWebhook][UserDataIsAvailable] Missing required identifiers — aborting. firebaseId=${masked} sub=${sub ?? 'none'}`,
       );
-      return;
+      throw new BadRequestException('Missing webhook identifiers');
     }
 
     // UserDataIsAvailable is Feezback's signal that data is ready. We only
@@ -166,8 +180,8 @@ export class FeezbackWebhookService {
     // Safety:
     //   - Webhook controller ACKs immediately and runs this async — webhook
     //     latency to Feezback isn't affected.
-    //   - All errors are swallowed so the controller still responds 200 and
-    //     Feezback doesn't retry (we already persisted the event for audit).
+    //   - Receipt is acknowledged independently. Errors reach the persisted
+    //     processing result, leaving failed events eligible for a later replay.
     try {
       if (sub.endsWith('_sub_spouse')) {
         const verified = await this.feezbackService.verifySpouseWebhookConnection(firebaseId, sub);
@@ -179,6 +193,7 @@ export class FeezbackWebhookService {
         `[FeezbackWebhook][UserDataIsAvailable] handler failed firebaseId=${masked}: ${error?.message}`,
         error?.stack,
       );
+      throw error;
     }
   }
 }

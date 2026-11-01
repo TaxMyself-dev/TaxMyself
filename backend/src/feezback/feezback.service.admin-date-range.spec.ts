@@ -75,7 +75,7 @@ describe('FeezbackService admin date-range diagnostics', () => {
       mailService as any,
     );
     summaryLog = jest.fn();
-    (service as any).logger = { log: summaryLog, warn: jest.fn() };
+    (service as any).logger = { log: summaryLog, warn: jest.fn(), error:jest.fn() };
   });
 
   it('emails provider duplicate details including the Feezback response timestamp', async () => {
@@ -212,8 +212,9 @@ describe('FeezbackService admin date-range diagnostics', () => {
     );
     expect(JSON.stringify(result.request)).not.toContain('secret-token');
     expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('[Feezback pull summary] status=success'));
-    expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('Bank account bank-1 | success | transactions=1'));
-    expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('Credit card 1234 | success | transactions=1'));
+    expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('Bank account ***1 | success | transactions=1'));
+    expect(summaryLog).toHaveBeenCalledWith(expect.stringContaining('Credit card ***1234 | success | transactions=1'));
+    expect(JSON.stringify(summaryLog.mock.calls)).not.toContain('bank-1');
   });
 
   it('pulls bank transactions through the explicit V2 consent endpoint', async () => {

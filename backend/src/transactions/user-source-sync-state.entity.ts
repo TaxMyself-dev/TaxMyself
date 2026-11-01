@@ -1,5 +1,6 @@
 import { Column, Entity, Index, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Source, ConnectionRole } from './source.entity';
+import type { BankingIssue } from '../feezback/core/open-banking-issue';
 
 /**
  * Per-source sync outcome statuses:
@@ -14,6 +15,7 @@ import { Source, ConnectionRole } from './source.entity';
 export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
 
 export interface SourceResult {
+  supportError?: BankingIssue;
   type: 'bank' | 'card';
   /** IBAN last-7 for bank; maskedPan last-4 for card. */
   sourceId: string;
@@ -68,7 +70,11 @@ export class UserSourceSyncState {
   @Column({ type: 'varchar', nullable: true })
   consentId: string | null;
 
-  @Column({ type: 'varchar', default: 'not_synced' })
+  /** Internal freshness fence; never displayed in the payment-source table. */
+  @Column({ type: 'datetime', precision: 3, nullable: true })
+  consentVerifiedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 32, default: 'not_synced' })
   status: SourceSyncStatus;
 
   @Column({ type: 'int', default: 0 })

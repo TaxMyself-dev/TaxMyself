@@ -13,7 +13,7 @@ describe('Feezback late-pull persistence boundary', () => {
     };
     lock = jest.fn(async () => user);
     service = Object.create(FeezbackService.prototype);
-    Object.assign(service, { processingService: processing, userSyncStateService: sync,
+    Object.assign(service, { logger:{error:jest.fn(),log:jest.fn()}, processingService: processing, userSyncStateService: sync,
       sourceRepository: { find: jest.fn().mockResolvedValue([{ id: 11 }, { id: 12 }]),
         manager: { transaction: jest.fn(async callback => callback({ getRepository: () => ({ findOne: lock }) })) } },
       notifyProviderDuplicates: jest.fn().mockResolvedValue(undefined),

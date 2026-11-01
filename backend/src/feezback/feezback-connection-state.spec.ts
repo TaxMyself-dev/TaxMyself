@@ -11,7 +11,12 @@ describe('Feezback persisted connection state', () => {
     enrollment = { connectionVerified: jest.fn().mockResolvedValue(undefined) };
     billing = { autoUpgradeReferralOpenBankingIfEligible: jest.fn() };
     service = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any, {} as any,
-      { markSourcesRefreshed: jest.fn().mockResolvedValue(undefined) } as any, users, {} as any,
+      { getSyncState: jest.fn().mockResolvedValue(null), savePermissionsSnapshot: jest.fn(async (_id, _snapshot, state) => {
+          if (state.connected || state.complete) await users.update({firebaseId:'owner'}, {hasOpenBanking:state.connected});
+          return true;
+        }),
+        reconcileSourceConsents: jest.fn().mockResolvedValue(undefined), markSourcesRefreshed: jest.fn().mockResolvedValue(undefined) } as any, users,
+      { find: jest.fn().mockResolvedValue([]) } as any,
       billing,
       { sendMail: jest.fn().mockResolvedValue(undefined) } as any, enrollment);
     (service as any).upsertSources = jest.fn().mockResolvedValue(undefined);
@@ -45,12 +50,12 @@ describe('Feezback persisted connection state', () => {
   });
   it('preserves connection on a partial provider failure with no positive proof', async () => {
     user.hasOpenBanking = true; api.getUserCards.mockRejectedValue(Error('unavailable'));
-    await service.refreshUserSources('owner', 'test'); expect(user.hasOpenBanking).toBe(true);
+    await expect(service.refreshUserSources('owner', 'test')).rejects.toThrow('OB-01'); expect(user.hasOpenBanking).toBe(true);
     expect(users.update).not.toHaveBeenCalled();
   });
   it('preserves connection if consent verification fails', async () => {
     user.hasOpenBanking = true; api.getUserConsents.mockRejectedValue(Error('unavailable'));
-    await expect(service.refreshUserSources('owner', 'test')).rejects.toThrow('unavailable');
+    await expect(service.refreshUserSources('owner', 'test')).rejects.toThrow('OB-01');
     expect(user.hasOpenBanking).toBe(true); expect(enrollment.connectionVerified).not.toHaveBeenCalled();
   });
   it('late data-ready webhook cannot restore a terminated consent from stale provider sources', async () => {
@@ -58,7 +63,7 @@ describe('Feezback persisted connection state', () => {
     api.getUserConsents.mockResolvedValue({ consents: [{ resourceId: 'c1', consentStatus: 'terminatedByTpp' }] });
     api.getUserAccounts.mockResolvedValue({ accounts: [{ iban: 'IL1234567', resourceId: 'bank1', consentId: 'c1' }] });
     await service.refreshUserSources('owner', 'UserDataIsAvailable');
-    expect((service as any).prePopulateSourceResults).toHaveBeenCalledWith('owner', [], []);
+    expect((service as any).prePopulateSourceResults).toHaveBeenCalledWith('owner', [], [], expect.any(Date));
     expect(user.hasOpenBanking).toBe(false);
     expect(enrollment.connectionVerified).not.toHaveBeenCalled();
   });
@@ -79,7 +84,7 @@ describe('Feezback persisted connection state', () => {
     await service.refreshUserSources('owner', 'UserDataIsAvailable');
     expect((service as any).prePopulateSourceResults).toHaveBeenCalledWith('owner',
       [expect.objectContaining({ resourceId: 'bank1', consentId: 'c2' })],
-      [expect.objectContaining({ resourceId: 'card1', consentId: 'c2' })]);
+      [expect.objectContaining({ resourceId: 'card1', consentId: 'c2' })], expect.any(Date));
     expect(user.hasOpenBanking).toBe(true);
     expect(bank.consentId).toBe('c1'); expect(card.consentId).toBe('c1');
   });

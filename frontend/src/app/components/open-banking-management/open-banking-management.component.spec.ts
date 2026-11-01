@@ -15,6 +15,7 @@ describe('open banking disconnection', () => {
   let service: any; let auth: any; let router: any; let component: OpenBankingManagementComponent;
   beforeEach(() => {
     service = { disconnectionTargets: jasmine.createSpy().and.returnValue(of({ consents: [consent], complete: true, hasOpenBanking: true, errors: [] })),
+      refreshPermissions: jasmine.createSpy().and.returnValue(of({ consents: [consent], complete: true, hasOpenBanking: true, errors: [] })),
       disconnect: jasmine.createSpy().and.returnValue(of({ status: 'success', remainingConsents: [], complete: true, hasOpenBanking: false, errors: [], results: [] })) };
     auth = { isViewingAsClient: jasmine.createSpy().and.returnValue(false), restoreUserData: jasmine.createSpy().and.returnValue(of(null)) };
     router = { navigate: jasmine.createSpy() };
@@ -32,11 +33,17 @@ describe('open banking disconnection', () => {
   it('refreshes the owner profile after authoritative discovery before notifying parent consumers', () => {
     const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);
     const changed = jasmine.createSpy(); component.connectionChanged.subscribe(changed);
-    component.ngOnInit();
+    component.refresh();
     expect(auth.restoreUserData).toHaveBeenCalledTimes(1); expect(changed).not.toHaveBeenCalled();
     expect(component.loading()).toBeTrue();
     refreshed.next({ hasOpenBanking: false }); refreshed.complete();
     expect(changed).toHaveBeenCalledTimes(1); expect(component.loading()).toBeFalse();
+  });
+  it('initializes from stored state without a live refresh or profile write', () => {
+    component.ngOnInit();
+    expect(service.disconnectionTargets).toHaveBeenCalledTimes(1);
+    expect(service.refreshPermissions).not.toHaveBeenCalled();
+    expect(auth.restoreUserData).not.toHaveBeenCalled();
   });
   it('waits for the post-cancellation profile before clearing busy state and notifying parent consumers', () => {
     component.ngOnInit(); const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);

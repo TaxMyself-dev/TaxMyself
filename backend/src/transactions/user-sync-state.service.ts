@@ -3,8 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, In, IsNull, Not, Repository } from 'typeorm';
 import { Source, ConnectionRole } from './source.entity';
 import { SourceType } from '../enum';
+import { User } from '../users/user.entity';
 import { UserSyncState, SyncSkipReason, ProcessStatus, ResultStatus } from './user-sync-state.entity';
 import { UserSourceSyncState, SourceResult } from './user-source-sync-state.entity';
+import { BankingBatchError, BankingIssue, bankingIssue } from '../feezback/core/open-banking-issue';
 
 /**
  * If a sync row is stuck in `'running'` for longer than this, treat it as
@@ -129,11 +131,16 @@ export class UserSyncStateService {
   async upsertSourceConsents(
     userId: string,
     sources: Array<Pick<SourceResult, 'type' | 'sourceId' | 'sourceRecordId' | 'connectionRole' | 'resourceId' | 'consentId'> & { isDirect?: boolean | null }>,
+    verifiedAt = new Date(),
   ): Promise<void> {
+    const failures: BankingIssue[] = [];
+    let completed = 0;
     for (const src of sources) {
+      try {
       const source = await this.resolveSource(userId, src);
       const sourceRecordId = source.id;
       const existing = await this.sourceRepo.findOne({ where: { userId, sourceRecordId } });
+      if (existing?.consentVerifiedAt && existing.consentVerifiedAt > verifiedAt) throw Object.assign(new Error('Stale consent snapshot'), { code: 'STALE_CONSENT_SNAPSHOT' });
       if (existing) {
         // Discovery (getUserAccounts) is the source of truth — when it provides
         // a fresh consentId / resourceId, overwrite the stored ones (consent
@@ -143,12 +150,18 @@ export class UserSyncStateService {
             ? { status: 'skipped_direct', transactionCount: 0, error: null }
             : src.isDirect === false && existing.status === 'skipped_direct'
               ? { status: 'not_synced', error: null }
+              : src.consentId && src.consentId !== existing.consentId
+                ? { status: 'not_synced', error: null }
               : {};
-        await this.sourceRepo.update({ userId, sourceRecordId }, {
+        const updated = await this.sourceRepo.update({ userId, sourceRecordId,
+          consentVerifiedAt: existing.consentVerifiedAt ?? IsNull(),
+          consentId: existing.consentId ?? IsNull(), resourceId: existing.resourceId ?? IsNull() }, {
           consentId: src.consentId ?? existing.consentId,
           resourceId: src.resourceId ?? existing.resourceId,
+          consentVerifiedAt: verifiedAt,
           ...statusPatch,
         });
+        if (updated?.affected === 0) throw Object.assign(new Error('Stale consent snapshot'), { code: 'STALE_CONSENT_SNAPSHOT' });
       } else {
         await this.sourceRepo.save(this.sourceRepo.create({
           userId,
@@ -157,12 +170,43 @@ export class UserSyncStateService {
           type: src.type,
           resourceId: src.resourceId ?? null,
           consentId: src.consentId ?? null,
+          consentVerifiedAt: verifiedAt,
           status: src.isDirect === true ? 'skipped_direct' : 'not_synced',
           transactionCount: 0,
           error: null,
         }));
       }
+      completed++;
+      } catch (error) {
+        failures.push(bankingIssue(this.logger, 'connection_save', userId, 'source_consent_write_failed', error, src));
+      }
     }
+    if (failures.length) {
+      this.logger.error('[OpenBanking] '+JSON.stringify({stage:'connection_save',userId,outcome:completed?'partial':'failed',completed,failed:failures.length,errorIds:failures.map(i=>i.errorId)}));
+      throw new BankingBatchError(failures, completed);
+    }
+  }
+
+  /** Called only for independently complete provider reads; never for a failed source list. */
+  async reconcileSourceConsents(userId: string, role: ConnectionRole,
+    verified: Array<{ type: 'bank' | 'card'; sources: string[] }>, verifiedAt = new Date(),
+    protectedConsentIds: string[] = []): Promise<void> {
+    const failures: BankingIssue[] = [];
+    for (const row of await this.getSourceResults(userId)) {
+      const scope = verified.find(v => v.type === row.type);
+      if (row.connectionRole !== role || !scope || scope.sources.includes(row.sourceId) ||
+        !row.consentId || protectedConsentIds.includes(row.consentId)) continue;
+      try {
+        if (row.consentVerifiedAt && row.consentVerifiedAt > verifiedAt) throw Object.assign(new Error('Stale consent snapshot'), { code: 'STALE_CONSENT_SNAPSHOT' });
+        const result = await this.sourceRepo.update({ userId, sourceRecordId: row.sourceRecordId,
+          consentId: row.consentId, consentVerifiedAt: row.consentVerifiedAt ?? IsNull() },
+          { consentId: null, consentVerifiedAt: verifiedAt });
+        if (result?.affected === 0) throw Object.assign(new Error('Stale consent snapshot'), { code: 'STALE_CONSENT_SNAPSHOT' });
+      } catch (error) {
+        failures.push(bankingIssue(this.logger, 'connection_save', userId, 'consent_reconciliation_failed', error, row));
+      }
+    }
+    if (failures.length) throw new BankingBatchError(failures);
   }
 
   /**
@@ -171,16 +215,16 @@ export class UserSyncStateService {
    * no_access    → status set to 'failed'    (user cannot sync; retry button shown)
    * cache_exists → status set to 'completed' (cache is already built; data is ready)
    */
-  async markSyncSkipped(userId: string, skipReason: SyncSkipReason): Promise<void> {
+  async markSyncSkipped(userId: string, skipReason: SyncSkipReason, previous?: UserSyncState | null): Promise<void> {
     const processStatus: ProcessStatus = skipReason === 'no_access' ? 'failed' : 'completed';
     const now = new Date();
     await this.repo.update({ userId }, {
       fullProcessStatus: processStatus,
-      fullResultStatus: 'none',
-      fullRowsWritten: 0,
+      fullResultStatus: skipReason === 'cache_exists' ? previous?.fullResultStatus ?? 'none' : 'none',
+      fullRowsWritten: skipReason === 'cache_exists' ? previous?.fullRowsWritten ?? 0 : 0,
       fullFinishedAt: now,
       fullSkipReason: skipReason,
-      fullFailureReason: null,
+      fullFailureReason: skipReason === 'cache_exists' ? previous?.fullFailureReason ?? null : null,
     });
   }
 
@@ -260,6 +304,23 @@ export class UserSyncStateService {
     return this.repo.findOne({ where: { userId } });
   }
 
+  async savePermissionsSnapshot(userId: string, permissionsSnapshot: any,
+    connection?: { connected: boolean; complete: boolean }): Promise<boolean> {
+    return this.repo.manager.transaction(async manager => {
+      // Same user-first lock order as ingestion/disconnection. No provider calls under this lock.
+      const owner = await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
+      if (!owner) throw new BadRequestException('User not found');
+      const states = manager.getRepository(UserSyncState);
+      const previous = await states.findOne({ where: { userId } });
+      if (previous?.permissionsSnapshot?.observedAt > permissionsSnapshot.observedAt) return false;
+      await states.upsert({ userId, permissionsSnapshot } as UserSyncState, ['userId']);
+      if (connection && (connection.connected || connection.complete)) {
+        await manager.getRepository(User).update({ firebaseId: userId }, { hasOpenBanking: connection.connected });
+      }
+      return true;
+    });
+  }
+
   async getSourceResults(userId: string): Promise<(UserSourceSyncState & { connectionRole: ConnectionRole })[]> {
     const rows = await this.sourceRepo.find({ where: { userId }, relations: ['source'] });
     return rows.map(row => Object.assign(row, { connectionRole: row.source?.connectionRole ?? 'primary' as ConnectionRole }));
@@ -276,7 +337,16 @@ export class UserSyncStateService {
    * break the subsequent per-account retry.
    */
   async updateSourceResults(userId: string, incoming: SourceResult[]): Promise<void> {
+    const failures: BankingIssue[] = [];
     for (const src of incoming) {
+      try {
+      if (src.status === 'failed' && src.error && !/^OB-0[1-4]\|/.test(src.error)) {
+        const httpStatus = Number(/status[=:](\d{3})/.exec(src.error)?.[1]) || undefined;
+        const issue = bankingIssue(this.logger, 'transaction_fetch', userId,
+          httpStatus && [401, 403, 404].includes(httpStatus) ? 'provider_authorization_denied' : 'source_fetch_failed',
+          { status: httpStatus }, src, { received: src.transactionCount });
+        src.error = `${issue.code}|${issue.errorId}${httpStatus ? '|' + httpStatus : ''}`;
+      }
       const source = await this.resolveSource(userId, src);
       const sourceRecordId = source.id;
       const existing = await this.sourceRepo.findOne({ where: { userId, sourceRecordId } });
@@ -313,6 +383,14 @@ export class UserSyncStateService {
         // its newer consent/resource metadata with an older pull's INSERT.
         if (error?.code !== 'ER_DUP_ENTRY' && error?.code !== '23505') throw error;
       }
+      } catch (error) {
+        failures.push(bankingIssue(this.logger, 'transaction_save', userId, 'source_outcome_write_failed', error, src,
+          { received: src.transactionCount }));
+      }
+    }
+    if (failures.length) {
+      this.logger.error('[OpenBanking] '+JSON.stringify({stage:'transaction_save',userId,outcome:failures.length===incoming.length?'failed':'partial',completed:incoming.length-failures.length,failed:failures.length,errorIds:failures.map(i=>i.errorId)}));
+      throw new BankingBatchError(failures, incoming.length - failures.length);
     }
   }
 
@@ -387,11 +465,11 @@ export class UserSyncStateService {
     })).map(source => source.id)) };
     const resetResult = await this.sourceRepo.update(
       { userId, consentId, ...identity, status: Not('skipped_direct') },
-      { consentId: null, status: 'not_synced', error: null },
+      { consentId: null, consentVerifiedAt: new Date(), status: 'not_synced', error: null },
     );
     const directResult = await this.sourceRepo.update(
       { userId, consentId, ...identity, status: 'skipped_direct' },
-      { consentId: null },
+      { consentId: null, consentVerifiedAt: new Date() },
     );
     return (resetResult.affected ?? 0) + (directResult.affected ?? 0);
   }

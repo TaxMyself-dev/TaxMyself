@@ -4,6 +4,7 @@ import { FeezbackService } from './feezback.service';
 import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { Source } from '../transactions/source.entity';
 import { SourceType } from '../enum';
+import { User } from '../users/user.entity';
 
 /** Real discovery + consent-state services, isolated repositories and provider. No live DB/API. */
 describe('Feezback reconnection preserves permanent sources', () => {
@@ -20,7 +21,12 @@ describe('Feezback reconnection preserves permanent sources', () => {
   let api: any;
   let user: any;
   let progress: any;
-  const matching = (row: any, where: any) => Object.entries(where).every(([key, value]) => row[key] === value);
+  const matching = (row: any, where: any) => Object.entries(where).every(([key, value]: [string, any]) => {
+    if (value?._type === 'isNull') return row[key] == null;
+    if (value?._type === 'in') return value.value.includes(row[key]);
+    if (value?._type === 'not') return row[key] !== value.value;
+    return row[key] === value;
+  });
 
   beforeEach(() => {
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -45,11 +51,14 @@ describe('Feezback reconnection preserves permanent sources', () => {
       create: jest.fn(row => row),
       save: jest.fn(async row => { states.push({ id: states.length + 1, ...row }); return row; }),
       update: jest.fn(async (where, patch) => {
-        for (const row of states.filter(row => matching(row, where))) Object.assign(row, patch);
-        return { affected: states.filter(row => matching(row, where)).length };
+        const matched=states.filter(row => matching(row, where));
+        for (const row of matched) Object.assign(row, patch);
+        return { affected: matched.length };
       }),
     };
-    progress = { upsert: jest.fn().mockResolvedValue(undefined), update: jest.fn().mockResolvedValue({ affected: 1 }) };
+    progress = { current:null, findOne:jest.fn(async()=>progress.current),
+      upsert: jest.fn(async row => { progress.current={...progress.current,...row}; }), update: jest.fn().mockResolvedValue({ affected: 1 }),
+      manager:{transaction:async callback=>callback({getRepository:entity=>entity===User?userRepo:progress})} };
     sync = new UserSyncStateService(progress as any, stateRepo, sourceRepo);
     user = { firebaseId: uid, hasSpouseFeezbackIdentity: true, hasOpenBanking: true };
     userRepo = {
@@ -111,7 +120,7 @@ describe('Feezback reconnection preserves permanent sources', () => {
     const sourceIds = original.map(row => row.id);
     connected = false;
     const disconnection = new FeezbackDisconnectionService(api, userRepo, sourceRepo, sync, { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) } as any);
-    await disconnection.targets(uid);
+    await disconnection.disconnect(uid, {scope:'all'});
     expect(user).toMatchObject({ hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
     expect(progress.update).toHaveBeenCalledWith({ userId: uid }, { lastConsentInitiatedAt: null });
     expect(accounts).toEqual(original);
@@ -178,7 +187,7 @@ describe('Feezback reconnection preserves permanent sources', () => {
       expect(sql).toContain('ON DUPLICATE KEY UPDATE');
       const update = sql.split('ON DUPLICATE KEY UPDATE')[1];
       expect(update).not.toMatch(/bill|resourceId|consentId|`id`|sourceName|connectionRole/);
-      expect(params).toHaveLength(5);
+      expect(params).toHaveLength(6);
     }
   });
 
@@ -190,9 +199,9 @@ describe('Feezback reconnection preserves permanent sources', () => {
     expect(stateRepo.update.mock.calls).toHaveLength(2);
     const [regular, direct] = stateRepo.update.mock.calls;
     expect(regular[0]).toEqual(expect.objectContaining({ userId: uid, consentId: 'old-consent' }));
-    expect(regular[1]).toEqual({ consentId: null, status: 'not_synced', error: null });
+    expect(regular[1]).toMatchObject({ consentId: null, status: 'not_synced', error: null, consentVerifiedAt:expect.any(Date) });
     expect(direct[0]).toEqual(expect.objectContaining({ status: 'skipped_direct' }));
-    expect(direct[1]).toEqual({ consentId: null });
+    expect(direct[1]).toMatchObject({ consentId: null, consentVerifiedAt:expect.any(Date) });
     expect(sourceRepo.find).toHaveBeenCalledWith({ where: { userId: uid, connectionRole: 'spouse' }, select: ['id'] });
   });
 });

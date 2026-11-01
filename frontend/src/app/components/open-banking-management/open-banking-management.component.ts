@@ -1,8 +1,9 @@
 import { CommonModule } from '@angular/common';
+import { OpenBankingErrorComponent, BankingSupportError, bankingRequestError } from './open-banking-error.component';
 import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogModule } from 'primeng/dialog';
-import { finalize, map, of, switchMap } from 'rxjs';
+import { catchError, finalize, map, of, switchMap } from 'rxjs';
 import { AuthService } from 'src/app/services/auth.service';
 import { BankingConsent, BankingTargets, FeezbackService } from 'src/app/services/feezback.service';
 import { GenericTableComponent } from '../generic-table/generic-table.component';
@@ -11,11 +12,12 @@ import { IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shar
 
 @Component({
   selector: 'app-open-banking-management', standalone: true,
-  imports: [CommonModule, DialogModule, GenericTableComponent],
+  imports: [CommonModule, DialogModule, GenericTableComponent, OpenBankingErrorComponent],
   templateUrl: './open-banking-management.component.html',
   styleUrls: ['./open-banking-management.component.scss'],
 })
 export class OpenBankingManagementComponent implements OnInit, OnChanges {
+  readonly supportError = signal<BankingSupportError | null>(null);
   @Input() firebaseId?: string;
   @Input() embedded = false;
   @Input() externalBusy = false;
@@ -108,21 +110,23 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     if (this.busy()) return;
     this.confirmation.set(null); this.choices.set(null);
   }
-  load(onLoaded?: () => void): void {
+  refresh(): void { this.load(undefined, true); }
+  load(onLoaded?: () => void, live = false): void {
     if (!this.canManage() || this.busy() || this.loading() || this.externalBusy) return;
-    this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false);
-    this.service.disconnectionTargets(this.firebaseId).pipe(
-      switchMap(data => !this.firebaseId && data.complete
-        ? this.auth.restoreUserData().pipe(map(() => data)) : of(data)),
+    this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false); this.supportError.set(null);
+    (live ? this.service.refreshPermissions(this.firebaseId) : this.service.disconnectionTargets(this.firebaseId)).pipe(
+      switchMap(data => live && !this.firebaseId
+        ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => data)) : of(data)),
       finalize(() => this.loading.set(false)),
     ).subscribe({
-      next: data => { this.targets.set(data); if (data.complete) this.connectionChanged.emit(); onLoaded?.(); },
+      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); if (live) this.connectionChanged.emit(); onLoaded?.(); },
       error: err => {
-        this.targets.set(null);
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
+        if (!this.synthetic()) this.supportError.set(bankingRequestError(err));
+        else this.targets.set(null);
         this.error.set(this.synthetic()
           ? 'זהו חיבור הדגמה. ניהול וניתוק הרשאות זמינים לחיבור בנקאות פתוחה אמיתי בלבד.'
-          : 'לא ניתן לבדוק את ההרשאות כרגע. אפשר לנסות שוב.');
+          : '');
       },
     });
   }

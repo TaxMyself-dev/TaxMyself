@@ -91,4 +91,8 @@ export class UserSyncState {
   @Column({ type: 'timestamp', nullable: true })
   lastConsentInitiatedAt: Date | null;
 
+  /** Saved consent-management view. Screen loads never contact the provider. */
+  @Column({ type: 'json', nullable: true })
+  permissionsSnapshot: any | null;
+
 }

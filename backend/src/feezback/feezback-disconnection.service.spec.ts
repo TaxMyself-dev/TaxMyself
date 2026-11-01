@@ -23,7 +23,8 @@ describe('Feezback disconnection', () => {
     sources = { find: jest.fn().mockResolvedValue([
       { id: 11, userId: 'owner', connectionRole: 'primary', sourceName: '1234567', sourceType: 'BANK_ACCOUNT', bill: { id: 99 } },
     ]) };
-    sync = { getSourceResults: jest.fn().mockResolvedValue([
+    sync = { getSyncState: jest.fn().mockResolvedValue(null), savePermissionsSnapshot: jest.fn().mockResolvedValue(true),
+      getSourceResults: jest.fn().mockResolvedValue([
       { sourceRecordId: 11, sourceId: '1234567', resourceId: 'a1', consentId: 'c1', connectionRole: 'primary' },
     ]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined), upsertSourceConsents: jest.fn().mockResolvedValue(undefined), clearConsentOnSources: jest.fn().mockResolvedValue(1) };
     cacheCleanup = { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) };
@@ -78,14 +79,14 @@ describe('Feezback disconnection', () => {
     expect(user.hasSpouseFeezbackIdentity).toBe(false);
     expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
   });
-  it('complete empty preview resets both connection flags and pending initiation without deleting permanent sources', async () => {
+  it('complete empty provider preview remains read-only', async () => {
     permissions.owner_sub = [];
     permissions.owner_sub_spouse = [{ resourceId: 'old', consentStatus: 'terminatedByTpp' }];
     const snapshot = JSON.stringify(await sources.find());
     const result = await service.targets('owner');
     expect(result).toMatchObject({ complete: true, hasOpenBanking: false, consents: [] });
-    expect(users.update).toHaveBeenCalledWith({ firebaseId: 'owner' }, { hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
-    expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+    expect(users.update).not.toHaveBeenCalled();
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
     expect(JSON.stringify(await sources.find())).toBe(snapshot);
     expect(api.getUserConsents.mock.calls).toEqual([['owner_sub', true], ['owner_sub_spouse', true]]);
     expect(api.terminateConsent).not.toHaveBeenCalled();
@@ -150,10 +151,11 @@ describe('Feezback disconnection', () => {
     expect(user.hasSpouseFeezbackIdentity).toBe(true);
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });
-  it('propagates GET cleanup failure before resetting connection flags', async () => {
+  it('never invokes cache cleanup from a provider preview', async () => {
     permissions.owner_sub = []; permissions.owner_sub_spouse = [];
     cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
-    await expect(service.targets('owner')).rejects.toThrow('cache transaction failed');
+    await expect(service.targets('owner')).resolves.toMatchObject({complete:true,consents:[]});
+    expect(cacheCleanup.cleanup).not.toHaveBeenCalled();
     expect(user).toMatchObject({ hasOpenBanking: true, hasSpouseFeezbackIdentity: true });
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });
@@ -308,7 +310,7 @@ describe('Feezback disconnect actor authorization', () => {
   let controller: FeezbackController, users: any, disconnect: any;
   beforeEach(() => {
     users = { isAdmin: jest.fn().mockResolvedValue(false) };
-    disconnect = { targets: jest.fn().mockResolvedValue({ consents: [] }), disconnect: jest.fn().mockResolvedValue({ status: 'success' }) };
+    disconnect = { targets: jest.fn().mockResolvedValue({ consents: [] }), storedTargets: jest.fn().mockResolvedValue({ consents: [] }), disconnect: jest.fn().mockResolvedValue({ status: 'success' }) };
     controller = new FeezbackController({} as any, users, {} as any, {} as any, undefined, disconnect);
   });
   it('allows owner even without subscription metadata and uses Firebase guard only', async () => {
@@ -320,7 +322,7 @@ describe('Feezback disconnect actor authorization', () => {
     users.isAdmin.mockResolvedValue(true);
     await controller.disconnectionTargets({ user: { firebaseId: 'admin', actorFirebaseId: 'admin' } } as any, 'customer');
     expect(users.isAdmin).toHaveBeenCalledWith('admin');
-    expect(disconnect.targets).toHaveBeenCalledWith('customer');
+    expect(disconnect.storedTargets).toHaveBeenCalledWith('customer');
   });
   it('rejects accountant delegation and forged admin flags without trusting subject role', async () => {
     await expect(controller.disconnect({ user: { firebaseId: 'customer', actorFirebaseId: 'accountant' }, isAdminImpersonation: true, isDelegatedAccess: true } as any, { scope: 'all' })).rejects.toThrow('owner or an administrator');

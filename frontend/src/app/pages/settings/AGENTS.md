@@ -101,3 +101,7 @@ management usable without unlocking other protected pages.
 Disconnected sources retain an explicit delete action identified by sourceRecordId (including spouse sources with matching numbers). Active-consent rows instead offer consent cancellation with a complete affected-source preview. Deletion requires confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the existing explanation. Historical transactions are retained.
 
 Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.
+
+## Saved permission refresh contract (2026-11-01)
+
+Initial permission-table/management loads read saved server data only, with no provider reconciliation or profile mutation. The refresh button explicitly POSTs refresh-permissions, which saves verified metadata. Partial refresh reloads independently saved source states after owner profile refresh; unverified states remain unchanged. Failed source-list reads retain the previous table. Direct labels depend on hasConsent first: missing/invalid pointer shows no consent, otherwise direct shows bank-feed coverage. No verification dates or uncertainty status are shown in the table. Hebrew support errors have code/unique error ID and a copy button. Refresh never starts a transaction pull, disconnects, changes subscriptions or clears cache.

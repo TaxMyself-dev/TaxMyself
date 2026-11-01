@@ -24,6 +24,7 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
+import { BankingIssue, issueFromReason } from '../feezback/core/open-banking-issue';
 import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -102,12 +103,8 @@ export class TransactionsController {
    * webhook (post-consent). This endpoint is polled every 3 s and must not
    * itself be a trigger, otherwise it races with consent flows.
    *
-   * Status translation:
-   *   - If a consent flow is in progress (lastConsentInitiatedAt is fresh and
-   *     no sync has finished after it), report 'running'. The webhook will
-   *     fire the sync; the frontend keeps polling and the dialog stays in
-   *     loading until fullFinishedAt > lastConsentInitiatedAt.
-   *   - Otherwise, 'empty'/null translates to 'completed' so the poller stops.
+   * Only a persisted running job reports 'running'. Consent onboarding is a
+   * separate flow; an empty/missing job translates to 'completed'.
    */
   @Get('sync-status')
   @UseGuards(FirebaseAuthGuard)
@@ -118,18 +115,15 @@ export class TransactionsController {
       this.userSyncStateService.getSourceResults(userId),
     ]);
 
-    const inConsentFlow = this.feezbackService.hasUnprocessedConsentFlow(state);
-
     const toFrontendStatus = (s: string | null | undefined): string => {
       if (s === 'running') return 'running';
-      if (inConsentFlow) return 'running';
       return !s || s === 'empty' ? 'completed' : s;
     };
 
     if (!state) {
       return {
         fullSync: {
-          processStatus: inConsentFlow ? 'running' : 'completed',
+          processStatus: 'completed',
           resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null,
         },
         sourceResults: [],
@@ -143,6 +137,7 @@ export class TransactionsController {
         rowsWritten:   state.fullRowsWritten,
         finishedAt:    state.fullFinishedAt ?? null,
         failureReason: state.fullFailureReason ?? null,
+        supportError: issueFromReason(state.fullFailureReason, state.fullResultStatus !== 'failed'),
         skipReason:    state.fullSkipReason ?? null,
       },
       sourceResults: sources,
@@ -183,7 +178,8 @@ export class TransactionsController {
    */
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
-    return state?.fullProcessStatus === 'completed';
+    // Existing cached rows remain readable while a refresh runs or fails.
+    return !!state;
   }
 
   /**
@@ -329,9 +325,9 @@ export class TransactionsController {
     console.log(`  (valid accounts below)`);
     console.log(`════════════════════════════════════`);
     console.log(`  Bank (${banks.length}):`);
-    for (const s of banks) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    for (const s of banks) console.log(`    •  ***${s.sourceId.replace(/\D/g,'').slice(-4)}   hasConsent=${!!s.consentId}`);
     console.log(`  Cards (${cards.length}):`);
-    for (const s of cards) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    for (const s of cards) console.log(`    •  ***${s.sourceId.replace(/\D/g,'').slice(-4)}   hasConsent=${!!s.consentId}`);
     console.log(`════════════════════════════════════\n`);
 
     // Register discovered sources as 'not_synced' (discovered, not yet pulled)
@@ -432,7 +428,7 @@ export class TransactionsController {
   @HttpCode(HttpStatus.OK)
   async postConsentSync(
     @Req() request: AuthenticatedRequest,
-  ): Promise<{ status: 'completed' | 'pending' }> {
+  ): Promise<{ status: 'completed' | 'pending' | 'failed'; supportError?: BankingIssue }> {
     const userId = request.user?.firebaseId;
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
@@ -443,6 +439,12 @@ export class TransactionsController {
     // it again from here doubled the Feezback API calls for no functional gain
     // (the decision below uses only timestamps, not source rows).
     const state = await this.userSyncStateService.getSyncState(userId);
+
+    const snapshot = state?.permissionsSnapshot;
+    if (snapshot?.supportError && state?.lastConsentInitiatedAt &&
+      new Date(snapshot.observedAt).getTime() >= new Date(state.lastConsentInitiatedAt).getTime()) {
+      return {status:'failed',supportError:snapshot.supportError};
+    }
 
     if (state?.fullProcessStatus === 'running') {
       this.logger.log(`[PostConsentSync] Sync in flight — frontend will poll | firebaseId=${masked}`);

@@ -113,7 +113,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       // 2. Source upserted with isDirect=true BEFORE any transaction fetch.
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.stringContaining('COALESCE(VALUES(`isDirect`), `isDirect`)'),
-        [USER, '3221', SourceType.CREDIT_CARD, true, 'primary'],
+        [USER, '3221', SourceType.CREDIT_CARD, true, 'primary', expect.any(Date)],
       );
 
       // 3. Card excluded from processing, exposed as a skipped direct card.
@@ -151,7 +151,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
 
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.any(String),
-        [USER, '9999', SourceType.CREDIT_CARD, false, 'primary'],
+        [USER, '9999', SourceType.CREDIT_CARD, false, 'primary', expect.any(Date)],
       );
       expect(consentApi.getCardTransactions).toHaveBeenCalledWith(
         SUB, 'consent-1', 'card-credit', 'booked', undefined, undefined,
@@ -205,7 +205,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       ]);
 
       const [sql, params] = sourceRepository.query.mock.calls[0];
-      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null, 'primary']);
+      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null, 'primary', expect.any(Date)]);
       // The SQL-side guarantee: a NULL incoming value never overwrites a stored one.
       expect(sql).toContain('COALESCE(VALUES(`isDirect`), `isDirect`)');
     });

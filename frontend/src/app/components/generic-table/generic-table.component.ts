@@ -79,6 +79,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   useSyncState = input<boolean>(false);
+  preserveRowsDuringSync = input<boolean>(false);
   processStatus = input<'running' | 'completed' | 'failed' | null>(null);
   incomeMode = input<boolean>(false);
   showCheckbox = input<boolean>(false);
@@ -209,9 +210,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
-  effectiveIsLoading = computed(() =>
-    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')
-  );
+  hasRetainedRows = computed(() => this.preserveRowsDuringSync() && !!this.dataTable()?.length);
+  effectiveIsLoading = computed(() => !this.hasRetainedRows() &&
+    (this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')));
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();

@@ -1,4 +1,5 @@
 import { NgModule } from '@angular/core';
+import { OpenBankingErrorComponent } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
@@ -21,6 +22,7 @@ import { ButtonComponent } from "../../components/button/button.component";
 
 @NgModule({
   imports: [
+    OpenBankingErrorComponent,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,

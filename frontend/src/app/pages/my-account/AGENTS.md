@@ -46,3 +46,5 @@ Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-t
 - The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.
 
 Optional spouse source keys end in _spouse; sync result labels render this as בן/בת הזוג, while retries retain the exact internal source key. Identity selection is handled immediately before the provider redirect on /billing/open-banking.
+
+Banking status/error handling (2026-11-01): cached rows are fetched during background synchronization and retained on failure. The table opts into preserveRowsDuringSync. Only a real backend running state shows banking progress; the initial scheduling grace is bounded to ten seconds. A failed post-consent discovery returns its persisted support issue immediately rather than waiting for webhook timeout. Slow status requests are not canceled on every poll tick, and polling is bounded even for stale terminal responses.
