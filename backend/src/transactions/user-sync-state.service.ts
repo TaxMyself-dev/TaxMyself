@@ -314,18 +314,22 @@ export class UserSyncStateService {
     return this.repo.findOne({ where: { userId } });
   }
 
-  async savePermissionsSnapshot(userId: string, permissionsSnapshot: any,
-    connection?: { connected: boolean; complete: boolean }): Promise<boolean> {
+  async recordSourcesRefreshResult(userId: string, observedAt: Date,
+    result: { connected: boolean; complete: boolean; failureReason?: string; sourcesRefreshed?: boolean }): Promise<boolean> {
     return this.repo.manager.transaction(async manager => {
       // Same user-first lock order as ingestion/disconnection. No provider calls under this lock.
       const owner = await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
       if (!owner) throw new BadRequestException('User not found');
       const states = manager.getRepository(UserSyncState);
       const previous = await states.findOne({ where: { userId } });
-      if (previous?.permissionsSnapshot?.observedAt > permissionsSnapshot.observedAt) return false;
-      await states.upsert({ userId, permissionsSnapshot } as UserSyncState, ['userId']);
-      if (connection && (connection.connected || connection.complete)) {
-        await manager.getRepository(User).update({ firebaseId: userId }, { hasOpenBanking: connection.connected });
+      const lastAttempt = previous?.lastSourcesRefreshAttemptAt ?? previous?.lastSourcesRefreshAt;
+      if (lastAttempt && new Date(lastAttempt) > observedAt) return false;
+      await states.upsert({ userId, lastSourcesRefreshAttemptAt: observedAt,
+        sourcesRefreshFailureReason: result.failureReason ?? null,
+        ...(result.complete && result.sourcesRefreshed !== false ? {lastSourcesRefreshAt:observedAt} : {}),
+      } as UserSyncState, ['userId']);
+      if (result.connected || result.complete) {
+        await manager.getRepository(User).update({ firebaseId: userId }, { hasOpenBanking: result.connected });
       }
       return true;
     });
@@ -420,9 +424,8 @@ export class UserSyncStateService {
   }
 
   /**
-   * Stamps `lastSourcesRefreshAt` on the user's sync-state row. Called at the
-   * end of a successful `refreshUserSources` run so the login path can skip a
-   * redundant refresh on the next login if it's recent enough.
+   * Stamps simulated discovery freshness for the explicit dev simulator.
+   * Real refreshes use recordSourcesRefreshResult to save outcome and fencing atomically.
    *
    * Upsert so a brand-new user without any prior sync state still gets a row.
    */

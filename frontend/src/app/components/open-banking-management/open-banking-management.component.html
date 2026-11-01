@@ -21,7 +21,7 @@
     }
     <div class="actions banking-footer">
       <button class="danger" type="button" (click)="openFullDisconnect()"
-        [disabled]="busy() || loading() || externalBusy || synthetic() || (targets()?.complete && targets()?.consents?.length === 0)">
+        [disabled]="busy() || loading() || externalBusy || synthetic()">
         התנתקות מלאה מבנקאות פתוחה
       </button>
       <button type="button" (click)="refresh()" [disabled]="loading() || busy() || externalBusy">{{ loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות' }}</button>

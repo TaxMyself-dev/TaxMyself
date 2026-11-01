@@ -101,7 +101,7 @@ The connection-flag reset is limited to the two User connection flags and UserSy
 
 ## Connection options and stored management reads
 
-GET /feezback/disconnection-targets reads the saved permissionsSnapshot (falling back to retained source pointers) only. It never calls Feezback, writes flags, starts a sync or clears cache. GET /feezback/connection-options retains its Firebase/subscription guards and uses a read-only provider preview to suppress the spouse choice after complete absence; it does not reset flags.
+GET /feezback/disconnection-targets derives its view from owned Source rows and user_source_sync_state links only. No permission-list copy is persisted. It never calls Feezback, writes flags, starts a sync or clears cache. GET /feezback/connection-options retains its Firebase/subscription guards and uses a read-only provider preview to suppress the spouse choice after complete absence; it does not reset flags.
 
 ## Immediate disconnected cache cleanup (2026-10-23)
 
@@ -121,7 +121,7 @@ Only HTTP400 with the observed flat numeric error_code=1004 qualifies for a sing
 
 POST /feezback/refresh-permissions uses the same owner/verified-admin actor boundary as disconnect. It verifies both identities and saves source/consent metadata, including rotations and proven inactive links. Failed scopes retain prior pointers; independently complete scopes can update. Unknown consent states protect prior links. Manual refresh never arms billing enrollment, pulls transactions, terminates consents or deletes cache. Webhooks retain the established enrollment verification behavior.
 
-Source.metadataVerifiedAt and sync-row consentVerifiedAt fence older responses; permissionsSnapshot carries request observation time and is published with the connection flag under the same User-row transaction lock used by ingestion. Permanent source IDs, bill associations and classifications are retained. The UI renders stored consent pointers; direct cards without one show no consent.
+Source.metadataVerifiedAt and sync-row consentVerifiedAt fence older responses; Only lastSourcesRefreshAttemptAt and sourcesRefreshFailureReason record operational refresh outcome, atomically with the verified connection flag under the same User-row lock used by ingestion. Disconnect verification also advances this fence, without claiming a source refresh or overwriting cleanup-cleared freshness. Permanent source IDs, bill associations and classifications are retained. The UI renders stored consent pointers; direct cards without one show no consent.
 
 Per-source discovery and outcome writes continue after individual failures and throw an aggregate issue after all sources are attempted. Freshness is stamped only after complete persistence. Ingestion counts missing-link exclusions instead of silently dropping them; successful reads cannot make a failed save a full success. Card normalization failures are isolated by card. Local persistence failures and authorization denials do not receive automatic within-run provider retries. A later explicit pull/real login remains a new attempt.
 

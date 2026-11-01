@@ -71,9 +71,9 @@ export class FeezbackController {
   async refreshPermissions(@Req() req: AuthenticatedRequest, @Body() body: { firebaseId?: string } = {}) {
     const firebaseId = await this.disconnectionSubject(req, body.firebaseId);
     try {
-      await this.feezbackService.refreshUserSources(firebaseId, 'permissions-refresh');
-      return await this.disconnection!.storedTargets(firebaseId);
+      return await this.feezbackService.refreshUserSources(firebaseId, 'permissions-refresh');
     } catch (error) {
+      if (error instanceof BadRequestException) throw error;
       const issue = error instanceof BankingBatchError ? error.issues[0]
         : bankingIssue(this.logger, 'consent_check', firebaseId, 'permissions_refresh_failed', error);
       try {

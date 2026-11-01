@@ -29,6 +29,7 @@ export interface BankingDisconnectRequest {
   connectionRole?: 'primary' | 'spouse';
 }
 export interface BankingDisconnectResult {
+  supportError?: BankingSupportError;
   status: 'success' | 'partial';
   remainingConsents: BankingConsent[];
   complete: boolean;

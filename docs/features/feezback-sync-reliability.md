@@ -25,15 +25,15 @@ Diagnostics include the user, stable source ID/role where known, masked payment 
 
 ## Schema and rollout order
 
-The prepared [standalone SQL section](feezback-sync-reliability.sql) is also appended to [the canonical cutover file](../redesign/cutover.sql). It widens `user_source_sync_state.status` to `varchar(32)` for `skipped_direct`, adds per-source verification fences, a saved permission snapshot, and a webhook processing-lease timestamp. The new columns are nullable; column additions check `information_schema` before execution.
+The [current schema SQL](feezback-sync-reliability.sql) uses varchar(32) for skipped_direct, per-source timestamp fences and a webhook lease. The [upgrade removing duplicate permission storage](feezback-remove-snapshot.sql) adds only scalar attempt-time/support-error fields, aligns existing flow timestamps to milliseconds and drops the former JSON column. That upgrade is appended to [the canonical cutover file](../redesign/cutover.sql); column changes check information_schema. All new operational fields are nullable.
 
 1. Review the SQL and verify the preflight query returns no unexpected status values. Use the normal schema backup procedure.
-2. Apply only this additive section to an isolated test database, then before deploying the matching backend. Do not run the entire historical cutover file. The new backend requires these columns.
+2. Apply only the appropriate reviewed section to the approved test database, before starting the matching backend. Back up the old JSON column before its removal. Do not run the entire historical cutover file. The new backend requires the operational scalar fields.
 3. Deploy the backend and frontend together after verification. Confirm production schema synchronization remains disabled.
 4. Use the normal **רענון בדיקת הרשאות** action to repair confirmed missing/stale links, followed by the existing explicit transaction-pull flow. Refresh alone deliberately does not restore missing transactions. Existing deduplication and classifications remain in effect. No user-specific recovery script is included.
 5. Observe partial failures and supplier errors; a local fix cannot resolve provider policy denial or missing provider consent scope.
 
-Implementation used mocked tests/local builds without app startup, production access or push. Following the user's subsequent explicit request, the standalone SQL was applied and verified on `keepintax-dev` (MySQL `8.0.37-google`) on 2026-11-01, after schema backup and preflight; status counts were unchanged. This does not constitute provider/application end-to-end validation or a production schema application. For code rollback, retain the additive nullable columns/wider status type; do not narrow the status column while `skipped_direct` rows exist.
+Implementation used mocked tests/local builds without app startup, production access or push. Following the user's subsequent explicit request, the standalone SQL was applied and verified on `keepintax-dev` (MySQL `8.0.37-google`) on 2026-11-01, after schema backup and preflight; status counts were unchanged. This does not constitute provider/application end-to-end validation or a production schema application. The later approved removal of the old JSON column is recorded below. Do not roll back to code requiring that removed column. Retain the wider status type while skipped_direct rows exist.
 
 ## Manual acceptance checks
 
@@ -58,3 +58,13 @@ Automated verification and the known base-test failure are recorded in [the task
 - Known rejected source IDs receive failed outcomes rather than provider-read success. The dashboard terminal dialog honors aggregate support errors even if all returned source reads succeeded or no source rows are available.
 
 These cases are permanent mocked regressions in the backend and banking UI suites. The SQL artifact is unchanged; its later authorized dev-only execution is recorded above and in the task handoff. Production/provider verification remains outstanding.
+
+## Removal of duplicate permission storage
+
+The initial JSON copy was unnecessary and introduced a second representation of source links/names. It has been removed from the entity, reads, writes and refresh/disconnect paths. Initial views derive from Source and user_source_sync_state. A successful refresh first saves verified links and returns the current provider permission list for confirmation, including pending permissions without sources; that response is not stored as another list. Empty cached links therefore never disable full cancellation before a live check.
+
+Only lastSourcesRefreshAttemptAt and sourcesRefreshFailureReason remain as new operational metadata: the observation fence prevents older results from changing the current connection flag, and the support token enables immediate post-consent error reporting. They contain no permissions, source IDs, mappings or names. The existing lastConsentInitiatedAt/lastSourcesRefreshAt timestamps are now precise to milliseconds to distinguish attempts within the same second. Disconnect verification updates the fence without stamping discovery freshness.
+
+The upgrade was explicitly authorized and applied only to keepintax-dev after private schema/old-column backup. The old JSON column is absent; all 12 user_sync_state rows and existing timestamp values were preserved. No application was started and no production/provider callback, merge or push occurred. Backup/verification evidence is outside Git.
+
+The relevance review retained per-source fences, the webhook processing lease, isolated persistence outcomes, cached-row rendering and independent login dispatch because each addresses an agreed failure or latency requirement. It removed the redundant permission-list representation and avoided a replacement consent table, repair job or UI verification-date/status mechanism. Live provider and full application behavior still require manual testing.

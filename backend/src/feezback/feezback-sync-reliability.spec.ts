@@ -65,11 +65,11 @@ describe('Open banking reliability regression', () => {
   });
   it('loads the saved permission view without provider access or database writes', async () => {
     const api={getUserConsents:jest.fn()}; const users={findOne:jest.fn().mockResolvedValue({hasOpenBanking:true}),update:jest.fn()};
-    const snapshot={complete:true,consents:[{consentId:'saved'}],errors:[]};
-    const sync={getSyncState:jest.fn().mockResolvedValue({permissionsSnapshot:snapshot})};
+    const sync={getSyncState:jest.fn().mockResolvedValue(null),getSourceResults:jest.fn().mockResolvedValue([
+      {sourceRecordId:1,consentId:'saved',type:'card',sourceId:'1'}])};
     const cleanup={cleanup:jest.fn()};
-    const service=new FeezbackDisconnectionService(api as any,users as any,{} as any,sync as any,cleanup as any);
-    expect(await service.storedTargets('owner')).toMatchObject(snapshot);
+    const service=new FeezbackDisconnectionService(api as any,users as any,{find:jest.fn().mockResolvedValue([source(1)])} as any,sync as any,cleanup as any);
+    expect(await service.storedTargets('owner')).toMatchObject({complete:true,consents:[{consentId:'saved',sources:[{sourceRecordId:1}]}]});
     expect(api.getUserConsents).not.toHaveBeenCalled(); expect(users.update).not.toHaveBeenCalled(); expect(cleanup.cleanup).not.toHaveBeenCalled();
   });
   it('records webhook failure separately from receipt and allows an identical failed event to recover', async () => {
@@ -93,12 +93,12 @@ describe('Open banking reliability regression', () => {
     expect(line).toContain(issue.errorId); expect(line).toContain('ER_DATA_TOO_LONG');
     expect(line).not.toContain('secret');expect(line).not.toContain('token');expect(line).not.toContain('123456789');
   });
-  it('never overwrites a newer permission snapshot or connection flag', async () => {
+  it('never overwrites a newer refresh result or connection flag', async () => {
     const users={findOne:jest.fn().mockResolvedValue({firebaseId:'owner'}),update:jest.fn()};
-    const states={findOne:jest.fn().mockResolvedValue({permissionsSnapshot:{observedAt:'2026-11-02T00:00:00Z'}}),upsert:jest.fn()};
+    const states={findOne:jest.fn().mockResolvedValue({lastSourcesRefreshAttemptAt:new Date('2026-11-02T00:00:00Z')}),upsert:jest.fn()};
     const root={manager:{transaction:async callback=>callback({getRepository:entity=>entity.name==='User'?users:states})}};
     const service=new UserSyncStateService(root as any,{} as any,{} as any);
-    expect(await service.savePermissionsSnapshot('owner',{observedAt:'2026-11-01T00:00:00Z'}, {connected:false,complete:true})).toBe(false);
+    expect(await service.recordSourcesRefreshResult('owner',new Date('2026-11-01T00:00:00Z'), {connected:false,complete:true})).toBe(false);
     expect(states.upsert).not.toHaveBeenCalled();expect(users.update).not.toHaveBeenCalled();
     expect(users.findOne).toHaveBeenCalledWith(expect.objectContaining({where:{firebaseId:'owner'},lock:{mode:'pessimistic_write'}}));
   });
@@ -106,7 +106,7 @@ describe('Open banking reliability regression', () => {
     const api={getUserConsents:jest.fn(async sub=>({consents:sub.endsWith('_spouse')?[]:[{resourceId:'c',consentStatus:'valid'}]})),
       getUserAccounts:jest.fn().mockResolvedValue({accounts:[{iban:'IL1234567',resourceId:'a',consentId:'c'}]}),
       getUserCards:jest.fn().mockRejectedValue({status:403,code:'DENIED'})};
-    const sync={getSyncState:jest.fn().mockResolvedValue(null),savePermissionsSnapshot:jest.fn().mockResolvedValue(true),
+    const sync={getSyncState:jest.fn().mockResolvedValue(null),recordSourcesRefreshResult:jest.fn().mockResolvedValue(true),
       upsertSourceConsents:jest.fn().mockResolvedValue(undefined),reconcileSourceConsents:jest.fn().mockResolvedValue(undefined),
       markSourcesRefreshed:jest.fn()};
     const enrollment={connectionVerified:jest.fn()}; const processing={process:jest.fn()};
@@ -118,7 +118,7 @@ describe('Open banking reliability regression', () => {
     expect(sync.reconcileSourceConsents.mock.calls.find(call=>call[1]==='primary')[2]).toEqual([{type:'bank',sources:['1234567']}]);
     expect(sync.markSourcesRefreshed).not.toHaveBeenCalled();expect(enrollment.connectionVerified).not.toHaveBeenCalled();
     expect(processing.process).not.toHaveBeenCalled();
-    expect(sync.savePermissionsSnapshot).toHaveBeenCalledWith('owner',expect.objectContaining({complete:false,supportError:expect.objectContaining({code:'OB-01'})}),expect.any(Object));
+    expect(sync.recordSourcesRefreshResult).toHaveBeenCalledWith('owner',expect.any(Date),expect.objectContaining({complete:false,failureReason:expect.stringMatching(/^OB-01\|/)}));
   });
   it('marks a full pull partial when the provider succeeds but 37 transactions cannot be saved', async () => {
     jest.spyOn(console,'log').mockImplementation(()=>{});

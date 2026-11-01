@@ -1,5 +1,6 @@
 import { connectionOperation } from './consent/connection-operation';
 import { BankingBatchError, BankingIssue, bankingIssue, issueFromReason } from './core/open-banking-issue';
+import type { DisconnectionTargets } from './feezback-disconnection.service';
 import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 import { BadRequestException, BadGatewayException, forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { OpenBankingEnrollmentService } from '../billing/services/open-banking-enrollment.service';
@@ -700,41 +701,43 @@ export class FeezbackService {
    * Idempotent — safe to call from the webhook handler AND from the
    * /transactions/post-consent-sync endpoint. Does NOT trigger transaction sync.
    */
-  async refreshUserSources(firebaseId: string, eventLabel: string): Promise<void> {
+  async refreshUserSources(firebaseId: string, eventLabel: string): Promise<DisconnectionTargets> {
     return connectionOperation(firebaseId, () => this.refreshUserSourcesUnlocked(firebaseId, eventLabel));
   }
 
-  private async refreshUserSourcesUnlocked(firebaseId: string, eventLabel: string): Promise<void> {
-    const observedAt = new Date().toISOString();
+  private async refreshUserSourcesUnlocked(firebaseId: string, eventLabel: string): Promise<DisconnectionTargets> {
+    const observedAt = new Date();
     const owner = await this.userRepository.findOne({ where: { firebaseId } });
     if (!owner) throw new BadRequestException('User not found');
     if (usesSyntheticOpenBanking(owner.email)) throw new BadRequestException({ code: 'SYNTHETIC_OPEN_BANKING', message: 'Synthetic connection' });
     const manual = eventLabel === 'permissions-refresh';
-    const previous = (await this.userSyncStateService.getSyncState(firebaseId))?.permissionsSnapshot;
     const subs = manual || eventLabel === 'ConsentStatusChanged'
       ? [feezbackSub(firebaseId), feezbackSub(firebaseId, true)] : await this.userSubs(firebaseId);
     const results = await Promise.allSettled(subs.map(sub =>
       this.identityScope.run(sub, () => this.refreshIdentitySources(firebaseId, eventLabel, sub))));
     const connected = results.some(r => r.status === 'fulfilled' && r.value.connected);
     const complete = results.every(r => r.status === 'fulfilled' && r.value.complete);
-    const visitedRoles = subs.map(sub => sub.endsWith('_sub_spouse') ? 'spouse' : 'primary');
-    const snapshotConsents = [...(previous?.consents ?? []).filter(c => !visitedRoles.includes(c.connectionRole)), ...results.flatMap((result, index) => result.status === 'fulfilled' && result.value.complete
-      ? result.value.permissions : (previous?.consents ?? []).filter(c => c.connectionRole === (subs[index].endsWith('_sub_spouse') ? 'spouse' : 'primary')))];
     const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     const issue = complete ? undefined : rejected[0]?.reason instanceof BankingBatchError ? rejected[0].reason.issues[0]
       : results.flatMap(r => r.status === 'fulfilled' ? r.value.issues : [])[0]
         ?? bankingIssue(this.logger, 'consent_check', firebaseId, 'partial_source_discovery');
-    const saved = await this.userSyncStateService.savePermissionsSnapshot(firebaseId, {
-      observedAt, consents: snapshotConsents, complete, errors: [], supportError: issue,
-    }, { connected, complete });
-    if (saved === false) throw new BankingBatchError([bankingIssue(this.logger, 'connection_save', firebaseId, 'stale_permission_snapshot')]);
+    let saved: boolean;
+    try {
+      saved = await this.userSyncStateService.recordSourcesRefreshResult(firebaseId, observedAt, {
+        connected, complete, failureReason:issue ? `${issue.code}|${issue.errorId}` : undefined,
+      });
+    } catch(error) {
+      throw new BankingBatchError([bankingIssue(this.logger,'connection_save',firebaseId,'refresh_result_not_saved',error)]);
+    }
+    if (saved === false) throw new BankingBatchError([bankingIssue(this.logger, 'connection_save', firebaseId, 'stale_sources_refresh')]);
     // Only an explicitly approved trial enrollment may react to connection verification.
     if (connected && !manual) {
       await this.openBankingEnrollment?.connectionVerified(firebaseId);
     }
     if (rejected.length) throw rejected[0].reason;
     if (!complete) throw new BankingBatchError([issue!]);
-    await this.userSyncStateService.markSourcesRefreshed(firebaseId);
+    return {consents:results.flatMap(result=>result.status==='fulfilled' ? result.value.permissions : []),
+      complete:true,hasOpenBanking:connected,errors:[]};
   }
 
   private async refreshIdentitySources(firebaseId: string, eventLabel: string, sub: string): Promise<{ connected: boolean; complete: boolean; permissions: any[]; issues: BankingIssue[] }> {

@@ -46,9 +46,10 @@ describe('open banking disconnection', () => {
     expect(auth.restoreUserData).not.toHaveBeenCalled();
   });
   it('waits for the post-cancellation profile before clearing busy state and notifying parent consumers', () => {
-    component.ngOnInit(); const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);
+    component.ngOnInit(); component.openFullDisconnect();
+    const refreshed = new Subject<any>(); auth.restoreUserData.and.returnValue(refreshed);
     const changed = jasmine.createSpy(); component.connectionChanged.subscribe(changed);
-    component.confirmation.set('all'); component.confirm();
+    component.confirm();
     expect(component.busy()).toBeTrue(); expect(changed).not.toHaveBeenCalled();
     refreshed.next({ hasOpenBanking: false }); refreshed.complete();
     expect(changed).toHaveBeenCalledTimes(1); expect(component.busy()).toBeFalse();
@@ -63,12 +64,12 @@ describe('open banking disconnection', () => {
   });
   it('does not start a second discovery or mutate before discovery completes', () => {
     service.disconnectionTargets.and.returnValue(new Subject());
-    component.load(); component.load(); component.confirmation.set('all'); component.confirm();
+    component.load(); component.load(); component.openFullDisconnect(); component.confirm();
     expect(service.disconnectionTargets).toHaveBeenCalledTimes(1);
     expect(service.disconnect).not.toHaveBeenCalled();
   });
   it('previews all sources sharing the chosen consent and sends its identity', () => {
-    component.ngOnInit(); component.confirmation.set(consent);
+    component.ngOnInit(); component.openSourceConsent(1);
     expect(component.affectedConsents()[0].sources.length).toBe(2);
     expect(service.disconnect).not.toHaveBeenCalled();
     component.confirm();
@@ -76,30 +77,30 @@ describe('open banking disconnection', () => {
     expect(auth.restoreUserData).toHaveBeenCalled();
   });
   it('sends full admin disconnect without narrowing to a single identity', () => {
-    component.firebaseId = 'client'; component.ngOnInit(); component.confirmation.set('all'); component.confirm();
+    component.firebaseId = 'client'; component.ngOnInit(); component.openFullDisconnect(); component.confirm();
     expect(service.disconnect).toHaveBeenCalledWith({ firebaseId: 'client', scope: 'all' });
     expect(auth.restoreUserData).not.toHaveBeenCalled();
   });
   it('never declares success for partial or unverified termination and retains retry targets', () => {
     service.disconnect.and.returnValue(of({ status: 'partial', remainingConsents: [consent], complete: false, hasOpenBanking: true, errors: [], results: [] }));
-    component.ngOnInit(); component.confirmation.set('all'); component.confirm();
+    component.ngOnInit(); component.openFullDisconnect(); component.confirm();
     expect(component.error()).toContain('לא הושלמה'); expect(component.message()).toBe('');
     expect(component.targets()?.consents).toEqual([consent]); expect(component.busy()).toBeFalse();
   });
   it('requires refreshing after transport failure instead of assuming disconnection', () => {
     service.disconnect.and.returnValue(throwError(() => new Error('timeout')));
-    component.ngOnInit(); component.confirmation.set('all'); component.confirm();
+    component.ngOnInit(); component.openFullDisconnect(); component.confirm();
     expect(component.targets()).toBeNull(); expect(component.error()).toContain('לרענן');
     component.load(); expect(component.targets()?.complete).toBeTrue();
   });
   it('blocks owner controls in represented client mode', () => {
     auth.isViewingAsClient.and.returnValue(true);
-    component.ngOnInit(); component.confirmation.set('all'); component.confirm(); component.reconnect();
+    component.ngOnInit(); component.openFullDisconnect(); component.confirm(); component.reconnect();
     expect(service.disconnectionTargets).not.toHaveBeenCalled(); expect(service.disconnect).not.toHaveBeenCalled(); expect(router.navigate).not.toHaveBeenCalled();
   });
   it('blocks duplicate mutations while waiting and uses existing enrollment for reconnect', () => {
     service.disconnect.and.returnValue(new Subject());
-    component.ngOnInit(); component.confirmation.set('all'); component.confirm(); component.confirm();
+    component.ngOnInit(); component.openFullDisconnect(); component.confirm(); component.confirm();
     expect(service.disconnect).toHaveBeenCalledTimes(1);
     component.reconnect(); expect(router.navigate).not.toHaveBeenCalled();
     component.busy.set(false); component.reconnect(); expect(router.navigate).toHaveBeenCalledWith(['/billing/open-banking']);

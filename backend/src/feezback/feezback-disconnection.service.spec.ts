@@ -23,7 +23,7 @@ describe('Feezback disconnection', () => {
     sources = { find: jest.fn().mockResolvedValue([
       { id: 11, userId: 'owner', connectionRole: 'primary', sourceName: '1234567', sourceType: 'BANK_ACCOUNT', bill: { id: 99 } },
     ]) };
-    sync = { getSyncState: jest.fn().mockResolvedValue(null), savePermissionsSnapshot: jest.fn().mockResolvedValue(true),
+    sync = { getSyncState: jest.fn().mockResolvedValue(null), recordSourcesRefreshResult: jest.fn().mockResolvedValue(true),
       getSourceResults: jest.fn().mockResolvedValue([
       { sourceRecordId: 11, sourceId: '1234567', resourceId: 'a1', consentId: 'c1', connectionRole: 'primary' },
     ]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined), upsertSourceConsents: jest.fn().mockResolvedValue(undefined), clearConsentOnSources: jest.fn().mockResolvedValue(1) };
@@ -39,6 +39,27 @@ describe('Feezback disconnection', () => {
     expect(sources.find).not.toHaveBeenCalled();
     expect(users.update).not.toHaveBeenCalled();
     expect(user.hasOpenBanking).toBe(true);
+  });
+  it('returns a support error rather than full success if disconnect outcome persistence fails',async()=>{
+    sync.recordSourcesRefreshResult.mockRejectedValue(Object.assign(new Error('private database details'),{code:'ER_LOCK_DEADLOCK'}));
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result).toMatchObject({status:'partial',supportError:{code:'OB-02',errorId:expect.any(String)}});
+    expect(JSON.stringify(result)).not.toContain('private database details');
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('records verification freshness without copying permission lists after disconnect',async()=>{
+    await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(sync.recordSourcesRefreshResult).toHaveBeenCalledWith('owner',expect.any(Date),
+      expect.objectContaining({complete:true,failureReason:undefined}));
+    const metadata=sync.recordSourcesRefreshResult.mock.calls[0][2];
+    expect(Object.keys(metadata).sort()).toEqual(['complete','connected','failureReason','sourcesRefreshed']);
+    expect(metadata.sourcesRefreshed).toBe(false);
+  });
+  it('does not report success when a newer refresh supersedes disconnect verification',async()=>{
+    sync.recordSourcesRefreshResult.mockResolvedValue(false);
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(result.status).toBe('partial');
+    expect(result.supportError?.code).toBe('OB-02');
   });
   it('lists pending and unknown permissions and covers spouse, with preserved source IDs', async () => {
     permissions.owner_sub_spouse.push({ resourceId: 'c3', consentStatus: 'futureStatus' });

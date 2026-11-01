@@ -13,7 +13,7 @@ describe('optional Feezback spouse identity', () => {
       getUserConsents: jest.fn().mockResolvedValue(valid),
       getUserAccounts: jest.fn().mockResolvedValue({ accounts: [{ iban:'IL1234567', resourceId: 'account', consentId: 'consent' }] }),
       getUserCards: jest.fn().mockResolvedValue({ cards: [] }) };
-    state = { markSourcesRefreshed:jest.fn().mockResolvedValue(undefined), getSyncState: jest.fn().mockResolvedValue(null), savePermissionsSnapshot: jest.fn(async (_uid,_snapshot,c) => {
+    state = { markSourcesRefreshed:jest.fn().mockResolvedValue(undefined), getSyncState: jest.fn().mockResolvedValue(null), recordSourcesRefreshResult: jest.fn(async (_uid,_observedAt,c) => {
         if(c.connected || c.complete) await users.update({firebaseId:uid},{hasOpenBanking:c.connected}); return true;
       }), reconcileSourceConsents:jest.fn().mockResolvedValue(undefined),
       getSourceResults: jest.fn().mockResolvedValue([]), updateSourceResults: jest.fn().mockResolvedValue(undefined) };

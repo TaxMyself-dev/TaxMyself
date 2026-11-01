@@ -32,6 +32,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   readonly error = signal('');
   readonly message = signal('');
   readonly synthetic = signal(false);
+  readonly previewVerified = signal(false);
   readonly confirmation = signal<'all' | BankingConsent | null>(null);
   readonly choices = signal<BankingConsent[] | null>(null);
   readonly rows = computed<IRowDataTable[]>(() => {
@@ -108,6 +109,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   }
   closePreview(): void {
     if (this.busy()) return;
+    this.previewVerified.set(false);
     this.confirmation.set(null); this.choices.set(null);
   }
   refresh(): void { this.load(undefined, true); }
@@ -119,7 +121,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => data)) : of(data)),
       finalize(() => this.loading.set(false)),
     ).subscribe({
-      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
+      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); this.previewVerified.set(live && data.complete); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
       error: err => {
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
         if (!this.synthetic()) this.supportError.set(bankingRequestError(err));
@@ -150,10 +152,15 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     if (this.busy() || this.externalBusy || !this.choices()?.some(item => this.consentKey(item) === this.consentKey(consent))) return;
     this.choices.set(null); this.confirmation.set(consent);
   }
-  openFullDisconnect(): void { this.load(() => this.confirmation.set('all'), true); }
+  openFullDisconnect(): void {
+    this.load(() => {
+      if (this.targets()?.consents.length) this.confirmation.set('all');
+      else this.message.set('לא נמצאו הרשאות לביטול.');
+    }, true);
+  }
   canConfirm(): boolean {
     const state = this.targets(); const selection = this.confirmation();
-    return this.canManage() && !this.synthetic() && !this.busy() && !this.loading() && !this.externalBusy && !!state?.complete &&
+    return this.canManage() && this.previewVerified() && !this.synthetic() && !this.busy() && !this.loading() && !this.externalBusy && !!state?.complete &&
       !!selection && (selection === 'all' ? state.consents.length > 0
         : state.consents.some(consent => this.consentKey(consent) === this.consentKey(selection)));
   }
@@ -168,6 +175,8 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
       finalize(() => { this.busy.set(false); this.busyChange.emit(false); }),
     ).subscribe({
       next: result => {
+        this.previewVerified.set(false);
+        this.supportError.set(result.supportError ?? null);
         this.confirmation.set(null); this.choices.set(null);
         this.targets.set({ consents: result.remainingConsents, complete: result.complete, hasOpenBanking: result.hasOpenBanking, errors: result.errors });
         if (result.status === 'partial' || !result.complete ||
@@ -177,6 +186,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         this.connectionChanged.emit();
       },
       error: () => {
+        this.previewVerified.set(false);
         this.confirmation.set(null); this.targets.set(null);
         this.error.set('לא ניתן לאשר שהפעולה הושלמה. יש לרענן את מצב ההרשאות לפני ניסיון נוסף.');
         this.connectionChanged.emit();

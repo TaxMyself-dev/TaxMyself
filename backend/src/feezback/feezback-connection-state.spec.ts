@@ -11,7 +11,7 @@ describe('Feezback persisted connection state', () => {
     enrollment = { connectionVerified: jest.fn().mockResolvedValue(undefined) };
     billing = { autoUpgradeReferralOpenBankingIfEligible: jest.fn() };
     service = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any, {} as any,
-      { getSourceResults: jest.fn().mockResolvedValue([]), getSyncState: jest.fn().mockResolvedValue(null), savePermissionsSnapshot: jest.fn(async (_id, _snapshot, state) => {
+      { getSourceResults: jest.fn().mockResolvedValue([]), getSyncState: jest.fn().mockResolvedValue(null), recordSourcesRefreshResult: jest.fn(async (_id, _observedAt, state) => {
           if (state.connected || state.complete) await users.update({firebaseId:'owner'}, {hasOpenBanking:state.connected});
           return true;
         }),

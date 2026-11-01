@@ -9,13 +9,13 @@
 ## Acceptance criteria
 
 - Isolate per-source discovery/outcome writes and report every failed write.
-- Prepare status schema alignment SQL; do not execute it against any database.
+- Prepare status schema alignment SQL. Subsequent explicit authorization permits only the documented dev schema application/removal; production execution remains prohibited.
 - Table initialization reads stored state only. Explicit refresh verifies and persists consent/source metadata, preserving unverified state and permanent identities; no cache cleanup, transaction pull or billing effects.
 - Direct cards reflect saved consent state. No verification timestamps/uncertainty states in the table.
 - Report four operational stages, sanitized causes, source/user scope, partial outcomes and reconciled transaction counts. Hebrew support messages include stable codes and unique error IDs.
 - Webhook receipt and processing outcomes are distinct; failed processing can be retried without replaying successful events concurrently.
 - Never claim full success for failed persistence or silently excluded transactions; retain cached data during refresh and bound polling/retries.
-- Focused mocked regression tests plus backend/frontend builds. No production access, data change, remote push, dedicated recovery tool or main integration.
+- Focused mocked regression tests plus backend/frontend builds. No production access, business-data writes, remote push, dedicated recovery tool or main integration; only explicitly authorized dev DDL.
 
 ## Handoff
 
@@ -59,3 +59,13 @@
 - Verified `user_source_sync_state.status` is `varchar(32) NOT NULL DEFAULT 'not_synced'`; `source.metadataVerifiedAt`, `user_source_sync_state.consentVerifiedAt` and `feezback_webhook_events.processing_started_at` are nullable `datetime(3)`; `user_sync_state.permissionsSnapshot` is nullable `json`.
 - Status counts unchanged: 9 `not_synced`, 2 `skipped_direct`, 15 `success`. No row DML was issued. Verification snapshot retained alongside the schema backup outside the repository.
 - Production untouched. No merge to main, remote push, sync or live callback configuration change. The worktree can now use this dev schema for manual application testing.
+
+## Explicit snapshot removal and scope review — 2026-11-01
+
+- Same feature worktree; preserved the separately committed token-lifetime fix already in its history.
+- Removed all runtime permissionsSnapshot/savePermissionsSnapshot usage. Stored source links/names are read directly from owned Source/user_source_sync_state rows. Current provider-only/pending permissions are returned by the saving refresh for confirmation, without another persisted permission list. Initial cached views cannot authorize cancellation or prove complete provider absence.
+- Retained only two operational scalars (lastSourcesRefreshAttemptAt, sourcesRefreshFailureReason), for stale-result fencing and post-consent support errors. Existing consent-start/refresh-success timestamps gained millisecond precision. Disconnect verification advances the operational fence but preserves discovery freshness/cleanup semantics.
+- Scope audit: removed duplicate data and its stale fallback path. Kept source/consent fences, webhook lease/replay, four-stage diagnostics, persistence accounting and cached-row/login improvements because each maps to an explicit requirement. No replacement permission table, repair job or expanded UI status/date model.
+- Dev execution: explicitly approved keepintax-dev only, MySQL 8.0.37-google. Backed up user_sync_state definition and old JSON values outside Git; ran the pinned cleanup SQL (SHA-256 8d1e1af569516f55b768844120f763d0b9c6692ef7881975d545c4cda9a500b5). Verified the JSON column is absent, scalar definitions/precisions match entities, all 12 rows remain and existing timestamp values are unchanged. No row DML, app startup, production access, integration or push.
+- Final verification: 308 backend tests in 27 suites and 67 frontend tests passed; Nest and Angular builds passed. Existing Angular budget/CommonJS/Node-version warnings remain. Reports are outside Git. The known unrelated invoice-action fixture failure remains documented in the earlier validation section.
+- Re-review covered current stored-link reads, consent rotation/removal, source-less pending permissions, live-only cancellation confirmation, partial proof retention, stale-result locking, same-second error attribution and post-disconnect cleanup/freshness. Also fixed and tested disconnect-result DB failure returning an OB-02 support error instead of full success or an unclassified exception. No additional actionable issue identified within this change; no real provider/application end-to-end execution.

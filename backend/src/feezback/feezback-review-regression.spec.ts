@@ -15,7 +15,7 @@ describe('Feezback review regressions',()=>{
     const pointers:any[]=[];
     const sync={getSyncState:jest.fn().mockResolvedValue(null),getSourceResults:jest.fn(async()=>pointers),
       upsertSourceConsents:jest.fn(async(_uid,sources)=>{pointers.push(...sources);}),reconcileSourceConsents:jest.fn().mockResolvedValue(undefined),
-      savePermissionsSnapshot:jest.fn(async(_uid,_snapshot,connection)=>{owner.hasOpenBanking=connection.connected;return true;}),
+      recordSourcesRefreshResult:jest.fn(async(_uid,_observedAt,connection)=>{owner.hasOpenBanking=connection.connected;return true;}),
       markSourcesRefreshed:jest.fn().mockResolvedValue(undefined)};
     const users={findOne:jest.fn().mockImplementation(async()=>({...owner})),update:jest.fn(async(_where,patch)=>Object.assign(owner,patch))};
     const service=new FeezbackService({} as any,{getTppId:()=> 'tpp'} as any,api as any,{} as any,{} as any,sync as any,
@@ -66,7 +66,7 @@ describe('Feezback review regressions',()=>{
     const provider=connectionOperation('review-queue',()=>new Promise<void>(resolve=>{release=resolve;}));
     await Promise.resolve();
     const service=new FeezbackDisconnectionService({} as any,{findOne:jest.fn().mockResolvedValue({hasOpenBanking:true})} as any,
-      {find:jest.fn().mockResolvedValue([])} as any,{getSyncState:jest.fn().mockResolvedValue({permissionsSnapshot:{consents:[],complete:true}})} as any,{} as any);
+      {find:jest.fn().mockResolvedValue([])} as any,{getSyncState:jest.fn().mockResolvedValue(null),getSourceResults:jest.fn().mockResolvedValue([])} as any,{} as any);
     let readFinished=false;
     const read=service.storedTargets('review-queue').then(()=>{readFinished=true;});
     await new Promise<void>(resolve=>setImmediate(resolve));

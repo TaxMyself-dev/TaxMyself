@@ -63,6 +63,38 @@ describe('Banking cancellation preview regressions',()=>{
     expect(component.affectedConsents()[0]?.sources.length).toBe(2);
     expect(component.canConfirm()).toBeTrue();
   });
+  it('rechecks pending source-less permissions even when saved links are empty',()=>{
+    const {component,service}=setup();
+    service.disconnectionTargets.and.returnValue(of({consents:[],complete:true,hasOpenBanking:false,errors:[]}));
+    component.load();
+    expect(component.rows().length).toBe(0);
+    service.refreshPermissions.and.returnValue(of({consents:[{consentId:'pending',connectionRole:'primary',status:'received',sources:[]}],complete:true,hasOpenBanking:false,errors:[]}));
+    component.openFullDisconnect();
+    expect(component.canConfirm()).toBeTrue();
+    expect(component.affectedConsents()[0].consentId).toBe('pending');
+  });
+  it('never treats stored display rows as a verified cancellation preview',()=>{
+    const {component,service}=setup();
+    component.confirmation.set('all'); component.confirm();
+    expect(component.canConfirm()).toBeFalse();expect(service.disconnect).not.toHaveBeenCalled();
+  });
+  it('does not open an empty confirmation after complete live absence',()=>{
+    const {component,service}=setup();
+    service.refreshPermissions.and.returnValue(of({consents:[],complete:true,hasOpenBanking:false,errors:[]}));
+    component.openFullDisconnect();
+    expect(component.confirmation()).toBeNull();expect(component.message()).toContain('לא נמצאו');
+  });
+  it('keeps the full-disconnect UI usable when local links are empty but the provider has a pending permission',()=>{
+    const {service}=setup();
+    service.disconnectionTargets.and.returnValue(of({consents:[],complete:true,hasOpenBanking:false,errors:[]}));
+    service.refreshPermissions.and.returnValue(of({consents:[{consentId:'pending',connectionRole:'primary',status:'received',sources:[]}],complete:true,hasOpenBanking:false,errors:[]}));
+    const fixture=TestBed.createComponent(OpenBankingManagementComponent);fixture.detectChanges();
+    const button=Array.from(fixture.nativeElement.querySelectorAll('button')).find((node:any)=>node.textContent.includes('התנתקות מלאה')) as HTMLButtonElement;
+    expect(button.disabled).toBeFalse();button.click();fixture.detectChanges();
+    expect(service.refreshPermissions).toHaveBeenCalled();
+    expect(fixture.componentInstance.confirmation()).toBe('all');
+    expect(service.disconnect).not.toHaveBeenCalled();fixture.destroy();
+  });
 });
 
 describe('Banking terminal dialog regression',()=>{

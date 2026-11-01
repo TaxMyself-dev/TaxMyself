@@ -440,10 +440,10 @@ export class TransactionsController {
     // (the decision below uses only timestamps, not source rows).
     const state = await this.userSyncStateService.getSyncState(userId);
 
-    const snapshot = state?.permissionsSnapshot;
-    if (snapshot?.supportError && state?.lastConsentInitiatedAt &&
-      new Date(snapshot.observedAt).getTime() >= new Date(state.lastConsentInitiatedAt).getTime()) {
-      return {status:'failed',supportError:snapshot.supportError};
+    const discoveryError = issueFromReason(state?.sourcesRefreshFailureReason);
+    if (discoveryError && state?.lastConsentInitiatedAt && state.lastSourcesRefreshAttemptAt &&
+      new Date(state.lastSourcesRefreshAttemptAt).getTime() >= new Date(state.lastConsentInitiatedAt).getTime()) {
+      return {status:'failed',supportError:discoveryError};
     }
 
     if (state?.fullProcessStatus === 'running') {
