@@ -6,6 +6,29 @@ export interface BusinessChoice {
   label: string;
 }
 
+export interface BusinessQuestionRequest {
+  channel_id: string;
+  phone: string;
+  text: string;
+  buttons?: string[];
+  reply_to_whatsapp_message_id: string;
+}
+
+/** Render the saved snapshot, never re-label an already staged question. */
+export function questionFromChoices(event: LycheeEvent, phone: string, choices: BusinessChoice[]): BusinessQuestionRequest {
+  if (!event.whatsapp_message_id || !phone || !Array.isArray(choices) || choices.length < 2 ||
+      choices.some(c => !c.businessNumber || typeof c.label !== 'string' || !c.label.trim()) ||
+      new Set(choices.map(c => c.label)).size !== choices.length) throw new Error('Invalid business question');
+  return {
+    channel_id: event.channel_id, phone,
+    text: choices.length <= 3 ? 'לאיזה עסק לשייך את המסמך?' :
+      'לאיזה עסק לשייך את המסמך? השב בציטוט להודעה זו עם המספר המתאים:\n' +
+      choices.map(c => `${c.label}. ${c.name || c.businessNumber}`).join('\n'),
+    ...(choices.length <= 3 ? { buttons: choices.map(c => c.label) } : {}),
+    reply_to_whatsapp_message_id: event.whatsapp_message_id,
+  };
+}
+
 /** Vendor request preview only: this module contains no network/send operation. */
 export function buildBusinessQuestion(
   event: LycheeEvent,
@@ -28,14 +51,5 @@ export function buildBusinessQuestion(
     }
     return { businessNumber: b.businessNumber, name, label: businesses.length <= 3 ? label : String(i + 1) };
   });
-  const text = choices.length <= 3 ? 'לאיזה עסק לשייך את המסמך?' :
-    'לאיזה עסק לשייך את המסמך? השב בציטוט להודעה זו עם המספר המתאים:\n' +
-    choices.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
-  return { choices, preview: {
-    channel_id: event.channel_id,
-    phone,
-    text,
-    ...(choices.length <= 3 ? { buttons: choices.map(c => c.label) } : {}),
-    reply_to_whatsapp_message_id: event.whatsapp_message_id,
-  } };
+  return { choices, preview: questionFromChoices(event, phone, choices) };
 }

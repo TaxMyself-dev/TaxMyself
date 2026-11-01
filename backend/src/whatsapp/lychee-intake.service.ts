@@ -265,8 +265,8 @@ export class LycheeIntakeService {
             file,
           ),
       );
-      lycheeLog(e.event_id, 'business.prompt.preview', 'completed',
-        'הוכנה שאלת בחירת עסק בציטוט המסמך; מצב הדמיה בלבד, לא נשלחה הודעה',
+      lycheeLog(e.event_id, 'business.prompt.queued', 'completed',
+        'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; שליחה חיה חסומה במימוש הנוכחי',
         { count: question.choices.length });
       lycheeLog(
         e.event_id,

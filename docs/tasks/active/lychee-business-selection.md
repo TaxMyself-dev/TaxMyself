@@ -1,5 +1,8 @@
 # Lychee business selection — first incremental checkpoint
 
+Delivery follow-up is implemented locally; see lychee-business-question-outbox.md
+in this directory and the question-delivery feature document for current status.
+
 - Status: MANAGER_REVIEW (incremental preview/routing checkpoint only)
 - Worktree: TaxMyself-whatsapp; branch: codex/whatsapp-integration.
 - User chose incremental implementation. Start with business selection and dev

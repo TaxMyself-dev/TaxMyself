@@ -11,10 +11,14 @@ in that case. A malformed or conflicting nonempty sender must still be rejected.
 LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
 Elazar approved preparing its SQL only; no database execution was authorized.
 The receiver loads with normal backend startup; no intake enable flag is needed.
-The queue worker runs automatically on the normal scheduler. There is no outbound
-messaging implementation. Multi-business documents remain WAITING_FOR_BUSINESS;
-prompt mappings and quoted replies are supported in storage, but prompts cannot
-be sent yet. Never fabricate prompt IDs or route to a primary business.
+The document worker runs automatically on the normal scheduler. Multi-business
+documents remain WAITING_FOR_BUSINESS. Bytes and one prompt: outbox draft are
+staged transactionally in the existing table. Only NoSendPromptTransport is
+registered; the HTTP adapter is tested with mocked axios and is NOT registered.
+Never enable real sends without explicit authorization. Provider receipts live
+in outbox JSON; only the document gets prompt_whatsapp_message_id. UNKNOWN sends
+must not be retried blindly; persisted receipts retry linking only. Never invent
+provider IDs or route to a primary business. Tests use fake IDs in fake SQL only.
 Signed POST /webhooks/lychee/reply-owner is read-only and queries persistent
 document prompt ownership (including completed rows). It must not enqueue or
 call selectBusiness. recordPrompt binds real provider IDs for a future sender.

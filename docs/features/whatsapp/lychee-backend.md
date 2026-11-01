@@ -93,22 +93,27 @@ multi-connection MySQL verification remain deployment verification steps.
 
 Each document is downloaded immediately and retained in its own SQL row as
 WAITING_FOR_BUSINESS, with a snapshot of business choices. No question is sent.
-The first incremental selection checkpoint builds a vendor-compatible preview
+The selection flow builds a vendor-compatible preview
 quoted to the original document. New choice snapshots contain short unique
 labels with business names (number fallback); up to three choices use buttons,
 larger lists use a numbered quoted text menu. The future sender must use these
 stored labels, not recalculate labels from a potentially reordered business list.
-`business.prompt.preview` logs only a count, never the question/recipient content.
-There is no send transport or automatic fake question ID at this checkpoint.
+The document and a durable question draft are staged in one SQL transaction.
+`business.prompt.queued` logs only a count, never the question/recipient content.
+The delivery worker and HTTP adapter exist, but the registered transport is
+NoSendPromptTransport. Normal startup cannot send or generate fake provider IDs.
+See [question delivery](lychee-question-delivery.md) for receipt-first recovery,
+duplicate prevention and the unknown-result policy.
 `prompt_whatsapp_message_id` is reserved for the future authorized send adapter;
 do not populate it with a guessed or unrelated ID. Without an actual prompt
 mapping, replies are ignored and cannot assign documents.
 
 `LycheeEventStore.recordPrompt(eventId, channelId, owner, promptId)` persists the
 real WhatsApp ID returned by the future send adapter, scoped to owner/channel and
-a waiting document. It refuses overwriting an unrelated ID. This method is not
-called by a live sender: none exists yet. A failed mapping write after sending
-must be retried using the same provider send idempotency key, not a new question.
+a waiting document. It refuses overwriting an unrelated ID. The question worker
+retries a failed mapping using the durable receipt, without another send. No
+provider idempotency guarantee is assumed: uncertain sends without a persisted
+receipt stop in PROMPT_UNKNOWN and require reconciliation rather than blind retry.
 
 `POST /webhooks/lychee/reply-owner` verifies the ORIGINAL signed incoming event,
 requires a quoted message ID, and returns `{ownsReply: boolean}` from SQL.

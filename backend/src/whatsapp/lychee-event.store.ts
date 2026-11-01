@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import { createHash, randomUUID } from 'crypto';
 import type { LycheeEvent } from './lychee-webhook.controller';
 import { lycheeSender } from './lychee-sender';
+import { BusinessChoice, questionFromChoices } from './lychee-business-question';
+import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
 
 export interface LycheeJob {
   event_id: string;
@@ -91,23 +93,73 @@ export class LycheeEventStore {
   async waitForBusiness(
     job: LycheeJob,
     owner: string,
-    choices: unknown[],
+    choices: BusinessChoice[],
     file: { content: Buffer; filename: string; mimeType: string },
   ): Promise<void> {
-    await this.db.query(
-      `UPDATE lychee_intake_events SET status='WAITING_FOR_BUSINESS', firebase_id=?,
+    const sender = lycheeSender(job.payload);
+    if (!sender) throw new ConflictException('Question sender unavailable');
+    const draft: PromptDraft = {
+      kind: 'BUSINESS_QUESTION',
+      documentEventId: job.event_id,
+      choices,
+      request: questionFromChoices(job.payload, sender, choices),
+    };
+    const key = promptEventId(job.payload.channel_id, job.event_id);
+    const hash = promptHash(draft);
+    const runner = this.db.createQueryRunner();
+    try {
+      await runner.connect();
+      await runner.startTransaction();
+      const changed = await runner.query(
+        `UPDATE lychee_intake_events SET status='WAITING_FOR_BUSINESS', firebase_id=?,
       business_choices=?, content=?, filename=?, mime_type=?, lease_token=NULL, lease_until=NULL
       WHERE event_id=? AND lease_token=?`,
-      [
-        owner,
-        JSON.stringify(choices),
-        file.content,
-        file.filename,
-        file.mimeType,
-        job.event_id,
-        job.lease_token,
-      ],
-    );
+        [
+          owner,
+          JSON.stringify(choices),
+          file.content,
+          file.filename,
+          file.mimeType,
+          job.event_id,
+          job.lease_token,
+        ],
+      );
+      if (changed.affectedRows !== 1)
+        throw new ConflictException('Document lease no longer owned');
+      await runner.query(
+        `INSERT INTO lychee_intake_events
+      (event_id,channel_id,message_id,sender_phone,payload,payload_hash,status,firebase_id)
+      VALUES (?,?,?,?,?,?,'PROMPT_PENDING',?) ON DUPLICATE KEY UPDATE event_id=event_id`,
+        [
+          key,
+          job.payload.channel_id,
+          job.payload.message_id,
+          sender,
+          JSON.stringify(draft),
+          hash,
+          owner,
+        ],
+      );
+      const saved = await runner.query(
+        'SELECT payload_hash,firebase_id FROM lychee_intake_events WHERE event_id=?',
+        [key],
+      );
+      if (
+        saved.length !== 1 ||
+        saved[0].payload_hash !== hash ||
+        saved[0].firebase_id !== owner
+      ) {
+        throw new ConflictException(
+          'Question draft conflicts with existing outbox',
+        );
+      }
+      await runner.commitTransaction();
+    } catch (error) {
+      if (runner.isTransactionActive) await runner.rollbackTransaction();
+      throw error;
+    } finally {
+      await runner.release();
+    }
   }
 
   async retry(job: LycheeJob): Promise<void> {
@@ -168,7 +220,7 @@ export class LycheeEventStore {
     return rows.length === 1;
   }
 
-  /** Future send adapter calls ONLY after obtaining the actual WhatsApp prompt ID. */
+  /** Link the actual transport receipt; repeated identical mappings are safe. */
   async recordPrompt(eventId: string, channelId: string, owner: string, promptId: string): Promise<void> {
     if (typeof promptId !== 'string' || !promptId.length || promptId.length > 255) {
       throw new ConflictException('Invalid prompt identifier');
