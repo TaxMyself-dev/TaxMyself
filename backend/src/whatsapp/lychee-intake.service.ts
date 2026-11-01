@@ -6,6 +6,7 @@ import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { DocumentImportService } from '../document-import/document-import.service';
 import { DocumentImportSource } from '../document-import/enums/document-import.enums';
+import { isImportBlockCode } from '../document-import/document-import-blocked.error';
 import { lycheeSender } from './lychee-sender';
 import { buildBusinessQuestion } from './lychee-business-question';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
@@ -123,6 +124,18 @@ export class LycheeIntakeService {
       );
       if (job) {
         try {
+          if (job.payload.has_media && isImportBlockCode(diagnostic.code)) {
+            await this.store.block(job, diagnostic.code);
+            this.notifications.wake();
+            lycheeLog(
+              job.event_id,
+              'queue.block',
+              'blocked',
+              'חסימה ברורה דורשת טיפול או קובץ אחר; הודעת כישלון נשמרה מיד ללא ניסיונות חוזרים',
+              { code: diagnostic.code, attempts: job.attempts },
+            );
+            return;
+          }
           await this.store.retry(job);
           if (job.attempts >= 5) this.notifications.wake();
           lycheeLog(
@@ -269,20 +282,13 @@ export class LycheeIntakeService {
       this.notifications.wake();
       return;
     }
-    const file = prepared?.content
+    const retained = prepared?.content
       ? {
           content: Buffer.from(prepared.content),
           filename: prepared.filename,
           mimeType: prepared.mime_type,
         }
-      : await this.client.download(e.message_id, e.event_id);
-    lycheeLog(
-      e.event_id,
-      'media.ready',
-      'completed',
-      prepared?.content ? 'נעשה שימוש בקובץ שנשמר בהמתנה' : 'הקובץ הורד ונבדק',
-      { bytes: file.content.length },
-    );
+      : undefined;
     if (businesses.length > 1 && !selected) {
       // Prepare a vendor-compatible question, but never send or invent a prompt ID.
       const question = buildBusinessQuestion(e, normalized, businesses);
@@ -290,7 +296,8 @@ export class LycheeIntakeService {
         e.event_id,
         'business.wait',
         'שמירת המסמך עד לבחירת עסק',
-        () => this.store.waitForBusiness(job, owner, question.choices, file),
+        () =>
+          this.store.waitForBusiness(job, owner, question.choices, retained),
       );
       lycheeLog(
         e.event_id,
@@ -309,6 +316,19 @@ export class LycheeIntakeService {
       );
       return;
     }
+    // New multi-business documents ask first; download only after an owned choice.
+    // Old waiting rows may already contain validated bytes and continue to reuse them.
+    const file =
+      retained || (await this.client.download(e.message_id, e.event_id));
+    lycheeLog(
+      e.event_id,
+      'media.ready',
+      'completed',
+      retained
+        ? 'נעשה שימוש בקובץ שנשמר בהמתנה'
+        : 'הקובץ הורד ונבדק לאחר בחירת העסק',
+      { bytes: file.content.length },
+    );
     const businessNumber = selected || businesses[0].businessNumber;
     const result = await lycheeStep(
       e.event_id,
@@ -319,6 +339,7 @@ export class LycheeIntakeService {
           firebaseId: owner,
           businessNumber,
           source: DocumentImportSource.API_IMPORT,
+          traceEventId: e.event_id,
           ...file,
         });
         if (!imported.driveFileId || imported.status === 'SKIPPED') {

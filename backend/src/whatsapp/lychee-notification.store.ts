@@ -7,7 +7,12 @@ import { lycheeSender } from './lychee-sender';
 export interface ResultDraft {
   kind: 'DOCUMENT_RESULT';
   documentEventId: string;
-  result: 'IMPORTED' | 'ALREADY_IMPORTED' | 'FAILED' | 'REJECTED_BUSINESS';
+  result:
+    | 'IMPORTED'
+    | 'ALREADY_IMPORTED'
+    | 'FAILED'
+    | 'REJECTED_BUSINESS'
+    | 'BLOCKED_IMPORT';
   owner: string | null;
   business: string | null;
   request: BusinessQuestionRequest;
@@ -53,9 +58,13 @@ export function documentResult(row: any): ResultDraft | null {
     typeof event.whatsapp_message_id !== 'string' ||
     !event.whatsapp_message_id.trim() ||
     event.whatsapp_message_id.length > 255 ||
-    !['IMPORTED', 'ALREADY_IMPORTED', 'FAILED', 'REJECTED_BUSINESS'].includes(
-      row.status,
-    )
+    ![
+      'IMPORTED',
+      'ALREADY_IMPORTED',
+      'FAILED',
+      'REJECTED_BUSINESS',
+      'BLOCKED_IMPORT',
+    ].includes(row.status)
   )
     return null;
   const success = ['IMPORTED', 'ALREADY_IMPORTED'].includes(row.status);
@@ -64,8 +73,19 @@ export function documentResult(row: any): ResultDraft | null {
     (!row.drive_file_id || !row.firebase_id || !row.business_number)
   )
     return null;
+  const blockTexts: Record<string, string> = {
+    DRIVE_FOLDER_MISSING:
+      'לא ניתן לשמור את המסמך כי תיק המסמכים של העסק עדיין לא הוגדר. יש לפנות לתמיכה.',
+    UNSUPPORTED_MEDIA_CONTENT:
+      'סוג הקובץ אינו נתמך. אפשר לשלוח PDF או תמונת JPG/PNG.',
+    INVALID_MEDIA_SIZE:
+      'הקובץ ריק או גדול מדי. יש לשלוח קובץ תקין בגודל של עד 10 מגה־בייט.',
+  };
   const text =
-    row.status === 'REJECTED_BUSINESS'
+    row.status === 'BLOCKED_IMPORT'
+      ? blockTexts[row.last_error] ||
+        'לא ניתן לקלוט את המסמך כרגע. אפשר לפנות לתמיכה.'
+      : row.status === 'REJECTED_BUSINESS'
       ? 'לא הצלחנו לשייך את המסמך לעסק בחשבון שלך. אפשר לפנות לתמיכה.'
       : row.status === 'FAILED'
       ? 'לא הצלחנו להשלים את שמירת המסמך אחרי כמה ניסיונות. אפשר לפנות לתמיכה.'
@@ -89,7 +109,7 @@ export function documentResult(row: any): ResultDraft | null {
 
 type Sql = { query: (sql: string, values?: any[]) => Promise<any> };
 const resultColumns =
-  'event_id,channel_id,message_id,sender_phone,payload,status,firebase_id,business_number,drive_file_id';
+  'event_id,channel_id,message_id,sender_phone,payload,status,firebase_id,business_number,drive_file_id,last_error';
 /** The terminal transition and its outbox entry commit together; old completed documents are never backfilled. */
 export async function commitDocumentResults(
   db: DataSource,

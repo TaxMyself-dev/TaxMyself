@@ -17,8 +17,11 @@ after document/outbox commit, prompt delivery is woken the same way. Both retain
 Signals during busy/polling work are retained; immediate bursts drain via fresh
 claims. Webhook acknowledgments never await media, Drive or outbound sending.
 Multi-business
-documents remain WAITING_FOR_BUSINESS. Bytes and one prompt: outbox draft are
-staged transactionally in the existing table. User authorized development-only
+documents remain WAITING_FOR_BUSINESS. Document metadata/choices and one prompt:
+outbox draft are staged transactionally before media download. New documents
+download a fresh media link only after business selection; existing retained bytes
+are reused. No detached media task or guessed business is introduced.
+User authorized development-only
 question sends: DevelopmentOnlyPromptTransport requires NODE_ENV=development,
 actual DataSource/connection database keepintax-dev and configured key/channel.
 It alone wraps the HTTP adapter. Production sends remain unauthorized/blocked.
@@ -41,6 +44,13 @@ tests. Never trigger live messages during agent verification. Recorded receipts
 recover persistence only; unknown send
 results must not be resent blindly. NOTICE_SENT means provider acceptance, not
 confirmed delivery to the phone. No historical completed rows are backfilled.
+Typed local blockers DRIVE_FOLDER_MISSING, UNSUPPORTED_MEDIA_CONTENT and
+INVALID_MEDIA_SIZE finalize as BLOCKED_IMPORT with last_error + a specific result
+notice in one transaction, without increasing attempts or waiting for five retries.
+HTTP/network/unknown failures remain retryable; never infer permanence from 4xx.
+Lychee supplies traceEventId to the shared importer for safe drive.import.* phase
+timings. Trace IDs are not persisted; no request, content or raw error is logged by
+the new phase tracer. Agent verification remains mocked-only; do not start the app.
 
 ## Existing development simulator
 

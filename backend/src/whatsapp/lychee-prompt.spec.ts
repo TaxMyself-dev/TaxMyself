@@ -250,7 +250,7 @@ describe('Durable business question delivery — fake database and fake transpor
   const makeService = (t = transport) =>
     new LycheePromptService(outbox, events, t, users, businesses);
   const journal = (id = 'doc') => db.rows.get(promptEventId('channel', id));
-  async function stage(id = 'doc') {
+  async function stage(id = 'doc', withBytes = true) {
     const payload = doc(id);
     const job = {
       event_id: id,
@@ -270,11 +270,18 @@ describe('Durable business question delivery — fake database and fake transpor
       { businessNumber: '123', businessName: 'נגרות' },
       { businessNumber: '456', businessName: 'ייעוץ' },
     ]);
-    await events.waitForBusiness(job, 'owner', choices, {
-      content: Buffer.from('%PDF-test'),
-      filename: 'test.pdf',
-      mimeType: 'application/pdf',
-    });
+    await events.waitForBusiness(
+      job,
+      'owner',
+      choices,
+      withBytes
+        ? {
+            content: Buffer.from('%PDF-test'),
+            filename: 'test.pdf',
+            mimeType: 'application/pdf',
+          }
+        : undefined,
+    );
     return job;
   }
   beforeEach(() => {
@@ -336,6 +343,20 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(journal().status).toBe('PROMPT_SENT');
     await makeService().tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+  it('can durably stage and deliver a question before media download, without duplicate sends', async () => {
+    await stage('doc', false);
+    expect(db.rows.get('doc').content).toBeNull();
+    expect(db.rows.get('doc').filename).toBeNull();
+    const worker = makeService();
+    await worker.tick();
+    await worker.tick();
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    expect(journal().status).toBe('PROMPT_SENT');
+    expect(db.rows.get('doc').prompt_whatsapp_message_id).toBe(
+      'test-only-question-1',
+    );
+    worker.onModuleDestroy();
   });
 
   it('rolls back a conflicting draft without overwriting an existing question', async () => {

@@ -1,4 +1,8 @@
 import { Logger } from '@nestjs/common';
+import {
+  DocumentImportBlockedError,
+  importBlockReasons,
+} from '../document-import/document-import-blocked.error';
 
 const logger = new Logger('Lychee');
 const known: Record<string, string> = {
@@ -17,6 +21,11 @@ export function safeLycheeError(error: any): {
   httpStatus?: number;
   code?: string;
 } {
+  if (error instanceof DocumentImportBlockedError)
+    return {
+      code: error.blockCode,
+      reason: importBlockReasons[error.blockCode],
+    };
   if (typeof error?.message === 'string') {
     if (/has no Drive folder yet/.test(error.message))
       return {

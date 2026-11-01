@@ -3,6 +3,7 @@ import axios from 'axios';
 import { lookup } from 'dns/promises';
 import { isIP } from 'net';
 import { lycheeLog, lycheeStep, safeLycheeError } from './lychee-log';
+import { DocumentImportBlockedError } from '../document-import/document-import-blocked.error';
 
 export const LYCHEE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -179,7 +180,10 @@ function publicIpv4(address: string): boolean {
 
 export function detectLycheeMime(content: Buffer): string {
   if (!content.length || content.length > LYCHEE_MAX_BYTES)
-    throw new Error('Invalid media size');
+    throw new DocumentImportBlockedError(
+      'INVALID_MEDIA_SIZE',
+      'Invalid media size',
+    );
   if (content.subarray(0, 5).toString('ascii') === '%PDF-')
     return 'application/pdf';
   if (
@@ -190,5 +194,8 @@ export function detectLycheeMime(content: Buffer): string {
     return 'image/png';
   if (content[0] === 255 && content[1] === 216 && content[2] === 255)
     return 'image/jpeg';
-  throw new Error('Unsupported media content');
+  throw new DocumentImportBlockedError(
+    'UNSUPPORTED_MEDIA_CONTENT',
+    'Unsupported media content',
+  );
 }

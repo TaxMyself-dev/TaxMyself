@@ -5,6 +5,7 @@ import { LycheeEventStore } from './lychee-event.store';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { lycheeSender } from './lychee-sender';
 import { buildBusinessQuestion } from './lychee-business-question';
+import { DocumentImportBlockedError } from '../document-import/document-import-blocked.error';
 
 const event: any = {
   event: 'message.received',
@@ -279,6 +280,7 @@ describe('Lychee document workflow without sending', () => {
       selectBusiness: jest.fn().mockResolvedValue(false),
       claim: jest.fn(),
       retry: jest.fn(),
+      block: jest.fn(),
     };
     client = {
       download: jest.fn().mockResolvedValue({
@@ -484,7 +486,7 @@ describe('Lychee document workflow without sending', () => {
     await running;
     expect(importer.importDocument).toHaveBeenCalled();
   });
-  it('stores multi-business bytes separately without uploading or sending', async () => {
+  it('stages the multi-business question without waiting for media or importing', async () => {
     businesses.find.mockResolvedValue([
       { businessNumber: '123' },
       { businessNumber: '456' },
@@ -494,9 +496,91 @@ describe('Lychee document workflow without sending', () => {
       job,
       'owner',
       expect.any(Array),
-      expect.objectContaining({ content: expect.any(Buffer) }),
+      undefined,
     );
+    expect(client.download).not.toHaveBeenCalled();
+    expect(prompts.wake).toHaveBeenCalledTimes(1);
     expect(importer.importDocument).not.toHaveBeenCalled();
+  });
+  it('downloads after an explicit business selection even when no bytes were retained', async () => {
+    businesses.find.mockResolvedValue([
+      { businessNumber: '123' },
+      { businessNumber: '456' },
+    ]);
+    store.prepared.mockResolvedValue({
+      firebase_id: 'owner',
+      business_number: '456',
+      content: null,
+    });
+    await service.process(job);
+    expect(client.download).toHaveBeenCalledWith(
+      event.message_id,
+      event.event_id,
+    );
+    expect(store.waitForBusiness).not.toHaveBeenCalled();
+    expect(importer.importDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessNumber: '456',
+        traceEventId: event.event_id,
+      }),
+    );
+  });
+  it.each([
+    'DRIVE_FOLDER_MISSING',
+    'UNSUPPORTED_MEDIA_CONTENT',
+    'INVALID_MEDIA_SIZE',
+  ] as const)(
+    'finalizes explicit blocker %s on the first attempt and wakes its notice after commit',
+    async (code) => {
+      store.claim.mockResolvedValueOnce(job).mockResolvedValue(null);
+      const error = new DocumentImportBlockedError(code, 'test-only blocker');
+      if (code === 'DRIVE_FOLDER_MISSING')
+        importer.importDocument.mockRejectedValueOnce(error);
+      else client.download.mockRejectedValueOnce(error);
+      let committed = false;
+      store.block.mockImplementationOnce(async () => {
+        committed = true;
+      });
+      notifications.wake.mockImplementation(() => {
+        if (store.block.mock.calls.length) expect(committed).toBe(true);
+      });
+      await service.tick();
+      expect(store.block).toHaveBeenCalledWith(job, code);
+      expect(store.retry).not.toHaveBeenCalled();
+      expect(notifications.wake).toHaveBeenCalledTimes(2); // claim hint, then committed result
+    },
+  );
+  it.each([400, 403, 404, 429, 500])(
+    'keeps remote HTTP %s eligible for retry rather than declaring a local blocker',
+    async (status) => {
+      store.claim.mockResolvedValueOnce(job).mockResolvedValue(null);
+      client.download.mockRejectedValueOnce({
+        response: { status },
+        message: 'remote error',
+      });
+      await service.tick();
+      expect(store.retry).toHaveBeenCalledWith(job);
+      expect(store.block).not.toHaveBeenCalled();
+    },
+  );
+  it('keeps unknown and network errors retryable', async () => {
+    store.claim.mockResolvedValueOnce(job).mockResolvedValue(null);
+    importer.importDocument.mockRejectedValueOnce(
+      Object.assign(new Error('connection reset'), { code: 'ECONNRESET' }),
+    );
+    await service.tick();
+    expect(store.retry).toHaveBeenCalledWith(job);
+    expect(store.block).not.toHaveBeenCalled();
+  });
+  it('leaves recovery to the lease if committing an immediate failure fails', async () => {
+    store.claim.mockResolvedValueOnce(job).mockResolvedValue(null);
+    importer.importDocument.mockRejectedValueOnce(
+      new DocumentImportBlockedError('DRIVE_FOLDER_MISSING', 'test-only'),
+    );
+    store.block.mockRejectedValueOnce(new Error('fake failed transaction'));
+    await service.tick();
+    expect(store.retry).not.toHaveBeenCalled();
+    expect(notifications.wake).toHaveBeenCalledTimes(1);
   });
   it('rejects unknown and ambiguous senders before downloading', async () => {
     for (const matches of [[], [{ firebaseId: 'a' }, { firebaseId: 'b' }]]) {

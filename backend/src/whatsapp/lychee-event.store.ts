@@ -10,6 +10,7 @@ import {
 import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
 import { lycheeLog } from './lychee-log';
 import { commitDocumentResults } from './lychee-notification.store';
+import { ImportBlockCode } from '../document-import/document-import-blocked.error';
 
 export interface LycheeJob {
   event_id: string;
@@ -125,7 +126,7 @@ export class LycheeEventStore {
     job: LycheeJob,
     owner: string,
     choices: BusinessChoice[],
-    file: { content: Buffer; filename: string; mimeType: string },
+    file?: { content: Buffer; filename: string; mimeType: string },
   ): Promise<void> {
     const sender = lycheeSender(job.payload);
     if (!sender) throw new ConflictException('Question sender unavailable');
@@ -148,9 +149,9 @@ export class LycheeEventStore {
         [
           owner,
           JSON.stringify(choices),
-          file.content,
-          file.filename,
-          file.mimeType,
+          file?.content ?? null,
+          file?.filename ?? null,
+          file?.mimeType ?? null,
           job.event_id,
           job.lease_token,
         ],
@@ -209,6 +210,20 @@ export class LycheeEventStore {
         return [job.event_id];
       });
     } else await update(this.db);
+  }
+
+  /** A typed local blocker is final now, not a fabricated fifth attempt. */
+  async block(job: LycheeJob, code: ImportBlockCode): Promise<void> {
+    await commitDocumentResults(this.db, async (sql) => {
+      const changed = await sql.query(
+        `UPDATE lychee_intake_events SET status='BLOCKED_IMPORT',last_error=?,
+        lease_token=NULL,lease_until=NULL WHERE event_id=? AND lease_token=?`,
+        [code, job.event_id, job.lease_token],
+      );
+      if (changed.affectedRows !== 1)
+        throw new ConflictException('Document lease no longer owned');
+      return [job.event_id];
+    });
   }
 
   async prepared(job: LycheeJob): Promise<any> {

@@ -111,6 +111,16 @@ class MemoryDb {
       });
       return { affectedRows: 1 };
     }
+    if (q.includes("SET status='BLOCKED_IMPORT',last_error=?")) {
+      const r = rows.get(p[1]);
+      if (!r || r.lease_token !== p[2]) return { affectedRows: 0 };
+      Object.assign(r, {
+        status: 'BLOCKED_IMPORT',
+        last_error: p[0],
+        lease_token: null,
+      });
+      return { affectedRows: 1 };
+    }
     if (q.startsWith('UPDATE') && q.includes('SET status=?, firebase_id=?')) {
       const r = rows.get(p[4]);
       if (!r || r.lease_token !== p[5]) return { affectedRows: 0 };
@@ -356,6 +366,42 @@ describe('document result notifications (all boundaries mocked)', () => {
     expect(notice().payload.request.text).toContain('לא הצלחנו להשלים');
     await service.tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    'DRIVE_FOLDER_MISSING',
+    'UNSUPPORTED_MEDIA_CONTENT',
+    'INVALID_MEDIA_SIZE',
+  ] as const)(
+    'commits first-attempt blocker %s with a specific notice and sends only one simulated result',
+    async (code) => {
+      await events.block(job, code);
+      expect(parent().status).toBe('BLOCKED_IMPORT');
+      expect(parent().attempts).toBe(1);
+      expect(notice().payload.result).toBe('BLOCKED_IMPORT');
+      expect(notice().payload.request.text).not.toContain('כמה ניסיונות');
+      if (code === 'DRIVE_FOLDER_MISSING')
+        expect(notice().payload.request.text).toContain('תיק המסמכים');
+      if (code === 'UNSUPPORTED_MEDIA_CONTENT')
+        expect(notice().payload.request.text).toContain('PDF');
+      await service.tick();
+      await service.tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      expect(notice().status).toBe('NOTICE_SENT');
+    },
+  );
+  it('rolls back an immediate blocker if its outbox draft cannot be saved', async () => {
+    db.failInsert = true;
+    await expect(events.block(job, 'DRIVE_FOLDER_MISSING')).rejects.toThrow();
+    expect(parent().status).toBe('PROCESSING');
+    expect(parent().lease_token).toBe(job.lease_token);
+    expect(notice()).toBeUndefined();
+  });
+  it('refuses a stale lease when finalizing a blocker', async () => {
+    parent().lease_token = 'another-worker';
+    await expect(events.block(job, 'DRIVE_FOLDER_MISSING')).rejects.toThrow(
+      'lease',
+    );
+    expect(notice()).toBeUndefined();
   });
   it('reports a terminal business rejection to a verified account without claiming an import', async () => {
     await events.complete(job, 'REJECTED_BUSINESS', 'test-owner');

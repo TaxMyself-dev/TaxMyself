@@ -12,6 +12,8 @@ import { BusinessResolverService } from 'src/business/business-resolver.service'
 import { GoogleDriveService } from 'src/google-drive/google-drive.service';
 import { ImportedDocument } from './entities/imported-document.entity';
 import { DocumentImportSource } from './enums/document-import.enums';
+import { DocumentImportBlockedError } from './document-import-blocked.error';
+import { traceImportStep } from './document-import-trace';
 
 /** Source-specific traceability carried alongside a Gmail import. */
 export interface GmailImportMetadata {
@@ -42,6 +44,8 @@ export interface DocumentImportRequest {
   mimeType: string | null;
   content: Buffer;
   metadata?: DocumentImportMetadata;
+  /** Optional opaque intake event ID for safe per-operation timings. Never persisted. */
+  traceEventId?: string;
 }
 
 export type DocumentImportStatus = 'IMPORTED' | 'ALREADY_IMPORTED' | 'SKIPPED';
@@ -95,22 +99,33 @@ export class DocumentImportService {
     // Decide the target business first — dedup, Drive folder lookup and the
     // ledger row all key off businessNumber. When the caller supplies one it is
     // honored unchanged; when it is absent the resolver picks it.
-    const businessNumber = await this.resolveBusinessNumber(request);
+    const businessNumber = await traceImportStep(
+      request.traceEventId,
+      'business.resolve',
+      () => this.resolveBusinessNumber(request),
+    );
 
-    const contentHash = createHash('sha256')
-      .update(request.content)
-      .digest('hex');
+    const contentHash = await traceImportStep(
+      request.traceEventId,
+      'content.hash',
+      async () => createHash('sha256').update(request.content).digest('hex'),
+    );
 
     // Dedup BEFORE any Drive work: the product manages documents, not import
     // history — identical bytes for this user+business are one document, no
     // matter which source (or how many emails) they arrive from.
-    const existing = await this.importedDocumentRepo.findOne({
-      where: {
-        firebaseId: request.firebaseId,
-        businessNumber,
-        contentHash,
-      },
-    });
+    const existing = await traceImportStep(
+      request.traceEventId,
+      'db.dedup',
+      () =>
+        this.importedDocumentRepo.findOne({
+          where: {
+            firebaseId: request.firebaseId,
+            businessNumber,
+            contentHash,
+          },
+        }),
+    );
     if (existing) {
       return {
         status: 'ALREADY_IMPORTED',
@@ -123,7 +138,11 @@ export class DocumentImportService {
     }
 
     const { inboxFolderId, processedFolderId } =
-      await this.resolveImportFolders(request.firebaseId, businessNumber);
+      await this.resolveImportFolders(
+        request.firebaseId,
+        businessNumber,
+        request.traceEventId,
+      );
 
     // Collision-safe name against the CURRENT inbox listing. Listed per
     // import (not cached) so sequential batch imports see each other's
@@ -138,11 +157,16 @@ export class DocumentImportService {
           [inboxFolderId, processedFolderId].filter((id): id is string => !!id),
         ),
       ];
-      const listings = await Promise.all(
-        folderIds.map(async (folderId) => ({
-          folderId,
-          files: await this.googleDriveService.listFolderFiles(folderId),
-        })),
+      const listings = await traceImportStep(
+        request.traceEventId,
+        'drive.list',
+        () =>
+          Promise.all(
+            folderIds.map(async (folderId) => ({
+              folderId,
+              files: await this.googleDriveService.listFolderFiles(folderId),
+            })),
+          ),
       );
       // A crash can leave a complete Drive upload without a ledger row. Only
       // inspect this owner's selected business folders. MD5 is a cheap candidate
@@ -166,10 +190,19 @@ export class DocumentImportService {
         );
       let recovered: (typeof candidates)[number] | undefined;
       for (const candidate of candidates) {
-        const bytes = await this.googleDriveService.downloadFile(
-          candidate.file.id,
+        const matches = await traceImportStep(
+          request.traceEventId,
+          'drive.recovery.verify',
+          async () => {
+            const bytes = await this.googleDriveService.downloadFile(
+              candidate.file.id,
+            );
+            return (
+              createHash('sha256').update(bytes).digest('hex') === contentHash
+            );
+          },
         );
-        if (createHash('sha256').update(bytes).digest('hex') === contentHash) {
+        if (matches) {
           recovered = candidate;
           break;
         }
@@ -188,11 +221,16 @@ export class DocumentImportService {
             .files.map((file) => file.name),
         );
         driveFileName = this.pickUniqueName(request.filename, usedNames);
-        driveFileId = await this.googleDriveService.uploadFile(
-          inboxFolderId,
-          driveFileName,
-          request.content,
-          request.mimeType ?? 'application/octet-stream',
+        driveFileId = await traceImportStep(
+          request.traceEventId,
+          'drive.upload',
+          () =>
+            this.googleDriveService.uploadFile(
+              inboxFolderId,
+              driveFileName,
+              request.content,
+              request.mimeType ?? 'application/octet-stream',
+            ),
         );
         uploadedHere = true;
       }
@@ -218,25 +256,30 @@ export class DocumentImportService {
     // (best-effort) so a retry doesn't double-upload.
     const gmail = request.metadata;
     try {
-      const saved = await this.importedDocumentRepo.save(
-        this.importedDocumentRepo.create({
-          firebaseId: request.firebaseId,
-          businessNumber,
-          source: request.source,
-          contentHash,
-          driveFileId,
-          driveFileName,
-          driveFolderId,
-          filename: this.truncate(request.filename, 512) || 'attachment',
-          mimeType: request.mimeType,
-          size: request.content.length,
-          gmailMessageId: this.truncate(gmail?.gmailMessageId ?? null, 64),
-          gmailThreadId: this.truncate(gmail?.gmailThreadId ?? null, 64),
-          gmailAttachmentId: gmail?.gmailAttachmentId ?? null,
-          gmailSubject: this.truncate(gmail?.gmailSubject ?? null, 998),
-          gmailFrom: this.truncate(gmail?.gmailFrom ?? null, 512),
-          gmailDate: this.truncate(gmail?.gmailDate ?? null, 64),
-        }),
+      const saved = await traceImportStep(
+        request.traceEventId,
+        'db.import_save',
+        () =>
+          this.importedDocumentRepo.save(
+            this.importedDocumentRepo.create({
+              firebaseId: request.firebaseId,
+              businessNumber,
+              source: request.source,
+              contentHash,
+              driveFileId,
+              driveFileName,
+              driveFolderId,
+              filename: this.truncate(request.filename, 512) || 'attachment',
+              mimeType: request.mimeType,
+              size: request.content.length,
+              gmailMessageId: this.truncate(gmail?.gmailMessageId ?? null, 64),
+              gmailThreadId: this.truncate(gmail?.gmailThreadId ?? null, 64),
+              gmailAttachmentId: gmail?.gmailAttachmentId ?? null,
+              gmailSubject: this.truncate(gmail?.gmailSubject ?? null, 998),
+              gmailFrom: this.truncate(gmail?.gmailFrom ?? null, 512),
+              gmailDate: this.truncate(gmail?.gmailDate ?? null, 64),
+            }),
+          ),
       );
       return {
         status: 'IMPORTED',
@@ -251,14 +294,24 @@ export class DocumentImportService {
       // our lookup and the insert — the document IS in the system.
       if (this.isDuplicateKeyError(error)) {
         if (uploadedHere)
-          await this.cleanupDriveFile(driveFileId, driveFileName, 'duplicate');
-        const winner = await this.importedDocumentRepo.findOne({
-          where: {
-            firebaseId: request.firebaseId,
-            businessNumber,
-            contentHash,
-          },
-        });
+          await this.cleanupDriveFile(
+            driveFileId,
+            driveFileName,
+            'duplicate',
+            request.traceEventId,
+          );
+        const winner = await traceImportStep(
+          request.traceEventId,
+          'db.race_lookup',
+          () =>
+            this.importedDocumentRepo.findOne({
+              where: {
+                firebaseId: request.firebaseId,
+                businessNumber,
+                contentHash,
+              },
+            }),
+        );
         return {
           status: 'ALREADY_IMPORTED',
           reason: null,
@@ -282,6 +335,7 @@ export class DocumentImportService {
           driveFileId,
           driveFileName,
           'db-insert-failure',
+          request.traceEventId,
         );
       }
       return {
@@ -332,10 +386,16 @@ export class DocumentImportService {
   private async resolveImportFolders(
     firebaseId: string,
     businessNumber: string,
+    traceEventId?: string,
   ): Promise<{ inboxFolderId: string; processedFolderId: string | null }> {
-    const business = await this.businessRepo.findOne({
-      where: { firebaseId, businessNumber },
-    });
+    const business = await traceImportStep(
+      traceEventId,
+      'db.folder_lookup',
+      () =>
+        this.businessRepo.findOne({
+          where: { firebaseId, businessNumber },
+        }),
+    );
     if (!business) {
       throw new NotFoundException(
         `Business ${businessNumber} not found for this user`,
@@ -348,18 +408,23 @@ export class DocumentImportService {
       };
     }
     if (!business.driveFolderId) {
-      throw new BadRequestException(
+      throw new DocumentImportBlockedError(
+        'DRIVE_FOLDER_MISSING',
         `Business ${businessNumber} has no Drive folder yet — open the documents/reports ` +
           'page once so the Drive structure is provisioned, then retry the import.',
       );
     }
-    const { inboxFolderId, processedFolderId } =
-      await this.googleDriveService.ensureInboxAndProcessed(
-        business.driveFolderId,
-      );
+    const { inboxFolderId, processedFolderId } = await traceImportStep(
+      traceEventId,
+      'drive.provision',
+      () =>
+        this.googleDriveService.ensureInboxAndProcessed(business.driveFolderId),
+    );
     business.driveInboxFolderId = inboxFolderId;
     business.driveProcessedFolderId = processedFolderId;
-    await this.businessRepo.save(business);
+    await traceImportStep(traceEventId, 'db.folder_save', () =>
+      this.businessRepo.save(business),
+    );
     return { inboxFolderId, processedFolderId };
   }
 
@@ -388,9 +453,12 @@ export class DocumentImportService {
     driveFileId: string,
     driveFileName: string,
     reason: 'duplicate' | 'db-insert-failure',
+    traceEventId?: string,
   ): Promise<void> {
     try {
-      await this.googleDriveService.deleteFile(driveFileId);
+      await traceImportStep(traceEventId, 'drive.cleanup', () =>
+        this.googleDriveService.deleteFile(driveFileId),
+      );
       if (reason === 'duplicate') {
         this.logger.debug(
           `Removed redundant Drive upload "${driveFileName}" (${driveFileId}) ` +
