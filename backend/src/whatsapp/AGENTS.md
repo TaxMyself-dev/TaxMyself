@@ -13,9 +13,11 @@ Elazar approved preparing its SQL only; no database execution was authorized.
 The receiver loads with normal backend startup; no intake enable flag is needed.
 The document worker runs automatically on the normal scheduler. Multi-business
 documents remain WAITING_FOR_BUSINESS. Bytes and one prompt: outbox draft are
-staged transactionally in the existing table. Only NoSendPromptTransport is
-registered; the HTTP adapter is tested with mocked axios and is NOT registered.
-Never enable real sends without explicit authorization. Provider receipts live
+staged transactionally in the existing table. User authorized development-only
+question sends: DevelopmentOnlyPromptTransport requires NODE_ENV=development,
+actual DataSource/connection database keepintax-dev and configured key/channel.
+It alone wraps the HTTP adapter. Production sends remain unauthorized/blocked.
+Tests mock HTTP; NoSendPromptTransport remains for offline use. Provider receipts live
 in outbox JSON; only the document gets prompt_whatsapp_message_id. UNKNOWN sends
 must not be retried blindly; persisted receipts retry linking only. Never invent
 provider IDs or route to a primary business. Tests use fake IDs in fake SQL only.

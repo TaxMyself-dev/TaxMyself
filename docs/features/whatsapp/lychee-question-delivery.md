@@ -1,21 +1,38 @@
-# Business-question delivery checkpoint (offline only)
+# Business-question delivery (development activation)
 
-Question delivery is implemented and tested with fake SQL and mock transports.
-No live messages, DB writes, migrations, deployments or pushes were performed.
-Success/failure confirmations remain out of scope.
+Question delivery is tested with fake SQL and mock HTTP. The user subsequently
+authorized live business questions in development only. No manual live question,
+schema change, deployment or push was performed as part of activation. Success/
+failure confirmations remain out of scope.
 
 ## Runtime safety
 
-LycheeModule binds LycheePromptTransport exclusively to NoSendPromptTransport.
-The question worker exits before claiming when this transport is unavailable.
-No environment variable/API key enables it. There are no simulation endpoints
-or generated provider IDs in the running application. Synthetic IDs exist only
-in tests using fake storage.
+LycheeModule binds LycheePromptTransport to DevelopmentOnlyPromptTransport.
+It is available ONLY with NODE_ENV=development, the actual DataSource configured
+for keepintax-dev, and LYCHEE_API_KEY/LYCHEE_CHANNEL_ID configured. Other database
+names (including production copies), production/test/unset NODE_ENV, or missing
+configuration block claiming and sending. Before each send, verify the request's
+channel and original quoted message, and SELECT DATABASE() on the active pool.
+It must return keepintax-dev. Generic DB_DATABASE from env is not a substitute
+for either check. No separate worker enable flag is required.
 
-LycheeHttpPromptTransport implements the documented make-send-text contract but
-is NOT registered in the application. Its tests mock axios completely. Real
-activation requires separate user authorization, a reviewed provider binding,
-credential scopes and a live verification plan.
+Only the guarded transport delegates to the unregistered low-level HTTP adapter.
+NoSendPromptTransport remains available for offline use; synthetic IDs exist only
+in fake SQL tests. Tests mock axios completely. Production activation remains
+unauthorized and blocked by code.
+
+## Local use
+
+The existing ignored backend/.env already selects development, has a channel and
+API key; no values were copied to Git or changed by this task. Reload/restart the
+WhatsApp worktree's normal backend with npm run start:watch and keep ngrok running.
+New multi-business documents create drafts; the question worker may send existing
+PROMPT_PENDING drafts as well. Earlier preview-only waits without a draft are
+still not automatically backfilled.
+
+The dev quoted-reply proxy changes are on the feature branch only until a later
+authorized integration/deployment. Enabling local sends does not update the
+deployed proxy; full phone-button testing still needs that routing revision.
 
 ## Existing-table outbox
 

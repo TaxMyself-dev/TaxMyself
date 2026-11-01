@@ -266,7 +266,7 @@ export class LycheeIntakeService {
           ),
       );
       lycheeLog(e.event_id, 'business.prompt.queued', 'completed',
-        'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; שליחה חיה חסומה במימוש הנוכחי',
+        'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; רכיב השליחה יבדוק הרשאת סביבת דב לפני משלוח',
         { count: question.choices.length });
       lycheeLog(
         e.event_id,

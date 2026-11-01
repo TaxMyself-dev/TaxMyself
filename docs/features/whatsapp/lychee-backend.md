@@ -100,8 +100,11 @@ larger lists use a numbered quoted text menu. The future sender must use these
 stored labels, not recalculate labels from a potentially reordered business list.
 The document and a durable question draft are staged in one SQL transaction.
 `business.prompt.queued` logs only a count, never the question/recipient content.
-The delivery worker and HTTP adapter exist, but the registered transport is
-NoSendPromptTransport. Normal startup cannot send or generate fake provider IDs.
+The delivery worker is now authorized for development only. Its registered
+DevelopmentOnlyPromptTransport requires NODE_ENV=development, DataSource database
+keepintax-dev, configured key/channel, and checks the actual connection's database
+before sending. Production and other environments remain blocked. No synthetic
+provider IDs are generated at runtime.
 See [question delivery](lychee-question-delivery.md) for receipt-first recovery,
 duplicate prevention and the unknown-result policy.
 `prompt_whatsapp_message_id` is reserved for the future authorized send adapter;

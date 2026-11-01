@@ -28,7 +28,7 @@ export class LycheePromptService {
 
   @Interval(10000)
   async tick(): Promise<void> {
-    // Runtime is permanently wired to NoSendPromptTransport for this checkpoint.
+    // Registered transport permits only the explicitly authorized development runtime.
     if (!this.transport.available || this.running) return;
     this.running = true;
     let job: PromptJob | null = null;

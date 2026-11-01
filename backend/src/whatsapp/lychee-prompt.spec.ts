@@ -10,6 +10,7 @@ import {
   LycheePromptTransport,
   NoSendPromptTransport,
   LycheeHttpPromptTransport,
+  DevelopmentOnlyPromptTransport,
 } from './lychee-prompt.transport';
 import { LycheeModule } from './lychee.module';
 
@@ -491,7 +492,7 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(transport.send).not.toHaveBeenCalled();
   });
 
-  it('the normal application has no live sender or fake provider IDs, regardless of API key', async () => {
+  it('explicit offline transport never claims jobs; app uses only the dev-guarded binding', async () => {
     await stage();
     const queries = db.queries;
     await makeService(new NoSendPromptTransport()).tick();
@@ -501,7 +502,7 @@ describe('Durable business question delivery — fake database and fake transpor
     const providers = Reflect.getMetadata('providers', LycheeModule);
     expect(providers).toContainEqual({
       provide: LycheePromptTransport,
-      useClass: NoSendPromptTransport,
+      useClass: DevelopmentOnlyPromptTransport,
     });
     expect(providers).not.toContain(LycheeHttpPromptTransport);
   });

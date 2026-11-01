@@ -2,6 +2,7 @@ import axios from 'axios';
 import {
   LycheeHttpPromptTransport,
   NoSendPromptTransport,
+  DevelopmentOnlyPromptTransport,
 } from './lychee-prompt.transport';
 jest.mock('axios');
 
@@ -17,6 +18,8 @@ describe('Question send API contract — mocked HTTP only', () => {
   };
   beforeEach(() => {
     post.mockReset();
+    process.env.NODE_ENV = 'development';
+    process.env.LYCHEE_CHANNEL_ID = 'test-channel';
     process.env.LYCHEE_API_KEY = 'fake-key-for-unit-tests';
   });
   afterAll(() => {
@@ -54,13 +57,86 @@ describe('Question send API contract — mocked HTTP only', () => {
       ).rejects.toThrow('Question receipt unavailable');
     }
   });
-  it('never calls HTTP in the registered no-send transport or without credentials', async () => {
+  it('never calls HTTP in the explicit no-send transport or without credentials', async () => {
     expect(new NoSendPromptTransport().available).toBe(false);
     await expect(new NoSendPromptTransport().send()).rejects.toThrow();
     delete process.env.LYCHEE_API_KEY;
     await expect(
       new LycheeHttpPromptTransport().send(request),
     ).rejects.toThrow();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('allows the approved dev environment only after verifying the actual connection', async () => {
+    const db: any = {
+      options: { database: 'keepintax-dev' },
+      query: jest.fn().mockResolvedValue([{ db: 'keepintax-dev' }]),
+    };
+    const transport = new DevelopmentOnlyPromptTransport(db);
+    post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });
+    expect(transport.available).toBe(true);
+    expect(await transport.send(request)).toBe('test-only-id');
+    expect(db.query).toHaveBeenCalledWith('SELECT DATABASE() AS db');
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('never claims availability or connects for a prod database, even if env DB_DATABASE says dev', async () => {
+    process.env.DB_DATABASE = 'keepintax-dev';
+    for (const database of [
+      'keepintax-prod',
+      'keepintax_prodcopy',
+      undefined,
+    ]) {
+      const db: any = { options: { database }, query: jest.fn() };
+      const transport = new DevelopmentOnlyPromptTransport(db);
+      expect(transport.available).toBe(false);
+      await expect(transport.send(request)).rejects.toThrow();
+      expect(db.query).not.toHaveBeenCalled();
+    }
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('blocks non-development environments without any connection or HTTP', async () => {
+    for (const nodeEnv of ['production', 'test', '', undefined]) {
+      if (nodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = nodeEnv;
+      const db: any = {
+        options: { database: 'keepintax-dev' },
+        query: jest.fn(),
+      };
+      const transport = new DevelopmentOnlyPromptTransport(db);
+      expect(transport.available).toBe(false);
+      await expect(transport.send(request)).rejects.toThrow();
+      expect(db.query).not.toHaveBeenCalled();
+    }
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('blocks a mismatched live connection or channel before HTTP', async () => {
+    const db: any = {
+      options: { database: 'keepintax-dev' },
+      query: jest.fn().mockResolvedValue([{ db: 'other' }]),
+    };
+    const transport = new DevelopmentOnlyPromptTransport(db);
+    await expect(transport.send(request)).rejects.toThrow(
+      'Development question database mismatch',
+    );
+    await expect(
+      transport.send({ ...request, channel_id: 'other' }),
+    ).rejects.toThrow();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('blocks missing configuration before claiming availability', async () => {
+    const db: any = {
+      options: { database: 'keepintax-dev' },
+      query: jest.fn(),
+    };
+    delete process.env.LYCHEE_API_KEY;
+    expect(new DevelopmentOnlyPromptTransport(db).available).toBe(false);
+    process.env.LYCHEE_API_KEY = 'fake';
+    delete process.env.LYCHEE_CHANNEL_ID;
+    expect(new DevelopmentOnlyPromptTransport(db).available).toBe(false);
     expect(post).not.toHaveBeenCalled();
   });
 });
