@@ -1,5 +1,9 @@
 # Lychee per-sender test commands
 
+Superseded storage architecture: test mode now lives directly in the proxy's
+development SQL adapter, not a backend endpoint. See lychee-proxy-direct-db.md
+in this task directory and the feature server setup guide for current requirements.
+
 - Status: `MANAGER_REVIEW`
 - Task manager: current WhatsApp feature chat
 - Worker: none

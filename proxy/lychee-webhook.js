@@ -1,5 +1,6 @@
 const { createHmac, timingSafeEqual } = require('node:crypto');
 const { isIP } = require('node:net');
+const { createRoutingStore, routingCommand } = require('./lychee-routing-store');
 
 function phone(value) {
   if (typeof value !== 'string') return null;
@@ -35,7 +36,7 @@ function configuration(env) {
     testPhones: new Set(normalized), prodUrl, devUrl };
 }
 
-function createHandler(config, fetchImpl = fetch) {
+function createHandler(config, fetchImpl = fetch, routingStore) {
   function audit(eventId, stage, outcome, message, details = {}) {
     const event_id = typeof eventId === 'string' && /^[A-Za-z0-9_.:-]{1,255}$/.test(eventId) ? eventId : undefined;
     console.info(JSON.stringify({ component: 'LycheeProxy', event_id, stage, outcome, message, ...details }));
@@ -130,13 +131,14 @@ function createHandler(config, fetchImpl = fetch) {
         target = matches[0];
       } else if (config.testPhones.has(sender)) {
         activeStage = 'route.resolve';
-        // One durable authority across proxy replicas; stopping tests works even if ngrok is down.
-        const route = await controlRequest(config.prodUrl, 'test-route', raw, header);
-        const text = typeof event.text === 'string' ? event.text.trim().replace(/\s+/g, ' ') : '';
-        const command = event.has_media === false && event.message_type === 'text' &&
-          ['בדיקות', 'סיום בדיקות'].includes(text);
+        // Development SQL is the durable authority, independent of either backend's availability.
+        if (!routingStore) throw new Error('Routing storage unavailable');
+        audit(event.event_id, 'route.resolve', 'started', 'קריאת מצב הבדיקות ושמירת החלטת הניתוב במסד הדב');
+        const route = await routingStore.resolve(event, sender);
+        const requested = routingCommand(event);
+        const command = requested !== null;
         if (!['dev', 'prod'].includes(route?.environment) || route.command !== command ||
-            command && route.environment !== (text === 'בדיקות' ? 'dev' : 'prod')) {
+            command && route.environment !== requested) {
           throw new Error('Invalid routing response');
         }
         if (command) {
@@ -165,7 +167,20 @@ function createHandler(config, fetchImpl = fetch) {
         { environment: target === config.devUrl ? 'dev' : 'prod', httpStatus: response.status, durationMs: Date.now() - started });
       return res.status(accepted ? 200 : 502).json(accepted ? { received: true } : { error: 'Destination rejected event' });
     } catch (error) {
-      audit(event.event_id, activeStage, 'failed', activeStage === 'route.resolve' ?
+      const databaseReasons = {
+        LYCHEE_DB_CONFIG: 'הגדרות חיבור מסד הדב בפרוקסי חסרות או אינן תקינות; מותר רק keepintax-dev',
+        ER_BAD_DB_ERROR: 'מסד הדב המוגדר אינו קיים בשרת המסד',
+        ER_ACCESS_DENIED_ERROR: 'מסד הדב דחה את פרטי ההתחברות של הפרוקסי',
+        ER_DBACCESS_DENIED_ERROR: 'למשתמש הפרוקסי אין הרשאה למסד הדב',
+        ER_TABLEACCESS_DENIED_ERROR: 'למשתמש הפרוקסי אין הרשאות מתאימות לטבלת הניתוב',
+        ER_NO_SUCH_TABLE: 'טבלת ליצ׳י אינה קיימת במסד הדב',
+        ECONNREFUSED: 'שרת מסד הדב דחה את החיבור',
+        ETIMEDOUT: 'פג זמן ההמתנה לחיבור למסד הדב',
+        ENOTFOUND: 'כתובת שרת מסד הדב לא נפתרה',
+        HANDSHAKE_NO_SSL_SUPPORT: 'שרת מסד הדב אינו תומך בחיבור TLS שהוגדר',
+        HANDSHAKE_SSL_ERROR: 'אימות חיבור TLS למסד הדב נכשל; יש לבדוק את אישור השרת',
+      };
+      audit(event.event_id, activeStage, 'failed', activeStage === 'route.resolve' ? databaseReasons[error?.code] ||
         'לא ניתן לקבוע או לשמור מצב בדיקות; האירוע לא הועבר ואין מעבר לפרוד' : activeStage === 'reply.resolve' ?
         'לא ניתן לברר את בעלות השאלה: המקלט אינו זמין או החזיר תשובה לא תקינה; אין ניחוש סביבה' :
         'ההעברה למקלט נכשלה ברשת או בזמן ההמתנה; אין מעבר לסביבה אחרת',
@@ -181,8 +196,10 @@ function registerLycheeWebhook(app, express, env = process.env) {
   const config = configuration(env);
   if (!config) return;
   // Register before any JSON parser: signatures cover the original bytes.
+  // Lazy pool creation keeps missing DB settings from taking down unrelated proxy routes.
+  const store = config.testPhones.size ? createRoutingStore(env, config.testPhones) : undefined;
   app.post('/lychee/webhook', express.raw({ type: 'application/json', limit: '256kb', inflate: false }),
-    createHandler(config));
+    createHandler(config, fetch, store));
 }
 
 module.exports = { configuration, createHandler, registerLycheeWebhook };

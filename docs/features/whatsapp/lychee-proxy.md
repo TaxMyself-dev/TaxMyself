@@ -25,20 +25,28 @@ is applied. Documents need no caption. Captions and longer sentences never toggl
 the mode. The old `#dev` caption no longer selects dev. Unlisted senders always
 go to prod and cannot change routing state, even if they send either command.
 
-For each unquoted allowlisted event the proxy calls the stable production
-receiver's `/test-route` subpath with the original signed bytes. The backend must
-also have the same `LYCHEE_TEST_PHONES` allowlist. It verifies the signature,
-channel and sender again, and stores mode commands and per-event routing decisions
-in the existing SQL table. No in-memory proxy state or new database table is used.
+For each unquoted allowlisted event the proxy directly reads/writes the existing
+`keepintax-dev.lychee_intake_events` table through its own mysql2 connection pool.
+No backend routing endpoint, backend allowlist, new table or schema is required.
+Use [the server setup guide](lychee-proxy-database.md) for explicit `LYCHEE_DB_*`
+settings. Generic backend `DB_*` variables are never inherited. Any database name
+other than exactly `keepintax-dev` is rejected before connection.
 The decision remains stable on delivery retries, even after ending tests. The
 sender and channel scope is isolated; restarting/scaling the proxy preserves mode.
-The production receiver is the single routing authority, even for dev documents.
+Development SQL is the shared routing authority across proxy replicas.
 Commands are acknowledged only after durable storage and are not forwarded to
 either document receiver. No WhatsApp confirmation message is sent. Operator logs
 include `route.command`/`route.resolve`; verify activation there before testing.
 The stop command therefore works even while ngrok is unavailable. If the routing
 authority fails, allowlisted unquoted events return 502 without forwarding or
-falling back to prod. Missing/invalid event timestamps are rejected by the authority.
+falling back to prod. Missing/invalid event timestamps are rejected before SQL access.
+Routing journal entries use terminal `ROUTE_*` statuses and hashed `route:` IDs;
+they are never claimed by the document worker. A per-sender/channel/database
+advisory lock serializes writes; document retries retain their stored destination.
+Delayed commands use provider event time; conflicting same-time commands fail closed.
+The driver is loaded lazily, so missing DB configuration does not disable Feezback,
+Cardcom or non-test-sender forwarding. SQL errors are logged without credentials,
+connection strings, query parameters or raw exception messages.
 Null, missing or blank sender_phone falls back to contact_phone; malformed or
 conflicting nonempty sender phones are rejected. Signed bytes remain unchanged.
 Never mirror or fall back to prod after a dev failure.
@@ -54,9 +62,10 @@ quoted reply. Both backends must expose the ownership endpoint before deploying
 this proxy revision. No quoted reply is routed solely by its text or arrival order.
 Other unquoted messages follow the sender's persisted mode, independently of other senders.
 Configuration is read on process startup; changes require a proxy restart/deploy.
-Deploy the backend `/test-route` implementation and configure its allowlist before
-deploying this proxy revision. The authoritative backend must already have the
-intake table; provisioning production storage requires separate authorization.
+For standalone commands and captionless dev uploads, configure and later deploy
+only this proxy, and run the normal local backend via ngrok. The existing quoted
+reply ownership flow is unchanged and still requires its two receiver endpoints;
+this task does not replace that resolver or enable outbound business questions.
 
 The proxy follows no redirects, forwards no API credentials, and logs no payloads.
 It waits up to 10 seconds for downstream acceptance. Any non-2xx or network
@@ -69,6 +78,6 @@ The existing development simulator is NOT this receiver and cannot consume this
 payload. See `lychee-backend.md` for the receiver, required SQL (executed on dev
 only), automatic document worker and remaining activation requirements.
 
-Run focused offline tests: `node --test proxy/lychee-webhook.test.js`.
+Run focused offline tests: `node --test proxy/lychee-webhook.test.js proxy/lychee-routing-store.test.js`.
 The deployed proxy hostname/configuration have not been verified; after approval
 and deployment, give Lychee the verified hostname plus `/lychee/webhook`.

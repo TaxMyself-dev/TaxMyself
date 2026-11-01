@@ -15,21 +15,12 @@ async function invoke({ overrides = {}, eventOverrides = {}, failure = false, st
   const bytes = raw || Buffer.from(JSON.stringify({ event: 'message.received', event_id: 'evt-1',
     channel_id: 'test-channel', sender_phone: '972501234567', contact_phone: '972501234567', text: '[מסמך]',
     has_media: true, message_type: 'document', occurred_at: '2026-11-01T10:00:00.000Z',
+    message_id: 'msg-1', whatsapp_message_id: 'wamid.1', reply_to_whatsapp_message_id: null,
     ...eventOverrides }, null, 2));
   const signed = signature ?? ('sha256=' + createHmac('sha256', config.secret).update(bytes).digest('hex'));
   const calls = [];
   const routeCalls = [];
   const handler = createHandler(config, async (url, options) => {
-    if (url.endsWith('/test-route')) {
-      routeCalls.push({ url, options });
-      if (routeFailure) throw new Error('routing unavailable');
-      const event = JSON.parse(options.body);
-      const text = event.text.trim().replace(/\s+/g, ' ');
-      const command = !event.has_media && event.message_type === 'text' && ['בדיקות', 'סיום בדיקות'].includes(text);
-      return new Response(JSON.stringify(routeResponse || {
-        environment: command ? text === 'בדיקות' ? 'dev' : 'prod' : routeEnvironment, command,
-      }));
-    }
     calls.push({ url, options });
     if (url.endsWith('/reply-owner')) {
       if (url === lookupFailure) throw new Error('lookup offline');
@@ -37,7 +28,13 @@ async function invoke({ overrides = {}, eventOverrides = {}, failure = false, st
     }
     if (failure) throw new Error('offline');
     return { ok: status >= 200 && status < 300 };
-  });
+  }, { async resolve(event, sender) {
+    routeCalls.push({ event, sender });
+    if (routeFailure) throw new Error('routing unavailable');
+    const text = event.text.trim().replace(/\s+/g, ' ');
+    const command = !event.has_media && event.message_type === 'text' && ['בדיקות', 'סיום בדיקות'].includes(text);
+    return routeResponse || { environment: command ? text === 'בדיקות' ? 'dev' : 'prod' : routeEnvironment, command };
+  } });
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await handler({ body: bytes, headers: { 'x-lychee-signature': signed } }, res);
   return { res, calls, routeCalls, bytes, signed };
@@ -142,15 +139,14 @@ test('inactive authorized sender uses production, including legacy #dev captions
   }
 });
 
-test('allowlisted commands are saved centrally and never forwarded as documents or sent to ngrok', async () => {
+test('allowlisted commands use SQL storage without contacting either backend', async () => {
   for (const text of ['בדיקות', 'סיום בדיקות', '  סיום   בדיקות  ']) {
-    const { res, calls, routeCalls, bytes, signed } = await invoke({ eventOverrides: { text, has_media: false, message_type: 'text' } });
+    const { res, calls, routeCalls, bytes } = await invoke({ eventOverrides: { text, has_media: false, message_type: 'text' } });
     assert.equal(res.code, 200);
     assert.equal(calls.length, 0);
     assert.equal(routeCalls.length, 1);
-    assert.equal(routeCalls[0].url, env.LYCHEE_PROD_WEBHOOK_URL + '/test-route');
-    assert.strictEqual(routeCalls[0].options.body, bytes);
-    assert.equal(routeCalls[0].options.headers['x-lychee-signature'], signed);
+    assert.equal(routeCalls[0].sender, '972501234567');
+    assert.deepEqual(routeCalls[0].event, JSON.parse(bytes));
   }
 });
 
@@ -190,6 +186,19 @@ test('empty sender falls back to local contact phone without changing signed byt
 test('disabled feature registers no route', () => {
   registerLycheeWebhook({ post() { assert.fail('unexpected route'); } }, {}, {});
   assert.equal(configuration({}), null);
+});
+
+test('missing SQL settings do not prevent proxy route registration and never fall back to prod', async () => {
+  let handler;
+  registerLycheeWebhook({ post(_path, _parser, callback) { handler = callback; } },
+    { raw() { return () => {}; } }, env);
+  const raw = Buffer.from(JSON.stringify({ event: 'message.received', event_id: 'command', channel_id: env.LYCHEE_CHANNEL_ID,
+    message_id: 'msg', whatsapp_message_id: 'wamid', sender_phone: null, contact_phone: '0501234567',
+    has_media: false, message_type: 'text', text: 'בדיקות', occurred_at: '2026-11-01T10:00:00.000Z', reply_to_whatsapp_message_id: null }));
+  const signature = 'sha256=' + createHmac('sha256', env.LYCHEE_WEBHOOK_SECRET).update(raw).digest('hex');
+  const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; } };
+  await handler({ body: raw, headers: { 'x-lychee-signature': signature } }, res);
+  assert.equal(res.code, 502);
 });
 
 test('proxy audit identifies route without revealing text, phones, signatures or body', async () => {

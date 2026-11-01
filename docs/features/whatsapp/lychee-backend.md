@@ -60,11 +60,11 @@ completion removes staged bytes.
 
 ## Persistent test routing
 
-`POST /webhooks/lychee/test-route` accepts the original signed, unquoted event
-only. It requires `LYCHEE_TEST_PHONES` on this backend and independently rejects
-unlisted senders. The proxy uses its stable production receiver as the single
-authority; it must be available even for test-mode documents. No live invocation
-or production deployment was performed as part of this implementation.
+The proxy now stores test routing directly in the development database. The
+temporary backend `/test-route` endpoint and routing service were removed.
+`LYCHEE_TEST_PHONES` is needed only on the proxy for this flow. No production
+backend deployment is required to enable test commands or unquoted dev uploads.
+See [proxy database setup](lychee-proxy-database.md).
 
 Standalone text `בדיקות` selects dev; `סיום בדיקות` selects prod. Default is prod,
 and the mode lasts until stopped, separately for each channel/sender. Captions,
@@ -82,12 +82,12 @@ delivered cannot influence an already committed decision: verify activation in
 logs before sending test documents.
 
 A connection-scoped MySQL advisory lock serializes decisions per database,
-channel and sender across backend replicas; individual INSERTs are atomic.
+channel and sender across proxy replicas; individual INSERTs are atomic.
 Locks are released in finally and by MySQL if the connection dies. Failed locks,
 missing DB/table or missing allowlist never silently select production. Existing
 table schema, accounting logic and permissions are unchanged; no SQL was run.
-Focused tests use fake storage, so real multi-connection MySQL verification and
-deployment remain operator steps requiring authorization.
+Focused concurrency tests use fake storage; live Cloud Run connectivity and
+multi-connection MySQL verification remain deployment verification steps.
 
 ## Multiple businesses / sending disabled
 

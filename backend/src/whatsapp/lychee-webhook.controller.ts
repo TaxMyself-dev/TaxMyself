@@ -13,12 +13,10 @@ import { lycheeSender } from './lychee-sender';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { lycheeLog } from './lychee-log';
-import { LycheeTestRoutingService } from './lychee-test-routing.service';
 
 export interface LycheeEvent {
   event: 'message.received';
   event_id: string;
-  occurred_at?: string;
   channel_id: string;
   message_id: string;
   whatsapp_message_id: string;
@@ -78,20 +76,7 @@ export class LycheeWebhookController {
   constructor(
     private readonly intake: LycheeIntakeService,
     private readonly events: LycheeEventStore,
-    private readonly routing: LycheeTestRoutingService,
   ) {}
-
-  @Post('test-route')
-  @HttpCode(200)
-  async testRoute(@Req() req: Request & { rawBody?: Buffer }) {
-    const event = this.verifiedEvent(req);
-    if (event.reply_to_whatsapp_message_id) throw new BadRequestException('Use quoted reply ownership');
-    const result = await this.routing.resolve(event);
-    lycheeLog(event.event_id, 'route.resolve', 'completed', result.command
-      ? result.environment === 'dev' ? 'מצב בדיקות הופעל לשולח מורשה' : 'מצב בדיקות הסתיים לשולח מורשה'
-      : 'סביבת האירוע נקבעה ונשמרה לפי מצב הבדיקות של השולח', { environment: result.environment });
-    return result;
-  }
 
   @Post('reply-owner')
   @HttpCode(200)
