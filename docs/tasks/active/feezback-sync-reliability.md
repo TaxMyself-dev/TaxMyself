@@ -6,6 +6,14 @@
 - Branch: codex/feezback-sync-reliability
 - Base commit: ecdc1455a30e921a8c89189b549dd3a641c8956d
 
+## Dev login blocker follow-up — 2026-11-01
+
+- User reported `TypeError: guard is not a function` during post-login navigation. The protected shell registered AuthGuard as canActivateChild, but the class implemented only canActivate; Angular attempted to invoke the injected object as a functional guard.
+- Implemented both router interfaces and delegated canActivateChild to the existing startup/session/profile/MFA checks. No authentication, delegation or entitlement policy changed, and no guard was removed or bypassed.
+- Added real-router regressions for successful navigation, signed-out redirection, missing/unfinished MFA, profile restoration and denied offline navigation. Angular may evaluate sibling guards concurrently; the offline assertion checks navigation cancellation rather than assuming execution order.
+- Verification: 12 focused authentication/MFA tests passed and Angular production build passed with existing budget/CommonJS warnings. Initial test invocation was corrected to use explicit include filters matching the isolated tsconfig; no broad-suite success is claimed. Backend/schema/security-policy/external-contract changes: none. No DB access, app startup, production changes, main merge or push.
+- Reviewed the complete change: the runtime fix only supplies the missing router hook and compile-time interfaces. User should refresh localhost:4200 and retry login against the existing dev backend; no additional SQL or backend restart is required.
+
 ## Acceptance criteria
 
 - Isolate per-source discovery/outcome writes and report every failed write.

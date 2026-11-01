@@ -4,6 +4,8 @@ import {
   RouterStateSnapshot,
   Router,
   UrlTree,
+  CanActivate,
+  CanActivateChild,
 } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
@@ -15,13 +17,17 @@ import { environment } from '../../../environments/environment';
 @Injectable({
   providedIn: 'root',
 })
-export class AuthGuard {
+export class AuthGuard implements CanActivate, CanActivateChild {
   constructor(
     public authService: AuthService,
     public router: Router,
     private startup: StartupService,
     private mfa: MfaService,
   ) {}
+
+  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Promise<boolean | UrlTree> {
+    return this.canActivate(next, state);
+  }
 
   async canActivate(
     next: ActivatedRouteSnapshot,

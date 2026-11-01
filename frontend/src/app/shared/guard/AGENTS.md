@@ -28,6 +28,9 @@ entitlements, referral consent, offline navigation and view-only delegation.
   gate. Public registration, login, MFA setup and SHAAM callback routes remain
   outside that shell.
 - UI guards improve navigation but never replace backend authorization.
+- AuthGuard implements both CanActivate and CanActivateChild. The child hook
+  delegates to the same startup/session/profile/MFA checks; registering a class
+  in canActivateChild without that method causes a runtime navigation error.
 - View-as document creation is allowed only for a real `ADMIN` operating a
   backend-verified demo profile (`isDemo=true`); admins on real clients and
   non-admin users on demos remain blocked.
