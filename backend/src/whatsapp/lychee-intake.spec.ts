@@ -29,42 +29,94 @@ const job: any = {
 describe('Lychee signed intake', () => {
   it('accepts the updated Keepintax provider payload', () => {
     const channel = '73971d88-8e11-4f58-958c-7472129063e7';
-    const updated = { ...event, channel_id: channel, occurred_at: '2026-10-29T08:41:12.517Z',
-      channel_name: 'Keepintax', channel_phone: '0553081341', contact_phone: '0501234567',
-      text: '#dev חשבונית לבדיקה', sender_phone: null, sender_name: null };
+    const updated = {
+      ...event,
+      channel_id: channel,
+      occurred_at: '2026-10-29T08:41:12.517Z',
+      channel_name: 'Keepintax',
+      channel_phone: '0553081341',
+      contact_phone: '0501234567',
+      text: '#dev חשבונית לבדיקה',
+      sender_phone: null,
+      sender_name: null,
+    };
     const raw = Buffer.from(JSON.stringify(updated));
-    const signature = 'sha256=' + createHmac('sha256', 'secret').update(raw).digest('hex');
-    expect(lycheeSender(parseLycheeEvent(raw, signature, 'secret', channel))).toBe('972501234567');
+    const signature =
+      'sha256=' + createHmac('sha256', 'secret').update(raw).digest('hex');
+    expect(
+      lycheeSender(parseLycheeEvent(raw, signature, 'secret', channel)),
+    ).toBe('972501234567');
   });
   it('looks up prompt ownership by channel and normalized phone even after completion', async () => {
-    const db: any = { query: jest.fn().mockResolvedValue([{ event_id: 'doc' }]) };
+    const db: any = {
+      query: jest.fn().mockResolvedValue([{ event_id: 'doc' }]),
+    };
     const store = new LycheeEventStore(db);
-    expect(await store.ownsReply({ ...event, sender_phone: null, contact_phone: '0501234567',
-      reply_to_whatsapp_message_id: 'prompt' })).toBe(true);
-    expect(db.query.mock.calls[0][1]).toEqual(['channel1', '972501234567', 'prompt']);
+    expect(
+      await store.ownsReply({
+        ...event,
+        sender_phone: null,
+        contact_phone: '0501234567',
+        reply_to_whatsapp_message_id: 'prompt',
+      }),
+    ).toBe(true);
+    expect(db.query.mock.calls[0][1]).toEqual([
+      'channel1',
+      '972501234567',
+      'prompt',
+    ]);
     expect(db.query.mock.calls[0][0]).not.toContain('WAITING_FOR_BUSINESS');
     db.query.mockResolvedValue([]);
-    expect(await store.ownsReply({ ...event, reply_to_whatsapp_message_id: 'unknown' })).toBe(false);
+    expect(
+      await store.ownsReply({
+        ...event,
+        reply_to_whatsapp_message_id: 'unknown',
+      }),
+    ).toBe(false);
     db.query.mockResolvedValue([{ event_id: 'a' }, { event_id: 'b' }]);
-    await expect(store.ownsReply({ ...event, reply_to_whatsapp_message_id: 'ambiguous' })).rejects.toThrow();
+    await expect(
+      store.ownsReply({ ...event, reply_to_whatsapp_message_id: 'ambiguous' }),
+    ).rejects.toThrow();
   });
   it('records prompt IDs scoped to document, channel and owner; refuses replacing existing mapping', async () => {
-    const db: any = { query: jest.fn().mockResolvedValueOnce({}).mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'prompt' }]) };
+    const db: any = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'prompt' }]),
+    };
     const store = new LycheeEventStore(db);
     await store.recordPrompt('doc', 'channel1', 'owner', 'prompt');
-    expect(db.query.mock.calls[0][1]).toEqual(['prompt', 'doc', 'channel1', 'owner', 'prompt']);
-    db.query.mockResolvedValueOnce({}).mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'other' }]);
-    await expect(store.recordPrompt('doc', 'channel1', 'owner', 'prompt')).rejects.toThrow();
+    expect(db.query.mock.calls[0][1]).toEqual([
+      'prompt',
+      'doc',
+      'channel1',
+      'owner',
+      'prompt',
+    ]);
+    db.query
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce([{ prompt_whatsapp_message_id: 'other' }]);
+    await expect(
+      store.recordPrompt('doc', 'channel1', 'owner', 'prompt'),
+    ).rejects.toThrow();
   });
   it('accepts absent sender with local contact phone, but rejects malformed or conflicting sender', () => {
     for (const sender_phone of [null, undefined, '', '  ']) {
       const input = { ...event, sender_phone, contact_phone: '0501234567' };
       const bytes = Buffer.from(JSON.stringify(input));
-      const sig = 'sha256=' + createHmac('sha256', 'secret').update(bytes).digest('hex');
-      expect(lycheeSender(parseLycheeEvent(bytes, sig, 'secret', 'channel1'))).toBe('972501234567');
+      const sig =
+        'sha256=' + createHmac('sha256', 'secret').update(bytes).digest('hex');
+      expect(
+        lycheeSender(parseLycheeEvent(bytes, sig, 'secret', 'channel1')),
+      ).toBe('972501234567');
     }
-    expect(lycheeSender({ sender_phone: 'bad', contact_phone: '0501234567' })).toBeNull();
-    expect(lycheeSender({ sender_phone: '0541234567', contact_phone: '0501234567' })).toBeNull();
+    expect(
+      lycheeSender({ sender_phone: 'bad', contact_phone: '0501234567' }),
+    ).toBeNull();
+    expect(
+      lycheeSender({ sender_phone: '0541234567', contact_phone: '0501234567' }),
+    ).toBeNull();
     expect(lycheeSender({ sender_phone: null, contact_phone: '' })).toBeNull();
   });
   const raw = Buffer.from(JSON.stringify(event, null, 2));
@@ -146,30 +198,65 @@ describe('Lychee signed intake', () => {
 
   it('selects separate businesses for two documents answered out of order (simulated prompt IDs only)', async () => {
     const choices = buildBusinessQuestion(event, '972501234567', [
-      { businessNumber: '123', businessName: 'נגרות' }, { businessNumber: '456', businessName: 'ייעוץ' },
+      { businessNumber: '123', businessName: 'נגרות' },
+      { businessNumber: '456', businessName: 'ייעוץ' },
     ]).choices;
-    const rows = ['A', 'B'].map(id => ({ event_id: 'document-' + id, channel_id: 'channel1',
-      sender_phone: '972501234567', firebase_id: 'owner', prompt: 'test-only-prompt-' + id,
-      business_choices: choices, status: 'WAITING_FOR_BUSINESS', business_number: null }));
-    const db: any = { query: jest.fn(async (sql: string, args: any[]) => {
-      if (sql.trim().startsWith('SELECT')) return rows.filter(r => r.channel_id === args[0] && r.sender_phone === args[1] &&
-        r.firebase_id === args[2] && r.prompt === args[3] && r.status === 'WAITING_FOR_BUSINESS');
-      const row = rows.find(r => r.event_id === args[1] && r.status === 'WAITING_FOR_BUSINESS');
-      if (!row) return { affectedRows: 0 };
-      row.business_number = args[0]; row.status = 'PENDING';
-      return { affectedRows: 1 };
-    }) };
+    const rows = ['A', 'B'].map((id) => ({
+      event_id: 'document-' + id,
+      channel_id: 'channel1',
+      sender_phone: '972501234567',
+      firebase_id: 'owner',
+      prompt: 'test-only-prompt-' + id,
+      business_choices: choices,
+      status: 'WAITING_FOR_BUSINESS',
+      business_number: null,
+    }));
+    const db: any = {
+      query: jest.fn(async (sql: string, args: any[]) => {
+        if (sql.trim().startsWith('SELECT'))
+          return rows.filter(
+            (r) =>
+              r.channel_id === args[0] &&
+              r.sender_phone === args[1] &&
+              r.firebase_id === args[2] &&
+              r.prompt === args[3] &&
+              r.status === 'WAITING_FOR_BUSINESS',
+          );
+        const row = rows.find(
+          (r) => r.event_id === args[1] && r.status === 'WAITING_FOR_BUSINESS',
+        );
+        if (!row) return { affectedRows: 0 };
+        row.business_number = args[0];
+        row.status = 'PENDING';
+        return { affectedRows: 1 };
+      }),
+    };
     const store = new LycheeEventStore(db);
-    const reply = (id: string, label: string) => ({ ...event, has_media: false, message_type: 'text',
-      reply_to_whatsapp_message_id: 'test-only-prompt-' + id, text: label });
-    expect(await store.selectBusiness(reply('B', choices[1].label), 'wrong-owner')).toBe(false);
-    expect(await store.selectBusiness(reply('B', 'unknown business'), 'owner')).toBe(false);
-    expect(await store.selectBusiness(reply('B', choices[1].label), 'owner')).toBe(true);
+    const reply = (id: string, label: string) => ({
+      ...event,
+      has_media: false,
+      message_type: 'text',
+      reply_to_whatsapp_message_id: 'test-only-prompt-' + id,
+      text: label,
+    });
+    expect(
+      await store.selectBusiness(reply('B', choices[1].label), 'wrong-owner'),
+    ).toBe(false);
+    expect(
+      await store.selectBusiness(reply('B', 'unknown business'), 'owner'),
+    ).toBe(false);
+    expect(
+      await store.selectBusiness(reply('B', choices[1].label), 'owner'),
+    ).toBe(true);
     expect(rows[0].business_number).toBeNull();
     expect(rows[1].business_number).toBe('456');
-    expect(await store.selectBusiness(reply('A', choices[0].label), 'owner')).toBe(true);
-    expect(rows.map(r => r.business_number)).toEqual(['123', '456']);
-    expect(await store.selectBusiness(reply('B', choices[0].label), 'owner')).toBe(false);
+    expect(
+      await store.selectBusiness(reply('A', choices[0].label), 'owner'),
+    ).toBe(true);
+    expect(rows.map((r) => r.business_number)).toEqual(['123', '456']);
+    expect(
+      await store.selectBusiness(reply('B', choices[0].label), 'owner'),
+    ).toBe(false);
     expect(rows[1].business_number).toBe('456');
   });
 });
@@ -180,6 +267,7 @@ describe('Lychee document workflow without sending', () => {
     importer: any,
     users: any,
     businesses: any,
+    prompts: any,
     service: LycheeIntakeService;
   beforeEach(() => {
     store = {
@@ -192,13 +280,11 @@ describe('Lychee document workflow without sending', () => {
       retry: jest.fn(),
     };
     client = {
-      download: jest
-        .fn()
-        .mockResolvedValue({
-          content: Buffer.from('%PDF-test'),
-          filename: 'test.pdf',
-          mimeType: 'application/pdf',
-        }),
+      download: jest.fn().mockResolvedValue({
+        content: Buffer.from('%PDF-test'),
+        filename: 'test.pdf',
+        mimeType: 'application/pdf',
+      }),
     };
     importer = {
       importDocument: jest
@@ -214,14 +300,135 @@ describe('Lychee document workflow without sending', () => {
     businesses = {
       find: jest.fn().mockResolvedValue([{ businessNumber: '123' }]),
     };
+    prompts = { wake: jest.fn() };
     service = new LycheeIntakeService(
       store,
       client,
       importer,
       users,
       businesses,
+      prompts,
     );
   });
+  it('acknowledges durable enqueue before immediately importing, without duplicate imports', async () => {
+    jest.useFakeTimers();
+    try {
+      let commit!: (value: string) => void;
+      store.enqueue.mockReturnValueOnce(
+        new Promise((resolve) => {
+          commit = resolve;
+        }),
+      );
+      store.claim.mockResolvedValueOnce(job).mockResolvedValue(null);
+      const acceptance = service.accept(event);
+      await jest.runAllTimersAsync();
+      expect(store.claim).not.toHaveBeenCalled();
+      commit('QUEUED');
+      await acceptance;
+      expect(importer.importDocument).not.toHaveBeenCalled();
+      await jest.runAllTimersAsync();
+      expect(importer.importDocument).toHaveBeenCalledTimes(1);
+      expect(store.complete).toHaveBeenCalledWith(
+        job,
+        'IMPORTED',
+        'owner',
+        '123',
+        'drive1',
+      );
+      store.enqueue.mockResolvedValue('DUPLICATE');
+      await service.accept(event);
+      await service.accept(event);
+      await jest.runAllTimersAsync();
+      await service.tick();
+      expect(importer.importDocument).toHaveBeenCalledTimes(1);
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
+  it('does not lose a new event accepted while the periodic worker is processing', async () => {
+    jest.useFakeTimers();
+    try {
+      let started!: () => void, release!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const barrier = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      importer.importDocument.mockImplementationOnce(async () => {
+        started();
+        await barrier;
+        return { status: 'IMPORTED', driveFileId: 'drive1' };
+      });
+      const second = {
+        ...job,
+        event_id: 'second',
+        payload: { ...event, event_id: 'second' },
+      };
+      store.claim
+        .mockResolvedValueOnce(job)
+        .mockResolvedValueOnce(second)
+        .mockResolvedValue(null);
+      store.enqueue.mockResolvedValue('QUEUED');
+      const polling = service.tick();
+      await entered;
+      await service.accept(second.payload);
+      await jest.runAllTimersAsync();
+      expect(importer.importDocument).toHaveBeenCalledTimes(1);
+      release();
+      await polling;
+      await jest.runAllTimersAsync();
+      expect(importer.importDocument).toHaveBeenCalledTimes(2);
+      expect(store.complete).toHaveBeenCalledWith(
+        second,
+        'IMPORTED',
+        'owner',
+        '123',
+        'drive1',
+      );
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
+  it('wakes question delivery only after the document and outbox transaction commits', async () => {
+    businesses.find.mockResolvedValue([
+      { businessNumber: '123' },
+      { businessNumber: '456' },
+    ]);
+    let entered!: () => void, commit!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    store.waitForBusiness.mockImplementationOnce(async () => {
+      entered();
+      await new Promise<void>((resolve) => {
+        commit = resolve;
+      });
+    });
+    const processing = service.process(job);
+    await started;
+    expect(prompts.wake).not.toHaveBeenCalled();
+    commit();
+    await processing;
+    expect(prompts.wake).toHaveBeenCalledTimes(1);
+  });
+
+  it('never wakes question delivery if staging fails', async () => {
+    businesses.find.mockResolvedValue([
+      { businessNumber: '123' },
+      { businessNumber: '456' },
+    ]);
+    store.waitForBusiness.mockRejectedValueOnce(
+      new Error('fake failed commit'),
+    );
+    await expect(service.process(job)).rejects.toThrow();
+    expect(prompts.wake).not.toHaveBeenCalled();
+  });
+
   it('imports single-business document through existing importer with explicit owner', async () => {
     await service.process(job);
     expect(importer.importDocument).toHaveBeenCalledWith(
@@ -241,7 +448,11 @@ describe('Lychee document workflow without sending', () => {
   });
   it('processes queued documents automatically and prevents overlapping worker runs', async () => {
     let finish: (value: any) => void;
-    store.claim.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    store.claim.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
     const running = service.tick();
     await service.tick();
     expect(store.claim).toHaveBeenCalledTimes(1);

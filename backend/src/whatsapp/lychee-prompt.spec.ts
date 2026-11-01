@@ -407,6 +407,96 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(id).toBe(promptEventId('channel', 'doc'));
   });
 
+  it('sends a saved question on immediate wake and periodic polling cannot send it again', async () => {
+    jest.useFakeTimers();
+    const service = makeService();
+    try {
+      await stage();
+      service.wake();
+      service.wake();
+      expect(transport.send).not.toHaveBeenCalled();
+      await jest.runAllTimersAsync();
+      expect(journal().status).toBe('PROMPT_SENT');
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      await service.tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
+  it('queues a wake during an active periodic send and drains the next question without concurrent sending', async () => {
+    jest.useFakeTimers();
+    const service = makeService();
+    try {
+      let started!: () => void, release!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const barrier = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      transport.send.mockImplementationOnce(async () => {
+        started();
+        await barrier;
+        return 'test-only-held-receipt';
+      });
+      await stage('A');
+      const polling = service.tick();
+      await entered;
+      await stage('B');
+      service.wake();
+      service.wake();
+      await service.tick();
+      await jest.runAllTimersAsync();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      release();
+      await polling;
+      await jest.runAllTimersAsync();
+      expect(journal('A').status).toBe('PROMPT_SENT');
+      expect(journal('B').status).toBe('PROMPT_SENT');
+      expect(transport.send).toHaveBeenCalledTimes(2);
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
+  it('an immediate wake never bypasses the disabled transport guard', async () => {
+    jest.useFakeTimers();
+    const service = makeService(new NoSendPromptTransport());
+    try {
+      await stage();
+      const reads = db.queries;
+      service.wake();
+      await jest.runAllTimersAsync();
+      expect(db.queries).toBe(reads);
+      expect(journal().status).toBe('PROMPT_PENDING');
+      expect(transport.send).not.toHaveBeenCalled();
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
+  it('immediate draining never retries an uncertain send', async () => {
+    jest.useFakeTimers();
+    const service = makeService();
+    try {
+      await stage();
+      transport.send.mockRejectedValue(new Error('fake uncertain send'));
+      service.wake();
+      await jest.runAllTimersAsync();
+      expect(journal().status).toBe('PROMPT_UNKNOWN');
+      await service.tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+    } finally {
+      service.onModuleDestroy();
+      jest.useRealTimers();
+    }
+  });
+
   it('uncertain external results are quarantined, never automatically sent twice', async () => {
     await stage();
     transport.send.mockRejectedValue(

@@ -10,6 +10,8 @@ import { lycheeSender } from './lychee-sender';
 import { buildBusinessQuestion } from './lychee-business-question';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
 import { LycheeClient } from './lychee-client.service';
+import { LycheePromptService } from './lychee-prompt.service';
+import { LycheeImmediateQueue } from './lychee-immediate-queue';
 import type { LycheeEvent } from './lychee-webhook.controller';
 import {
   lycheeLog,
@@ -21,6 +23,17 @@ import {
 @Injectable()
 export class LycheeIntakeService {
   private running = false;
+  private readonly immediate = new LycheeImmediateQueue(
+    () => this.tick(),
+    () => this.running,
+    () =>
+      lycheeLog(
+        undefined,
+        'queue.wakeup',
+        'failed',
+        'ההפעלה המיידית נכשלה; הסבב התקופתי ימשיך מהתור השמור',
+      ),
+  );
   constructor(
     private readonly store: LycheeEventStore,
     private readonly client: LycheeClient,
@@ -28,7 +41,12 @@ export class LycheeIntakeService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Business)
     private readonly businesses: Repository<Business>,
+    private readonly prompts: LycheePromptService,
   ) {}
+
+  onModuleDestroy(): void {
+    this.immediate.stop();
+  }
 
   async accept(event: LycheeEvent): Promise<void> {
     try {
@@ -38,15 +56,22 @@ export class LycheeIntakeService {
         'שמירת האירוע בתור העמיד ובדיקת כפילויות',
         () => this.store.enqueue(event),
       );
-      lycheeLog(event.event_id, 'queue.save', 'completed', saved === 'DUPLICATE' ?
-        'אותו אירוע כבר נשמר; אושר ניסיון המסירה החוזר ללא יצירת עבודת עיבוד נוספת' :
-        'האירוע נשמר בתור; אפשר לאשר לספק קבלה');
+      lycheeLog(
+        event.event_id,
+        'queue.save',
+        'completed',
+        saved === 'DUPLICATE'
+          ? 'אותו אירוע כבר נשמר; אושר ניסיון המסירה החוזר ללא יצירת עבודת עיבוד נוספת'
+          : 'האירוע נשמר בתור; אפשר לאשר לספק קבלה',
+      );
     } catch (e) {
       if ((e as any)?.getStatus?.() === 409) throw e;
       throw new ServiceUnavailableException(
         'Lychee intake storage unavailable',
       );
     }
+    // Never await media/Drive work in the webhook: acknowledge durable storage.
+    this.immediate.request();
   }
 
   @Interval(10000)
@@ -116,6 +141,7 @@ export class LycheeIntakeService {
       }
     } finally {
       this.running = false;
+      this.immediate.idle(!!job);
     }
   }
 
@@ -180,7 +206,7 @@ export class LycheeIntakeService {
         selected ? 'completed' : 'blocked',
         selected
           ? 'תשובת בחירת העסק זוהתה והמסמך הוחזר לעיבוד'
-            : 'בחירת העסק לא התקבלה; הסיבה המפורטת מופיעה בלוג business.reply.match; אין ייבוא',
+          : 'בחירת העסק לא התקבלה; הסיבה המפורטת מופיעה בלוג business.reply.match; אין ייבוא',
       );
       await this.store.complete(
         job,
@@ -257,22 +283,22 @@ export class LycheeIntakeService {
         e.event_id,
         'business.wait',
         'שמירת המסמך עד לבחירת עסק',
-        () =>
-          this.store.waitForBusiness(
-            job,
-            owner,
-            question.choices,
-            file,
-          ),
+        () => this.store.waitForBusiness(job, owner, question.choices, file),
       );
-      lycheeLog(e.event_id, 'business.prompt.queued', 'completed',
+      lycheeLog(
+        e.event_id,
+        'business.prompt.queued',
+        'completed',
         'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; רכיב השליחה יבדוק הרשאת סביבת דב לפני משלוח',
-        { count: question.choices.length });
+        { count: question.choices.length },
+      );
+      // waitForBusiness committed document + outbox together before this signal.
+      this.prompts.wake();
       lycheeLog(
         e.event_id,
         'business.wait',
         'blocked',
-        'יש כמה עסקים; המסמך ממתין לבחירה. שליחת השאלה עדיין אינה ממומשת',
+        'יש כמה עסקים; המסמך ממתין לבחירה והשאלה הועברה לרכיב השליחה',
       );
       return;
     }

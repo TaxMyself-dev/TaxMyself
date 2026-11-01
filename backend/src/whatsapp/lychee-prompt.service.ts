@@ -12,6 +12,7 @@ import {
   promptHash,
 } from './lychee-prompt.store';
 import { LycheePromptTransport } from './lychee-prompt.transport';
+import { LycheeImmediateQueue } from './lychee-immediate-queue';
 import { lycheeLog, safeLycheeError } from './lychee-log';
 import {
   PromptDeliveryError,
@@ -21,6 +22,17 @@ import {
 @Injectable()
 export class LycheePromptService {
   private running = false;
+  private readonly immediate = new LycheeImmediateQueue(
+    () => this.tick(),
+    () => this.running,
+    () =>
+      lycheeLog(
+        undefined,
+        'business.prompt.wakeup',
+        'failed',
+        'ההפעלה המיידית של השאלות נכשלה; הסבב התקופתי ימשיך מהתור השמור',
+      ),
+  );
   constructor(
     private readonly outbox: LycheePromptStore,
     private readonly events: LycheeEventStore,
@@ -29,6 +41,13 @@ export class LycheePromptService {
     @InjectRepository(Business)
     private readonly businesses: Repository<Business>,
   ) {}
+
+  wake(): void {
+    this.immediate.request();
+  }
+  onModuleDestroy(): void {
+    this.immediate.stop();
+  }
 
   @Interval(10000)
   async tick(): Promise<void> {
@@ -164,6 +183,7 @@ export class LycheePromptService {
       }
     } finally {
       this.running = false;
+      this.immediate.idle(!!job);
     }
   }
 

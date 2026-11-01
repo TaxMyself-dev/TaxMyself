@@ -11,7 +11,12 @@ in that case. A malformed or conflicting nonempty sender must still be rejected.
 LycheeEventStore uses explicit SQL; its table MUST NOT join TypeORM synchronize.
 Elazar approved preparing its SQL only; no database execution was authorized.
 The receiver loads with normal backend startup; no intake enable flag is needed.
-The document worker runs automatically on the normal scheduler. Multi-business
+After durable enqueue, the document worker is woken via a coalesced setImmediate;
+after document/outbox commit, prompt delivery is woken the same way. Both retain
+10-second polling as backup, existing running guards and atomic SQL leases.
+Signals during busy/polling work are retained; immediate bursts drain via fresh
+claims. Webhook acknowledgments never await media, Drive or outbound sending.
+Multi-business
 documents remain WAITING_FOR_BUSINESS. Bytes and one prompt: outbox draft are
 staged transactionally in the existing table. User authorized development-only
 question sends: DevelopmentOnlyPromptTransport requires NODE_ENV=development,
