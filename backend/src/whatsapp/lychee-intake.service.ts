@@ -180,7 +180,7 @@ export class LycheeIntakeService {
         selected ? 'completed' : 'blocked',
         selected
           ? 'תשובת בחירת העסק זוהתה והמסמך הוחזר לעיבוד'
-          : 'הודעת טקסט לא התאימה לשאלת בחירת עסק ממתינה; אין ייבוא',
+            : 'בחירת העסק לא התקבלה; הסיבה המפורטת מופיעה בלוג business.reply.match; אין ייבוא',
       );
       await this.store.complete(
         job,

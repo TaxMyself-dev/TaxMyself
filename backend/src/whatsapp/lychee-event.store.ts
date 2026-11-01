@@ -3,8 +3,12 @@ import { DataSource } from 'typeorm';
 import { createHash, randomUUID } from 'crypto';
 import type { LycheeEvent } from './lychee-webhook.controller';
 import { lycheeSender } from './lychee-sender';
-import { BusinessChoice, questionFromChoices } from './lychee-business-question';
+import {
+  BusinessChoice,
+  questionFromChoices,
+} from './lychee-business-question';
 import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
+import { lycheeLog } from './lychee-log';
 
 export interface LycheeJob {
   event_id: string;
@@ -181,7 +185,16 @@ export class LycheeEventStore {
   }
 
   async selectBusiness(event: LycheeEvent, owner: string): Promise<boolean> {
-    if (!event.reply_to_whatsapp_message_id) return false;
+    if (!event.reply_to_whatsapp_message_id) {
+      lycheeLog(
+        event.event_id,
+        'business.reply.match',
+        'blocked',
+        'בתשובה חסר מזהה ציטוט reply_to_whatsapp_message_id; אי אפשר לקשר אותה לשאלת בחירת עסק',
+        { code: 'REPLY_QUOTE_MISSING' },
+      );
+      return false;
+    }
     const rows = await this.db.query(
       `SELECT event_id, business_choices FROM lychee_intake_events
       WHERE channel_id=? AND sender_phone=? AND firebase_id=? AND status='WAITING_FOR_BUSINESS'
@@ -193,19 +206,63 @@ export class LycheeEventStore {
         event.reply_to_whatsapp_message_id,
       ],
     );
-    if (rows.length !== 1) return false;
+    if (rows.length !== 1) {
+      lycheeLog(
+        event.event_id,
+        'business.reply.match',
+        'blocked',
+        rows.length === 0
+          ? 'לא נמצאה שאלה ממתינה עם מזהה הציטוט הזה התואמת לשולח, לחשבון ולערוץ'
+          : 'מזהה הציטוט תואם ליותר ממסמך ממתין אחד; לא ניתן לבחור מסמך באופן חד משמעי',
+        {
+          code:
+            rows.length === 0
+              ? 'REPLY_QUESTION_NOT_FOUND'
+              : 'REPLY_QUESTION_AMBIGUOUS',
+          count: rows.length,
+        },
+      );
+      return false;
+    }
     const choices =
       typeof rows[0].business_choices === 'string'
         ? JSON.parse(rows[0].business_choices)
         : rows[0].business_choices;
     const choice = choices.filter((c: any) => c.label === event.text.trim());
-    if (choice.length !== 1) return false;
+    if (choice.length !== 1) {
+      lycheeLog(
+        event.event_id,
+        'business.reply.match',
+        'blocked',
+        choice.length === 0
+          ? 'השאלה זוהתה, אבל טקסט התשובה אינו תואם בדיוק לאף תווית עסק שנשמרה'
+          : 'טקסט התשובה תואם ליותר מאפשרות עסק אחת; הבחירה אינה חד משמעית',
+        {
+          code:
+            choice.length === 0
+              ? 'REPLY_LABEL_NOT_FOUND'
+              : 'REPLY_LABEL_AMBIGUOUS',
+          count: choice.length,
+        },
+      );
+      return false;
+    }
     const result = await this.db.query(
       `UPDATE lychee_intake_events SET business_number=?, status='PENDING',
       attempts=0, next_attempt_at=UTC_TIMESTAMP() WHERE event_id=? AND status='WAITING_FOR_BUSINESS'`,
       [choice[0].businessNumber, rows[0].event_id],
     );
-    return result.affectedRows === 1;
+    if (result.affectedRows !== 1) {
+      lycheeLog(
+        event.event_id,
+        'business.reply.match',
+        'blocked',
+        'הבחירה התאימה, אבל מצב המסמך השתנה לפני שמירתה; לא עודכן מסמך ממתין',
+        { code: 'REPLY_DOCUMENT_STATE_CHANGED' },
+      );
+      return false;
+    }
+    return true;
   }
 
   /** Read-only lookup: completed prompts retain ownership for late/repeated replies. */
@@ -214,15 +271,29 @@ export class LycheeEventStore {
     const rows = await this.db.query(
       `SELECT event_id FROM lychee_intake_events WHERE channel_id=? AND sender_phone=?
        AND prompt_whatsapp_message_id=? LIMIT 2`,
-      [event.channel_id, lycheeSender(event), event.reply_to_whatsapp_message_id],
+      [
+        event.channel_id,
+        lycheeSender(event),
+        event.reply_to_whatsapp_message_id,
+      ],
     );
-    if (rows.length > 1) throw new ConflictException('Ambiguous prompt ownership');
+    if (rows.length > 1)
+      throw new ConflictException('Ambiguous prompt ownership');
     return rows.length === 1;
   }
 
   /** Link the actual transport receipt; repeated identical mappings are safe. */
-  async recordPrompt(eventId: string, channelId: string, owner: string, promptId: string): Promise<void> {
-    if (typeof promptId !== 'string' || !promptId.length || promptId.length > 255) {
+  async recordPrompt(
+    eventId: string,
+    channelId: string,
+    owner: string,
+    promptId: string,
+  ): Promise<void> {
+    if (
+      typeof promptId !== 'string' ||
+      !promptId.length ||
+      promptId.length > 255
+    ) {
       throw new ConflictException('Invalid prompt identifier');
     }
     await this.db.query(
@@ -233,7 +304,8 @@ export class LycheeEventStore {
     );
     const rows = await this.db.query(
       `SELECT prompt_whatsapp_message_id FROM lychee_intake_events
-       WHERE event_id=? AND channel_id=? AND firebase_id=?`, [eventId, channelId, owner],
+       WHERE event_id=? AND channel_id=? AND firebase_id=?`,
+      [eventId, channelId, owner],
     );
     if (rows.length !== 1 || rows[0].prompt_whatsapp_message_id !== promptId) {
       throw new ConflictException('Prompt mapping not recorded');
