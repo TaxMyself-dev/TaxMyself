@@ -268,6 +268,7 @@ describe('Lychee document workflow without sending', () => {
     users: any,
     businesses: any,
     prompts: any,
+    notifications: any,
     service: LycheeIntakeService;
   beforeEach(() => {
     store = {
@@ -301,6 +302,7 @@ describe('Lychee document workflow without sending', () => {
       find: jest.fn().mockResolvedValue([{ businessNumber: '123' }]),
     };
     prompts = { wake: jest.fn() };
+    notifications = { wake: jest.fn() };
     service = new LycheeIntakeService(
       store,
       client,
@@ -308,7 +310,29 @@ describe('Lychee document workflow without sending', () => {
       users,
       businesses,
       prompts,
+      notifications,
     );
+  });
+  it('wakes result delivery only after import completion has committed', async () => {
+    let commit!: () => void;
+    store.complete.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        commit = resolve;
+      }),
+    );
+    const processing = service.process(job);
+    for (let i = 0; i < 40 && !store.complete.mock.calls.length; i++)
+      await Promise.resolve();
+    expect(store.complete).toHaveBeenCalled();
+    expect(notifications.wake).not.toHaveBeenCalled();
+    commit();
+    await processing;
+    expect(notifications.wake).toHaveBeenCalledTimes(1);
+  });
+  it('does not wake result delivery when completion persistence fails', async () => {
+    store.complete.mockRejectedValueOnce(new Error('fake database failure'));
+    await expect(service.process(job)).rejects.toThrow();
+    expect(notifications.wake).not.toHaveBeenCalled();
   });
   it('acknowledges durable enqueue before immediately importing, without duplicate imports', async () => {
     jest.useFakeTimers();

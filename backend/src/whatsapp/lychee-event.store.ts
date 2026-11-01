@@ -9,6 +9,7 @@ import {
 } from './lychee-business-question';
 import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
 import { lycheeLog } from './lychee-log';
+import { commitDocumentResults } from './lychee-notification.store';
 
 export interface LycheeJob {
   event_id: string;
@@ -53,15 +54,29 @@ export class LycheeEventStore {
   }
 
   async claim(): Promise<LycheeJob | null> {
-    await this.db.query(`UPDATE lychee_intake_events SET status='FAILED',
-      last_error='LEASE_EXPIRED', lease_token=NULL, lease_until=NULL
-      WHERE status='PROCESSING' AND lease_until < UTC_TIMESTAMP() AND attempts >= 5`);
+    const expired = await this.db
+      .query(`SELECT event_id FROM lychee_intake_events
+      WHERE status='PROCESSING' AND lease_until < UTC_TIMESTAMP() AND attempts >= 5 LIMIT 25`);
+    if (expired.length)
+      await commitDocumentResults(this.db, async (sql) => {
+        const changed: string[] = [];
+        for (const row of expired) {
+          const result = await sql.query(
+            `UPDATE lychee_intake_events SET status='FAILED',
+          last_error='LEASE_EXPIRED',lease_token=NULL,lease_until=NULL
+          WHERE event_id=? AND status='PROCESSING' AND lease_until<UTC_TIMESTAMP() AND attempts>=5`,
+            [row.event_id],
+          );
+          if (result.affectedRows === 1) changed.push(row.event_id);
+        }
+        return changed;
+      });
     const token = randomUUID();
     await this.db.query(
       `UPDATE lychee_intake_events SET status='PROCESSING',
       lease_token=?, lease_until=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE), attempts=attempts+1
       WHERE (status IN ('PENDING','RETRY') AND next_attempt_at <= UTC_TIMESTAMP())
-        OR (status='PROCESSING' AND lease_until < UTC_TIMESTAMP())
+        OR (status='PROCESSING' AND lease_until < UTC_TIMESTAMP() AND attempts < 5)
       ORDER BY created_at LIMIT 1`,
       [token],
     );
@@ -86,12 +101,24 @@ export class LycheeEventStore {
     business: string | null = null,
     drive: string | null = null,
   ): Promise<void> {
-    await this.db.query(
-      `UPDATE lychee_intake_events SET status=?, firebase_id=?, business_number=?,
+    const update = async (sql: { query: DataSource['query'] }) =>
+      sql.query(
+        `UPDATE lychee_intake_events SET status=?, firebase_id=?, business_number=?,
       drive_file_id=?, content=NULL, lease_token=NULL, lease_until=NULL
       WHERE event_id=? AND lease_token=?`,
-      [status, owner, business, drive, job.event_id, job.lease_token],
-    );
+        [status, owner, business, drive, job.event_id, job.lease_token],
+      );
+    if (
+      job.payload.has_media &&
+      ['IMPORTED', 'ALREADY_IMPORTED', 'REJECTED_BUSINESS'].includes(status)
+    ) {
+      await commitDocumentResults(this.db, async (sql) => {
+        const result = await update(sql);
+        if (result.affectedRows !== 1)
+          throw new ConflictException('Document lease no longer owned');
+        return [job.event_id];
+      });
+    } else await update(this.db);
   }
 
   async waitForBusiness(
@@ -167,12 +194,21 @@ export class LycheeEventStore {
   }
 
   async retry(job: LycheeJob): Promise<void> {
-    await this.db.query(
-      `UPDATE lychee_intake_events SET status=?, last_error='INTAKE_FAILED',
+    const update = async (sql: { query: DataSource['query'] }) =>
+      sql.query(
+        `UPDATE lychee_intake_events SET status=?, last_error='INTAKE_FAILED',
       next_attempt_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 60 SECOND), lease_token=NULL, lease_until=NULL
       WHERE event_id=? AND lease_token=?`,
-      [job.attempts >= 5 ? 'FAILED' : 'RETRY', job.event_id, job.lease_token],
-    );
+        [job.attempts >= 5 ? 'FAILED' : 'RETRY', job.event_id, job.lease_token],
+      );
+    if (job.attempts >= 5 && job.payload.has_media) {
+      await commitDocumentResults(this.db, async (sql) => {
+        const result = await update(sql);
+        if (result.affectedRows !== 1)
+          throw new ConflictException('Document lease no longer owned');
+        return [job.event_id];
+      });
+    } else await update(this.db);
   }
 
   async prepared(job: LycheeJob): Promise<any> {

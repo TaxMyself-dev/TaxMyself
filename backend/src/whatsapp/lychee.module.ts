@@ -9,6 +9,12 @@ import { LycheeIntakeService } from './lychee-intake.service';
 import { LycheeWebhookController } from './lychee-webhook.controller';
 import { LycheePromptStore } from './lychee-prompt.store';
 import { LycheePromptService } from './lychee-prompt.service';
+import { LycheeNotificationStore } from './lychee-notification.store';
+import {
+  LycheeNotificationService,
+  LycheeNotificationTransport,
+  NoSendNotificationTransport,
+} from './lychee-notification.service';
 import {
   LycheePromptTransport,
   DevelopmentOnlyPromptTransport,
@@ -23,6 +29,12 @@ import {
     LycheeIntakeService,
     LycheePromptStore,
     LycheePromptService,
+    LycheeNotificationStore,
+    LycheeNotificationService,
+    {
+      provide: LycheeNotificationTransport,
+      useClass: NoSendNotificationTransport,
+    },
     {
       provide: LycheePromptTransport,
       useClass: DevelopmentOnlyPromptTransport,

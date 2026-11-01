@@ -11,6 +11,7 @@ import { buildBusinessQuestion } from './lychee-business-question';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
 import { LycheeClient } from './lychee-client.service';
 import { LycheePromptService } from './lychee-prompt.service';
+import { LycheeNotificationService } from './lychee-notification.service';
 import { LycheeImmediateQueue } from './lychee-immediate-queue';
 import type { LycheeEvent } from './lychee-webhook.controller';
 import {
@@ -42,6 +43,7 @@ export class LycheeIntakeService {
     @InjectRepository(Business)
     private readonly businesses: Repository<Business>,
     private readonly prompts: LycheePromptService,
+    private readonly notifications: LycheeNotificationService,
   ) {}
 
   onModuleDestroy(): void {
@@ -81,6 +83,8 @@ export class LycheeIntakeService {
     let job: LycheeJob | null = null;
     try {
       job = await this.store.claim();
+      // claim may also finalize an expired last attempt and stage its failure notice.
+      this.notifications.wake();
       if (job) {
         lycheeLog(
           job.event_id,
@@ -120,6 +124,7 @@ export class LycheeIntakeService {
       if (job) {
         try {
           await this.store.retry(job);
+          if (job.attempts >= 5) this.notifications.wake();
           lycheeLog(
             job.event_id,
             'queue.retry',
@@ -231,6 +236,7 @@ export class LycheeIntakeService {
         'למשתמש אין עסק בעל מספר עסק שניתן לייבא אליו',
       );
       await this.store.complete(job, 'REJECTED_BUSINESS', owner);
+      this.notifications.wake();
       return;
     }
     lycheeLog(
@@ -260,6 +266,7 @@ export class LycheeIntakeService {
         'העסק שנבחר אינו שייך עוד למשתמש',
       );
       await this.store.complete(job, 'REJECTED_BUSINESS', owner);
+      this.notifications.wake();
       return;
     }
     const file = prepared?.content
@@ -353,5 +360,6 @@ export class LycheeIntakeService {
         ? 'המסמך כבר קיים בדרייב; לא נוצר עותק נוסף'
         : 'המסמך נשמר בדרייב ותוצאת הייבוא נשמרה במסד',
     );
+    this.notifications.wake();
   }
 }
