@@ -16,6 +16,15 @@ describe('Open banking support details', () => {
     expect(text).toContain('מזהה שגיאה');expect(text).toContain('example-id');expect(text).toContain('OB-04');
     expect(fixture.nativeElement.querySelector('button').textContent).toContain('העתקת');
   });
+  it('renders and copies cancellation code and the same support ID',async()=>{
+    TestBed.configureTestingModule({imports:[OpenBankingErrorComponent]});
+    const fixture=TestBed.createComponent(OpenBankingErrorComponent);
+    fixture.componentInstance.issue={code:'OB-05',errorId:'cancel-case',message:'לא הצלחנו לאשר שביטול ההרשאה הושלם'};
+    fixture.detectChanges();expect(fixture.nativeElement.textContent).toContain('OB-05');
+    expect(fixture.nativeElement.textContent).toContain('cancel-case');
+    const write=spyOn(navigator.clipboard,'writeText').and.resolveTo();await fixture.componentInstance.copy();
+    expect(write).toHaveBeenCalledWith('לא הצלחנו לאשר שביטול ההרשאה הושלם\nקוד: OB-05\nמזהה שגיאה: cancel-case');
+  });
   it('copies exactly the details shown to the user', async () => {
     const component=new OpenBankingErrorComponent();
     component.issue={code:'OB-04',errorId:'case-1',message:'נתונים חלקיים'};

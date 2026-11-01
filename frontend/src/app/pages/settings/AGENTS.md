@@ -109,3 +109,5 @@ Initial permission-table/management loads read saved server data only, with no p
 Opening a source, keyed-consent or full-disconnection confirmation also uses the same saving permission refresh to obtain the current affected instruments. Confirmation opens only after a complete result; partial, failed and in-flight checks cannot authorize cancellation. Opening settings itself remains a stored read. Successful source-list diagnostics log counts only, without raw account/source rows.
 
 Without a persisted permission list, an empty local list cannot prove the provider has no pending/unmapped permissions. Full disconnect stays available and fetches/saves current metadata before preview. Only a complete live preview sets the in-memory previewVerified gate; stored rows alone cannot authorize confirmation. Pending source-less permissions are shown from that response without being duplicated in the database.
+
+Cancellation support failures use OB-05 and preserve the server error ID through a failed post-action profile reload. Source-row cancellation targets its consent only; full disconnection includes all discovered consents, regardless of primary/spouse role.

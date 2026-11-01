@@ -215,17 +215,24 @@ export class FeezbackDisconnectionService {
       const attempts = await Promise.all(targets.map(async target => {
         try {
           await this.api.terminateConsent(feezbackSub(firebaseId, target.connectionRole === 'spouse'), target.consentId);
-          return { ...target, failed: false };
-        } catch { return { ...target, failed: true }; }
+          return { ...target, failed: false, supportError: undefined as BankingIssue | undefined };
+        } catch (error) {
+          const supportError = bankingIssue(this.logger, 'consent_termination', firebaseId,
+            'consent_termination_request_failed', error, target, { sources: target.sources.length }, false);
+          return { ...target, failed: true, supportError };
+        }
       }));
       const verifiedAt = new Date();
       const after = await this.readTargets(firebaseId);
-      const results: Array<{ consentId: string; connectionRole: ConnectionRole; status: 'terminated' | 'failed' | 'pending' }> = [];
+      const results: Array<{ consentId: string; connectionRole: ConnectionRole; status: 'terminated' | 'failed' | 'pending'; supportError?: BankingIssue }> = [];
       for (const attempt of attempts) {
         const identityReadFailed = after.errors.some(error => error.connectionRole === attempt.connectionRole && error.code === 'consents_unavailable');
         const remains = after.consents.some(c => c.connectionRole === attempt.connectionRole && c.consentId === attempt.consentId);
         const status = !identityReadFailed && !remains ? 'terminated' : attempt.failed ? 'failed' : 'pending';
-        results.push({ consentId: attempt.consentId, connectionRole: attempt.connectionRole, status });
+        const supportError = status === 'terminated' ? undefined : attempt.supportError ??
+          bankingIssue(this.logger, 'consent_termination', firebaseId, 'consent_termination_not_confirmed',
+            undefined, attempt, { sources: attempt.sources.length });
+        results.push({ consentId: attempt.consentId, connectionRole: attempt.connectionRole, status, ...(supportError ? {supportError} : {}) });
       }
       // Rebind shared sources before clearing old consent pointers. This also
       // repairs a missed terminal webhook on an already-disconnected retry.
@@ -253,7 +260,14 @@ export class FeezbackDisconnectionService {
       catch(error) { cleanupError = bankingIssue(this.logger,'connection_save',firebaseId,'disconnection_cleanup_failed',error); }
       // Verification after a timeout can still prove success. Discovery errors,
       // remaining permissions and asynchronous provider termination stay visible.
-      let supportError = cleanupError ?? (!after.complete ? bankingIssue(this.logger,'consent_check',firebaseId,'disconnection_verification_incomplete') : undefined);
+      let supportError = cleanupError ?? (!after.complete ? bankingIssue(this.logger,'consent_check',firebaseId,'disconnection_verification_incomplete') : undefined)
+        ?? results.find(result => result.supportError)?.supportError;
+      if (!supportError && request.scope === 'all' && after.consents.length)
+        supportError = bankingIssue(this.logger,'consent_termination',firebaseId,'permissions_remain_after_full_disconnect',
+          undefined, undefined, { remainingConsents: after.consents.length });
+      if (!supportError && before.errors.some(error => error.code === 'consents_unavailable'))
+        supportError = bankingIssue(this.logger,'consent_check',firebaseId,'disconnection_initial_verification_incomplete');
+      if (supportError) supportError.partial = results.some(result => result.status === 'terminated');
       let recorded: boolean | undefined;
       try {
         recorded = await this.sync.recordSourcesRefreshResult(firebaseId,verifiedAt,{
@@ -268,6 +282,13 @@ export class FeezbackDisconnectionService {
         (request.scope !== 'all' || after.consents.length === 0) &&
         !before.errors.some(e => e.code === 'consents_unavailable');
       if (success && after.consents.length === 0) await this.resetDisconnectedFlags(firebaseId);
+      this.logger.log('[OpenBankingDisconnect] ' + JSON.stringify({userId:firebaseId,scope:request.scope,
+        status:success?'success':'partial',attempted:results.length,
+        terminated:results.filter(result=>result.status==='terminated').length,
+        failed:results.filter(result=>result.status==='failed').length,
+        pending:results.filter(result=>result.status==='pending').length,
+        remaining:after.consents.length,complete:after.complete,
+        errorId:supportError?.errorId,code:supportError?.code}));
       return { status: success ? 'success' as const : 'partial' as const, results, ...(supportError ? {supportError} : {}),
         remainingConsents: after.consents, complete: after.complete,
         hasOpenBanking: after.hasOpenBanking, errors: [...before.errors, ...after.errors] };

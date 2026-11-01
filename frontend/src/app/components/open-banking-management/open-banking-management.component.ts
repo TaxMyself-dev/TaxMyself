@@ -171,7 +171,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     this.service.disconnect({ firebaseId: this.firebaseId, scope: selection === 'all' ? 'all' : 'consent',
       ...(selection === 'all' ? {} : { consentId: selection.consentId, connectionRole: selection.connectionRole }),
     }).pipe(
-      switchMap(result => !this.firebaseId ? this.auth.restoreUserData().pipe(map(() => result)) : of(result)),
+      switchMap(result => !this.firebaseId ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => result)) : of(result)),
       finalize(() => { this.busy.set(false); this.busyChange.emit(false); }),
     ).subscribe({
       next: result => {
@@ -186,7 +186,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         this.connectionChanged.emit();
       },
       error: (err) => {
-        this.supportError.set(bankingRequestError(err));
+        this.supportError.set(bankingRequestError(err, 'OB-05'));
         this.previewVerified.set(false);
         this.confirmation.set(null); this.targets.set(null);
         this.error.set('לא ניתן לאשר שהפעולה הושלמה. יש לרענן את מצב ההרשאות לפני ניסיון נוסף.');

@@ -30,6 +30,57 @@ describe('Feezback disconnection', () => {
     cacheCleanup = { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) };
     service = new FeezbackDisconnectionService(api, users, sources, sync, cacheCleanup);
   });
+  it.each(['consent','all'] as const)('returns a correlated safe support issue for %s cancellation failures', async scope => {
+    const log=jest.spyOn((service as any).logger,'error').mockImplementation(()=>{});
+    api.terminateConsent.mockRejectedValue(new FeezbackHttpError({method:'DELETE',url:'https://provider.test/consents/c1',status:403,code:'DENIED',message:'secret account details'}));
+    const result=await service.disconnect('owner',scope==='all'?{scope}:{scope,consentId:'c1',connectionRole:'primary'});
+    expect(result.status).toBe('partial');expect(result.supportError).toMatchObject({code:'OB-05',errorId:expect.any(String)});
+    expect(result.results[0].supportError?.errorId).toBe(result.supportError?.errorId);
+    expect(log.mock.calls.some(([line])=>String(line).includes(result.supportError!.errorId))).toBe(true);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret account details');
+    expect(JSON.stringify(log.mock.calls)).toContain('consent_termination_request_failed');
+    expect(JSON.stringify(log.mock.calls)).toContain('403');
+    expect(api.terminateConsent).toHaveBeenCalledTimes(scope==='all'?2:1);log.mockRestore();
+  });
+  it('continues full disconnect after one consent fails and reports the verified successful subset', async()=>{
+    api.terminateConsent.mockImplementation(async(sub,id)=>{if(id==='c1')throw Error('failed before HTTP');permissions[sub]=[];});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('partial');expect(result.results.map(r=>r.status)).toEqual(['failed','terminated']);
+    expect(result.supportError?.code).toBe('OB-05');expect(result.remainingConsents.map(c=>c.consentId)).toEqual(['c1']);
+  });
+  it('reports unconfirmed asynchronous termination with a support ID even without a thrown exception',async()=>{
+    api.terminateConsent.mockResolvedValue(undefined);
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(result.results[0].status).toBe('pending');expect(result.supportError?.code).toBe('OB-05');
+  });
+  it('accepts authoritative terminal verification after a failed transport response',async()=>{
+    api.terminateConsent.mockImplementation(async(sub)=>{permissions[sub]=[];throw Error('timeout after completion');});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('success');expect(result.supportError).toBeUndefined();
+    expect(result.results.every(r=>r.status==='terminated'&&!r.supportError)).toBe(true);
+  });
+  it('full disconnect includes separate consents granted within the same primary identity',async()=>{
+    permissions.owner_sub.push({resourceId:'wife-consent',consentStatus:'valid'});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(api.terminateConsent.mock.calls).toEqual(expect.arrayContaining([['owner_sub','c1'],['owner_sub','wife-consent'],['owner_sub_spouse','c2']]));
+    expect(result.status).toBe('success');expect(result.remainingConsents).toEqual([]);
+  });
+  it('returns an issue if an initial identity read failed even when the final list is empty',async()=>{
+    permissions.owner_sub=[];permissions.owner_sub_spouse=[];
+    api.getUserConsents.mockRejectedValueOnce(Error('initial read failed'));
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('partial');expect(result.supportError?.code).toBe('OB-01');
+  });
+  it('keeps another primary consent outside a source-specific cancellation',async()=>{
+    permissions.owner_sub.push({resourceId:'wife-consent',consentStatus:'valid'});
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(api.terminateConsent.mock.calls).toEqual([['owner_sub','c1']]);
+    expect(result.status).toBe('success');expect(result.remainingConsents.some(c=>c.consentId==='wife-consent')).toBe(true);
+  });
+  it('protects the support ID when restored from stored failure state',async()=>{
+    sync.getSyncState.mockResolvedValue({sourcesRefreshFailureReason:'OB-05|12345678-1234-1234-1234-123456789012'});
+    expect((await service.storedTargets('owner')).supportError?.code).toBe('OB-05');
+  });
   it('protects synthetic demo connections before provider or source access', async () => {
     user.email = DESIGNER_SANDBOX_PROFILE.email;
     await expect(service.targets('owner')).rejects.toMatchObject({ response: { code: 'SYNTHETIC_OPEN_BANKING' } });

@@ -39,6 +39,26 @@ describe('open banking disconnection', () => {
     refreshed.next({ hasOpenBanking: false }); refreshed.complete();
     expect(changed).toHaveBeenCalledTimes(1); expect(component.loading()).toBeFalse();
   });
+  for(const scope of ['consent','all'])it('shows correlated cancellation errors for '+scope,()=>{
+    const issue={code:'OB-05',errorId:'12345678-1234-1234-1234-123456789012',message:'לא הצלחנו לאשר שביטול ההרשאה הושלם',partial:true};
+    service.disconnect.and.returnValue(of({status:'partial',supportError:issue,remainingConsents:[consent],complete:true,hasOpenBanking:true,errors:[],results:[]}));
+    if(scope==='all')component.openFullDisconnect();else component.openSourceConsent(1);
+    component.confirm();
+    expect(service.disconnect.calls.mostRecent().args[0].scope).toBe(scope);
+    expect(component.supportError()).toEqual(issue);expect(component.error()).toContain('לא הושלמה');
+    expect(component.targets()?.consents).toEqual([consent]);expect(component.message()).toBe('');
+  });
+  it('preserves the cancellation support ID if profile refresh fails',()=>{
+    const issue={code:'OB-05',errorId:'server-cancel-id',message:'ביטול לא הושלם'};
+    service.disconnect.and.returnValue(of({status:'partial',supportError:issue,remainingConsents:[consent],complete:true,hasOpenBanking:true,errors:[],results:[]}));
+    component.openFullDisconnect();auth.restoreUserData.and.returnValue(throwError(()=>Error('profile unavailable')));
+    component.confirm();expect(component.supportError()).toEqual(issue);expect(component.targets()?.consents).toEqual([consent]);
+  });
+  it('uses OB-05 for a transport failure during cancellation',()=>{
+    component.openFullDisconnect();service.disconnect.and.returnValue(throwError(()=>({status:0})));
+    component.confirm();expect(component.supportError()?.code).toBe('OB-05');expect(component.supportError()?.errorId).toBeTruthy();
+    expect(component.canConfirm()).toBeFalse();
+  });
   it('initializes from stored state without a live refresh or profile write', () => {
     component.ngOnInit();
     expect(service.disconnectionTargets).toHaveBeenCalledTimes(1);
