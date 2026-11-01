@@ -17,10 +17,13 @@ const event = (id, second, overrides = {}) => ({ event: 'message.received', even
 const command = (id, second, text = 'בדיקות') => event(id, second, { text, has_media: false, message_type: 'text' });
 
 function fixture() {
-  const state = { journal: [], acquired: 1, released: 0, destroyed: 0, connections: 0, options: null, failRelease: false, failInsert: false };
+  const state = { journal: [], prompts: [], acquired: 1, released: 0, destroyed: 0, connections: 0, options: null, failRelease: false, failInsert: false };
   const factory = options => {
     state.options = options;
-    return { async end() {}, async getConnection() {
+    return { async end() {}, async query(options, args) {
+      const connection = await this.getConnection();
+      try { return await connection.query(options, args); } finally { connection.release(); }
+    }, async getConnection() {
       state.connections++;
       return { release() { state.released++; }, destroy() { state.destroyed++; }, async query({ sql, timeout }, args) {
         assert.equal(timeout, 5000);
@@ -30,6 +33,8 @@ function fixture() {
           return [[{ released: 1 }]];
         }
         if (sql.startsWith('SELECT payload_hash')) return [state.journal.filter(r => r.event_id === args[0])];
+        if (sql.startsWith('SELECT event_id')) return [state.prompts.filter(r =>
+          r.channel_id === args[0] && r.sender_phone === args[1] && r.prompt_whatsapp_message_id === args[2]).slice(0, 2)];
         if (sql.startsWith('SELECT DISTINCT status,')) {
           const distinct = new Map();
           for (const row of state.journal.filter(r => r.channel_id === args[0] && r.sender_phone === args[1] &&
@@ -60,6 +65,25 @@ test('defaults to prod, starts dev, accepts captionless files and stops tests', 
   assert.equal((await store.resolve(event('after', 4), sender)).environment, 'prod');
   assert.ok(state.journal.every(r => r.status.startsWith('ROUTE_') && r.event_id.startsWith('route:')));
   assert.equal(state.connections, state.released);
+});
+
+test('dev prompt ownership survives ending tests without querying a production receiver', async () => {
+  const { store, state } = fixture();
+  state.prompts.push({ event_id: 'doc', channel_id: 'channel', sender_phone: sender, prompt_whatsapp_message_id: 'wamid.question' });
+  await store.resolve(command('stop', 1, 'סיום בדיקות'), sender);
+  assert.equal(await store.replyRoute(event('reply', 2, { reply_to_whatsapp_message_id: 'wamid.question' }), sender), 'dev');
+  assert.equal(await store.replyRoute(event('other-reply', 2, { reply_to_whatsapp_message_id: 'unknown' }), sender), 'prod');
+});
+
+test('unknown test reply, wrong sender and duplicate dev mappings never guess an owner', async () => {
+  const { store, state } = fixture();
+  await store.resolve(command('start', 1), sender);
+  const reply = event('reply', 2, { reply_to_whatsapp_message_id: 'wamid.question' });
+  assert.equal(await store.replyRoute(reply, sender), 'unknown');
+  state.prompts.push({ event_id: 'other-owner', channel_id: 'channel', sender_phone: '972541234567', prompt_whatsapp_message_id: 'wamid.question' });
+  assert.equal(await store.replyRoute(reply, sender), 'unknown');
+  state.prompts.push(...['doc1', 'doc2'].map(event_id => ({ event_id, channel_id: 'channel', sender_phone: sender, prompt_whatsapp_message_id: 'wamid.question' })));
+  await assert.rejects(store.replyRoute(reply, sender), /Ambiguous/);
 });
 
 test('recreated proxy stores see the same mode, isolated per sender', async () => {
@@ -168,4 +192,23 @@ test('signed proxy flow uses actual store with fake SQL; dev works with producti
   }
   assert.equal(forwarded.length, 1);
   assert.equal(state.journal.length, 3);
+});
+
+test('signed business choice uses direct dev ownership and never calls production or reply-owner HTTP', async () => {
+  const { store, state } = fixture();
+  state.prompts.push({ event_id: 'doc', channel_id: 'channel', sender_phone: sender, prompt_whatsapp_message_id: 'test-only-question' });
+  let forwarded = 0;
+  const body = Buffer.from(JSON.stringify(event('choice', 2, { has_media: false, message_type: 'text',
+    text: '2. ייעוץ', reply_to_whatsapp_message_id: 'test-only-question' })));
+  const handler = createHandler(configuration(env), async (url, options) => {
+    assert.equal(url, env.LYCHEE_DEV_WEBHOOK_URL);
+    assert.strictEqual(options.body, body);
+    forwarded++;
+    return { ok: true };
+  }, store);
+  const signature = 'sha256=' + createHmac('sha256', env.LYCHEE_WEBHOOK_SECRET).update(body).digest('hex');
+  const res = { status(code) { this.code = code; return this; }, json() {} };
+  await handler({ body, headers: { 'x-lychee-signature': signature } }, res);
+  assert.equal(res.code, 200);
+  assert.equal(forwarded, 1);
 });

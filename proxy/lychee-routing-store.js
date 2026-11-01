@@ -34,6 +34,31 @@ function createRoutingStore(env, testPhones, poolFactory) {
     return pool;
   }
   return {
+    async replyRoute(event, sender) {
+      if (!testPhones.has(sender) || event.channel_id !== env.LYCHEE_CHANNEL_ID) throw new Error('Unauthorized routing sender or channel');
+      const reply = event.reply_to_whatsapp_message_id;
+      if (typeof reply !== 'string' || !reply || reply.length > 255) throw new Error('Invalid reply identifier');
+      const timestamp = typeof event.occurred_at === 'string' ? Date.parse(event.occurred_at) : NaN;
+      if (!Number.isFinite(timestamp)) throw new Error('Event timestamp required');
+      const pool = getPool();
+      const [owners] = await pool.query({ sql: `SELECT event_id FROM lychee_intake_events
+        WHERE channel_id=? AND sender_phone=? AND prompt_whatsapp_message_id=? LIMIT 2`, timeout: 5000 },
+        [event.channel_id, sender, reply]);
+      if (owners.length > 1) throw new Error('Ambiguous development prompt ownership');
+      if (owners.length === 1) return 'dev';
+      const [commands] = await pool.query({ sql: `SELECT DISTINCT status,
+        JSON_UNQUOTE(JSON_EXTRACT(payload, '$.occurred_at')) AS occurred_at
+        FROM lychee_intake_events WHERE channel_id=? AND sender_phone=?
+        AND status IN ('ROUTE_COMMAND_DEV','ROUTE_COMMAND_PROD')
+        AND JSON_UNQUOTE(JSON_EXTRACT(payload, '$.occurred_at')) <= ?
+        ORDER BY occurred_at DESC, status DESC LIMIT 2`, timeout: 5000 },
+        [event.channel_id, sender, new Date(timestamp).toISOString()]);
+      if (commands.length > 1 && commands[0].occurred_at === commands[1].occurred_at && commands[0].status !== commands[1].status) {
+        throw new Error('Ambiguous routing command order');
+      }
+      // Unknown dev replies must never probe or fall through to a production backend.
+      return commands[0]?.status === 'ROUTE_COMMAND_DEV' ? 'unknown' : 'prod';
+    },
     async resolve(event, sender) {
       if (!testPhones.has(sender) || event.channel_id !== env.LYCHEE_CHANNEL_ID) throw new Error('Unauthorized routing sender or channel');
       if (![event.event_id, event.message_id, event.whatsapp_message_id].every(x => typeof x === 'string' && x.length > 0 && x.length <= 255) ||
