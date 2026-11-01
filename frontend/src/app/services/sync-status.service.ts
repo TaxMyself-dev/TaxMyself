@@ -4,7 +4,7 @@ import { catchError, map, Observable, of, switchMap, exhaustMap, timeout, takeWh
 import { BankingSupportError, bankingRequestError } from '../components/open-banking-management/open-banking-error.component';
 import { environment } from 'src/environments/environment';
 
-export type TriggerSyncStatus = 'started' | 'running';
+export type TriggerSyncStatus = 'started' | 'running' | 'already_running';
 
 /**
  * Response shape from POST /transactions/post-consent-sync.
@@ -29,6 +29,7 @@ export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
 
 export interface SourceResult {
+  resultRunId?: string | null;
   supportError?: BankingSupportError;
   type: 'bank' | 'card';
   sourceId: string;
@@ -42,6 +43,7 @@ export interface SourceResult {
 }
 
 export interface StageState {
+  runId?: string | null;
   supportError?: BankingSupportError;
   processStatus: ProcessStatus;
   resultStatus:  ResultStatus;
@@ -54,6 +56,17 @@ export interface StageState {
 export interface SyncResponse {
   fullSync: StageState;
   sourceResults: SourceResult[];
+}
+
+export function isPreviousPullResult(stage: StageState | null, previousRunId?: string | null): boolean {
+  return !!stage && previousRunId !== undefined && (!stage.runId || stage.runId === previousRunId) &&
+    !(stage.runId === undefined && stage.supportError);
+}
+
+export function currentPullSourceResults(response: SyncResponse | null): SourceResult[] {
+  const stage = response?.fullSync;
+  return stage?.runId && !stage.skipReason
+    ? response!.sourceResults.filter(source=>source.resultRunId===stage.runId && source.status!=='not_synced') : [];
 }
 
 const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed', 'skipped'];
@@ -166,7 +179,7 @@ export class SyncStatusService {
   }
 
   /** Single HTTP poll — returns null on network/HTTP error. */
-  private getSyncResponse(): Observable<SyncResponse | null> {
+  getSyncResponse(): Observable<SyncResponse | null> {
     return this.http.get<SyncResponse>(this.url).pipe(
       timeout(15_000),
       catchError((err) => {
@@ -224,7 +237,7 @@ export class SyncStatusService {
     return this.pollUntilDone(3000).pipe(
       map(res => ({
         stageState: res?.fullSync ?? null,
-        sourceResults: res?.sourceResults ?? [],
+        sourceResults: currentPullSourceResults(res),
       })),
       catchError(error => of({ stageState: {
         processStatus: 'failed' as const, resultStatus:'failed' as const, rowsWritten:0,

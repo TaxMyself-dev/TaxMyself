@@ -104,6 +104,7 @@ export class FeezbackDisconnectionService {
   }
 
   private async readTargets(firebaseId: string): Promise<DisconnectionTargets & { verifiedConnection: boolean; verifiedSources: Map<string, Set<number>>; cacheProof: DisconnectionCacheProof }> {
+    const observedAt = new Date();
     const user = await this.users.findOne({ where: { firebaseId } });
     if (!user) throw new BadRequestException('User not found');
     if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({
@@ -186,6 +187,7 @@ export class FeezbackDisconnectionService {
     // A complete consent read proving no active permission clears the flag even
     // when stale provider accounts still exist. Partial reads never clear it.
     const cacheProof: DisconnectionCacheProof = {
+      observedAt,
       complete: errors.length === 0, consents, errors,
       sources: stored.map(source => ({ sourceRecordId: source.id, connectionRole: source.connectionRole ?? 'primary',
         consentId: rows.find(row => row.sourceRecordId === source.id)?.consentId ?? null })),
@@ -246,14 +248,16 @@ export class FeezbackDisconnectionService {
           await this.sync.clearConsentOnSources(firebaseId, id, role === 'spouse');
         }
       }
-      await this.cacheCleanup.cleanup(firebaseId, after.cacheProof);
+      let cleanupError: BankingIssue | undefined;
+      try { await this.cacheCleanup.cleanup(firebaseId, after.cacheProof); }
+      catch(error) { cleanupError = bankingIssue(this.logger,'connection_save',firebaseId,'disconnection_cleanup_failed',error); }
       // Verification after a timeout can still prove success. Discovery errors,
       // remaining permissions and asynchronous provider termination stay visible.
-      let supportError = !after.complete ? bankingIssue(this.logger,'consent_check',firebaseId,'disconnection_verification_incomplete') : undefined;
+      let supportError = cleanupError ?? (!after.complete ? bankingIssue(this.logger,'consent_check',firebaseId,'disconnection_verification_incomplete') : undefined);
       let recorded: boolean | undefined;
       try {
         recorded = await this.sync.recordSourcesRefreshResult(firebaseId,verifiedAt,{
-          connected:after.verifiedConnection,complete:after.complete,sourcesRefreshed:false,
+          connected:after.verifiedConnection,complete:after.complete && !cleanupError,sourcesRefreshed:false,
           failureReason:supportError ? `${supportError.code}|${supportError.errorId}` : undefined,
         });
       } catch (error) {

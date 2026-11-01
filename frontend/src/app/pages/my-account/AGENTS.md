@@ -50,3 +50,7 @@ Optional spouse source keys end in _spouse; sync result labels render this as ב
 Banking status/error handling (2026-11-01): cached rows are fetched during background synchronization and retained on failure. The table opts into preserveRowsDuringSync. Only a real backend running state shows banking progress; the initial scheduling grace is bounded to ten seconds. A failed post-consent discovery returns its persisted support issue immediately rather than waiting for webhook timeout. Slow status requests are not canceled on every poll tick, and polling is bounded even for stale terminal responses.
 
 The terminal banking dialog prioritizes the aggregate support error over per-source provider-read successes or an empty source list, so failed/partial persistence cannot display a success dialog.
+
+## Pull-result isolation and permission changes
+
+The post-consent pull reads its baseline run ID before triggering a new pull. It ignores that previous run even if it finished recently, while allowing a response that joins an already-running job. The comparison survives poll retries and never suppresses transport errors. Both API and polling service return source outcomes only for the current fullRunId; discovery-only skipped_direct and historical successes are excluded. Owner-profile updates and retained-page entry refetch existing displayed cache, so verified cleanup is reflected without a new transaction pull. Nullable run tags require docs/features/feezback-pull-run.sql before this backend is started.

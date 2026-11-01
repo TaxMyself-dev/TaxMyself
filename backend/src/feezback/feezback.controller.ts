@@ -86,7 +86,14 @@ export class FeezbackController {
   @Post('disconnect')
   @UseGuards(FirebaseAuthGuard)
   async disconnect(@Req() req: AuthenticatedRequest, @Body() body: DisconnectRequest & { firebaseId?: string }) {
-    return this.disconnection!.disconnect(await this.disconnectionSubject(req, body?.firebaseId), body);
+    const firebaseId = await this.disconnectionSubject(req, body?.firebaseId);
+    try { return await this.disconnection!.disconnect(firebaseId, body); }
+    catch(error) {
+      if (error instanceof BadRequestException) throw error;
+      const issue = error instanceof BankingBatchError ? error.issues[0]
+        : bankingIssue(this.logger,'connection_save',firebaseId,'disconnection_failed',error);
+      throw new ServiceUnavailableException({supportError:issue});
+    }
   }
 
   @Get('connection-options')

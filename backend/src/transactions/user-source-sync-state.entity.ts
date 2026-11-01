@@ -15,6 +15,7 @@ import type { BankingIssue } from '../feezback/core/open-banking-issue';
 export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
 
 export interface SourceResult {
+  runId?: string;
   supportError?: BankingIssue;
   type: 'bank' | 'card';
   /** IBAN last-7 for bank; maskedPan last-4 for card. */
@@ -42,6 +43,8 @@ export interface SourceResult {
 @Entity('user_source_sync_state')
 @Index('UQ_source_sync_user_record', ['userId', 'sourceRecordId'], { unique: true })
 export class UserSourceSyncState {
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  resultRunId: string | null;
   @PrimaryGeneratedColumn()
   id: number;
 

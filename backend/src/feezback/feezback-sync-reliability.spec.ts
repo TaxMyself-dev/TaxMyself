@@ -4,6 +4,9 @@ import { FeezbackDisconnectionService } from './feezback-disconnection.service';
 import { FeezbackWebhookService } from './webhook/feezback-webhook.service';
 import { BankingBatchError, bankingIssue } from './core/open-banking-issue';
 import { TransactionsController } from '../transactions/transactions.controller';
+import { User } from '../users/user.entity';
+import { Source } from '../transactions/source.entity';
+import { UserSyncState } from '../transactions/user-sync-state.entity';
 
 describe('Open banking reliability regression', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -39,12 +42,18 @@ describe('Open banking reliability regression', () => {
     expect(state.update).not.toHaveBeenCalled();
   });
   it('only clears pointers in a fully verified source scope and preserves unknown consents', async () => {
-    const {service,state}=batch();
-    jest.spyOn(service,'getSourceResults').mockResolvedValue([
+    const {state}=batch();
+    const rows=[
       {sourceRecordId:1,sourceId:'1',type:'card',consentId:'protected',connectionRole:'primary'},
       {sourceRecordId:2,sourceId:'2',type:'bank',consentId:'bank',connectionRole:'primary'},
       {sourceRecordId:3,sourceId:'3',type:'card',consentId:'gone',connectionRole:'primary'},
-    ] as any);
+    ] as any;
+    const owned=rows.map(row=>({...source(row.sourceRecordId),sourceType:row.type==='bank'?'BANK_ACCOUNT':'CREDIT_CARD'}));
+    state.findOne.mockImplementation(async({where})=>rows.find(row=>row.sourceRecordId===where.sourceRecordId));
+    const manager:any={getRepository:entity=>entity===User?{findOne:async()=>({firebaseId:'owner'})}:entity===UserSyncState?{findOne:async()=>null}:
+      entity===Source?{find:async()=>owned,findOne:async({where})=>owned.find(source=>source.id===where.id)}:state,
+      update:jest.fn(),delete:jest.fn().mockResolvedValue({affected:1})};
+    const service=new UserSyncStateService({manager:{transaction:async fn=>fn(manager)}} as any,state as any,{} as any);
     await service.reconcileSourceConsents('owner','primary',[{type:'card',sources:[]}],new Date(),['protected']);
     expect(state.update).toHaveBeenCalledTimes(1);
     expect(state.update.mock.calls[0][0].sourceRecordId).toBe(3);
@@ -115,7 +124,7 @@ describe('Open banking reliability regression', () => {
       {find:jest.fn().mockResolvedValue([]),query:jest.fn().mockResolvedValue(undefined)} as any,{} as any,{} as any,enrollment as any);
     await expect(service.refreshUserSources('owner','permissions-refresh')).rejects.toBeInstanceOf(BankingBatchError);
     expect(sync.upsertSourceConsents).toHaveBeenCalledWith('owner',[expect.objectContaining({type:'bank',consentId:'c'})],expect.any(Date));
-    expect(sync.reconcileSourceConsents.mock.calls.find(call=>call[1]==='primary')[2]).toEqual([{type:'bank',sources:['1234567']}]);
+    expect(sync.reconcileSourceConsents).not.toHaveBeenCalled();
     expect(sync.markSourcesRefreshed).not.toHaveBeenCalled();expect(enrollment.connectionVerified).not.toHaveBeenCalled();
     expect(processing.process).not.toHaveBeenCalled();
     expect(sync.recordSourcesRefreshResult).toHaveBeenCalledWith('owner',expect.any(Date),expect.objectContaining({complete:false,failureReason:expect.stringMatching(/^OB-01\|/)}));
@@ -134,7 +143,7 @@ describe('Open banking reliability regression', () => {
       processTransactionsWithDuplicateAlert:jest.fn().mockResolvedValue({newlySavedToCache:1,excludedCount:37,supportIssue:issue}),
       markConnectedSyncFinished:jest.fn().mockResolvedValue(undefined)});
     await service.doFullSync('owner','manual','owner',null);
-    expect(service.markConnectedSyncFinished).toHaveBeenCalledWith('owner','completed','partial_success',1,`OB-04|${issue.errorId}`);
+    expect(service.markConnectedSyncFinished).toHaveBeenCalledWith('owner','completed','partial_success',1,`OB-04|${issue.errorId}`,undefined);
   });
   it('never translates an outstanding consent into a running transaction job and exposes the matching support ID', async () => {
     const controller=Object.create(TransactionsController.prototype) as any;
@@ -177,7 +186,7 @@ describe('Open banking reliability regression', () => {
     jest.spyOn(service,'retrySource').mockResolvedValue({type:'bank',sourceId:'1111',status:'success',transactionCount:1});
     const finished=jest.spyOn(service as any,'markConnectedSyncFinished').mockResolvedValue(undefined);
     await (service as any).retryFailedSources('owner',[{type:'bank',sourceId:'1111',status:'failed'}],'owner');
-    expect(finished).toHaveBeenCalledWith('owner','completed','partial_success',0,expect.stringMatching(/^OB-03\|/));
+    expect(finished).toHaveBeenCalledWith('owner','completed','partial_success',0,expect.stringMatching(/^OB-03\|/),undefined);
   });
   it('counts an existing-expense match as a cached row, not a second removed duplicate', async () => {
     const service=new FeezbackService({} as any,{getTppId:()=> 'tpp'} as any,{} as any,{} as any,{} as any,

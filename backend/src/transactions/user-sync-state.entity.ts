@@ -63,6 +63,9 @@ export class UserSyncState {
   @Column({ type: 'timestamp', nullable: true })
   fullStartedAt: Date | null;
 
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  fullRunId: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   fullFinishedAt: Date | null;
 

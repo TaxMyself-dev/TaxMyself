@@ -142,7 +142,7 @@ describe('optional Feezback spouse identity', () => {
     const webhook: any = new FeezbackWebhookService({} as any, provider);
     const event = { payload: { user: feezbackSub(uid, true) + '@tpp' } };
     await webhook.handleUserDataIsAvailable(event);
-    expect(provider.refreshUserSources).not.toHaveBeenCalled();
+    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable');
     provider.verifySpouseWebhookConnection.mockResolvedValue(true);
     await webhook.handleUserDataIsAvailable(event);
     expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable');

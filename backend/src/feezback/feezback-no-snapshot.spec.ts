@@ -22,8 +22,8 @@ describe('Banking without a stored consent copy',()=>{
   it('records only operational fields and does not clear a connection on incomplete proof',async()=>{
     const users={findOne:jest.fn().mockResolvedValue({firebaseId:'owner',hasOpenBanking:true}),update:jest.fn()};
     const states={findOne:jest.fn().mockResolvedValue({lastSourcesRefreshAt:new Date('2026-01-01')}),upsert:jest.fn()};
-    const repo={manager:{transaction:async callback=>callback({getRepository:entity=>entity.name==='User'?users:states})}};
-    const service=new UserSyncStateService(repo as any,{} as any,{} as any);
+    const repo={manager:{transaction:async callback=>callback({getRepository:entity=>entity.name==='User'?users:entity.name==='UserSourceSyncState'?{findOne:async()=>null}:states})}};
+    const service=new UserSyncStateService(repo as any,{findOne:jest.fn().mockResolvedValue(null)} as any,{} as any);
     const when=new Date('2026-02-01');const failureReason='OB-01|12345678-1234-1234-1234-123456789012';
     expect(await service.recordSourcesRefreshResult('owner',when,{connected:false,complete:false,failureReason})).toBe(true);
     expect(states.upsert).toHaveBeenCalledWith({userId:'owner',lastSourcesRefreshAttemptAt:when,sourcesRefreshFailureReason:failureReason},['userId']);

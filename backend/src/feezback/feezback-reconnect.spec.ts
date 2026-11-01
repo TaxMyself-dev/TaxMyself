@@ -5,6 +5,9 @@ import { UserSyncStateService } from '../transactions/user-sync-state.service';
 import { Source } from '../transactions/source.entity';
 import { SourceType } from '../enum';
 import { User } from '../users/user.entity';
+import { UserSourceSyncState } from '../transactions/user-source-sync-state.entity';
+import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
+import { UserTransactionCacheState } from '../transactions/user-transaction-cache-state.entity';
 
 /** Real discovery + consent-state services, isolated repositories and provider. No live DB/API. */
 describe('Feezback reconnection preserves permanent sources', () => {
@@ -65,6 +68,18 @@ describe('Feezback reconnection preserves permanent sources', () => {
       findOne: jest.fn().mockResolvedValue(user),
       update: jest.fn(async (_where, patch) => { Object.assign(user, patch); return { affected: 1 }; }),
     };
+    stateRepo.insert=jest.fn(async row=>{states.push({...row});});
+    progress.manager.transaction=async callback=>callback({
+      getRepository:entity=>entity===User?userRepo:entity===Source?sourceRepo:entity===UserSourceSyncState?stateRepo:progress,
+      update:async(entity,where,patch)=>{
+        if(entity===UserSourceSyncState)return stateRepo.update(where,patch);
+        throw Error('Unexpected durable write');
+      },
+      delete:async(entity)=>{
+        if(entity!==FullTransactionCache && entity!==UserTransactionCacheState)throw Error('Unexpected durable delete');
+        return{affected:0};
+      },
+    });
     api = {
       getUserConsents: jest.fn(async sub => ({ consents: connected ? [{ resourceId: `${sub}-consent-${generation}`, consentStatus: 'valid', validUntil: '2099-01-01' }] : [] })),
       getUserAccounts: jest.fn(async sub => ({ accounts: connected ? ['ILS', 'USD'].map(currency => ({

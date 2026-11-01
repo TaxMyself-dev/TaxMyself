@@ -1,5 +1,5 @@
 import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
-import { BankingSupportError, OpenBankingErrorComponent } from 'src/app/components/open-banking-management/open-banking-error.component';
+import { BankingSupportError, OpenBankingErrorComponent, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
@@ -11,7 +11,7 @@ import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile, switchMap, throwError } from 'rxjs';
 import { AccountAssociationDialogComponent } from 'src/app/components/account-association-dialog/account-association-dialog.component';
 import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { AddCategoryComponent } from 'src/app/components/add-category/add-category.component';
@@ -36,7 +36,7 @@ import { buildTransactionColumns } from 'src/app/shared/transaction-columns.conf
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
-import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
+import { SourceResult, SyncStatusService, isPreviousPullResult } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
 import { BillingStateService } from 'src/app/services/billing-state.service';
 import { AccessService, FeatureState } from 'src/app/services/access.service';
@@ -513,6 +513,7 @@ export class MyAccountPage implements OnInit {
         this.authService.getCurrentAuthUser()?.uid === profile.firebaseId) {
         this.userData = profile;
         this.hasOpenBanking.set(!!profile.hasOpenBanking);
+        if (this.transToClassify) this.getTransToClassify();
       }
     });
   }
@@ -521,6 +522,7 @@ export class MyAccountPage implements OnInit {
     // Ionic may retain this page while Settings updates the owner's profile.
     const profile = this.authService.getUserDataFromLocalStorage();
     if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
+    if (this.transToClassify) this.getTransToClassify();
   }
 
   ngOnInit() {
@@ -874,6 +876,8 @@ export class MyAccountPage implements OnInit {
    * fires POST /transactions/trigger-sync, then polls /sync-status until terminal.
    */
   onPullTransactionsClick(): void {
+    this.restartPolling$.next();
+    this.syncSourceResults.set([]);
     this.feezbackDialogStatus.set('loading');
     this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
     this.feezbackDialogIcon.set(null);
@@ -895,15 +899,20 @@ export class MyAccountPage implements OnInit {
       return;
     }
 
-    this.syncStatusService.triggerSync()
+    this.syncStatusService.getSyncResponse().pipe(
+      switchMap(before=>before ? this.syncStatusService.triggerSync().pipe(map(result=>({
+        ...result, previousRunId:result.status==='started' ? before.fullSync.runId ?? null : undefined,
+      }))) : throwError(()=>new Error('Cannot establish pull baseline'))),
+    )
       .pipe(take(1))
       .subscribe({
-        next: () => {
+        next: result => {
           // 'started' or 'running' — either way poll /sync-status until terminal.
-          this.startSyncStatusPolling(true);
+          this.startSyncStatusPolling(true,0,result.previousRunId);
         },
         error: (err) => {
           console.error('[MyAccount] post-consent triggerSync failed:', err);
+          this.bankingError.set(bankingRequestError(err,'OB-03'));
           // Cancel any background polling so it can't race and override 'failure'.
           this.restartPolling$.next();
           const code = err?.error?.code;
@@ -1016,7 +1025,7 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0): void {
+  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0, previousRunId?: string | null): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
@@ -1040,6 +1049,7 @@ export class MyAccountPage implements OnInit {
           ({ stageState }) =>
             !stageState ||
             stageState.processStatus === 'running' ||
+            (requireRunningFirst && isPreviousPullResult(stageState,previousRunId)) ||
             (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt) && Date.now() < waitForStartUntil),
           /* inclusive */ true,
         ),
@@ -1053,7 +1063,7 @@ export class MyAccountPage implements OnInit {
           if (timeoutRetryCount === 0) {
             console.warn('[MyAccount] Sync status poll timed out — retrying once before giving up', err);
             this.syncProcessStatus.set('running');
-            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1), 3000);
+            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1, previousRunId), 3000);
           } else {
             console.warn('[MyAccount] Sync status poll timed out again — giving up without clearing data', err);
             this.messageService.add({
@@ -1073,6 +1083,10 @@ export class MyAccountPage implements OnInit {
         }),
       )
       .subscribe(({ stageState, sourceResults }) => {
+        if (requireRunningFirst && isPreviousPullResult(stageState,previousRunId)) {
+          this.syncSourceResults.set([]);
+          return;
+        }
         this.syncSourceResults.set(sourceResults);
         if (!stageState) {
           // null = transient HTTP error during polling — keep current state, don't fail

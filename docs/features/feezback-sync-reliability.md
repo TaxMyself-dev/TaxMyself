@@ -2,7 +2,7 @@
 
 ## Result
 
-Settings reads saved consent state only. Webhooks and the explicit permission-refresh action reconcile verified provider metadata into stable local sources. Refresh does not pull transactions, revoke consent, clear transaction caches, or enroll/change billing. Direct-card text follows the saved consent pointer rather than hiding missing consent.
+Settings reads saved consent state only. Webhooks and the explicit permission-refresh action reconcile verified provider metadata into stable local sources. Refresh does not pull transactions, revoke consent or enroll/change billing. The subsequently approved shared-cleanup contract clears only operational data after fully verified revocation, preserving alternative coverage and durable accounting/history. Direct-card text follows the saved consent pointer rather than hiding missing consent.
 
 Inactive provider history is used to reconcile existing links, but does not create new permanent instruments. Only currently verified-active sources are eligible for creation. Diagnostics distinguish provider record counts from verified-active records; a consent ID alone is never reported as verified permission. Previously created historical Source rows are retained with their bookkeeping associations; this fix does not delete business data.
 
@@ -40,7 +40,7 @@ Implementation used mocked tests/local builds without app startup, production ac
 ## Manual acceptance checks
 
 - Opening settings sends only stored reads. Existing rows remain after a failed read.
-- Permission refresh repairs confirmed pointers without changing Source IDs/bills, pulling transactions or modifying billing/cache state. A provider timeout/partial response leaves unverified pointers untouched.
+- Permission refresh repairs confirmed pointers without changing Source IDs/bills, pulling transactions or modifying billing. Confirmed revocation now clears only affected operational cache and source outcomes. A provider timeout/partial response leaves unverified pointers untouched.
 - Direct cards without saved consent show **ללא הרשאה**; connected direct cards show **נמשך דרך חשבון הבנק**. No verification date or uncertainty status is added to the table.
 - A failed source write does not prevent later sources. The result is partial/failed, with a matching error ID and copyable Hebrew support message.
 - A failed webhook remains unprocessed with an error. Replaying it recovers after the cause is fixed; replaying a successful/currently claimed event does not process it again.
@@ -70,3 +70,15 @@ Only lastSourcesRefreshAttemptAt and sourcesRefreshFailureReason remain as new o
 The upgrade was explicitly authorized and applied only to keepintax-dev after private schema/old-column backup. The old JSON column is absent; all 12 user_sync_state rows and existing timestamp values were preserved. No application was started and no production/provider callback, merge or push occurred. Backup/verification evidence is outside Git.
 
 The relevance review retained per-source fences, the webhook processing lease, isolated persistence outcomes, cached-row rendering and independent login dispatch because each addresses an agreed failure or latency requirement. It removed the redundant permission-list representation and avoided a replacement consent table, repair job or UI verification-date/status mechanism. Live provider and full application behavior still require manual testing.
+
+## Shared verified cleanup and current-pull summaries
+
+The user explicitly superseded the former no-cache-cleanup refresh rule. Manual saving refresh, ConsentStatusChanged (including pending/unknown states), and UserDataIsAvailable share reconciliation. Each provider identity is read, and destructive reconciliation runs only after complete, recognized metadata. Pending unresolved coverage protects its role. Source timestamps/tenant locks protect newer reconnections; cleanup failure retains a support error and cannot certify discovery success.
+
+Confirmed uncovered sources lose cache rows, resource/consent pointers, stale counts/errors and outcome-run membership. Their small technical fence row and stable Source/Bill mapping remain. Both identities must prove full absence before legacy null-source cache is removed. Durable slim/classified transactions, Expenses, classification rules, accounting links and webhook/audit history are never deleted. Explicit cancellation uses the same operational reset and guards against a newer connection.
+
+[Prepared run-tag SQL](feezback-pull-run.sql) adds only fullRunId/resultRunId varchar(36) NULL. These UUIDs are job membership, not a permission snapshot. Historical untagged outcomes are omitted; full pulls and retry batches tag current outcomes. Superseded results/terminal writes cannot replace newer jobs. The popup reads a pre-trigger baseline and ignores that run while awaiting a new one. Reusing cached data is not presented as a current pull.
+
+The DDL is prepared only, not executed on dev or production in this implementation. Review/apply only this section to an explicitly approved target before starting the new backend; the full historical cutover file must never be rerun. No business-data cleanup was executed during implementation. Tests use mocked repositories/providers; manual application/provider validation remains separate.
+
+Manual checks after the approved dev schema upgrade: pull active A/B, revoke only B, then refresh and verify only B cache/pointers/counts are cleared while A and all durable rows remain; repeat refresh and verify A freshness is retained; reconnect B to the same Bill and verify existing classification/rules survive. A fresh pull summary must show only its UUID-tagged outcomes, including retries; an old just-finished run or empty invalidated state must never complete a new popup. Failed/partial/unknown provider metadata must not delete cache. Cancellation cleanup failure must expose the same OB-02 support ID in the UI/log.

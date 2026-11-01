@@ -168,7 +168,7 @@ describe('Feezback disconnection', () => {
   });
   it('does not report completion or reset spouse flags when cache cleanup fails', async () => {
     cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
-    await expect(service.disconnect('owner', { scope: 'all' })).rejects.toThrow('cache transaction failed');
+    await expect(service.disconnect('owner', { scope: 'all' })).resolves.toMatchObject({status:'partial',supportError:{code:'OB-02'}});
     expect(user.hasSpouseFeezbackIdentity).toBe(true);
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });

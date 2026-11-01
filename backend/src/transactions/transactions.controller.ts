@@ -132,6 +132,7 @@ export class TransactionsController {
 
     return {
       fullSync: {
+        runId: state.fullProcessStatus==='empty' ? null : state.fullRunId ?? null,
         processStatus: toFrontendStatus(state.fullProcessStatus),
         resultStatus:  state.fullResultStatus,
         rowsWritten:   state.fullRowsWritten,
@@ -140,7 +141,8 @@ export class TransactionsController {
         supportError: issueFromReason(state.fullFailureReason, state.fullResultStatus !== 'failed'),
         skipReason:    state.fullSkipReason ?? null,
       },
-      sourceResults: sources,
+      sourceResults: state.fullProcessStatus!=='empty' && state.fullRunId && !state.fullSkipReason
+        ? sources.filter(source=>source.resultRunId===state.fullRunId && source.status!=='not_synced') : [],
     };
   }
 
@@ -385,8 +387,10 @@ export class TransactionsController {
     console.log(`  DONE | ${sim.rowsWritten} saved | total=0s (mocked)\n`);
 
     // Seed the finished sync state with the scenario's per-source results.
-    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.updateSimulatedSourceResults(userId, sim.sources);
+    const run = await this.userSyncStateService.markSyncRunning(userId,'manual');
+    if (!run.acquired) throw new ConflictException('A sync is already running');
+    await this.userSyncStateService.updateSimulatedSourceResults(userId, sim.sources.map(source=>({...source,runId:run.runId})));
+    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten, undefined, run.runId);
     return { status: 'pull-simulated', scenario };
   }
 

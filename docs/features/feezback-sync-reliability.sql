@@ -53,3 +53,18 @@ FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND
 -- Do not roll back to code requiring permissionsSnapshot after it has been removed.
 -- Leave the wider status type and other nullable columns in place.
 -- Narrowing back to the old enum would reject skipped_direct and is not a safe rollback.
+
+-- Feezback current-pull membership (2026-11-01)
+-- Apply only to an explicitly approved database before starting the matching backend.
+-- Nullable operational run identifiers. No financial data or permission-list copy.
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')=0,
+ 'ALTER TABLE `user_sync_state` ADD COLUMN `fullRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId')=0,
+ 'ALTER TABLE `user_source_sync_state` ADD COLUMN `resultRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')
+ OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId'));

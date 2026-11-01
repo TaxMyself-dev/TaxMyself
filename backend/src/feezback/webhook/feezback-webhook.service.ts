@@ -114,10 +114,6 @@ export class FeezbackWebhookService {
     const isTerminal = !!currentStatus &&
       TERMINAL_STATUS_FRAGMENTS.some(frag => currentStatus.toUpperCase().includes(frag));
     const isValid = currentStatus?.toLowerCase() === 'valid';
-    if (!isTerminal && !isValid) {
-      console.log(`[FeezbackWebhook][ConsentStatusChanged] consent received — waiting for UserDataIsAvailable webhook to fire the sync | consentId=${consentId} currentStatus=${currentStatus}`);
-      return;
-    }
 
     const userIdentifier = typeof payload.user === 'string' ? payload.user : null;
     const parsedUser = parseFeezbackUserIdentifier(userIdentifier, payload?.tpp || null);
@@ -132,6 +128,11 @@ export class FeezbackWebhookService {
 
     const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
 
+    if (!isTerminal && !isValid) {
+      await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
+      return;
+    }
+
     if (isValid) {
       // Revalidate resources as well as status; resume need not emit data-ready.
       await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
@@ -139,12 +140,8 @@ export class FeezbackWebhookService {
     }
 
     try {
-      const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId, userIdentifier?.split('@')[0].endsWith('_sub_spouse'));
       // Re-read all current consents; one revoked bank must not disconnect another valid bank.
       await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
-      if (cleared > 0) {
-        this.logger.log(`[FeezbackWebhook][ConsentStatusChanged] cleared consentId from ${cleared} source(s) — consentId=${consentId} status=${currentStatus} firebaseId=${masked}`);
-      }
     } catch (error: any) {
       this.logger.error(`[FeezbackWebhook][ConsentStatusChanged] clearConsentOnSources failed firebaseId=${masked}: ${error?.message}`, error?.stack);
       throw error;
@@ -191,8 +188,7 @@ export class FeezbackWebhookService {
     //     processing result, leaving failed events eligible for a later replay.
     try {
       if (sub.endsWith('_sub_spouse')) {
-        const verified = await this.feezbackService.verifySpouseWebhookConnection(firebaseId, sub);
-        if (!verified) return;
+        await this.feezbackService.verifySpouseWebhookConnection(firebaseId, sub);
       }
       await this.feezbackService.refreshUserSources(firebaseId, 'UserDataIsAvailable');
     } catch (error: any) {

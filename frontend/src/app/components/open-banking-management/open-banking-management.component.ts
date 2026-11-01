@@ -185,7 +185,8 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         } else { this.message.set(selection === 'all' ? 'הניתוק מבנקאות פתוחה הושלם.' : 'ההרשאה בוטלה.'); }
         this.connectionChanged.emit();
       },
-      error: () => {
+      error: (err) => {
+        this.supportError.set(bankingRequestError(err));
         this.previewVerified.set(false);
         this.confirmation.set(null); this.targets.set(null);
         this.error.set('לא ניתן לאשר שהפעולה הושלמה. יש לרענן את מצב ההרשאות לפני ניסיון נוסף.');

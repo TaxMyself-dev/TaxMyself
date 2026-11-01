@@ -121,7 +121,7 @@ describe('Feezback review regressions',()=>{
       processTransactionsWithDuplicateAlert:jest.fn().mockResolvedValue({newlySavedToCache:0,alreadyExistingInCache:100,excludedCount:37,supportIssue:issue}),
       markConnectedSyncFinished:finished});
     await service.doFullSync('review-owner','manual','review',null);
-    expect(finished).toHaveBeenCalledWith('review-owner','completed','partial_success',0,`OB-04|${issue.errorId}`);
+    expect(finished).toHaveBeenCalledWith('review-owner','completed','partial_success',0,`OB-04|${issue.errorId}`,undefined);
   });
   it('recovers terminal-write failure after the login retry path too',async()=>{
     jest.spyOn(console,'log').mockImplementation(()=>{});

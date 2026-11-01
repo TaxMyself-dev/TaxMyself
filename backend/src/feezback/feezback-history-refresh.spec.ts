@@ -40,6 +40,12 @@ describe('Permission refresh excludes inactive history', () => {
     await service.refreshUserSources('history-owner','permissions-refresh');
     expect(sources.query).not.toHaveBeenCalled();
   });
+  it('does not clean existing data when a source has an unknown status under a valid consent',async()=>{
+    const {service,sources,sync}=fixture('futureState','primary','valid');
+    await expect(service.refreshUserSources('history-owner','permissions-refresh')).rejects.toThrow();
+    expect(sources.query).not.toHaveBeenCalled();
+    expect(sync.reconcileSourceConsents).not.toHaveBeenCalled();
+  });
   it('applies the same exclusion to the spouse identity',async()=>{
     const {service,sources}=fixture('expired','spouse');
     await service.refreshUserSources('history-owner','permissions-refresh');
