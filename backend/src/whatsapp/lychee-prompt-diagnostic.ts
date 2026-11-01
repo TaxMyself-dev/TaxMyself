@@ -23,7 +23,9 @@ export function promptDiagnostic(
     request?.channel_id,
     request?.reply_to_whatsapp_message_id,
     request?.text,
-    ...(request?.buttons || []),
+    ...(request?.buttons || []).map((button) =>
+      typeof button === 'string' ? button : button.text,
+    ),
   ].filter((v): v is string => typeof v === 'string' && !!v);
   function clean(value: unknown): string | undefined {
     if (typeof value !== 'string') return undefined;

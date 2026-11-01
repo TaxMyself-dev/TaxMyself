@@ -94,13 +94,23 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
     );
     const key = process.env.LYCHEE_API_KEY;
     if (!key) throw new Error('Lychee API key unavailable');
+    // Normalize old persisted drafts at the wire boundary without editing their
+    // immutable payload/hash or requeueing any quarantined question.
+    const body = request.buttons
+      ? {
+          ...request,
+          buttons: request.buttons.map((button) => ({
+            text: typeof button === 'string' ? button : button.text,
+          })),
+        }
+      : request;
     // Stable outbox identity, independent of leases, attempts, process restarts or API key.
     // Adding the header does not authorize automatic retries of quarantined questions.
     let response;
     try {
       response = await axios.post(
         'https://app.lychee-ltd.com/api/wap/make-send-text',
-        request,
+        body,
         {
           headers: {
             Authorization: `Bearer ${key}`,

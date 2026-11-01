@@ -6,7 +6,7 @@ describe('Prompt diagnostics: no HTTP and no raw credentials', () => {
       channel_id: 'private-channel',
       phone: '972501234567',
       text: 'private caption',
-      buttons: ['private business'],
+      buttons: [{ text: 'private business' }],
       reply_to_whatsapp_message_id: 'private-document-id',
     };
     const priorKey = process.env.LYCHEE_API_KEY;
@@ -37,7 +37,11 @@ describe('Prompt diagnostics: no HTTP and no raw credentials', () => {
       const output = JSON.stringify(diagnostic);
       for (const secret of [
         'test-secret-key',
-        ...Object.values(request).flat(),
+        request.channel_id,
+        request.phone,
+        request.text,
+        request.reply_to_whatsapp_message_id,
+        ...request.buttons.map((button) => button.text),
         'other-secret',
         'person@example.com',
         'https://',

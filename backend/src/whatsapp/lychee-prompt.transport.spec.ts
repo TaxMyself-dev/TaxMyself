@@ -17,7 +17,7 @@ describe('Question send API contract — mocked HTTP only', () => {
     channel_id: 'test-channel',
     phone: '972501234567',
     text: 'לאיזה עסק לשייך את המסמך?',
-    buttons: ['1. עסק א', '2. עסק ב'],
+    buttons: [{ text: '1. עסק א' }, { text: '2. עסק ב' }],
     reply_to_whatsapp_message_id: 'test-only-document',
   };
   beforeEach(() => {
@@ -52,6 +52,21 @@ describe('Question send API contract — mocked HTTP only', () => {
         maxRedirects: 0,
       }),
     );
+  });
+  it('serializes legacy saved string buttons as text objects without mutating the draft or sending twice', async () => {
+    const legacy: any = { ...request, buttons: ['1. עסק א', '2. עסק ב'] };
+    const before = JSON.stringify(legacy);
+    post.mockResolvedValue({
+      data: { whatsapp_message_id: 'wamid.test-only-question' },
+    });
+    await new LycheeHttpPromptTransport().send(legacy, 'test-only-prompt');
+    expect(post.mock.calls[0][1]).toEqual({
+      ...request,
+      buttons: [{ text: '1. עסק א' }, { text: '2. עסק ב' }],
+    });
+    expect(JSON.stringify(legacy)).toBe(before);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
   });
   it.each([
     { whatsapp_message_id: 'wamid.test-only-question' },
