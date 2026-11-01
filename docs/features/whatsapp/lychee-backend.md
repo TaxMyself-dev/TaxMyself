@@ -58,6 +58,37 @@ performs user/business-scoped content dedup and Drive inbox upload (API_IMPORT).
 Database/import errors do not produce successful import state. Terminal
 completion removes staged bytes.
 
+## Persistent test routing
+
+`POST /webhooks/lychee/test-route` accepts the original signed, unquoted event
+only. It requires `LYCHEE_TEST_PHONES` on this backend and independently rejects
+unlisted senders. The proxy uses its stable production receiver as the single
+authority; it must be available even for test-mode documents. No live invocation
+or production deployment was performed as part of this implementation.
+
+Standalone text `בדיקות` selects dev; `סיום בדיקות` selects prod. Default is prod,
+and the mode lasts until stopped, separately for each channel/sender. Captions,
+quoted replies and other text are not commands. No outbound confirmation is sent.
+Quoted replies continue to use persistent question ownership instead of this mode.
+
+The existing intake table holds terminal `ROUTE_COMMAND_DEV/PROD` and
+`ROUTE_DEV/PROD` journal rows under hashed `route:` IDs, separate from actual
+intake IDs. The document worker never claims these statuses. Original signed
+bytes are forwarded unchanged; only the routing journal normalizes occurred_at
+to UTC. Routing uses provider event timestamps rather than delivery order, and a
+repeated event returns its original stored decision. An altered duplicate or
+opposite commands with identical timestamps fail closed. Commands not yet
+delivered cannot influence an already committed decision: verify activation in
+logs before sending test documents.
+
+A connection-scoped MySQL advisory lock serializes decisions per database,
+channel and sender across backend replicas; individual INSERTs are atomic.
+Locks are released in finally and by MySQL if the connection dies. Failed locks,
+missing DB/table or missing allowlist never silently select production. Existing
+table schema, accounting logic and permissions are unchanged; no SQL was run.
+Focused tests use fake storage, so real multi-connection MySQL verification and
+deployment remain operator steps requiring authorization.
+
 ## Multiple businesses / sending disabled
 
 Each document is downloaded immediately and retained in its own SQL row as

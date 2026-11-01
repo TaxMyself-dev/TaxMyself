@@ -7,10 +7,11 @@ import { LycheeClient } from './lychee-client.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { LycheeWebhookController } from './lychee-webhook.controller';
+import { LycheeTestRoutingService } from './lychee-test-routing.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Business]), DocumentImportModule],
   controllers: [LycheeWebhookController],
-  providers: [LycheeClient, LycheeEventStore, LycheeIntakeService],
+  providers: [LycheeClient, LycheeEventStore, LycheeIntakeService, LycheeTestRoutingService],
 })
 export class LycheeModule {}

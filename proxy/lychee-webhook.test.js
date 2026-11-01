@@ -10,14 +10,26 @@ const env = { LYCHEE_WEBHOOK_ENABLED: 'true', LYCHEE_WEBHOOK_SECRET: 'test-secre
   LYCHEE_PROD_WEBHOOK_URL: 'https://production.example.com/webhooks/lychee' };
 
 async function invoke({ overrides = {}, eventOverrides = {}, failure = false, status = 200,
-  signature, raw, ownership = {}, lookupFailure } = {}) {
+  signature, raw, ownership = {}, lookupFailure, routeEnvironment = 'dev', routeFailure = false, routeResponse } = {}) {
   const config = configuration({ ...env, ...overrides });
   const bytes = raw || Buffer.from(JSON.stringify({ event: 'message.received', event_id: 'evt-1',
-    channel_id: 'test-channel', sender_phone: '972501234567', contact_phone: '972501234567', text: '#dev test',
+    channel_id: 'test-channel', sender_phone: '972501234567', contact_phone: '972501234567', text: '[מסמך]',
+    has_media: true, message_type: 'document', occurred_at: '2026-11-01T10:00:00.000Z',
     ...eventOverrides }, null, 2));
   const signed = signature ?? ('sha256=' + createHmac('sha256', config.secret).update(bytes).digest('hex'));
   const calls = [];
+  const routeCalls = [];
   const handler = createHandler(config, async (url, options) => {
+    if (url.endsWith('/test-route')) {
+      routeCalls.push({ url, options });
+      if (routeFailure) throw new Error('routing unavailable');
+      const event = JSON.parse(options.body);
+      const text = event.text.trim().replace(/\s+/g, ' ');
+      const command = !event.has_media && event.message_type === 'text' && ['בדיקות', 'סיום בדיקות'].includes(text);
+      return new Response(JSON.stringify(routeResponse || {
+        environment: command ? text === 'בדיקות' ? 'dev' : 'prod' : routeEnvironment, command,
+      }));
+    }
     calls.push({ url, options });
     if (url.endsWith('/reply-owner')) {
       if (url === lookupFailure) throw new Error('lookup offline');
@@ -28,7 +40,7 @@ async function invoke({ overrides = {}, eventOverrides = {}, failure = false, st
   });
   const res = { status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } };
   await handler({ body: bytes, headers: { 'x-lychee-signature': signed } }, res);
-  return { res, calls, bytes, signed };
+  return { res, calls, routeCalls, bytes, signed };
 }
 
 test('test sender goes only to ngrok with exact signed bytes', async () => {
@@ -53,11 +65,12 @@ test('quoted dev question routes reply to dev without marker, preserving signed 
     assert.equal(call.options.headers['x-lychee-signature'], signed);
   }
 });
-test('question owner overrides conflicting dev marker', async () => {
-  const { res, calls } = await invoke({ eventOverrides: { reply_to_whatsapp_message_id: 'wamid.prod-question' },
+test('question owner takes precedence over the sender test mode', async () => {
+  const { res, calls, routeCalls } = await invoke({ eventOverrides: { reply_to_whatsapp_message_id: 'wamid.prod-question' },
     ownership: { [env.LYCHEE_PROD_WEBHOOK_URL + '/reply-owner']: true } });
   assert.equal(res.code, 200);
   assert.equal(calls[2].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  assert.equal(routeCalls.length, 0);
 });
 test('unknown or conflicting reply ownership forwards to neither environment', async () => {
   for (const ownership of [{}, { [env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner']: true,
@@ -87,7 +100,7 @@ test('other senders go only to production', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
 });
-test('legacy test mode flag does not override per-message marker', async () => {
+test('legacy test mode flag does not override persisted routing', async () => {
   const { calls } = await invoke({ overrides: { LYCHEE_TEST_MODE: 'false' } });
   assert.equal(calls[0].url, env.LYCHEE_DEV_WEBHOOK_URL);
 });
@@ -102,8 +115,8 @@ test('downstream rejection is not acknowledged', async () => {
 });
 test('bad signatures including non ASCII never forward', async () => {
   for (const signature of ['sha256=' + '0'.repeat(64), 'א'.repeat(71), '']) {
-    const { res, calls } = await invoke({ signature });
-    assert.equal(res.code, 401); assert.equal(calls.length, 0);
+    const { res, calls, routeCalls } = await invoke({ signature });
+    assert.equal(res.code, 401); assert.equal(calls.length, 0); assert.equal(routeCalls.length, 0);
   }
 });
 test('invalid signed payload or channel never forwards', async () => {
@@ -122,10 +135,48 @@ test('configuration fails closed', () => {
   }
 });
 
-test('authorized sender without exact marker uses production', async () => {
-  for (const text of ['[מסמך]', 'invoice', '#developer', 'x#dev', '#devops']) {
-    const { calls } = await invoke({ eventOverrides: { text } });
+test('inactive authorized sender uses production, including legacy #dev captions', async () => {
+  for (const text of ['[מסמך]', 'invoice', '#dev', '#developer', 'x#dev', '#devops']) {
+    const { calls } = await invoke({ eventOverrides: { text }, routeEnvironment: 'prod' });
     assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  }
+});
+
+test('allowlisted commands are saved centrally and never forwarded as documents or sent to ngrok', async () => {
+  for (const text of ['בדיקות', 'סיום בדיקות', '  סיום   בדיקות  ']) {
+    const { res, calls, routeCalls, bytes, signed } = await invoke({ eventOverrides: { text, has_media: false, message_type: 'text' } });
+    assert.equal(res.code, 200);
+    assert.equal(calls.length, 0);
+    assert.equal(routeCalls.length, 1);
+    assert.equal(routeCalls[0].url, env.LYCHEE_PROD_WEBHOOK_URL + '/test-route');
+    assert.strictEqual(routeCalls[0].options.body, bytes);
+    assert.equal(routeCalls[0].options.headers['x-lychee-signature'], signed);
+  }
+});
+
+test('unlisted sender commands cannot access or change test routing', async () => {
+  for (const text of ['בדיקות', 'סיום בדיקות']) {
+    const { calls, routeCalls } = await invoke({ eventOverrides: { text, has_media: false, message_type: 'text',
+      sender_phone: '0541234567', contact_phone: '0541234567' } });
+    assert.equal(routeCalls.length, 0);
+    assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  }
+});
+
+test('media caption and longer text never act as a command', async () => {
+  for (const eventOverrides of [{ text: 'בדיקות' }, { text: 'אני עושה בדיקות', has_media: false, message_type: 'text' }]) {
+    const { calls } = await invoke({ eventOverrides, routeEnvironment: 'prod' });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, env.LYCHEE_PROD_WEBHOOK_URL);
+  }
+});
+
+test('unavailable or malformed routing authority never forwards to either environment', async () => {
+  for (const options of [{ routeFailure: true }, { routeResponse: { environment: 'unknown', command: false } },
+    { routeResponse: { environment: 'dev', command: true } }]) {
+    const { res, calls } = await invoke(options);
+    assert.equal(res.code, 502);
+    assert.equal(calls.length, 0);
   }
 });
 test('empty sender falls back to local contact phone without changing signed bytes', async () => {

@@ -40,9 +40,9 @@ function createHandler(config, fetchImpl = fetch) {
     const event_id = typeof eventId === 'string' && /^[A-Za-z0-9_.:-]{1,255}$/.test(eventId) ? eventId : undefined;
     console.info(JSON.stringify({ component: 'LycheeProxy', event_id, stage, outcome, message, ...details }));
   }
-  async function ownsReply(target, raw, signature) {
+  async function controlRequest(target, endpoint, raw, signature) {
     const url = new URL(target);
-    url.pathname = url.pathname.replace(/\/+$/, '') + '/reply-owner';
+    url.pathname = url.pathname.replace(/\/+$/, '') + '/' + endpoint;
     const response = await fetchImpl(url.href, {
       method: 'POST', redirect: 'error',
       headers: { 'content-type': 'application/json', 'x-lychee-signature': signature },
@@ -65,6 +65,10 @@ function createHandler(config, fetchImpl = fetch) {
       }
     } finally { await reader.cancel(); }
     const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return data;
+  }
+  async function ownsReply(target, raw, signature) {
+    const data = await controlRequest(target, 'reply-owner', raw, signature);
     if (typeof data?.ownsReply !== 'boolean') throw new Error('Invalid ownership response');
     return data.ownsReply;
   }
@@ -103,8 +107,7 @@ function createHandler(config, fetchImpl = fetch) {
       audit(event.event_id, 'sender.resolve', 'blocked', 'מספר איש הקשר אינו תקין או שיש סתירה עם מספר השולח');
       return res.status(400).json({ error: 'Invalid or ambiguous sender' });
     }
-    const devMarked = typeof event.text === 'string' && /(?:^|\s)#dev(?=$|\s)/i.test(event.text);
-    let target = devMarked && config.testPhones.has(sender) ? config.devUrl : config.prodUrl;
+    let target = config.prodUrl;
     let activeStage = 'reply.resolve';
     audit(event.event_id, 'webhook.verify', 'completed', 'החתימה, הערוץ וזהות השולח אושרו');
     try {
@@ -125,12 +128,29 @@ function createHandler(config, fetchImpl = fetch) {
           return res.status(409).json({ error: 'Unknown or ambiguous reply ownership' });
         }
         target = matches[0];
+      } else if (config.testPhones.has(sender)) {
+        activeStage = 'route.resolve';
+        // One durable authority across proxy replicas; stopping tests works even if ngrok is down.
+        const route = await controlRequest(config.prodUrl, 'test-route', raw, header);
+        const text = typeof event.text === 'string' ? event.text.trim().replace(/\s+/g, ' ') : '';
+        const command = event.has_media === false && event.message_type === 'text' &&
+          ['בדיקות', 'סיום בדיקות'].includes(text);
+        if (!['dev', 'prod'].includes(route?.environment) || route.command !== command ||
+            command && route.environment !== (text === 'בדיקות' ? 'dev' : 'prod')) {
+          throw new Error('Invalid routing response');
+        }
+        if (command) {
+          audit(event.event_id, 'route.command', 'completed', route.environment === 'dev' ?
+            'מצב בדיקות הופעל ונשמר; המסמכים הבאים מהשולח יגיעו לדב' :
+            'מצב בדיקות הסתיים ונשמר; המסמכים הבאים מהשולח יגיעו לפרוד');
+          return res.status(200).json({ received: true });
+        }
+        target = route.environment === 'dev' ? config.devUrl : config.prodUrl;
       }
       audit(event.event_id, 'route.forward', 'started', event.reply_to_whatsapp_message_id ?
-        'התשובה מנותבת לפי הבעלות השמורה של השאלה' : devMarked && config.testPhones.has(sender) ?
-        'מספר בדיקה מורשה וכיתוב #dev זוהו; העברה לדב' :
-        devMarked ? 'הכיתוב #dev הגיע ממספר שאינו מורשה לבדיקות; העברה לפרוד' :
-        'אין כיתוב #dev; העברה לפרוד', { environment: target === config.devUrl ? 'dev' : 'prod' });
+        'התשובה מנותבת לפי הבעלות השמורה של השאלה' : target === config.devUrl ?
+        'מצב בדיקות פעיל למספר מורשה; העברה לדב' :
+        'ניתוב לפרוד לפי הרשאת השולח ומצב הבדיקות השמור', { environment: target === config.devUrl ? 'dev' : 'prod' });
       activeStage = 'route.forward';
       const response = await fetchImpl(target, {
         method: 'POST', redirect: 'error',
@@ -145,7 +165,8 @@ function createHandler(config, fetchImpl = fetch) {
         { environment: target === config.devUrl ? 'dev' : 'prod', httpStatus: response.status, durationMs: Date.now() - started });
       return res.status(accepted ? 200 : 502).json(accepted ? { received: true } : { error: 'Destination rejected event' });
     } catch (error) {
-      audit(event.event_id, activeStage, 'failed', activeStage === 'reply.resolve' ?
+      audit(event.event_id, activeStage, 'failed', activeStage === 'route.resolve' ?
+        'לא ניתן לקבוע או לשמור מצב בדיקות; האירוע לא הועבר ואין מעבר לפרוד' : activeStage === 'reply.resolve' ?
         'לא ניתן לברר את בעלות השאלה: המקלט אינו זמין או החזיר תשובה לא תקינה; אין ניחוש סביבה' :
         'ההעברה למקלט נכשלה ברשת או בזמן ההמתנה; אין מעבר לסביבה אחרת',
         { durationMs: Date.now() - started,
