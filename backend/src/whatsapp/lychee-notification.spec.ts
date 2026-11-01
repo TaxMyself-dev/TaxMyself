@@ -11,6 +11,7 @@ import {
   LycheeNotificationTransport,
 } from './lychee-notification.service';
 import { LycheeModule } from './lychee.module';
+import { DevelopmentOnlyPromptTransport } from './lychee-prompt.transport';
 import * as logging from './lychee-log';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -541,11 +542,11 @@ describe('document result notifications (all boundaries mocked)', () => {
     expect(notice()).toBeUndefined();
     expect(transport.send).not.toHaveBeenCalled();
   });
-  it('the registered default blocks real notifications without affecting question transport', async () => {
+  it('binds result delivery to the development guard and retains an offline transport for tests', async () => {
     const providers = Reflect.getMetadata('providers', LycheeModule);
     expect(providers).toContainEqual({
       provide: LycheeNotificationTransport,
-      useClass: NoSendNotificationTransport,
+      useClass: DevelopmentOnlyPromptTransport,
     });
     await succeed();
     service.onModuleDestroy();

@@ -13,7 +13,6 @@ import { LycheeNotificationStore } from './lychee-notification.store';
 import {
   LycheeNotificationService,
   LycheeNotificationTransport,
-  NoSendNotificationTransport,
 } from './lychee-notification.service';
 import {
   LycheePromptTransport,
@@ -33,7 +32,7 @@ import {
     LycheeNotificationService,
     {
       provide: LycheeNotificationTransport,
-      useClass: NoSendNotificationTransport,
+      useClass: DevelopmentOnlyPromptTransport,
     },
     {
       provide: LycheePromptTransport,

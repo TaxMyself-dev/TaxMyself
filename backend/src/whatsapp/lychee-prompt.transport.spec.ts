@@ -30,6 +30,46 @@ describe('Question send API contract — mocked HTTP only', () => {
   afterAll(() => {
     process.env = original;
   });
+  it.each(['success', 'failure'])(
+    'sends a plain quoted %s result only through the development guard (mocked HTTP)',
+    async (outcome) => {
+      const result = {
+        channel_id: request.channel_id,
+        phone: request.phone,
+        text:
+          outcome === 'success'
+            ? 'המסמך נשמר בהצלחה.'
+            : 'לא הצלחנו להשלים את שמירת המסמך.',
+        reply_to_whatsapp_message_id: request.reply_to_whatsapp_message_id,
+      };
+      const operationId = `notice:test-${outcome}`;
+      const db: any = {
+        options: { database: 'keepintax-dev' },
+        query: jest.fn(async () => [{ db: 'keepintax-dev' }]),
+      };
+      post.mockResolvedValue({
+        data: {
+          ok: true,
+          waId: 'wamid.test-only-result',
+          messageId: internalId,
+        },
+      });
+      expect(
+        await new DevelopmentOnlyPromptTransport(db).send(result, operationId),
+      ).toBe('wamid.test-only-result');
+      expect(db.query).toHaveBeenCalledWith('SELECT DATABASE() AS db');
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post.mock.calls[0][1]).toEqual(result);
+      expect(post.mock.calls[0][1]).not.toHaveProperty('buttons');
+      expect(post.mock.calls[0][2].headers['Idempotency-Key']).toBe(
+        questionIdempotencyKey(result.channel_id, operationId),
+      );
+      expect(questionIdempotencyKey(result.channel_id, operationId)).not.toBe(
+        questionIdempotencyKey(result.channel_id, `prompt:test-${outcome}`),
+      );
+      expect(get).not.toHaveBeenCalled();
+    },
+  );
   it('returns only the actual provider WhatsApp ID and quotes the source document', async () => {
     post.mockResolvedValue({
       data: { whatsapp_message_id: 'test-only-provider-receipt' },

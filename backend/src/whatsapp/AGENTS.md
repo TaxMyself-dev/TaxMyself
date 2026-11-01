@@ -33,10 +33,12 @@ call selectBusiness. recordPrompt binds real provider IDs for a future sender.
 Document result notifications use `notice:` rows and `NOTICE_*` states in the
 same table. Terminal document updates and result drafts commit atomically.
 Transient retries and business-selection waits do not announce failure.
-Result notification delivery has a SEPARATE transport token, bound to
-NoSendNotificationTransport even in development: only mocked result sends are
-authorized. Existing development business-question authorization does not enable
-these notifications. Recorded receipts recover persistence only; unknown send
+Result notification delivery has a SEPARATE transport token. User subsequently
+authorized development result delivery: it is bound to DevelopmentOnlyPromptTransport,
+which requires development runtime, configured channel/key and actual keepintax-dev
+connection. Production stays blocked; NoSendNotificationTransport remains for offline
+tests. Never trigger live messages during agent verification. Recorded receipts
+recover persistence only; unknown send
 results must not be resent blindly. NOTICE_SENT means provider acceptance, not
 confirmed delivery to the phone. No historical completed rows are backfilled.
 
