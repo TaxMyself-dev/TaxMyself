@@ -137,17 +137,33 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
 
     // Public docs: send returns {ok:true,message_id:<Lychee UUID>}. Resolve the
     // actual WhatsApp ID with a read-only lookup, never by sending again.
-    const internalId = response.data?.message_id;
+    // Live send responses use camelCase messageId. Its namespace is confirmed
+    // through message-get, not inferred from waId (whose meaning is unverified).
+    const references = [
+      response.data?.message_id,
+      response.data?.messageId,
+    ].filter((value) => value != null);
+    const reference = references[0];
     if (
       response.data?.ok === true &&
-      typeof internalId === 'string' &&
-      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(internalId)
+      typeof reference === 'string' &&
+      reference.length > 0 &&
+      reference.length <= 255 &&
+      !/\s/.test(reference) &&
+      new Set(references).size === 1
     ) {
+      const internalId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(
+        reference,
+      )
+        ? reference
+        : undefined;
       try {
         const lookup = await axios.get(
           'https://app.lychee-ltd.com/api/wap/message-get',
           {
-            params: { message_id: internalId },
+            params: internalId
+              ? { message_id: internalId }
+              : { whatsapp_message_id: reference },
             headers: { Authorization: `Bearer ${key}` },
             timeout: 15000,
             maxRedirects: 0,
@@ -155,7 +171,16 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
           },
         );
         const id = whatsappReceipt(lookup.data);
-        if (id) return id;
+        // The observed read API returns message_id, whatsapp_message_id and
+        // channel_id. Validate identity and channel before linking a document.
+        if (
+          id &&
+          lookup.data?.channel_id === request.channel_id &&
+          (internalId
+            ? lookup.data?.message_id === internalId
+            : id === reference)
+        )
+          return id;
         throw new PromptDeliveryError(
           {
             httpStatus: lookup.status,

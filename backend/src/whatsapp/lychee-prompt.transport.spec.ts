@@ -63,7 +63,14 @@ describe('Question send API contract — mocked HTTP only', () => {
         status: 200,
         data: { ok: true, message_id: internalId },
       });
-      get.mockResolvedValue({ status: 200, data });
+      get.mockResolvedValue({
+        status: 200,
+        data: {
+          ...data,
+          message_id: internalId,
+          channel_id: request.channel_id,
+        },
+      });
       expect(
         await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
       ).toBe('wamid.test-only-question');
@@ -77,6 +84,77 @@ describe('Question send API contract — mocked HTTP only', () => {
           maxRedirects: 0,
         }),
       );
+    },
+  );
+  it.each([internalId, 'wamid.test-only-question'])(
+    'resolves camelCase messageId %s through the canonical read API, never waId',
+    async (reference) => {
+      post.mockResolvedValue({
+        status: 200,
+        data: { ok: true, messageId: reference, waId: '972501234567' },
+      });
+      get.mockResolvedValue({
+        status: 200,
+        data: {
+          message_id: internalId,
+          whatsapp_message_id: 'wamid.test-only-question',
+          channel_id: request.channel_id,
+        },
+      });
+      expect(
+        await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).toBe('wamid.test-only-question');
+      expect(get).toHaveBeenCalledWith(
+        'https://app.lychee-ltd.com/api/wap/message-get',
+        expect.objectContaining({
+          params:
+            reference === internalId
+              ? { message_id: internalId }
+              : { whatsapp_message_id: reference },
+        }),
+      );
+      expect(post).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([
+    { ok: true, waId: 'wamid.must-not-be-used' },
+    {
+      ok: true,
+      messageId: internalId,
+      message_id: 'conflicting-id',
+      waId: 'wamid.must-not-be-used',
+    },
+  ])('never guesses from waId or conflicting aliases: %j', async (data) => {
+    post.mockResolvedValue({ status: 200, data });
+    await expect(
+      new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).rejects.toThrow();
+    expect(get).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    {
+      channel_id: 'wrong-channel',
+      message_id: internalId,
+      whatsapp_message_id: 'wamid.test-only-question',
+    },
+    {
+      channel_id: request.channel_id,
+      message_id: 'wrong-internal-id',
+      whatsapp_message_id: 'wamid.test-only-question',
+    },
+  ])(
+    'refuses a read receipt belonging to another identity or channel: %j',
+    async (data) => {
+      post.mockResolvedValue({
+        status: 200,
+        data: { ok: true, messageId: internalId },
+      });
+      get.mockResolvedValue({ status: 200, data });
+      await expect(
+        new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).rejects.toThrow();
+      expect(post).toHaveBeenCalledTimes(1);
     },
   );
   it('accepts an explicit nested WhatsApp receipt without another request', async () => {
