@@ -10,6 +10,8 @@ jest.mock('axios');
 describe('Question send API contract — mocked HTTP only', () => {
   const original = { ...process.env };
   const post = axios.post as jest.Mock;
+  const get = axios.get as jest.Mock;
+  const internalId = '0c6f1b52-4a2d-4d1e-9f30-6b1c7a2e5d84';
   const request = {
     channel_id: 'test-channel',
     phone: '972501234567',
@@ -19,6 +21,7 @@ describe('Question send API contract — mocked HTTP only', () => {
   };
   beforeEach(() => {
     post.mockReset();
+    get.mockReset();
     process.env.NODE_ENV = 'development';
     process.env.LYCHEE_CHANNEL_ID = 'test-channel';
     process.env.LYCHEE_API_KEY = 'fake-key-for-unit-tests';
@@ -48,6 +51,97 @@ describe('Question send API contract — mocked HTTP only', () => {
         maxRedirects: 0,
       }),
     );
+  });
+  it.each([
+    { whatsapp_message_id: 'wamid.test-only-question' },
+    { message: { whatsapp_message_id: 'wamid.test-only-question' } },
+  ])(
+    'resolves the documented internal send ID using a read-only lookup: %j',
+    async (data) => {
+      post.mockResolvedValue({
+        status: 200,
+        data: { ok: true, message_id: internalId },
+      });
+      get.mockResolvedValue({ status: 200, data });
+      expect(
+        await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).toBe('wamid.test-only-question');
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledWith(
+        'https://app.lychee-ltd.com/api/wap/message-get',
+        expect.objectContaining({
+          params: { message_id: internalId },
+          headers: { Authorization: 'Bearer fake-key-for-unit-tests' },
+          maxRedirects: 0,
+        }),
+      );
+    },
+  );
+  it('accepts an explicit nested WhatsApp receipt without another request', async () => {
+    post.mockResolvedValue({
+      data: {
+        ok: true,
+        message: { whatsapp_message_id: 'wamid.test-only-question' },
+      },
+    });
+    expect(
+      await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).toBe('wamid.test-only-question');
+    expect(get).not.toHaveBeenCalled();
+  });
+  it.each([
+    { ok: true, message_id: internalId },
+    { message: { id: internalId } },
+    { whatsapp_message_id: 'one', message: { whatsapp_message_id: 'another' } },
+    { ok: false, whatsapp_message_id: 'must-not-be-linked' },
+  ])(
+    'never substitutes internal or ambiguous IDs after lookup: %j',
+    async (data) => {
+      post.mockResolvedValue({
+        status: 200,
+        data: { ok: true, message_id: internalId },
+      });
+      get.mockResolvedValue({ status: 200, data });
+      const error = await new LycheeHttpPromptTransport()
+        .send(request, 'test-only-prompt')
+        .catch((e) => e);
+      expect(error.diagnostic).toMatchObject({
+        failureKind: 'missing_receipt',
+        lycheeMessageId: internalId,
+      });
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('reports lookup failures with a safe internal ID and never sends again', async () => {
+    post.mockResolvedValue({
+      status: 200,
+      data: { ok: true, message_id: internalId },
+    });
+    get.mockRejectedValue({
+      response: { status: 404, data: { message: 'Message not ready' } },
+    });
+    const error = await new LycheeHttpPromptTransport()
+      .send(request, 'test-only-prompt')
+      .catch((e) => e);
+    expect(error.diagnostic).toMatchObject({
+      httpStatus: 404,
+      providerReason: 'Message not ready',
+      lycheeMessageId: internalId,
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+  it('does not treat HTTP 200 with ok:false as a successful receipt', async () => {
+    post.mockResolvedValue({
+      status: 200,
+      data: { ok: false, message_id: internalId, whatsapp_message_id: 'bad' },
+    });
+    await expect(
+      new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).rejects.toThrow('Question receipt unavailable');
+    expect(get).not.toHaveBeenCalled();
   });
   it('uses the same header across transport recreation and credential rotation, isolating questions and channels', async () => {
     post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });

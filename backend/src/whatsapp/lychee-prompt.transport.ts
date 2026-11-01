@@ -42,6 +42,34 @@ export abstract class LycheePromptTransport {
   ): Promise<string>;
 }
 
+/** Only explicitly named WhatsApp fields; never substitute Lychee's internal ID. */
+function whatsappReceipt(data: any): string | undefined {
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    Array.isArray(data) ||
+    data.ok === false
+  )
+    return undefined;
+  const ids = [
+    data.whatsapp_message_id,
+    data.message?.whatsapp_message_id,
+  ].filter((id) => id != null);
+  if (
+    !ids.length ||
+    ids.some(
+      (id) =>
+        typeof id !== 'string' ||
+        !id.trim() ||
+        id.length > 255 ||
+        /\s/.test(id),
+    ) ||
+    new Set(ids).size !== 1
+  )
+    return undefined;
+  return ids[0];
+}
+
 /** Explicit no-send transport retained for offline use. */
 @Injectable()
 export class NoSendPromptTransport extends LycheePromptTransport {
@@ -85,13 +113,50 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
     } catch (error) {
       throw new PromptDeliveryError(promptDiagnostic(error, request));
     }
-    const id = response.data?.whatsapp_message_id;
-    if (typeof id !== 'string' || !id.trim() || id.length > 255)
-      throw new PromptDeliveryError(
-        { httpStatus: response.status, failureKind: 'missing_receipt' },
-        'Question receipt unavailable',
-      );
-    return id;
+    const directId = whatsappReceipt(response.data);
+    if (directId) return directId;
+
+    // Public docs: send returns {ok:true,message_id:<Lychee UUID>}. Resolve the
+    // actual WhatsApp ID with a read-only lookup, never by sending again.
+    const internalId = response.data?.message_id;
+    if (
+      response.data?.ok === true &&
+      typeof internalId === 'string' &&
+      /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(internalId)
+    ) {
+      try {
+        const lookup = await axios.get(
+          'https://app.lychee-ltd.com/api/wap/message-get',
+          {
+            params: { message_id: internalId },
+            headers: { Authorization: `Bearer ${key}` },
+            timeout: 15000,
+            maxRedirects: 0,
+            maxContentLength: 65536,
+          },
+        );
+        const id = whatsappReceipt(lookup.data);
+        if (id) return id;
+        throw new PromptDeliveryError(
+          {
+            httpStatus: lookup.status,
+            failureKind: 'missing_receipt',
+            lycheeMessageId: internalId,
+          },
+          'Question receipt unavailable',
+        );
+      } catch (error) {
+        if (error instanceof PromptDeliveryError) throw error;
+        throw new PromptDeliveryError({
+          ...promptDiagnostic(error, request),
+          lycheeMessageId: internalId,
+        });
+      }
+    }
+    throw new PromptDeliveryError(
+      { httpStatus: response.status, failureKind: 'missing_receipt' },
+      'Question receipt unavailable',
+    );
   }
 }
 

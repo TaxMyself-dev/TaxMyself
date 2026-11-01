@@ -2,6 +2,7 @@ import type { BusinessQuestionRequest } from './lychee-business-question';
 import { safeLycheeError } from './lychee-log';
 
 export type PromptDiagnostic = {
+  lycheeMessageId?: string;
   httpStatus?: number;
   code?: string;
   providerCode?: string;

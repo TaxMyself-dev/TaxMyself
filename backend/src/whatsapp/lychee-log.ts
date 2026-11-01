@@ -84,6 +84,7 @@ export function lycheeLog(
     httpStatus?: number;
     code?: string;
     providerCode?: string;
+    lycheeMessageId?: string;
     providerReason?: string;
     failureKind?: string;
   } = {},
