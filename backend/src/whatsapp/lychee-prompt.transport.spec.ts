@@ -102,11 +102,11 @@ describe('Question send API contract — mocked HTTP only', () => {
     },
   );
   it.each([internalId, 'wamid.test-only-question'])(
-    'resolves camelCase messageId %s through the canonical read API, never waId',
+    'falls back to message-get for messageId %s when waId is absent',
     async (reference) => {
       post.mockResolvedValue({
         status: 200,
-        data: { ok: true, messageId: reference, waId: '972501234567' },
+        data: { ok: true, messageId: reference },
       });
       get.mockResolvedValue({
         status: 200,
@@ -132,20 +132,86 @@ describe('Question send API contract — mocked HTTP only', () => {
     },
   );
   it.each([
-    { ok: true, waId: 'wamid.must-not-be-used' },
+    { ok: true, waId: ' ' },
     {
       ok: true,
       messageId: internalId,
       message_id: 'conflicting-id',
-      waId: 'wamid.must-not-be-used',
+      waId: null,
     },
-  ])('never guesses from waId or conflicting aliases: %j', async (data) => {
-    post.mockResolvedValue({ status: 200, data });
+  ])(
+    'rejects unusable waId without an unambiguous fallback: %j',
+    async (data) => {
+      post.mockResolvedValue({ status: 200, data });
+      await expect(
+        new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).rejects.toThrow();
+      expect(get).not.toHaveBeenCalled();
+      expect(post).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('prefers the provider-confirmed waId and skips lookup even when messageId is present', async () => {
+    post.mockResolvedValue({
+      status: 200,
+      data: {
+        ok: true,
+        messageId: internalId,
+        waId: 'wamid.actual-question',
+        whatsapp_message_id: 'wamid.legacy-alias',
+      },
+    });
+    expect(
+      await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).toBe('wamid.actual-question');
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
+  });
+  it.each([undefined, null, '', ' ', 123, 'bad whitespace', 'x'.repeat(256)])(
+    'uses the read-only fallback for missing or malformed waId: %j',
+    async (waId) => {
+      post.mockResolvedValue({
+        status: 200,
+        data: { ok: true, messageId: internalId, waId },
+      });
+      get.mockResolvedValue({
+        status: 200,
+        data: {
+          message_id: internalId,
+          channel_id: request.channel_id,
+          whatsapp_message_id: 'wamid.verified-question',
+        },
+      });
+      expect(
+        await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+      ).toBe('wamid.verified-question');
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('does not accept waId on a failed response or use it as a lookup receipt alias', async () => {
+    post.mockResolvedValue({
+      status: 200,
+      data: { ok: false, messageId: internalId, waId: 'wamid.rejected' },
+    });
     await expect(
       new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
     ).rejects.toThrow();
     expect(get).not.toHaveBeenCalled();
-    expect(post).toHaveBeenCalledTimes(1);
+    post.mockResolvedValue({
+      status: 200,
+      data: { ok: true, messageId: internalId },
+    });
+    get.mockResolvedValue({
+      status: 200,
+      data: {
+        message_id: internalId,
+        channel_id: request.channel_id,
+        waId: 'wamid.not-a-documented-read-field',
+      },
+    });
+    await expect(
+      new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).rejects.toThrow();
   });
   it.each([
     {

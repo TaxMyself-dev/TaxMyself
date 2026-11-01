@@ -45,7 +45,7 @@ export abstract class LycheePromptTransport {
 }
 
 /** Only explicitly named WhatsApp fields; never substitute Lychee's internal ID. */
-function whatsappReceipt(data: any): string | undefined {
+function whatsappReceipt(data: any, allowWaId = false): string | undefined {
   if (
     !data ||
     typeof data !== 'object' ||
@@ -53,6 +53,16 @@ function whatsappReceipt(data: any): string | undefined {
     data.ok === false
   )
     return undefined;
+  // Lychee confirmed: send.waId is the WhatsApp message ID; messageId is internal.
+  // Apply this alias only to send responses, not unrelated read-API fields.
+  if (
+    allowWaId &&
+    typeof data.waId === 'string' &&
+    data.waId.length > 0 &&
+    data.waId.length <= 255 &&
+    !/\s/.test(data.waId)
+  )
+    return data.waId;
   const ids = [
     data.whatsapp_message_id,
     data.message?.whatsapp_message_id,
@@ -142,13 +152,13 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
         responseShape: lycheeResponseShape(response.data),
       },
     );
-    const directId = whatsappReceipt(response.data);
+    const directId = whatsappReceipt(response.data, true);
     if (directId) return directId;
 
     // Public docs: send returns {ok:true,message_id:<Lychee UUID>}. Resolve the
     // actual WhatsApp ID with a read-only lookup, never by sending again.
     // Live send responses use camelCase messageId. Its namespace is confirmed
-    // through message-get, not inferred from waId (whose meaning is unverified).
+    // through message-get when a valid direct WhatsApp receipt is unavailable.
     const references = [
       response.data?.message_id,
       response.data?.messageId,
