@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { lycheeResponseShape } from './lychee-response-shape';
 import { lycheeLog } from './lychee-log';
+import { timePromptStage } from './lychee-prompt-timing';
 import type { BusinessQuestionRequest } from './lychee-business-question';
 import {
   PromptDeliveryError,
@@ -118,19 +119,25 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
     // Adding the header does not authorize automatic retries of quarantined questions.
     let response;
     try {
-      response = await axios.post(
-        'https://app.lychee-ltd.com/api/wap/make-send-text',
-        body,
-        {
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Idempotency-Key': idempotencyKey,
-          },
-          timeout: 15000,
-          maxRedirects: 0,
-          maxContentLength: 65536,
-          maxBodyLength: 65536,
-        },
+      response = await timePromptStage(
+        questionId,
+        'business.prompt.http.send',
+        'בקשת HTTP לשליחת השאלה לליצ׳י והמתנה לתשובה',
+        () =>
+          axios.post(
+            'https://app.lychee-ltd.com/api/wap/make-send-text',
+            body,
+            {
+              headers: {
+                Authorization: `Bearer ${key}`,
+                'Idempotency-Key': idempotencyKey,
+              },
+              timeout: 15000,
+              maxRedirects: 0,
+              maxContentLength: 65536,
+              maxBodyLength: 65536,
+            },
+          ),
       );
     } catch (error) {
       lycheeLog(
@@ -178,17 +185,20 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
         ? reference
         : undefined;
       try {
-        const lookup = await axios.get(
-          'https://app.lychee-ltd.com/api/wap/message-get',
-          {
-            params: internalId
-              ? { message_id: internalId }
-              : { whatsapp_message_id: reference },
-            headers: { Authorization: `Bearer ${key}` },
-            timeout: 15000,
-            maxRedirects: 0,
-            maxContentLength: 65536,
-          },
+        const lookup = await timePromptStage(
+          questionId,
+          'business.prompt.http.receipt_lookup',
+          'בירור מזהה הודעת השאלה בליצ׳י דרך message-get',
+          () =>
+            axios.get('https://app.lychee-ltd.com/api/wap/message-get', {
+              params: internalId
+                ? { message_id: internalId }
+                : { whatsapp_message_id: reference },
+              headers: { Authorization: `Bearer ${key}` },
+              timeout: 15000,
+              maxRedirects: 0,
+              maxContentLength: 65536,
+            }),
         );
         const id = whatsappReceipt(lookup.data);
         // The observed read API returns message_id, whatsapp_message_id and
@@ -252,7 +262,12 @@ export class DevelopmentOnlyPromptTransport extends LycheePromptTransport {
       !request.reply_to_whatsapp_message_id
     )
       throw new Error('Development question sending not permitted');
-    const rows = await this.db.query('SELECT DATABASE() AS db');
+    const rows = await timePromptStage(
+      questionId,
+      'business.prompt.db.environment',
+      'אימות מסד הדב הפעיל לפני שליחה',
+      () => this.db.query('SELECT DATABASE() AS db'),
+    );
     if (
       rows.length !== 1 ||
       rows[0].db !== 'keepintax-dev' ||

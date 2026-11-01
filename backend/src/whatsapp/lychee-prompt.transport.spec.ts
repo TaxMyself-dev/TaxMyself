@@ -150,6 +150,105 @@ describe('Question send API contract — mocked HTTP only', () => {
       expect(post).toHaveBeenCalledTimes(1);
     },
   );
+  it('measures the environment DB check separately from the actual HTTP send', async () => {
+    let now = 1000;
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      const db: any = {
+        options: { database: 'keepintax-dev' },
+        query: jest.fn(async () => {
+          now += 70;
+          return [{ db: 'keepintax-dev' }];
+        }),
+      };
+      post.mockImplementation(async () => {
+        now += 2250;
+        return {
+          status: 200,
+          data: { ok: true, waId: 'wamid.test-only-question' },
+        };
+      });
+      await new DevelopmentOnlyPromptTransport(db).send(
+        request,
+        'test-only-prompt',
+      );
+      const logs = debug.mock.calls.map((args) =>
+        JSON.parse(args[0] as string),
+      );
+      expect(
+        logs.find(
+          (line) =>
+            line.stage === 'business.prompt.db.environment' &&
+            line.outcome === 'completed',
+        ).durationMs,
+      ).toBe(70);
+      expect(
+        logs.find(
+          (line) =>
+            line.stage === 'business.prompt.http.send' &&
+            line.outcome === 'completed',
+        ).durationMs,
+      ).toBe(2250);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).not.toHaveBeenCalled();
+      expect(JSON.stringify(logs)).not.toContain('fake-key-for-unit-tests');
+    } finally {
+      clock.mockRestore();
+      debug.mockRestore();
+    }
+  });
+
+  it('measures receipt lookup time separately from HTTP send time', async () => {
+    let now = 1000;
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
+    try {
+      post.mockImplementation(async () => {
+        now += 100;
+        return { status: 200, data: { ok: true, messageId: internalId } };
+      });
+      get.mockImplementation(async () => {
+        now += 300;
+        return {
+          status: 200,
+          data: {
+            message_id: internalId,
+            whatsapp_message_id: 'wamid.test-only-question',
+            channel_id: request.channel_id,
+          },
+        };
+      });
+      await new LycheeHttpPromptTransport().send(request, 'test-only-prompt');
+      const logs = debug.mock.calls.map((args) =>
+        JSON.parse(args[0] as string),
+      );
+      expect(
+        logs.find(
+          (line) =>
+            line.stage === 'business.prompt.http.send' &&
+            line.outcome === 'completed',
+        ).durationMs,
+      ).toBe(100);
+      expect(
+        logs.find(
+          (line) =>
+            line.stage === 'business.prompt.http.receipt_lookup' &&
+            line.outcome === 'completed',
+        ).durationMs,
+      ).toBe(300);
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(get).toHaveBeenCalledTimes(1);
+    } finally {
+      clock.mockRestore();
+      debug.mockRestore();
+    }
+  });
+
   it('prefers the provider-confirmed waId and skips lookup even when messageId is present', async () => {
     post.mockResolvedValue({
       status: 200,

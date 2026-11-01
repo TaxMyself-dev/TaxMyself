@@ -13,6 +13,7 @@ import {
 } from './lychee-prompt.store';
 import { LycheePromptTransport } from './lychee-prompt.transport';
 import { LycheeImmediateQueue } from './lychee-immediate-queue';
+import { timePromptStage } from './lychee-prompt-timing';
 import { lycheeLog, safeLycheeError } from './lychee-log';
 import {
   PromptDeliveryError,
@@ -61,6 +62,13 @@ export class LycheePromptService {
     try {
       job = await this.outbox.claim();
       if (!job) return;
+      lycheeLog(
+        job.payload.documentEventId,
+        'business.prompt.db.claim',
+        'completed',
+        'נטילת השאלה מהתור ונעילתה במסד',
+        { durationMs: Math.max(0, Date.now() - started) },
+      );
       if (
         job.payload.kind !== 'BUSINESS_QUESTION' ||
         promptHash(job.payload) !== job.payload_hash
@@ -73,20 +81,42 @@ export class LycheePromptService {
         await this.link(job);
         return;
       }
-      const parent = await this.outbox.parent(job);
+      const parent = await timePromptStage(
+        job.payload.documentEventId,
+        'business.prompt.db.document',
+        'קריאת המסמך ומיפוי השאלה מהמסד',
+        () => this.outbox.parent(job!),
+      );
       if (parent.prompt_whatsapp_message_id) {
         // Recovery if a valid mapping already exists: never send another question.
-        await this.outbox.receipt(job, parent.prompt_whatsapp_message_id);
+        await timePromptStage(
+          job.payload.documentEventId,
+          'business.prompt.db.receipt',
+          'שמירת מזהה הודעת השאלה בתור העמיד',
+          () => this.outbox.receipt(job!, parent.prompt_whatsapp_message_id),
+        );
         receiptKnown = true;
         await this.link(job);
         return;
       }
-      const user = await this.users.findOne({
-        where: { firebaseId: job.firebase_id },
-      });
-      const owned = await this.businesses.find({
-        where: { firebaseId: job.firebase_id },
-      });
+      const user = await timePromptStage(
+        job.payload.documentEventId,
+        'business.prompt.db.user',
+        'בדיקת חשבון המשתמש במסד',
+        () =>
+          this.users.findOne({
+            where: { firebaseId: job.firebase_id },
+          }),
+      );
+      const owned = await timePromptStage(
+        job.payload.documentEventId,
+        'business.prompt.db.businesses',
+        'בדיקת העסקים שבבעלות המשתמש במסד',
+        () =>
+          this.businesses.find({
+            where: { firebaseId: job.firebase_id },
+          }),
+      );
       const request = job.payload.request;
       if (
         !user ||
@@ -111,22 +141,28 @@ export class LycheePromptService {
         );
         return;
       }
-      lycheeLog(
+      sendStarted = true;
+      const id = await timePromptStage(
         job.payload.documentEventId,
         'business.prompt.send',
-        'started',
-        'מתחיל ניסיון יחיד לשליחת שאלת בחירת עסק',
+        'ניסיון יחיד לשליחת שאלת בחירת העסק, כולל בדיקת סביבת דב ובירור מזהה אם נדרש',
+        () => this.transport.send(request, job!.event_id),
       );
-      sendStarted = true;
-      const id = await this.transport.send(request, job.event_id);
       if (typeof id !== 'string' || !id.trim() || id.length > 255)
         throw new Error('Question receipt unavailable');
       // Retry only persistence of this exact receipt, never the external send.
-      try {
-        await this.outbox.receipt(job, id);
-      } catch {
-        await this.outbox.receipt(job, id);
-      }
+      await timePromptStage(
+        job.payload.documentEventId,
+        'business.prompt.db.receipt',
+        'שמירת מזהה הודעת השאלה בתור העמיד, כולל ניסיון שמירה נוסף אם נדרש',
+        async () => {
+          try {
+            await this.outbox.receipt(job!, id);
+          } catch {
+            await this.outbox.receipt(job!, id);
+          }
+        },
+      );
       receiptKnown = true;
       await this.link(job);
     } catch (error) {
@@ -178,7 +214,10 @@ export class LycheePromptService {
           'business.prompt.claim',
           'failed',
           diagnostic.reason,
-          { code: diagnostic.code },
+          {
+            code: diagnostic.code,
+            durationMs: Math.max(0, Date.now() - started),
+          },
         );
       }
     } finally {
@@ -188,21 +227,34 @@ export class LycheePromptService {
   }
 
   private async link(job: PromptJob) {
+    const started = Date.now();
     const id = job.payload.providerMessageId;
     if (typeof id !== 'string' || !id.trim() || id.length > 255)
       throw new ConflictException('Question receipt unavailable');
-    await this.events.recordPrompt(
+    await timePromptStage(
       job.payload.documentEventId,
-      job.channel_id,
-      job.firebase_id,
-      id,
+      'business.prompt.db.mapping',
+      'שמירת הקישור בין מזהה הודעת השאלה למסמך',
+      () =>
+        this.events.recordPrompt(
+          job.payload.documentEventId,
+          job.channel_id,
+          job.firebase_id,
+          id,
+        ),
     );
-    await this.outbox.finish(job, 'PROMPT_SENT');
+    await timePromptStage(
+      job.payload.documentEventId,
+      'business.prompt.db.finish',
+      'סימון השאלה כנשלחה במסד',
+      () => this.outbox.finish(job, 'PROMPT_SENT'),
+    );
     lycheeLog(
       job.payload.documentEventId,
       'business.prompt.link',
       'completed',
       'מזהה השאלה נשמר וקושר למסמך המתאים',
+      { durationMs: Math.max(0, Date.now() - started) },
     );
   }
 }

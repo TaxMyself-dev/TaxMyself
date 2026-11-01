@@ -399,6 +399,86 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(transport.send).toHaveBeenCalledTimes(1);
   });
 
+  it('measures DB checks, delivery, receipt persistence and document mapping separately', async () => {
+    await stage();
+    let now = 10000;
+    const clock = jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const debug = jest
+      .spyOn(Logger.prototype, 'debug')
+      .mockImplementation(() => {});
+    const claim = outbox.claim.bind(outbox),
+      parent = outbox.parent.bind(outbox);
+    const receipt = outbox.receipt.bind(outbox),
+      finish = outbox.finish.bind(outbox);
+    const mapping = events.recordPrompt.bind(events);
+    const spies = [
+      jest.spyOn(outbox, 'claim').mockImplementation(async () => {
+        now += 13;
+        return claim();
+      }),
+      jest.spyOn(outbox, 'parent').mockImplementation(async (job) => {
+        now += 11;
+        return parent(job);
+      }),
+      jest.spyOn(outbox, 'receipt').mockImplementation(async (job, id) => {
+        now += 29;
+        return receipt(job, id);
+      }),
+      jest.spyOn(events, 'recordPrompt').mockImplementation(async (...args) => {
+        now += 31;
+        return mapping(...args);
+      }),
+      jest.spyOn(outbox, 'finish').mockImplementation(async (...args) => {
+        now += 37;
+        return finish(...args);
+      }),
+    ];
+    users.findOne.mockImplementation(async () => {
+      now += 17;
+      return { firebaseId: 'owner', phone: '0501234567' };
+    });
+    businesses.find.mockImplementation(async () => {
+      now += 23;
+      return [{ businessNumber: '123' }, { businessNumber: '456' }];
+    });
+    transport.send.mockImplementation(async () => {
+      now += 2100;
+      return 'test-only-timed-receipt';
+    });
+    const service = makeService();
+    try {
+      await service.tick();
+      expect(journal().status).toBe('PROMPT_SENT');
+      const logs = debug.mock.calls.map((args) =>
+        JSON.parse(args[0] as string),
+      );
+      for (const [stage, duration] of [
+        ['business.prompt.db.claim', 13],
+        ['business.prompt.db.document', 11],
+        ['business.prompt.db.user', 17],
+        ['business.prompt.db.businesses', 23],
+        ['business.prompt.send', 2100],
+        ['business.prompt.db.receipt', 29],
+        ['business.prompt.db.mapping', 31],
+        ['business.prompt.db.finish', 37],
+      ] as const) {
+        expect(
+          logs.find(
+            (line) => line.stage === stage && line.outcome === 'completed',
+          )?.durationMs,
+        ).toBe(duration);
+      }
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(logs)).not.toContain('0501234567');
+      expect(JSON.stringify(logs)).not.toContain('test-only-timed-receipt');
+    } finally {
+      service.onModuleDestroy();
+      spies.forEach((spy) => spy.mockRestore());
+      clock.mockRestore();
+      debug.mockRestore();
+    }
+  });
+
   it('passes the durable question identity rather than a transient lease to delivery', async () => {
     await stage();
     const id = journal().event_id;
