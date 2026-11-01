@@ -75,25 +75,24 @@ export class FeezbackDisconnectionService {
   }
 
   async storedTargets(firebaseId: string): Promise<DisconnectionTargets> {
-    return connectionOperation(firebaseId, async () => {
-      const user = await this.users.findOne({ where: { firebaseId } });
-      if (!user) throw new BadRequestException('User not found');
-      if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({ code: 'SYNTHETIC_OPEN_BANKING', message: 'Synthetic connection' });
-      const snapshot = (await this.sync.getSyncState(firebaseId))?.permissionsSnapshot;
-      if (snapshot) return { ...snapshot, hasOpenBanking: user.hasOpenBanking };
-      const stored = await this.sources.find({ where: { userId: firebaseId } });
-      const rows = await this.sync.getSourceResults(firebaseId);
-      const consents: DisconnectionConsent[] = [];
-      for (const row of rows) {
-        const source = stored.find(s => s.id === row.sourceRecordId);
-        if (!source || !row.consentId) continue;
-        const role = source.connectionRole ?? 'primary';
-        let consent = consents.find(c => c.consentId === row.consentId && c.connectionRole === role);
-        if (!consent) { consent = { consentId: row.consentId, connectionRole: role, status: 'valid', sources: [] }; consents.push(consent); }
-        consent.sources.push({ sourceRecordId: source.id, sourceName: source.sourceName, sourceType: source.sourceType });
-      }
-      return { consents, complete: true, hasOpenBanking: user.hasOpenBanking, errors: [] };
-    });
+    // Saved-state reads must not queue behind a slow provider refresh.
+    const user = await this.users.findOne({ where: { firebaseId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (usesSyntheticOpenBanking(user.email)) throw new BadRequestException({ code: 'SYNTHETIC_OPEN_BANKING', message: 'Synthetic connection' });
+    const snapshot = (await this.sync.getSyncState(firebaseId))?.permissionsSnapshot;
+    if (snapshot) return { ...snapshot, hasOpenBanking: user.hasOpenBanking };
+    const stored = await this.sources.find({ where: { userId: firebaseId } });
+    const rows = await this.sync.getSourceResults(firebaseId);
+    const consents: DisconnectionConsent[] = [];
+    for (const row of rows) {
+      const source = stored.find(s => s.id === row.sourceRecordId);
+      if (!source || !row.consentId) continue;
+      const role = source.connectionRole ?? 'primary';
+      let consent = consents.find(c => c.consentId === row.consentId && c.connectionRole === role);
+      if (!consent) { consent = { consentId: row.consentId, connectionRole: role, status: 'valid', sources: [] }; consents.push(consent); }
+      consent.sources.push({ sourceRecordId: source.id, sourceName: source.sourceName, sourceType: source.sourceType });
+    }
+    return { consents, complete: true, hasOpenBanking: user.hasOpenBanking, errors: [] };
   }
 
   private async resetDisconnectedFlags(firebaseId: string): Promise<void> {

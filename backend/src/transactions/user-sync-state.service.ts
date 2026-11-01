@@ -267,12 +267,19 @@ export class UserSyncStateService {
     );
   }
 
+  /** Finish an interrupted job without reviving lifecycle state cleared by disconnect cleanup. */
+  async markSyncInterrupted(userId: string): Promise<void> {
+    await this.repo.update({userId,fullProcessStatus:'running'}, {
+      fullProcessStatus:'failed',fullResultStatus:'none',fullRowsWritten:0,
+      fullFinishedAt:new Date(),fullSkipReason:'no_access',fullFailureReason:null,
+    });
+  }
+
   /**
    * After a successful user-initiated single-source pull (retry-source /
-   * settings per-account button), the cache now has data but the overall
-   * `fullProcessStatus` may still be 'empty'/'failed'/null — which keeps
-   * syncStateAllowsFetch closed, so the user can't see what they just pulled.
-   * Promote the row to 'completed' so the fetch gate opens.
+   * settings per-account button), publish cache readiness without certifying
+   * the entire tenant's data. A successful subset must retain an existing
+   * aggregate failure/partial result and its support ID; a full sync can clear it.
    *
    * Guard: never touch a 'running' row — a full sync owns the lifecycle then
    * and will set the terminal status itself; clobbering it would corrupt the
@@ -286,15 +293,18 @@ export class UserSyncStateService {
   ): Promise<void> {
     const state = await this.repo.findOne({ where: { userId } });
     if (state?.fullProcessStatus === 'running') return;
+    // A subset pull can make cache readable; it cannot certify the whole sync.
+    const preserveFailure = resultStatus === 'success' &&
+      (state?.fullResultStatus === 'partial_success' || state?.fullResultStatus === 'failed');
     await this.repo.upsert(
       {
         userId,
         fullProcessStatus: 'completed',
-        fullResultStatus: resultStatus,
-        fullRowsWritten: rowsWritten,
+        fullResultStatus: preserveFailure ? state.fullResultStatus : resultStatus,
+        fullRowsWritten: preserveFailure ? state.fullRowsWritten ?? rowsWritten : rowsWritten,
         fullFinishedAt: new Date(),
         fullSkipReason: null,
-        fullFailureReason: failureReason ? failureReason.slice(0, 255) : null,
+        fullFailureReason: preserveFailure ? state.fullFailureReason : failureReason ? failureReason.slice(0, 255) : null,
       } as UserSyncState,
       ['userId'],
     );

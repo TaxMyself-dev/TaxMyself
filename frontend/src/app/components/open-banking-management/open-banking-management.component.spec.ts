@@ -104,22 +104,22 @@ describe('open banking disconnection', () => {
     component.reconnect(); expect(router.navigate).not.toHaveBeenCalled();
     component.busy.set(false); component.reconnect(); expect(router.navigate).toHaveBeenCalledWith(['/billing/open-banking']);
   });
-  it('refreshes a row preview and includes every instrument without mutation', () => {
+  it('refreshes and saves a row preview before consent termination', () => {
     component.openSourceConsent(1);
-    expect(service.disconnectionTargets).toHaveBeenCalledTimes(1);
+    expect(service.refreshPermissions).toHaveBeenCalledTimes(1);
     expect(component.affectedConsents()[0].sources.map(source => source.sourceName)).toEqual(['12345', '6789']);
     expect(service.disconnect).not.toHaveBeenCalled();
   });
   it('requires a choice when a stored source belongs to multiple consents', () => {
     const second = { ...consent, consentId: 'other' };
-    service.disconnectionTargets.and.returnValue(of({ consents: [consent, second], complete: true, hasOpenBanking: true, errors: [] }));
+    service.refreshPermissions.and.returnValue(of({ consents: [consent, second], complete: true, hasOpenBanking: true, errors: [] }));
     component.openSourceConsent(1);
     expect(component.confirmation()).toBeNull(); expect(component.choices()?.length).toBe(2);
     component.selectConsent(second); component.confirm();
     expect(service.disconnect).toHaveBeenCalledWith({ firebaseId: undefined, scope: 'consent', consentId: 'other', connectionRole: 'spouse' });
   });
   it('blocks incomplete previews and explains the affected identity and operation', () => {
-    service.disconnectionTargets.and.returnValue(of({ consents: [consent], complete: false, hasOpenBanking: true,
+    service.refreshPermissions.and.returnValue(of({ consents: [consent], complete: false, hasOpenBanking: true,
       errors: [{ connectionRole: 'spouse', code: 'cards_failed', operation: 'cards', stage: 'provider' }] }));
     component.openFullDisconnect(); component.confirm();
     expect(service.disconnect).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('open banking disconnection', () => {
     expect(service.disconnectionTargets).not.toHaveBeenCalled(); expect(service.disconnect).not.toHaveBeenCalled(); expect(router.navigate).not.toHaveBeenCalled();
   });
   it('lists provider-only instruments without requiring a stored source id', () => {
-    service.disconnectionTargets.and.returnValue(of({ consents: [{ ...consent, sources: [...consent.sources,
+    service.refreshPermissions.and.returnValue(of({ consents: [{ ...consent, sources: [...consent.sources,
       { sourceRecordId: null, resourceId: 'provider-card', sourceName: '4321', sourceType: 'CREDIT_CARD' }] }], complete: true, hasOpenBanking: true, errors: [] }));
     component.openSourceConsent(1);
     expect(component.affectedConsents()[0].sources.length).toBe(3); expect(component.rows().length).toBe(3);

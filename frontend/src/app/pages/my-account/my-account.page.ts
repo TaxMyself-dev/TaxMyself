@@ -936,6 +936,14 @@ export class MyAccountPage implements OnInit {
    *   - no sources       → generic success ("הפעולה הסתיימה בהצלחה")
    */
   private applyTerminalDialogState(): void {
+    // A persistence failure can exist even when provider source reads succeeded.
+    const issue = this.bankingError();
+    if (issue) {
+      this.feezbackDialogStatus.set('failure');
+      this.feezbackDialogTitle.set(issue.message);
+      this.feezbackDialogIcon.set(issue.partial === false ? 'error' : 'warning');
+      return;
+    }
     const rows = this.syncSourceResults();
     if (rows.length === 0) {
       this.feezbackDialogStatus.set('success');

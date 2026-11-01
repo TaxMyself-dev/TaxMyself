@@ -59,6 +59,7 @@ describe('Open banking reliability regression', () => {
     const tx=[...Array.from({length:32},()=>({sourceRecordId:1})),...Array.from({length:5},()=>({sourceRecordId:2})),{sourceRecordId:3}];
     const result=await service.processTransactionsWithDuplicateAlert('owner',tx,'test');
     expect(result).toMatchObject({newlySavedToCache:1,excludedCount:37,supportIssue:{code:'OB-04'}});
+    expect(result.sourceFailures.map(failure=>failure.sourceRecordId)).toEqual([1,2]);
     expect(service.logger.error).toHaveBeenCalledTimes(2);
     expect(service.processEligibleTransactions.mock.calls[0][1]).toEqual([{sourceRecordId:3}]);
   });

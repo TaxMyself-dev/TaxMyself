@@ -119,7 +119,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => data)) : of(data)),
       finalize(() => this.loading.set(false)),
     ).subscribe({
-      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); if (live) this.connectionChanged.emit(); onLoaded?.(); },
+      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
       error: err => {
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
         if (!this.synthetic()) this.supportError.set(bankingRequestError(err));
@@ -133,10 +133,10 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   openSourceConsent(sourceRecordId: number): void {
     if (!Number.isInteger(sourceRecordId) || sourceRecordId <= 0) return;
     this.load(() => this.previewCandidates((this.targets()?.consents ?? [])
-      .filter(consent => consent.sources.some(source => source.sourceRecordId === sourceRecordId))));
+      .filter(consent => consent.sources.some(source => source.sourceRecordId === sourceRecordId))), true);
   }
   openConsentKey(key: string): void {
-    this.load(() => this.previewCandidates((this.targets()?.consents ?? []).filter(consent => this.consentKey(consent) === key)));
+    this.load(() => this.previewCandidates((this.targets()?.consents ?? []).filter(consent => this.consentKey(consent) === key)), true);
   }
   private previewCandidates(consents: BankingConsent[]): void {
     if (consents.length === 1) this.confirmation.set(consents[0]);
@@ -150,7 +150,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     if (this.busy() || this.externalBusy || !this.choices()?.some(item => this.consentKey(item) === this.consentKey(consent))) return;
     this.choices.set(null); this.confirmation.set(consent);
   }
-  openFullDisconnect(): void { this.load(() => this.confirmation.set('all')); }
+  openFullDisconnect(): void { this.load(() => this.confirmation.set('all'), true); }
   canConfirm(): boolean {
     const state = this.targets(); const selection = this.confirmation();
     return this.canManage() && !this.synthetic() && !this.busy() && !this.loading() && !this.externalBusy && !!state?.complete &&

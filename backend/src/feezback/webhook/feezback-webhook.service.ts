@@ -113,7 +113,8 @@ export class FeezbackWebhookService {
     const TERMINAL_STATUS_FRAGMENTS = ['REVOK', 'EXPIR', 'REJECT', 'TERMINAT', 'INVALID', 'SUSPEND', 'NOANSWER'];
     const isTerminal = !!currentStatus &&
       TERMINAL_STATUS_FRAGMENTS.some(frag => currentStatus.toUpperCase().includes(frag));
-    if (!isTerminal) {
+    const isValid = currentStatus?.toLowerCase() === 'valid';
+    if (!isTerminal && !isValid) {
       console.log(`[FeezbackWebhook][ConsentStatusChanged] consent received — waiting for UserDataIsAvailable webhook to fire the sync | consentId=${consentId} currentStatus=${currentStatus}`);
       return;
     }
@@ -130,6 +131,12 @@ export class FeezbackWebhookService {
     }
 
     const masked = firebaseId.length >= 8 ? firebaseId.substring(0, 8) + '...' : firebaseId;
+
+    if (isValid) {
+      // Revalidate resources as well as status; resume need not emit data-ready.
+      await this.feezbackService.refreshUserSources(firebaseId, 'ConsentStatusChanged');
+      return;
+    }
 
     try {
       const cleared = await this.feezbackService.clearConsentOnSources(firebaseId, consentId, userIdentifier?.split('@')[0].endsWith('_sub_spouse'));

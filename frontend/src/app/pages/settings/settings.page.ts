@@ -527,7 +527,6 @@ export class SettingsPage implements OnInit {
         const rows = sources;
         console.log('[Settings] ניהול הרשאות וחשבונות: תגובה מהשרת (get-sources-with-types)', {
           count: rows.length,
-          rows,
         });
         this.accountSources.set(rows);
         this.accountSourcesLoading.set(false);

@@ -46,3 +46,15 @@ No SQL was executed, no live application was started, no production was accessed
 - Sign-in does not wait for Drive diagnostics before dispatching banking sync. No active transaction job means no fabricated `running` state; stale polling eventually ends with a support error.
 
 Automated verification and the known base-test failure are recorded in [the task handoff](../tasks/active/feezback-sync-reliability.md). Local main integration, manual testing on main, production application and remote push are outside this task's authorization.
+
+## Review follow-up
+
+- Cancellation dialogs refresh and save the affected-instrument list before opening confirmation. Partial/failed/in-flight checks block confirmation; initial screen reads remain local.
+- Successful subset pulls preserve prior aggregate quality/error/counts. A full sync can certify recovery. Partial quality includes existing rows and legitimate duplicates, even with zero new inserts.
+- Normal identity selection includes saved, owned spouse consent/resource links when the historical identity flag is absent. Incomplete pointers do not qualify; read errors propagate. No identity flag or billing activation is inferred from the browser return.
+- Terminal-state write exceptions reach bounded failure recovery for both full pulls and login retries. If authorization disappears mid-pull, a conditional running-only interruption ends the old job without overwriting lifecycle state cleared by explicit disconnect cleanup.
+- Returning consent status to valid revalidates saved metadata using both identities, without triggering a transaction pull. Failed processing retains normal webhook replay eligibility.
+- Stored management reads bypass the provider queue. Console source summaries are masked and settings logs only source counts. Structured errors retain sanitized causes and support IDs.
+- Known rejected source IDs receive failed outcomes rather than provider-read success. The dashboard terminal dialog honors aggregate support errors even if all returned source reads succeeded or no source rows are available.
+
+These cases are permanent mocked regressions in the backend and banking UI suites. Schema/production/provider verification remains outside this local task; the existing SQL section is unchanged and unexecuted.
