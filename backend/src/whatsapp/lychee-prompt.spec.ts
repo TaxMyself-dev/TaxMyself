@@ -399,6 +399,14 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(transport.send).toHaveBeenCalledTimes(1);
   });
 
+  it('passes the durable question identity rather than a transient lease to delivery', async () => {
+    await stage();
+    const id = journal().event_id;
+    await makeService().tick();
+    expect(transport.send).toHaveBeenCalledWith(expect.any(Object), id);
+    expect(id).toBe(promptEventId('channel', 'doc'));
+  });
+
   it('uncertain external results are quarantined, never automatically sent twice', async () => {
     await stage();
     transport.send.mockRejectedValue(

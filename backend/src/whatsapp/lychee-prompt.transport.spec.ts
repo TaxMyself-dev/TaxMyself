@@ -3,6 +3,7 @@ import {
   LycheeHttpPromptTransport,
   NoSendPromptTransport,
   DevelopmentOnlyPromptTransport,
+  questionIdempotencyKey,
 } from './lychee-prompt.transport';
 jest.mock('axios');
 
@@ -29,23 +30,62 @@ describe('Question send API contract — mocked HTTP only', () => {
     post.mockResolvedValue({
       data: { whatsapp_message_id: 'test-only-provider-receipt' },
     });
-    expect(await new LycheeHttpPromptTransport().send(request)).toBe(
-      'test-only-provider-receipt',
-    );
+    expect(
+      await new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
+    ).toBe('test-only-provider-receipt');
     expect(post).toHaveBeenCalledTimes(1);
     expect(post).toHaveBeenCalledWith(
       'https://app.lychee-ltd.com/api/wap/make-send-text',
       request,
       expect.objectContaining({
-        headers: { Authorization: 'Bearer fake-key-for-unit-tests' },
+        headers: {
+          Authorization: 'Bearer fake-key-for-unit-tests',
+          'Idempotency-Key': questionIdempotencyKey(
+            request.channel_id,
+            'test-only-prompt',
+          ),
+        },
         maxRedirects: 0,
       }),
     );
   });
+  it('uses the same header across transport recreation and credential rotation, isolating questions and channels', async () => {
+    post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });
+    await new LycheeHttpPromptTransport().send(request, 'prompt:one');
+    process.env.LYCHEE_API_KEY = 'different-fake-key';
+    await new LycheeHttpPromptTransport().send(request, 'prompt:one');
+    await new LycheeHttpPromptTransport().send(request, 'prompt:two');
+    await new LycheeHttpPromptTransport().send(
+      { ...request, channel_id: 'another-channel' },
+      'prompt:one',
+    );
+    const keys = post.mock.calls.map(
+      (call) => call[2].headers['Idempotency-Key'],
+    );
+    expect(keys[0]).toMatch(/^lychee-question-[a-f0-9]{64}$/);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[0]);
+    expect(keys[3]).not.toBe(keys[0]);
+    expect(keys.join()).not.toContain(request.phone);
+    expect(keys.join()).not.toContain('prompt:one');
+  });
+  it('rejects a missing or malformed operation identifier before HTTP', async () => {
+    for (const questionId of [
+      undefined,
+      '',
+      'bad\r\nheader',
+      'x'.repeat(256),
+    ]) {
+      await expect(
+        new LycheeHttpPromptTransport().send(request, questionId as any),
+      ).rejects.toThrow('Invalid question operation identifier');
+    }
+    expect(post).not.toHaveBeenCalled();
+  });
   it('does not retry an uncertain network result', async () => {
     post.mockRejectedValue(new Error('timeout after possible acceptance'));
     await expect(
-      new LycheeHttpPromptTransport().send(request),
+      new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
     ).rejects.toThrow();
     expect(post).toHaveBeenCalledTimes(1);
   });
@@ -61,7 +101,7 @@ describe('Question send API contract — mocked HTTP only', () => {
       config: { headers: { Authorization: 'Bearer fake-key-for-unit-tests' } },
     });
     const error = await new LycheeHttpPromptTransport()
-      .send(request)
+      .send(request, 'test-only-prompt')
       .catch((e) => e);
     expect(error.diagnostic).toMatchObject({
       httpStatus: 403,
@@ -76,7 +116,7 @@ describe('Question send API contract — mocked HTTP only', () => {
   it('distinguishes a successful HTTP response without a message receipt', async () => {
     post.mockResolvedValue({ status: 200, data: { success: true } });
     const error = await new LycheeHttpPromptTransport()
-      .send(request)
+      .send(request, 'test-only-prompt')
       .catch((e) => e);
     expect(error.diagnostic).toEqual({
       httpStatus: 200,
@@ -88,7 +128,7 @@ describe('Question send API contract — mocked HTTP only', () => {
     for (const id of [undefined, '', ' ', 123, 'x'.repeat(256)]) {
       post.mockResolvedValue({ data: { whatsapp_message_id: id } });
       await expect(
-        new LycheeHttpPromptTransport().send(request),
+        new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
       ).rejects.toThrow('Question receipt unavailable');
     }
   });
@@ -97,7 +137,7 @@ describe('Question send API contract — mocked HTTP only', () => {
     await expect(new NoSendPromptTransport().send()).rejects.toThrow();
     delete process.env.LYCHEE_API_KEY;
     await expect(
-      new LycheeHttpPromptTransport().send(request),
+      new LycheeHttpPromptTransport().send(request, 'test-only-prompt'),
     ).rejects.toThrow();
     expect(post).not.toHaveBeenCalled();
   });
@@ -110,7 +150,9 @@ describe('Question send API contract — mocked HTTP only', () => {
     const transport = new DevelopmentOnlyPromptTransport(db);
     post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });
     expect(transport.available).toBe(true);
-    expect(await transport.send(request)).toBe('test-only-id');
+    expect(await transport.send(request, 'test-only-prompt')).toBe(
+      'test-only-id',
+    );
     expect(db.query).toHaveBeenCalledWith('SELECT DATABASE() AS db');
     expect(post).toHaveBeenCalledTimes(1);
   });
@@ -125,7 +167,9 @@ describe('Question send API contract — mocked HTTP only', () => {
       const db: any = { options: { database }, query: jest.fn() };
       const transport = new DevelopmentOnlyPromptTransport(db);
       expect(transport.available).toBe(false);
-      await expect(transport.send(request)).rejects.toThrow();
+      await expect(
+        transport.send(request, 'test-only-prompt'),
+      ).rejects.toThrow();
       expect(db.query).not.toHaveBeenCalled();
     }
     expect(post).not.toHaveBeenCalled();
@@ -141,7 +185,9 @@ describe('Question send API contract — mocked HTTP only', () => {
       };
       const transport = new DevelopmentOnlyPromptTransport(db);
       expect(transport.available).toBe(false);
-      await expect(transport.send(request)).rejects.toThrow();
+      await expect(
+        transport.send(request, 'test-only-prompt'),
+      ).rejects.toThrow();
       expect(db.query).not.toHaveBeenCalled();
     }
     expect(post).not.toHaveBeenCalled();
@@ -153,11 +199,11 @@ describe('Question send API contract — mocked HTTP only', () => {
       query: jest.fn().mockResolvedValue([{ db: 'other' }]),
     };
     const transport = new DevelopmentOnlyPromptTransport(db);
-    await expect(transport.send(request)).rejects.toThrow(
+    await expect(transport.send(request, 'test-only-prompt')).rejects.toThrow(
       'Development question database mismatch',
     );
     await expect(
-      transport.send({ ...request, channel_id: 'other' }),
+      transport.send({ ...request, channel_id: 'other' }, 'test-only-prompt'),
     ).rejects.toThrow();
     expect(post).not.toHaveBeenCalled();
   });

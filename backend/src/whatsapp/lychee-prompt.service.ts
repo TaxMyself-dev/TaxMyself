@@ -99,7 +99,7 @@ export class LycheePromptService {
         'מתחיל ניסיון יחיד לשליחת שאלת בחירת עסק',
       );
       sendStarted = true;
-      const id = await this.transport.send(request);
+      const id = await this.transport.send(request, job.event_id);
       if (typeof id !== 'string' || !id.trim() || id.length > 255)
         throw new Error('Question receipt unavailable');
       // Retry only persistence of this exact receipt, never the external send.
