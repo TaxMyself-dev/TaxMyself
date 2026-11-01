@@ -83,6 +83,9 @@ export function lycheeLog(
     durationMs?: number;
     httpStatus?: number;
     code?: string;
+    providerCode?: string;
+    providerReason?: string;
+    failureKind?: string;
   } = {},
 ) {
   // Only caller-controlled messages and an explicit metadata allowlist are logged.

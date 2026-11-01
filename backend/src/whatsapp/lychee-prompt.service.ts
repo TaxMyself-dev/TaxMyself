@@ -13,6 +13,10 @@ import {
 } from './lychee-prompt.store';
 import { LycheePromptTransport } from './lychee-prompt.transport';
 import { lycheeLog, safeLycheeError } from './lychee-log';
+import {
+  PromptDeliveryError,
+  promptDiagnostic,
+} from './lychee-prompt-diagnostic';
 
 @Injectable()
 export class LycheePromptService {
@@ -34,6 +38,7 @@ export class LycheePromptService {
     let job: PromptJob | null = null;
     let sendStarted = false;
     let receiptKnown = false;
+    const started = Date.now();
     try {
       job = await this.outbox.claim();
       if (!job) return;
@@ -107,6 +112,10 @@ export class LycheePromptService {
       await this.link(job);
     } catch (error) {
       if (job) {
+        const diagnostic =
+          error instanceof PromptDeliveryError
+            ? error.diagnostic
+            : promptDiagnostic(error, job.payload.request);
         const conflict = (error as any)?.getStatus?.() === 409;
         const status = conflict
           ? 'PROMPT_CANCELLED'
@@ -141,6 +150,7 @@ export class LycheePromptService {
             : sendStarted
             ? 'תוצאת השליחה אינה ודאית; השאלה הועברה לבירור ולא תישלח שוב אוטומטית'
             : 'בדיקת השאלה נכשלה לפני שליחה; מתוכנן ניסיון נוסף ללא שליחת הודעה כעת',
+          { ...diagnostic, durationMs: Date.now() - started },
         );
       } else {
         const diagnostic = safeLycheeError(error);

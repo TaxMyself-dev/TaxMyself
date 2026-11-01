@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import axios from 'axios';
 import { DataSource } from 'typeorm';
 import type { BusinessQuestionRequest } from './lychee-business-question';
+import {
+  PromptDeliveryError,
+  promptDiagnostic,
+} from './lychee-prompt-diagnostic';
 
 export abstract class LycheePromptTransport {
   abstract readonly available: boolean;
@@ -24,20 +28,28 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
     const key = process.env.LYCHEE_API_KEY;
     if (!key) throw new Error('Lychee API key unavailable');
     // No automatic retry: the provider's idempotency contract is not established.
-    const response = await axios.post(
-      'https://app.lychee-ltd.com/api/wap/make-send-text',
-      request,
-      {
-        headers: { Authorization: `Bearer ${key}` },
-        timeout: 15000,
-        maxRedirects: 0,
-        maxContentLength: 65536,
-        maxBodyLength: 65536,
-      },
-    );
+    let response;
+    try {
+      response = await axios.post(
+        'https://app.lychee-ltd.com/api/wap/make-send-text',
+        request,
+        {
+          headers: { Authorization: `Bearer ${key}` },
+          timeout: 15000,
+          maxRedirects: 0,
+          maxContentLength: 65536,
+          maxBodyLength: 65536,
+        },
+      );
+    } catch (error) {
+      throw new PromptDeliveryError(promptDiagnostic(error, request));
+    }
     const id = response.data?.whatsapp_message_id;
     if (typeof id !== 'string' || !id.trim() || id.length > 255)
-      throw new Error('Question receipt unavailable');
+      throw new PromptDeliveryError(
+        { httpStatus: response.status, failureKind: 'missing_receipt' },
+        'Question receipt unavailable',
+      );
     return id;
   }
 }

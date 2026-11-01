@@ -13,6 +13,8 @@ import {
   DevelopmentOnlyPromptTransport,
 } from './lychee-prompt.transport';
 import { LycheeModule } from './lychee.module';
+import { Logger } from '@nestjs/common';
+import { PromptDeliveryError } from './lychee-prompt-diagnostic';
 
 /** Offline SQL boundary with fault injection; never opens a connection. */
 class MemoryDb {
@@ -406,6 +408,38 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(journal().status).toBe('PROMPT_UNKNOWN');
     await makeService().tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs sanitized provider failure metadata without changing the no-resend policy', async () => {
+    await stage();
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => {});
+    try {
+      transport.send.mockRejectedValue(
+        new PromptDeliveryError({
+          httpStatus: 403,
+          providerCode: 'MISSING_PERMISSION',
+          providerReason: 'Requires conversations:write',
+          failureKind: 'http',
+        }),
+      );
+      await makeService().tick();
+      expect(journal().status).toBe('PROMPT_UNKNOWN');
+      const log = warn.mock.calls
+        .map((args) => JSON.parse(args[0] as string))
+        .find((line) => line.stage === 'business.prompt.send');
+      expect(log).toMatchObject({
+        httpStatus: 403,
+        providerCode: 'MISSING_PERMISSION',
+        providerReason: 'Requires conversations:write',
+        failureKind: 'http',
+      });
+      await makeService().tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('expired send leases quarantine, whereas expired linking leases resume mapping only', async () => {

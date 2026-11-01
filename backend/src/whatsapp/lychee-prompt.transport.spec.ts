@@ -49,6 +49,41 @@ describe('Question send API contract — mocked HTTP only', () => {
     ).rejects.toThrow();
     expect(post).toHaveBeenCalledTimes(1);
   });
+  it('reports sanitized HTTP rejection diagnostics without retaining Axios request secrets', async () => {
+    post.mockRejectedValue({
+      response: {
+        status: 403,
+        data: {
+          code: 'MISSING_PERMISSION',
+          message: 'Requires conversations:write fake-key-for-unit-tests',
+        },
+      },
+      config: { headers: { Authorization: 'Bearer fake-key-for-unit-tests' } },
+    });
+    const error = await new LycheeHttpPromptTransport()
+      .send(request)
+      .catch((e) => e);
+    expect(error.diagnostic).toMatchObject({
+      httpStatus: 403,
+      providerCode: 'MISSING_PERMISSION',
+      failureKind: 'http',
+    });
+    expect(error.diagnostic.providerReason).toContain('conversations:write');
+    expect(JSON.stringify(error)).not.toContain('fake-key-for-unit-tests');
+    expect(error.response).toBeUndefined();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+  it('distinguishes a successful HTTP response without a message receipt', async () => {
+    post.mockResolvedValue({ status: 200, data: { success: true } });
+    const error = await new LycheeHttpPromptTransport()
+      .send(request)
+      .catch((e) => e);
+    expect(error.diagnostic).toEqual({
+      httpStatus: 200,
+      failureKind: 'missing_receipt',
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
   it('refuses success without a valid provider receipt', async () => {
     for (const id of [undefined, '', ' ', 123, 'x'.repeat(256)]) {
       post.mockResolvedValue({ data: { whatsapp_message_id: id } });
