@@ -27,6 +27,9 @@ async function bootstrap() {
   }
   app.useGlobalFilters(new HttpExceptionFilter());
   app.use(require('cors')('*'));
+  // Preserve Lychee signature bytes and cap the event independently of uploads.
+  app.use('/webhooks/lychee', bodyParser.json({ limit: '256kb', inflate: false,
+    verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
   // Mailgun posts route notifications as urlencoded data when there are no
   // attachments. Multipart notifications are parsed later by the controller's
