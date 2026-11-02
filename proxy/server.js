@@ -45,10 +45,16 @@ if (MODE === "feezback-dev") {
 // ===========================
 // Body parsing middleware
 // ===========================
-app.use(express.json({ type: "*/*" })); // parse JSON regardless of Content-Type
+app.use(express.json({
+  type: "*/*", // parse JSON regardless of Content-Type
+  // Keep zero bytes distinct from an actual {} payload produced by JSON parsing.
+  verify: (req, res, body) => { req.proxyJsonBodyLength = body.length; },
+}));
 app.use((req, res, next) => {
   // If express.json() didn't parse (body is still empty/undefined), try manual JSON parse
   if (req.body === undefined || (typeof req.body === "object" && Object.keys(req.body).length === 0)) {
+    // express.json may already have consumed an empty body. Its end event will not fire again.
+    if (req.readableEnded) return next();
     let raw = "";
     req.on("data", (chunk) => { raw += chunk.toString(); });
     req.on("end", () => {
@@ -322,7 +328,8 @@ app.use(
         let bodyStr = '';
         if (!isAccountsEndpoint) {
           // For non-accounts endpoints, forward body as usual
-          if (req.body && Object.keys(req.body).length > 0) {
+          if (req.body && req.proxyJsonBodyLength !== 0 &&
+              (typeof req.body === "object" || Object.keys(req.body).length > 0)) {
             bodyStr = JSON.stringify(req.body, null, 2);
             // Write body to proxy request
             const bodyData = JSON.stringify(req.body);
