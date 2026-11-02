@@ -4,6 +4,7 @@ import { UserTransactionCacheState } from '../transactions/user-transaction-cach
 import { UserSyncState } from '../transactions/user-sync-state.entity';
 import { Source } from '../transactions/source.entity';
 import { User } from '../users/user.entity';
+import { UserSourceSyncState } from '../transactions/user-source-sync-state.entity';
 
 describe('verified disconnection transient cache cleanup', () => {
   let service: FeezbackCacheCleanupService, dataSource: any, manager: any, db: any, durable: any;
@@ -44,6 +45,7 @@ describe('verified disconnection transient cache cleanup', () => {
           return { affected: before - working[key].length };
         }),
         update: jest.fn(async (entity, criteria, patch) => {
+          if (entity === UserSourceSyncState && criteria.userId === 'owner') return;
           if (entity === User && criteria.firebaseId === 'owner') { Object.assign(working.user, patch); return; }
           if (entity !== UserSyncState || criteria.userId !== 'owner') throw Error('Attempted durable update');
           if (failAt === 'sync') throw Error('sync failed');
@@ -77,7 +79,7 @@ describe('verified disconnection transient cache cleanup', () => {
     expect(durable.sources.find(source => source.id === 11).sourceName).toBe(durable.sources.find(source => source.id === 21).sourceName);
     await expect(service.cleanup('owner', proof)).resolves.toEqual({ deleted: 3, full: false });
     expect(db.cache.filter(row => row.userId === 'owner').map(row => row.sourceRecordId)).toEqual([21, null]);
-    expect(manager.update).not.toHaveBeenCalled();
+    expect(manager.update.mock.calls.every(call=>call[0]===UserSourceSyncState)).toBe(true);
     expect(db.sync.fullProcessStatus).toBe('completed');
   });
   it.each(['valid', 'received', 'suspendedByASPSP', 'futureStatus'])('protects a shared source covered by any remaining %s permission', async status => {

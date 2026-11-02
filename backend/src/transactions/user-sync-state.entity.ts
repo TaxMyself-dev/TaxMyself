@@ -63,6 +63,9 @@ export class UserSyncState {
   @Column({ type: 'timestamp', nullable: true })
   fullStartedAt: Date | null;
 
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  fullRunId: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   fullFinishedAt: Date | null;
 
@@ -77,7 +80,7 @@ export class UserSyncState {
    * (`refreshUserSources`). Used by the login path to skip the source-refresh
    * step when sources are already fresh. NULL = never refreshed.
    */
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   lastSourcesRefreshAt: Date | null;
 
   /**
@@ -88,7 +91,14 @@ export class UserSyncState {
    *   - if `fullFinishedAt > lastConsentInitiatedAt` → sync already ran for this flow
    *   - else → still waiting for the webhook to fire the sync
    */
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', precision: 3, nullable: true })
   lastConsentInitiatedAt: Date | null;
+
+  /** Operational refresh fence/error only; consent links live in user_source_sync_state. */
+  @Column({ type: 'datetime', precision: 3, nullable: true })
+  lastSourcesRefreshAttemptAt: Date | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  sourcesRefreshFailureReason: string | null;
 
 }

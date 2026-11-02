@@ -227,6 +227,10 @@ export class UsersController {
         // completed state is restored from the profile fixture, never Feezback.
         if (usesSyntheticOpenBanking(user?.email)) return;
 
+        // Start banking independently: Drive diagnostics must not delay or prevent the pull.
+        if (hasOpenBanking) void this.feezbackService.triggerFullSync(firebaseId, 'login')
+            .catch(err => this.logger.error(`[Login] Banking sync failed | user=${firebaseId.substring(0,8)} | error=${err?.code ?? 'SYNC_FAILED'}`));
+
         // Snapshot of Drive provisioning state at login time. The lazy
         // backfill in UsersService.signin runs in the background — the next
         // login will reflect the new state here.
@@ -306,16 +310,5 @@ export class UsersController {
         }
         console.log(`════════════════════════════════════\n`);
 
-        if (!hasOpenBanking) return;
-
-        // NOTE: deliberately NOT gated on hasUnprocessedConsentFlow anymore.
-        // The webhook only runs discovery (refreshUserSources) — it never
-        // triggers a sync — so a login sync over the user's EXISTING sources
-        // can't race anything. A user who stepped out mid-consent should still
-        // get their existing accounts synced on the next real login.
-        void this.feezbackService.triggerFullSync(firebaseId, 'login')
-            .catch(err => {
-                this.logger.error(`[Login] triggerFullSync failed | user=${userName} | error=${err?.message}`, err?.stack ?? err);
-            });
     }
 }

@@ -28,6 +28,21 @@ describe('transaction failure response logging', () => {
     } as any);
   });
   afterEach(() => log.mockRestore());
+  it('logs each failed DELETE retry without changing the retry budget',async()=>{
+    http.delete=jest.fn().mockReturnValueOnce(failed(503)).mockReturnValueOnce(failed(503))
+      .mockReturnValueOnce(of({status:204,data:null}));
+    await expect(client.delete('/tpp/v1/users/owner-sub@tpp/consents/c',{sub:'owner-sub'})).resolves.toBeNull();
+    expect(http.delete).toHaveBeenCalledTimes(3);
+    expect(log.mock.calls.map(([value])=>JSON.parse(value.slice('[FeezbackResponse] '.length)).attempt)).toEqual([1,2]);
+  });
+  it('logs sanitized DELETE failures with provider status and attempt timing',async()=>{
+    http.delete=jest.fn().mockReturnValue(failed(403));
+    await expect(client.delete('/tpp/v1/users/owner-sub@tpp/consents/c',{sub:'owner-sub'})).rejects.toMatchObject({status:403});
+    expect(http.delete).toHaveBeenCalledTimes(1);expect(log).toHaveBeenCalledTimes(1);
+    const output=String(log.mock.calls[0][0]);
+    expect(JSON.parse(output.slice('[FeezbackResponse] '.length))).toMatchObject({method:'DELETE',status:403,attempt:1,responseBody:{error_code:4031}});
+    for(const secret of ['opaque-access-token','owner-sub','private-id','never-serialize-config'])expect(output).not.toContain(secret);
+  });
   it.each(['accounts', 'cards'])('logs sanitized 403 for %s without retry', async resource => {
     http.get.mockReturnValue(failed(403));
     await expect(client.get(`/tpp/v1/users/owner-sub@tpp/consents/c/${resource}/r/transactions?token=query-secret`,

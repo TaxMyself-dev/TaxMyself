@@ -18,7 +18,10 @@ table contract and must have identical availability and execution in both layout
 - Optional `emptyText` changes only a genuinely empty source collection on
   desktop/mobile. Its default remains the existing no-results text; local search
   or filtering of nonempty source rows retains no-results copy. Loading and sync
-  failure branches retain priority over empty text.
+  failure branches retain priority over empty text by default. Banking consumers
+  opt into preserveRowsDuringSync: existing desktop/mobile rows stay visible
+  during refresh or failure, with a background-refresh notice; other consumers
+  retain the existing loading/failure behavior.
 
 - `showWhen(row)` always applies, on every layout and again before execution.
   `fileRequirement: 'stored'` additionally requires a nonblank string `file`

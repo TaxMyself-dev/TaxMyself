@@ -101,3 +101,15 @@ management usable without unlocking other protected pages.
 Disconnected sources retain an explicit delete action identified by sourceRecordId (including spouse sources with matching numbers). Active-consent rows instead offer consent cancellation with a complete affected-source preview. Deletion requires confirmation and DELETE /transactions/sources/:sourceRecordId; success removes the row, while a server consent conflict refreshes the list and shows the existing explanation. Historical transactions are retained.
 
 Payment-source dialogs use the payment-source confirmation key and a dedicated centered host capped at 28rem (viewport minus 2rem on narrow screens). The consent explanation includes the source number and uses neutral wording without naming the provider.
+
+## Saved permission refresh contract (2026-11-01)
+
+Initial permission-table/management loads read saved server data only, with no provider reconciliation or profile mutation. The refresh button explicitly POSTs refresh-permissions, which saves verified metadata. Partial refresh reloads independently saved source states after owner profile refresh; unverified states remain unchanged. Failed source-list reads retain the previous table. Direct labels depend on hasConsent first: missing/invalid pointer shows no consent, otherwise direct shows bank-feed coverage. No verification dates or uncertainty status are shown in the table. Hebrew support errors have code/unique error ID and a copy button. Refresh never starts a transaction pull, disconnects or changes subscriptions. Fully verified revocation may now clear the affected operational cache/results under the subsequently approved shared-cleanup contract; partial/unknown proof preserves data.
+
+Opening a source, keyed-consent or full-disconnection confirmation also uses the same saving permission refresh to obtain the current affected instruments. Confirmation opens only after a complete result; partial, failed and in-flight checks cannot authorize cancellation. Opening settings itself remains a stored read. Successful source-list diagnostics log counts only, without raw account/source rows.
+
+Without a persisted permission list, an empty local list cannot prove the provider has no pending/unmapped permissions. Full disconnect stays available and fetches/saves current metadata before preview. Only a complete live preview sets the in-memory previewVerified gate; stored rows alone cannot authorize confirmation. Pending source-less permissions are shown from that response without being duplicated in the database.
+
+Cancellation support failures use OB-05 and preserve the server error ID through a failed post-action profile reload. Source-row cancellation targets its consent only; full disconnection includes all discovered consents, regardless of primary/spouse role.
+
+- Banking source pull actions require saved hasConsent=true and exclude direct cards. Support errors use the global banking toast (code + error ID + copy action); do not add a parallel generic error notification.

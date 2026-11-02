@@ -1,8 +1,12 @@
+import { BankingNotificationService } from './banking-notification.service';
+import { ButtonComponent } from '../button/button.component';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, inject, signal } from '@angular/core';
+import { OpenBankingErrorComponent, BankingSupportError, bankingRequestError } from './open-banking-error.component';
+import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogModule } from 'primeng/dialog';
-import { finalize, map, of, switchMap } from 'rxjs';
+import { catchError, finalize, map, of, switchMap } from 'rxjs';
 import { AuthService } from 'src/app/services/auth.service';
 import { BankingConsent, BankingTargets, FeezbackService } from 'src/app/services/feezback.service';
 import { GenericTableComponent } from '../generic-table/generic-table.component';
@@ -11,11 +15,18 @@ import { IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shar
 
 @Component({
   selector: 'app-open-banking-management', standalone: true,
-  imports: [CommonModule, DialogModule, GenericTableComponent],
+  imports: [ButtonComponent, CommonModule, DialogModule, GenericTableComponent, OpenBankingErrorComponent],
   templateUrl: './open-banking-management.component.html',
   styleUrls: ['./open-banking-management.component.scss'],
 })
 export class OpenBankingManagementComponent implements OnInit, OnChanges {
+  readonly buttonColor = ButtonColor;
+  readonly small=ButtonSize.AUTO;
+  private readonly notifications=inject(BankingNotificationService);
+  constructor(){effect(()=>{const issue=this.supportError(),error=this.error(),message=this.message();
+    if(issue)return;if(error)this.notifications.message(error);else if(message)this.notifications.message(message,true);
+  });}
+  readonly supportError = signal<BankingSupportError | null>(null);
   @Input() firebaseId?: string;
   @Input() embedded = false;
   @Input() externalBusy = false;
@@ -30,6 +41,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   readonly error = signal('');
   readonly message = signal('');
   readonly synthetic = signal(false);
+  readonly previewVerified = signal(false);
   readonly confirmation = signal<'all' | BankingConsent | null>(null);
   readonly choices = signal<BankingConsent[] | null>(null);
   readonly rows = computed<IRowDataTable[]>(() => {
@@ -106,33 +118,36 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
   }
   closePreview(): void {
     if (this.busy()) return;
+    this.previewVerified.set(false);
     this.confirmation.set(null); this.choices.set(null);
   }
-  load(onLoaded?: () => void): void {
+  refresh(): void { this.load(()=>this.message.set('בדיקת ההרשאות הושלמה.'), true); }
+  load(onLoaded?: () => void, live = false): void {
     if (!this.canManage() || this.busy() || this.loading() || this.externalBusy) return;
-    this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false);
-    this.service.disconnectionTargets(this.firebaseId).pipe(
-      switchMap(data => !this.firebaseId && data.complete
-        ? this.auth.restoreUserData().pipe(map(() => data)) : of(data)),
+    this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false); this.supportError.set(null);
+    (live ? this.service.refreshPermissions(this.firebaseId) : this.service.disconnectionTargets(this.firebaseId)).pipe(
+      switchMap(data => live && !this.firebaseId
+        ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => data)) : of(data)),
       finalize(() => this.loading.set(false)),
     ).subscribe({
-      next: data => { this.targets.set(data); if (data.complete) this.connectionChanged.emit(); onLoaded?.(); },
+      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? (data.complete ? null : bankingRequestError(null))); this.previewVerified.set(live && data.complete); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
       error: err => {
-        this.targets.set(null);
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
+        if (!this.synthetic()) this.supportError.set(bankingRequestError(err));
+        else this.targets.set(null);
         this.error.set(this.synthetic()
           ? 'זהו חיבור הדגמה. ניהול וניתוק הרשאות זמינים לחיבור בנקאות פתוחה אמיתי בלבד.'
-          : 'לא ניתן לבדוק את ההרשאות כרגע. אפשר לנסות שוב.');
+          : '');
       },
     });
   }
   openSourceConsent(sourceRecordId: number): void {
     if (!Number.isInteger(sourceRecordId) || sourceRecordId <= 0) return;
     this.load(() => this.previewCandidates((this.targets()?.consents ?? [])
-      .filter(consent => consent.sources.some(source => source.sourceRecordId === sourceRecordId))));
+      .filter(consent => consent.sources.some(source => source.sourceRecordId === sourceRecordId))), true);
   }
   openConsentKey(key: string): void {
-    this.load(() => this.previewCandidates((this.targets()?.consents ?? []).filter(consent => this.consentKey(consent) === key)));
+    this.load(() => this.previewCandidates((this.targets()?.consents ?? []).filter(consent => this.consentKey(consent) === key)), true);
   }
   private previewCandidates(consents: BankingConsent[]): void {
     if (consents.length === 1) this.confirmation.set(consents[0]);
@@ -146,10 +161,15 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     if (this.busy() || this.externalBusy || !this.choices()?.some(item => this.consentKey(item) === this.consentKey(consent))) return;
     this.choices.set(null); this.confirmation.set(consent);
   }
-  openFullDisconnect(): void { this.load(() => this.confirmation.set('all')); }
+  openFullDisconnect(): void {
+    this.load(() => {
+      if (this.targets()?.consents.length) this.confirmation.set('all');
+      else this.message.set('לא נמצאו הרשאות לביטול.');
+    }, true);
+  }
   canConfirm(): boolean {
     const state = this.targets(); const selection = this.confirmation();
-    return this.canManage() && !this.synthetic() && !this.busy() && !this.loading() && !this.externalBusy && !!state?.complete &&
+    return this.canManage() && this.previewVerified() && !this.synthetic() && !this.busy() && !this.loading() && !this.externalBusy && !!state?.complete &&
       !!selection && (selection === 'all' ? state.consents.length > 0
         : state.consents.some(consent => this.consentKey(consent) === this.consentKey(selection)));
   }
@@ -160,10 +180,12 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     this.service.disconnect({ firebaseId: this.firebaseId, scope: selection === 'all' ? 'all' : 'consent',
       ...(selection === 'all' ? {} : { consentId: selection.consentId, connectionRole: selection.connectionRole }),
     }).pipe(
-      switchMap(result => !this.firebaseId ? this.auth.restoreUserData().pipe(map(() => result)) : of(result)),
+      switchMap(result => !this.firebaseId ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => result)) : of(result)),
       finalize(() => { this.busy.set(false); this.busyChange.emit(false); }),
     ).subscribe({
       next: result => {
+        this.previewVerified.set(false);
+        this.supportError.set(result.supportError ?? null);
         this.confirmation.set(null); this.choices.set(null);
         this.targets.set({ consents: result.remainingConsents, complete: result.complete, hasOpenBanking: result.hasOpenBanking, errors: result.errors });
         if (result.status === 'partial' || !result.complete ||
@@ -172,7 +194,9 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         } else { this.message.set(selection === 'all' ? 'הניתוק מבנקאות פתוחה הושלם.' : 'ההרשאה בוטלה.'); }
         this.connectionChanged.emit();
       },
-      error: () => {
+      error: (err) => {
+        this.supportError.set(bankingRequestError(err, 'OB-05'));
+        this.previewVerified.set(false);
         this.confirmation.set(null); this.targets.set(null);
         this.error.set('לא ניתן לאשר שהפעולה הושלמה. יש לרענן את מצב ההרשאות לפני ניסיון נוסף.');
         this.connectionChanged.emit();

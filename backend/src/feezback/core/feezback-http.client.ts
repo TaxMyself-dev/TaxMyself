@@ -121,7 +121,7 @@ export class FeezbackHttpClient {
         traceEntry.status = mapped.status;
 
         // Record each failed transaction or card-list attempt, including failures recovered by retry.
-        if (method === 'GET' && /\/(transactions|cards)\/?$/.test(new URL(url).pathname)) {
+        if (method === 'DELETE' || (method === 'GET' && /\/(transactions|cards)\/?$/.test(new URL(url).pathname))) {
           const credentials = Object.entries(headers)
             .filter(([name]) => /authorization|token|api[-_]?key|cookie/i.test(name))
             .flatMap(([, value]) => [value, value.replace(/^Bearer\s+/i, '')]);

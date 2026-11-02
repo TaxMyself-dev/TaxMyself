@@ -1,4 +1,7 @@
 <p-toast [position]="'bottom-right'" [key]="'br'" />
+<p-toast position="bottom-right" key="banking">
+  <ng-template pTemplate="message" let-message><app-banking-toast-content [message]="message" /></ng-template>
+</p-toast>
 @if (genericService.isLoading()) {
   <div class="global-loader-overlay">
     <div class="loader-box">

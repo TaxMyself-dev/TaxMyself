@@ -10,10 +10,11 @@ describe('Feezback late-pull persistence boundary', () => {
       getSourceResults: jest.fn().mockResolvedValue([{ sourceRecordId: 11, consentId: 'c1' }, { sourceRecordId: 12, consentId: 'c2' }]),
       markCacheReadyAfterSourcePull: jest.fn().mockResolvedValue(undefined),
       markSyncFinished: jest.fn().mockResolvedValue(undefined),
+      markSyncInterrupted: jest.fn().mockResolvedValue(undefined),
     };
     lock = jest.fn(async () => user);
     service = Object.create(FeezbackService.prototype);
-    Object.assign(service, { processingService: processing, userSyncStateService: sync,
+    Object.assign(service, { logger:{error:jest.fn(),log:jest.fn()}, processingService: processing, userSyncStateService: sync,
       sourceRepository: { find: jest.fn().mockResolvedValue([{ id: 11 }, { id: 12 }]),
         manager: { transaction: jest.fn(async callback => callback({ getRepository: () => ({ findOne: lock }) })) } },
       notifyProviderDuplicates: jest.fn().mockResolvedValue(undefined),
@@ -34,6 +35,7 @@ describe('Feezback late-pull persistence boundary', () => {
     await Promise.all([cleanup, late, finish, promote]);
     expect(processing.process).toHaveBeenCalledWith('owner', []);
     expect(sync.markSyncFinished).not.toHaveBeenCalled();
+    expect(sync.markSyncInterrupted).toHaveBeenCalledWith('owner');
     expect(sync.markCacheReadyAfterSourcePull).not.toHaveBeenCalled();
     expect(lock).toHaveBeenCalledWith(expect.objectContaining({ lock: { mode: 'pessimistic_write' } }));
   });

@@ -6,9 +6,12 @@ import { FullTransactionCache } from '../transactions/full-transaction-cache.ent
 import { UserTransactionCacheState } from '../transactions/user-transaction-cache-state.entity';
 import { UserSyncState } from '../transactions/user-sync-state.entity';
 import type { DisconnectionTargets } from './feezback-disconnection.service';
+import { resetSourceOperationalState } from './consent/clear-source-operational-data';
+import { UserSourceSyncState } from '../transactions/user-source-sync-state.entity';
 
 /** Internal final-read evidence; never returned to the browser. */
 export interface DisconnectionCacheProof {
+  observedAt?: Date;
   complete: boolean;
   consents: DisconnectionTargets['consents'];
   errors: DisconnectionTargets['errors'];
@@ -40,17 +43,35 @@ export class FeezbackCacheCleanupService {
         where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' },
       });
       if (!user) throw new BadRequestException('User not found');
-      let sourceRecordIds: number[] = [];
+      const owned = await manager.getRepository(Source).find({ where: { userId }, select: ['id', 'connectionRole', 'metadataVerifiedAt'] });
+      let sourceRecordIds: number[] = owned.map(source=>source.id);
       if (!full) {
-        const owned = await manager.getRepository(Source).find({ where: { userId }, select: ['id', 'connectionRole'] });
         const ownedIds = new Set(owned.filter(source => proof.sources.some(item => item.sourceRecordId === source.id &&
           item.connectionRole === (source.connectionRole ?? 'primary'))).map(source => source.id));
         sourceRecordIds = [...new Set(eligible.filter(id => ownedIds.has(id)))];
         if (!sourceRecordIds.length) return { deleted: 0, full: false };
       }
+      if (proof.observedAt) {
+        const latest = await manager.getRepository(UserSyncState).findOne({where:{userId}});
+        if (latest?.lastSourcesRefreshAttemptAt && latest.lastSourcesRefreshAttemptAt > proof.observedAt)
+          throw new Error('Disconnection verification superseded');
+        const safeIds: number[] = [];
+        for (const id of sourceRecordIds.sort((a,b)=>a-b)) {
+          const source = await manager.getRepository(Source).findOne({where:{id,userId},lock:{mode:'pessimistic_write'}});
+          const row = await manager.getRepository(UserSourceSyncState).findOne({where:{userId,sourceRecordId:id},lock:{mode:'pessimistic_write'}});
+          if (!source || row?.consentId || (source.metadataVerifiedAt && source.metadataVerifiedAt > proof.observedAt)) {
+            if (full) throw new Error('Source reconnected during disconnection verification');
+            continue;
+          }
+          safeIds.push(id);
+        }
+        sourceRecordIds = safeIds;
+        if (!full && !sourceRecordIds.length) return {deleted:0,full:false};
+      }
       // Publish the verified full disconnect under the same lock before
       // deleting cache; a waiting persistence guard must observe false.
       if (full) await manager.update(User, { firebaseId: userId }, { hasOpenBanking: false });
+      await resetSourceOperationalState(manager,userId,sourceRecordIds);
       const deleted = await manager.delete(FullTransactionCache,
         full ? { userId } : { userId, sourceRecordId: In(sourceRecordIds) });
       // A partially removed cache must not remain advertised as fresh. Other
@@ -60,6 +81,7 @@ export class FeezbackCacheCleanupService {
         fullProcessStatus: 'empty', fullResultStatus: 'none', fullRowsWritten: 0,
         fullStartedAt: null, fullFinishedAt: null, fullSkipReason: null,
         fullFailureReason: null, lastSourcesRefreshAt: null,
+        fullRunId: null,
       });
       return { deleted: deleted.affected ?? 0, full };
     });

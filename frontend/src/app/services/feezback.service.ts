@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
+import { BankingSupportError } from '../components/open-banking-management/open-banking-error.component';
 
 export interface AdminAccountsAndCardsResponse {
   accounts: any;
@@ -15,6 +16,7 @@ export interface BankingConsent {
   sources: { sourceRecordId: number | null; resourceId?: string; sourceName: string; sourceType: 'BANK_ACCOUNT' | 'CREDIT_CARD' }[];
 }
 export interface BankingTargets {
+  supportError?: BankingSupportError;
   consents: BankingConsent[];
   complete: boolean;
   hasOpenBanking: boolean;
@@ -27,6 +29,7 @@ export interface BankingDisconnectRequest {
   connectionRole?: 'primary' | 'spouse';
 }
 export interface BankingDisconnectResult {
+  supportError?: BankingSupportError;
   status: 'success' | 'partial';
   remainingConsents: BankingConsent[];
   complete: boolean;
@@ -41,6 +44,10 @@ export interface BankingDisconnectResult {
 export class FeezbackService {
 
   constructor(private http: HttpClient) { }
+
+  refreshPermissions(firebaseId?: string): Observable<BankingTargets> {
+    return this.http.post<BankingTargets>(`${environment.apiUrl}feezback/refresh-permissions`, firebaseId ? { firebaseId } : {});
+  }
 
   disconnectionTargets(firebaseId?: string): Observable<BankingTargets> {
     return this.http.get<BankingTargets>(`${environment.apiUrl}feezback/disconnection-targets`, {

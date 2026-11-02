@@ -19,6 +19,7 @@ import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
+import { BankingSupportError } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
@@ -31,6 +32,7 @@ import { AppFeature } from 'src/app/shared/access-control';
 })
 
 export class TransactionsPage implements OnInit {
+  readonly bankingError = signal<BankingSupportError | null>(null);
   readonly hasOpenBanking = signal<boolean | null>(null);
   readonly consentDialogVisible = signal(false);
   readonly consentChecked = signal(false);
@@ -400,6 +402,8 @@ export class TransactionsPage implements OnInit {
     this.restartPolling$.next();
     if (this.hasOpenBanking() === false) return;
 
+    if (!this.filteredExpensesData() && !this.filteredIncomesData()) this.getTransactions(null);
+
     let hasFetched = false;
 
     this.syncStatusService.getSyncStageStream()
@@ -440,6 +444,7 @@ export class TransactionsPage implements OnInit {
         }
 
         const status = stageState.processStatus;
+        this.bankingError.set(stageState.supportError ?? null);
 
         if (status === 'running') {
           this.syncProcessStatus.set('running');
@@ -451,8 +456,7 @@ export class TransactionsPage implements OnInit {
           }
         } else if (status === 'failed') {
           this.syncProcessStatus.set('failed');
-          this.filteredExpensesData.set(null);
-          this.filteredIncomesData.set(null);
+          // Preserve existing data when a refresh fails.
         }
       });
   }

@@ -43,3 +43,5 @@ Apply the appended user-column SQL in docs/redesign/cutover.sql before deploymen
 
 ## Signup transaction isolation
 UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).
+
+Banking login work is dispatched before awaiting Drive diagnostics. A slow/failed Drive check must not delay or prevent banking synchronization; synthetic-demo skip behavior is unchanged.
