@@ -25,3 +25,13 @@ Verification: all 17 WhatsApp suites / 240 mocked tests passed, including
 production-profile question and result delivery. Focused verification also passed
 167 tests before the complete regression run. Backend build and diff check
 passed. No live message, database, environment or cloud changes were performed.
+
+## Authorized local main integration — 2026-11-02
+
+User separately approved main integration without deployment or push. Main was
+clean at b9717c61 and fast-forwarded to 1fed0a3d without conflicts. Only the
+13 reviewed Lychee backend/documentation files changed; proxy, Feezback and
+Cardcom code remained unchanged. All 17 suites / 240 mocked tests passed again
+on integrated main. Backend build result is recorded below.
+
+Integrated-main backend build: npm run build passed. No live messages, data changes, cloud changes, deployment or GitHub push.
