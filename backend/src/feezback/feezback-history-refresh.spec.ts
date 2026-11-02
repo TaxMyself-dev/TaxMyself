@@ -51,9 +51,19 @@ describe('Permission refresh excludes inactive history', () => {
     await service.refreshUserSources('history-owner','permissions-refresh');
     expect(sources.query).not.toHaveBeenCalled();
   });
+  it.each(['ConsentStatusChanged','permissions-refresh'])('does not infer direct cards on %s before readiness',async label=>{
+    const {service,sources,sync}=fixture('valid');await service.refreshUserSources('history-owner',label);
+    expect(sources.query.mock.calls.every(([,params])=>params[3]===null)).toBe(true);
+    expect(sync.upsertSourceConsents).toHaveBeenCalledWith('history-owner',expect.arrayContaining([expect.objectContaining({type:'card',isDirect:null})]),expect.any(Date));
+  });
+  it('does not classify failed cards even when the consent is valid',async()=>{
+    const {service,sources}=fixture('valid');await service.refreshUserSources('history-owner','UserDataIsAvailable',
+      {sub:'history-owner_sub',consentId:'c',fetchedAccounts:[{resourceId:'card'}],failedToFetchAccounts:[{resourceId:'card'}]});
+    expect(sources.query.mock.calls.every(([,params])=>params[3]===null)).toBe(true);
+  });
   it('still adds active sources and reports verified consent, including direct cards',async()=>{
     const {service,sources,log}=fixture('valid');
-    await service.refreshUserSources('history-owner','permissions-refresh');
+    await service.refreshUserSources('history-owner','UserDataIsAvailable',{sub:'history-owner_sub',consentId:'c',fetchedAccounts:[{resourceId:'card'}],failedToFetchAccounts:[]});
     expect(sources.query).toHaveBeenCalledTimes(2);
     expect(sources.query.mock.calls.some(([,params])=>params[3]===true)).toBe(true);
     expect(log.mock.calls.flat().join('\n')).toContain('verifiedConsent=true');

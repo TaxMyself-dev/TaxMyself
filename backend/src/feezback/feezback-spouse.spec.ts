@@ -142,10 +142,10 @@ describe('optional Feezback spouse identity', () => {
     const webhook: any = new FeezbackWebhookService({} as any, provider);
     const event = { payload: { user: feezbackSub(uid, true) + '@tpp' } };
     await webhook.handleUserDataIsAvailable(event);
-    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable');
+    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable',expect.objectContaining({sub:feezbackSub(uid,true)}));
     provider.verifySpouseWebhookConnection.mockResolvedValue(true);
     await webhook.handleUserDataIsAvailable(event);
-    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable');
+    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable',expect.objectContaining({sub:feezbackSub(uid,true)}));
   });
   it('marks only failed-identity sources retryable, preserving direct cards', async () => {
     const impl: any = service;

@@ -190,7 +190,10 @@ export class FeezbackWebhookService {
       if (sub.endsWith('_sub_spouse')) {
         await this.feezbackService.verifySpouseWebhookConnection(firebaseId, sub);
       }
-      await this.feezbackService.refreshUserSources(firebaseId, 'UserDataIsAvailable');
+      await this.feezbackService.refreshUserSources(firebaseId, 'UserDataIsAvailable', {
+        sub, consentId: typeof payload.consent === 'string' ? payload.consent : '',
+        fetchedAccounts: payload.fetchedAccounts, failedToFetchAccounts: payload.failedToFetchAccounts,
+      });
     } catch (error: any) {
       this.logger.error(
         `[FeezbackWebhook][UserDataIsAvailable] handler failed firebaseId=${masked}: ${error?.message}`,

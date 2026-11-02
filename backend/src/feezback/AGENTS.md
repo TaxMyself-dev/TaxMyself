@@ -145,3 +145,10 @@ Current-pull summaries use user_sync_state.fullRunId and user_source_sync_state.
 ## Cancellation failure diagnostics (2026-11-01)
 
 Consent termination failures and unconfirmed completion use consent_termination / OB-05 with a server UUID. Per-consent results retain their support issue; full disconnection attempts every discovered permission, including separate consents under the same identity. Authoritative terminal verification may recover a transport failure. Partial outcomes always carry a support issue, including failed initial discovery. DELETE attempt diagnostics redact provider payloads/credentials; the aggregate outcome logs scope, counts and the support ID. No cache removal is authorized by an unverified termination failure. Profile reload failure does not hide the cancellation response. This follow-up adds no schema change or production operation.
+
+
+## Direct classification readiness (2026-11-02)
+
+The absence-of-balances Direct rule is evaluated for new discovery classifications only with UserDataIsAvailable proof matching the exact identity, consent and successful card reference. failedToFetchAccounts overrides fetchedAccounts; missing/malformed proof preserves the prior kind. ConsentStatusChanged and ordinary permission refresh save verified links but do not introduce Direct classifications. Other identities/consents are never certified by this proof. No additional schema or consent snapshot is used.
+
+Transaction pulls retain known card kinds; positive balances can identify credit, but missing balances cannot introduce Direct. An unknown card kind without balances yields an isolated CARD_DATA_NOT_READY source failure rather than importing a potential duplicate feed or silently skipping it. Other cards continue. OpenBankingCardKind diagnostics contain readiness, field presence, balance count and the chosen/preserved kind, without monetary amounts or full card identifiers.

@@ -162,7 +162,7 @@ describe('Open banking reliability regression', () => {
     ]})};
     const consent={getCardTransactions:jest.fn(async(_sub,_consent,id)=>({transactions:{booked:[{transactionId:id}]}}))};
     const service=new FeezbackService({} as any,{getTppId:()=> 'tpp'} as any,api as any,consent as any,{} as any,{} as any,
-      {} as any,{query:jest.fn().mockResolvedValue(undefined)} as any,{} as any,{} as any);
+      {} as any,{query:jest.fn().mockResolvedValue(undefined),find:jest.fn().mockResolvedValue([])} as any,{} as any,{} as any);
     jest.spyOn(service as any,'saveSourceTransactionsToFile').mockReturnValue({});
     jest.spyOn(service as any,'normalizeCardTransactions').mockImplementation((rows:any[])=>{
       if(rows[0]?.transactionId==='bad')throw Error('Malformed card');
