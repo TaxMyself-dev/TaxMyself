@@ -4,6 +4,14 @@ import { AdminBillingService } from './services/admin-billing.service';
 import { UsersService } from 'src/users/users.service';
 
 describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
+  it('rejects refund document access before reading the PDF for a non-admin', async () => {
+    const refunds = { document: jest.fn() };
+    const c = new AdminBillingController({} as any, { isAdmin: jest.fn().mockResolvedValue(false) } as any,
+      undefined, refunds as any);
+    await expect(c.refundDocument({ user: { firebaseId: 'user' } } as any, 7, 13, {} as any))
+      .rejects.toThrow(ForbiddenException);
+    expect(refunds.document).not.toHaveBeenCalled();
+  });
   let controller: AdminBillingController;
   let adminBillingService: { updateSubscriptionTrialEnd: jest.Mock };
   let usersService: { isAdmin: jest.Mock };

@@ -20,7 +20,7 @@ import {
   DemoSeedResult,
   DemoTestResetResult,
 } from './demo-data.service';
-import { isDemoEmail } from './profiles';
+import { canSelfResetDemoEmail } from './profiles';
 
 @Controller('demo-data')
 @UseGuards(FirebaseAuthGuard)
@@ -95,8 +95,8 @@ export class DemoDataController {
 
   /**
    * In-app reset triggered by a demo user from their own dashboard. NOT
-   * admin-gated — the caller's email is checked against DEMO_PROFILES,
-   * so only demo users can hit this. Wipes Drive + DB derived state and
+   * admin-gated — the caller's primary profile must explicitly opt into
+   * self-reset. Wipes Drive + DB state and
    * re-uploads the sample files (see DemoDataService.testReset for the
    * full purge list). Preserves the user identity so the session stays
    * valid.
@@ -114,11 +114,11 @@ export class DemoDataController {
     }
     console.log(`[test-reset][controller] firebaseId=${firebaseId.substring(0, 8)}...`);
     const user = await this.usersService.findByFirebaseId(firebaseId);
-    if (!isDemoEmail(user?.email)) {
+    if (!canSelfResetDemoEmail(user?.email)) {
       console.log(
-        `[test-reset][controller] REJECTED — email "${user?.email}" not in DEMO_PROFILES`,
+        `[test-reset][controller] REJECTED — email "${user?.email}" lacks self-reset capability`,
       );
-      throw new ForbiddenException('אפס נתוני בדיקה זמין רק למשתמשי דמו');
+      throw new ForbiddenException('איפוס עצמי זמין רק לסביבת הדמו המורשית');
     }
     console.log(`[test-reset][controller] AUTHORIZED email=${user?.email} — calling service.testReset`);
     return this.service.testReset(firebaseId);

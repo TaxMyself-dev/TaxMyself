@@ -31,8 +31,11 @@ describe('FirebaseAuthGuard', () => {
   let delegationRepo: { findOne: jest.Mock; find: jest.Mock };
   let userRepo: { findOne: jest.Mock };
   let guard: FirebaseAuthGuard;
+  let previousMfaRequirement: string | undefined;
 
   beforeEach(() => {
+    previousMfaRequirement = process.env.AUTH_MFA_REQUIRED;
+    delete process.env.AUTH_MFA_REQUIRED;
     delegationRepo = {
       findOne: jest.fn().mockResolvedValue(null),
       find: jest.fn().mockResolvedValue([]),
@@ -44,7 +47,14 @@ describe('FirebaseAuthGuard', () => {
     } as any);
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    if (previousMfaRequirement === undefined) {
+      delete process.env.AUTH_MFA_REQUIRED;
+    } else {
+      process.env.AUTH_MFA_REQUIRED = previousMfaRequirement;
+    }
+    jest.restoreAllMocks();
+  });
 
   /** `requiredScope` simulates a route decorated with @RequiredDelegationScope
    *  by stamping the same metadata key the real decorator (SetMetadata)
@@ -87,13 +97,76 @@ describe('FirebaseAuthGuard', () => {
     expect(delegationRepo.findOne).not.toHaveBeenCalled();
   });
 
+  it('rejects a valid first-factor-only token when MFA enforcement is enabled', async () => {
+    process.env.AUTH_MFA_REQUIRED = 'true';
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'MFA_REQUIRED' }),
+    });
+  });
+
+  it('accepts a token carrying Firebase second-factor proof when MFA enforcement is enabled', async () => {
+    process.env.AUTH_MFA_REQUIRED = 'true';
+    jest.spyOn(admin, 'auth').mockReturnValue({
+      verifyIdToken: jest.fn().mockResolvedValue({
+        uid: AGENT,
+        firebase: {
+          sign_in_provider: 'password',
+          sign_in_second_factor: 'totp',
+        },
+      }),
+    } as any);
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+  });
+
   it('delegation lookup filters status = ACTIVE (revoked → 403)', async () => {
     // repo returns null because the where-clause includes ACTIVE
     const { context } = makeContext('GET');
+    const warn = jest
+      .spyOn((guard as any).logger, 'warn')
+      .mockImplementation(() => undefined);
     await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     expect(delegationRepo.findOne).toHaveBeenCalledWith({
       where: { userId: CLIENT, agentId: AGENT, status: DelegationStatus.ACTIVE },
     });
+    const logged = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual(
+      expect.objectContaining({
+        event: 'security_event',
+        securityEvent: 'authorization_delegation_denied',
+        method: 'GET',
+      }),
+    );
+    expect(logged).not.toContain(AGENT);
+    expect(logged).not.toContain(CLIENT);
+  });
+
+  it('logs an invalid Firebase token without logging the token or identity headers', async () => {
+    jest.spyOn(admin, 'auth').mockReturnValue({
+      verifyIdToken: jest.fn().mockRejectedValue(new Error('verification failed')),
+    } as any);
+    const warn = jest
+      .spyOn((guard as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+    const { context } = makeContext('GET', false);
+
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'Invalid authorization token',
+    );
+
+    const logged = warn.mock.calls[0][0] as string;
+    expect(JSON.parse(logged)).toEqual(
+      expect.objectContaining({
+        event: 'security_event',
+        securityEvent: 'auth_invalid_firebase_token',
+        method: 'GET',
+      }),
+    );
+    expect(logged).not.toContain('fake-token');
+    expect(logged).not.toContain('123456789');
   });
 
   it('ACTIVE read-only + GET → passes, identity swapped, actor preserved', async () => {

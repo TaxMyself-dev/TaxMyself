@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "outDir": "./out-tsc/table-actions-spec", "types": ["jasmine", "node"], "skipLibCheck": true },
+  "files": ["src/test.ts", "src/polyfills.ts"],
+  "include": [
+    "src/app/components/generic-table/*.spec.ts",
+    "src/app/components/table-row-actions-menu/*.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

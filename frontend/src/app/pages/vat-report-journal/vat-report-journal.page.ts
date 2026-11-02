@@ -1,8 +1,9 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, computed, DestroyRef, inject, Input, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { VatReportJournalService } from './vat-report-journal.service';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
-import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, of, switchMap, take, tap, timer } from 'rxjs';
+import { EMPTY, Observable, catchError, filter, finalize, forkJoin, from, fromEvent, map, merge, of, switchMap, take, tap, timer } from 'rxjs';
 import { BusinessStatus, FormTypes, ICellRenderer, inputsSize, ReportingPeriodType, ReportingPeriodTypeLabels, VATReportingType } from 'src/app/shared/enums';
 //import { ButtonSize } from 'src/app/shared/button/button.enum';
 import { ButtonSize } from 'src/app/components/button/button.enum';
@@ -99,7 +100,7 @@ export class VatReportJournalPage implements OnInit {
   private inboxProcessingBusinessNumber: string | null = null;
   displayExpenses: boolean = false;
   tableActions: ITableRowAction[];
-  fileActions: ITableRowAction[];
+  fileActions: IGenericTableAction[];
   arrayFile: { id: number, file: File | string }[] = [];
   filesAttachedMap = signal<Map<number, File>>(new Map());
   previousFile: string;
@@ -1183,6 +1184,8 @@ export class VatReportJournalPage implements OnInit {
     this.fileActions = [
       {
         name: 'preview',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
         showWhen: (row: IRowDataTable) => this.hasStoredFile(row),
@@ -1192,6 +1195,8 @@ export class VatReportJournalPage implements OnInit {
       },
       {
         name: 'download',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
         icon: 'pi pi-download',
         title: 'הורד קובץ',
         showWhen: (row: IRowDataTable) => this.hasStoredFile(row),
@@ -1201,6 +1206,10 @@ export class VatReportJournalPage implements OnInit {
       },
       {
         name: 'edit',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
+        execution: 'fileInput',
+        requiresFileEditing: true,
         icon: 'pi pi-pencil',
         title: 'ערוך קובץ (החלף)',
         showWhen: (row: IRowDataTable) => this.canManageExpenses() && this.hasManualFile(row),
@@ -1213,7 +1222,7 @@ export class VatReportJournalPage implements OnInit {
             rejectLabel: 'לא',
             accept: () => {
               fileInput.value = '';
-              fromEvent(fileInput, 'change').pipe(
+              merge(fromEvent(fileInput, 'change'), fromEvent(fileInput, 'cancel')).pipe(
                 take(1),
                 map(() => fileInput.files?.[0] || null),
                 filter((file): file is File => !!file)
@@ -1230,6 +1239,9 @@ export class VatReportJournalPage implements OnInit {
       },
       {
         name: 'delete',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
+        requiresFileEditing: true,
         icon: 'pi pi-trash',
         title: 'מחק קובץ',
         showWhen: (row: IRowDataTable) => this.canManageExpenses() && this.hasManualFile(row),

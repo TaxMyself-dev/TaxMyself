@@ -18,6 +18,7 @@ import {
 import { BillingObligation } from './billing-obligation.entity';
 import { PaymentMethod } from './payment-method.entity';
 import { SubscriptionPlan } from './subscription-plan.entity';
+import { BillingEvent } from './billing-event.entity';
 
 @Entity('billing_attempt')
 @Index('ux_billing_attempt_number', ['obligationId', 'attemptNumber'], {
@@ -33,18 +34,47 @@ import { SubscriptionPlan } from './subscription-plan.entity';
 @Index('ix_billing_attempt_status_action', ['status', 'nextActionAt'])
 @Index('ix_billing_attempt_lease_status', ['leaseExpiresAt', 'status'])
 @Index('ix_billing_attempt_obligation_status', ['obligationId', 'status'])
+@Index('ux_billing_attempt_request', ['requestId'], { unique: true })
+@Index('ix_billing_attempt_refund_source', ['sourcePaymentEventId', 'operation', 'status'])
+@Index('ix_billing_attempt_operation_action', ['operation', 'status', 'nextActionAt'])
+@Index('ux_billing_attempt_refund_provider', ['providerTerminalRef', 'refundProviderTransactionId'], { unique: true })
+// Cross-FK operation invariant is enforced by the dev migration's INSERT/UPDATE
+// triggers: MySQL 8 rejects CHECK clauses on ON UPDATE CASCADE FK columns.
 @Check('ck_billing_attempt_number', '`attempt_number` > 0')
 @Check(
   'ck_billing_attempt_amounts',
   '`amount_agorot` >= 0 AND `amount_before_vat_agorot` >= 0 AND `vat_amount_agorot` >= 0 AND `amount_before_vat_agorot` + `vat_amount_agorot` = `amount_agorot`',
 )
 export class BillingAttempt {
+  @Column({ type: 'enum', enum: ['CHARGE', 'REFUND'], default: 'CHARGE' })
+  operation: 'CHARGE' | 'REFUND';
+
+  @Column({ name: 'source_payment_event_id', type: 'int', nullable: true })
+  sourcePaymentEventId: number | null;
+
+  @ManyToOne(() => BillingEvent, { nullable: true, onDelete: 'RESTRICT', onUpdate: 'CASCADE' })
+  @JoinColumn({ name: 'source_payment_event_id', foreignKeyConstraintName: 'fk_billing_attempt_refund_source' })
+  sourcePaymentEvent: BillingEvent | null;
+
+  @Column({ name: 'request_id', type: 'varchar', length: 36, collation: 'utf8mb4_bin', nullable: true })
+  requestId: string | null;
+
+  @Column({ name: 'requested_by_firebase_id', type: 'varchar', length: 255, nullable: true })
+  requestedByFirebaseId: string | null;
+
+  @Column({ name: 'refund_reason', type: 'varchar', length: 500, nullable: true })
+  refundReason: string | null;
+
+  @Column({ name: 'refund_provider_transaction_id', type: 'varchar', length: 128, nullable: true,
+    asExpression: "CASE WHEN `operation` = 'REFUND' THEN `cardcom_transaction_id` ELSE NULL END",
+    generatedType: 'STORED', insert: false, update: false })
+  refundProviderTransactionId: string | null;
   @PrimaryGeneratedColumn()
   id: number;
 
   /** Primary debt for owner routing/numbering; full membership is in the link table. */
-  @Column({ name: 'obligation_id', type: 'int' })
-  obligationId: number;
+  @Column({ name: 'obligation_id', type: 'int', nullable: true })
+  obligationId: number | null;
 
   @ManyToOne(() => BillingObligation, (obligation) => obligation.attempts, {
     onDelete: 'RESTRICT',
@@ -145,8 +175,8 @@ export class BillingAttempt {
   })
   failureCategory: string | null;
 
-  @Column({ name: 'plan_id', type: 'int' })
-  planId: number;
+  @Column({ name: 'plan_id', type: 'int', nullable: true })
+  planId: number | null;
 
   @ManyToOne(() => SubscriptionPlan, {
     onDelete: 'RESTRICT',

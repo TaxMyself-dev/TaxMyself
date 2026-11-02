@@ -9,6 +9,7 @@
     "src/app/pages/admin-panel/guide-national-insurance.component.spec.ts",
     "src/app/pages/admin-panel/self-employed-guide.component.spec.ts",
     "src/app/pages/admin-panel/self-employed-tax-simulator.component.spec.ts",
+    "src/app/pages/admin-panel/tax-file-planning.spec.ts",
     "src/**/*.d.ts"
   ]
 }

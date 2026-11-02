@@ -13,8 +13,8 @@
     <!-- ARCHIVE TABLE -->
     <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="archivedDocsTableFields()"
         [dataTable]="filteredItems()" [placeholderSearch]="'חיפוש חופשי בטבלה'"
-        [searchColumns]="archiveSearchColumns" [fileActions]="fileActions()" [selectionModeCheckBox]="null"
-        [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig" [mobileCardActions]="fileActions()">
+        [searchColumns]="archiveSearchColumns" [actions]="fileActions()" [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig">
     </app-generic-table>
 
 </div>

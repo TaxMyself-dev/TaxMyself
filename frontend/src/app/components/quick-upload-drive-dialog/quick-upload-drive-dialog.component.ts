@@ -1,12 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
-import { appFileUploadGptComponent } from 'src/app/components/input-file/input-file.component';
+import { appFileUploadGptComponent, isAllowedUploadFile } from 'src/app/components/input-file/input-file.component';
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -30,7 +30,8 @@ import { inputsSize } from 'src/app/shared/enums';
     appFileUploadGptComponent,
   ],
 })
-export class QuickUploadDriveDialogComponent {
+export class QuickUploadDriveDialogComponent implements OnInit, OnDestroy {
+  private uploadSubscription?: Subscription;
   private readonly fb = inject(FormBuilder);
   private readonly dialogRef = inject(DynamicDialogRef);
   private readonly dialogConfig = inject(DynamicDialogConfig);
@@ -54,6 +55,7 @@ export class QuickUploadDriveDialogComponent {
 
   readonly selectedFiles = signal<File[]>([]);
   readonly isUploading = signal(false);
+  readonly capturedFile: File | undefined = this.dialogConfig.data?.capturedFile;
 
   readonly businessOptions = this.genericService.businessSelectItems;
   readonly showBusinessSelector = computed(
@@ -80,6 +82,22 @@ export class QuickUploadDriveDialogComponent {
     if (this.selectedFiles().length === 0) return false;
     return !!this.selectedBusinessNumber();
   });
+
+  ngOnInit(): void {
+    if (!this.capturedFile) return;
+    if (!this.capturedFile.type.startsWith('image/')
+      || !isAllowedUploadFile(this.capturedFile)
+      || this.capturedFile.size > 10 * 1024 * 1024) {
+      this.messageService.add({
+        severity: 'warn', summary: 'לא ניתן להעלות את התמונה',
+        detail: 'יש לצלם תמונה בפורמט JPG או PNG, עד 10MB.', life: 4000, key: 'br',
+      });
+      this.dialogRef.close();
+      return;
+    }
+    this.onFilesSelected([this.capturedFile]);
+    if (this.canUpload()) this.upload();
+  }
 
   onBusinessSelected(value: string | boolean): void {
     const bn = typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
@@ -118,7 +136,7 @@ export class QuickUploadDriveDialogComponent {
     }
     this.isUploading.set(true);
 
-    this.driveDocsService.uploadFilesToInbox(
+    this.uploadSubscription = this.driveDocsService.uploadFilesToInbox(
       files,
       businessNumber,
       this.clientUserId,
@@ -149,7 +167,13 @@ export class QuickUploadDriveDialogComponent {
   }
 
   cancel(): void {
-    if (this.isUploading()) return;
+    // Unsubscribing aborts HttpClient's in-flight upload request.
+    this.uploadSubscription?.unsubscribe();
+    this.selectedFiles.set([]);
     this.dialogRef.close();
+  }
+
+  ngOnDestroy(): void {
+    this.uploadSubscription?.unsubscribe();
   }
 }

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { pdfDiagnosticsMiddleware } from './documents/pdf/pdf-diagnostics';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -17,6 +18,7 @@ async function bootstrap() {
         logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
       }),
   );
+  app.use(pdfDiagnosticsMiddleware);
   // TypeORM establishes its connection while Nest builds the application
   // graph. This is a readiness milestone, not an isolated DB duration.
   startupTiming.mark('database.ready_milestone', 'milestone');

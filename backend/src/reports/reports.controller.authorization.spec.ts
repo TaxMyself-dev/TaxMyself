@@ -48,3 +48,59 @@ describe('ReportsController review UI capability', () => {
     expect(sharedService.isRepresentedByAccountant).not.toHaveBeenCalled();
   });
 });
+
+describe('ReportsController uniform-file date boundary', () => {
+  function setup() {
+    const reportsService = {
+      createUniformFile: jest.fn().mockResolvedValue({
+        filePath: 'openformat.zip',
+        zipBuffer: Buffer.from('zip'),
+        document_summary: [],
+        list_summary: [],
+      }),
+    };
+    const sharedService = {
+      convertStringToDateObject: jest.fn((value: string) => {
+        const [day, month, year] = value.split('/').map(Number);
+        return new Date(Date.UTC(year, month - 1, day));
+      }),
+    };
+    const controller = new ReportsController(
+      reportsService as any,
+      {} as any,
+      sharedService as any,
+      {} as any,
+    );
+    const response = { json: jest.fn() } as any;
+    const request = { user: { firebaseId: 'demo-user' } } as any;
+    return { controller, reportsService, response, request };
+  }
+
+  it('normalizes display dates to ISO before querying MySQL', async () => {
+    const { controller, reportsService, response, request } = setup();
+
+    await controller.getHelloWorldZip(request, {
+      startDate: '01/02/2026',
+      endDate: '31/03/2026',
+      businessNumber: '222222226',
+    }, response);
+
+    expect(reportsService.createUniformFile).toHaveBeenCalledWith(
+      'demo-user',
+      '2026-02-01',
+      '2026-03-31',
+      '222222226',
+    );
+  });
+
+  it('rejects an inverted date range before report generation', async () => {
+    const { controller, reportsService, response, request } = setup();
+
+    await expect(controller.getHelloWorldZip(request, {
+      startDate: '31/03/2026',
+      endDate: '01/02/2026',
+      businessNumber: '222222226',
+    }, response)).rejects.toThrow('startDate must not be after endDate');
+    expect(reportsService.createUniformFile).not.toHaveBeenCalled();
+  });
+});

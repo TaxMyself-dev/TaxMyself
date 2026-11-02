@@ -1,9 +1,10 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { EMPTY, of } from 'rxjs';
-import { catchError, finalize, map, take } from 'rxjs/operators';
+import { EMPTY, of, throwError } from 'rxjs';
+import { catchError, finalize, map, switchMap, take } from 'rxjs/operators';
 import { DocumentsService } from 'src/app/services/documents.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import {
   BusinessStatus,
   BusinessType,
@@ -11,7 +12,6 @@ import {
   DocumentsTableHebrewColumns,
   FormTypes,
   ReportingPeriodType,
-  getAllocationNumberThreshold,
   isExemptBusinessType,
 } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
@@ -24,6 +24,7 @@ import { Router } from '@angular/router';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
+import { ShaamService } from 'src/app/services/shaam.service';
 
 // Israeli Tax Authority page where the user manually requests an allocation number.
 const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
@@ -50,6 +51,7 @@ export class IncomesPage implements OnInit {
   private fb = inject(FormBuilder);
   private router = inject(Router);
   private dialogService = inject(DialogService);
+  private shaamService = inject(ShaamService);
 
   // For the allocation-number entry dialog
   readonly buttonSize = ButtonSize;
@@ -78,7 +80,7 @@ export class IncomesPage implements OnInit {
 
   isLoadingDataTable = signal<boolean>(false);
   myDocuments: any;
-  fileActions = signal<ITableRowAction[]>([]);
+  fileActions = signal<IGenericTableAction[]>([]);
 
   mobileCardConfig: IMobileCardConfig = {
     primaryFields: [DocumentsTableColumns.DOC_TYPE],
@@ -333,20 +335,10 @@ export class IncomesPage implements OnInit {
       return rawStatus === PENDING_ALLOCATION_STATUS;
     };
 
-    // "Get allocation # from tax authority" should appear whenever a tax
-    // invoice / tax-invoice-receipt needs an allocation number — either it
-    // was explicitly saved as PENDING_ALLOCATION, OR it was issued above the
-    // threshold without one (so the recipient currently can't reclaim VAT
-    // and the user might want to attach one retroactively).
+    // Automatic allocation is resumed only for the persisted, locked pending
+    // invoice. Already-issued invoices need a separate correction flow.
     const needsAllocationNumber = (row: IRowDataTable) => {
-      if (!isTaxInvoiceType(row)) return false;
-      if (isPending(row)) return true;
-      const r = row as any;
-      const sumBeforeVat = Number(r?.sumAftDisBefVAT ?? 0);
-      const hasAllocationNum = !!(r?.allocationNum && String(r.allocationNum).trim());
-      // Threshold depends on the doc's date (steps down over time per the
-      // VAT-reform schedule in getAllocationNumberThreshold).
-      return sumBeforeVat > getAllocationNumberThreshold(r?.docDate) && !hasAllocationNum;
+      return isTaxInvoiceType(row) && isPending(row);
     };
 
     // "Issue without allocation #" only makes sense while the doc is still
@@ -354,13 +346,30 @@ export class IncomesPage implements OnInit {
     const canFinalizeWithoutAllocation = (row: IRowDataTable) =>
       isTaxInvoiceType(row) && isPending(row);
 
-    // Original actions — always visible (behavior unchanged by the allocation
-    // feature). On pending-allocation rows the PDF doesn't exist yet, so the
-    // download/preview buttons will surface a "file missing" path; that's
-    // acceptable per product decision.
+    // Pending allocation actions precede stored-file document actions in every layout.
     this.fileActions.set([
+      // ── Pending-allocation actions (visible only when the doc is awaiting
+      // a decision about its allocation number). ──
+      {
+        name: 'get-allocation-from-tax',
+        desktopDisplay: 'icon',
+        icon: 'pi pi-refresh',
+        title: 'המשך / אחזר מספר הקצאה משע״מ',
+        showWhen: needsAllocationNumber,
+        action: (_event: any, row: IRowDataTable) => this.confirmResumeAutomaticAllocation(row),
+      },
+      {
+        name: 'finalize-no-allocation',
+        desktopDisplay: 'icon',
+        icon: 'pi pi-check',
+        title: 'הפק ללא מספר הקצאה',
+        showWhen: canFinalizeWithoutAllocation,
+        action: (_event: any, row: IRowDataTable) => this.finalizeWithoutAllocation(row),
+      },
       {
         name: 'preview',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
         icon: 'pi pi-eye',
         title: 'צפה בקובץ',
         action: (event: any, row: IRowDataTable) => {
@@ -369,6 +378,8 @@ export class IncomesPage implements OnInit {
       },
       {
         name: 'download',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
         icon: 'pi pi-download',
         title: 'הורד קובץ',
         action: (event: any, row: IRowDataTable) => {
@@ -377,6 +388,8 @@ export class IncomesPage implements OnInit {
       },
       {
         name: 'cancel',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
         icon: 'pi pi-times',
         title: 'ביטול',
         action: (event: any, row: IRowDataTable) => {
@@ -385,6 +398,9 @@ export class IncomesPage implements OnInit {
       },
       {
         name: 'close',
+        desktopDisplay: 'icon',
+        fileRequirement: 'stored',
+        showWhen: (row) => String(row['docStatusOriginal'] ?? row['docStatus'] ?? '').toUpperCase() !== 'CLOSE',
         icon: 'pi pi-lock',
         title: 'הפק מסמך נגדי',
         action: (event: any, row: IRowDataTable) => {
@@ -392,35 +408,6 @@ export class IncomesPage implements OnInit {
         }
       },
 
-      // ── Pending-allocation actions (visible only when the doc is awaiting
-      // a decision about its allocation number). ──
-      {
-        name: 'get-allocation-from-tax',
-        icon: 'pi pi-external-link',
-        title: 'קבל מספר הקצאה מרשות המיסים',
-        alwaysShow: true,
-        showWhen: needsAllocationNumber,
-        // Opens the Tax Authority page in a new tab AND surfaces the input
-        // dialog so the user can paste the number when they come back.
-        action: (_event: any, row: IRowDataTable) => this.getAllocationFromTaxAuthority(row),
-      },
-      {
-        name: 'finalize-no-allocation',
-        icon: 'pi pi-check',
-        title: 'הפק ללא מספר הקצאה',
-        alwaysShow: true,
-        showWhen: canFinalizeWithoutAllocation,
-        action: (_event: any, row: IRowDataTable) => this.finalizeWithoutAllocation(row),
-      },
-      // TODO: re-enable when SHAAM auto-flow is wired up.
-      // {
-      //   name: 'request-allocation-auto',
-      //   icon: 'pi pi-bolt',
-      //   title: 'בקש מספר הקצאה אוטומטית (שעמ)',
-      //   alwaysShow: true,
-      //   showWhen: isPending,
-      //   action: (_event: any, row: IRowDataTable) => this.requestAllocationAutomatically(row),
-      // },
     ]);
   }
 
@@ -456,6 +443,94 @@ export class IncomesPage implements OnInit {
     this.showAllocationInputDialog.set(true);
   }
 
+  /** Checks the durable server-side state before any provider request. */
+  private confirmResumeAutomaticAllocation(row: IRowDataTable): void {
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    if (!docNumber) {
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את מספר המסמך', life: 4000, key: 'br' });
+      return;
+    }
+
+    this.confirmationService.confirm({
+      header: 'הפקת מספר הקצאה',
+      message: `האם ברצונך להפיק מספר הקצאה עבור מסמך מספר ${docNumber}?`,
+      icon: 'pi pi-question-circle',
+      acceptLabel: 'כן, הפק מספר הקצאה',
+      rejectLabel: 'ביטול',
+      rejectVisible: true,
+      accept: () => this.resumeAutomaticAllocation(row),
+    });
+  }
+
+  private resumeAutomaticAllocation(row: IRowDataTable): void {
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    const docType = this.resolveDocType(row);
+    if (!businessNumber || !docNumber || !docType) {
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את המסמך', life: 4000, key: 'br' });
+      return;
+    }
+
+    this.gs.getLoader().subscribe();
+    this.gs.updateLoaderMessage('בודק ומפיק מספר הקצאה, אנא המתן...');
+
+    this.shaamService.getInvoiceAllocationStatus(businessNumber, docNumber, docType).pipe(
+      switchMap((status) => {
+        if (status.canRequest || status.canFinalizeLocally) {
+          return this.shaamService.requestInvoiceAllocation(businessNumber, docNumber, docType);
+        }
+        const detail = status.requiresAdminResolution
+          ? 'תוצאת הבקשה הקודמת אינה ידועה. אין לשלוח שוב לפני בירור מנהל מול רשות המסים.'
+          : status.state === 'PROCESSING'
+            ? 'בקשת ההקצאה עדיין מתבצעת. יש להמתין ולא לשלוח בקשה נוספת.'
+            : 'לא ניתן לשלוח בקשת הקצאה נוספת במצב הנוכחי.';
+        return throwError(() => ({ status: 409, error: { code: status.state, message: detail } }));
+      }),
+      take(1),
+      finalize(() => this.gs.dismissLoader()),
+      catchError((error) => {
+        console.error('resumeAutomaticAllocation failed', error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'ההקצאה לא הושלמה',
+          detail: error?.status === 428
+            ? 'נדרשת התחברות מחדש לשע״מ.'
+            : (error?.error?.message || 'לא התקבלה תשובה ודאית. המסמך נשאר שמור וממתין להמשך טיפול.'),
+          life: 7000,
+          key: 'br',
+        });
+        return EMPTY;
+      }),
+    ).subscribe((response: any) => {
+      if (!response?.success || !response?.docNumber) {
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'החשבונית לא אושרה',
+          detail: response?.message || 'המסמך נשאר שמור וממתין להמשך טיפול.',
+          life: 6000,
+          key: 'br',
+        });
+        return;
+      }
+      this.dialogService.open(DocSuccessDialogComponent, {
+        header: '',
+        width: '400px',
+        data: {
+          docNumber: response.docNumber,
+          file: response.file,
+          copyFile: response.copyFile,
+          docType: (row as any).docType,
+        },
+      });
+      this.fetchDocuments(
+        this.selectedBusinessNumber(),
+        this.startDate,
+        this.endDate,
+        this.form?.value?.docType,
+      );
+    });
+  }
+
   // TODO: re-enable when SHAAM auto-flow is wired up.
   // private requestAllocationAutomatically(row: IRowDataTable): void {
   //   // Will call the SHAAM service to request an allocation number on the
@@ -477,6 +552,37 @@ export class IncomesPage implements OnInit {
   }
 
   finalizeWithoutAllocation(row: IRowDataTable): void {
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    const docType = this.resolveDocType(row);
+    if (!businessNumber || !docNumber || !docType) return;
+    this.shaamService.getInvoiceAllocationStatus(businessNumber, docNumber, docType)
+      .pipe(take(1))
+      .subscribe({
+        next: (status) => {
+          if (status.state === 'PROCESSING' || status.requiresAdminResolution) {
+            this.messageService.add({
+              severity: 'error',
+              summary: 'לא ניתן להשלים את המסמך',
+              detail: status.requiresAdminResolution
+                ? 'תוצאת בקשת ההקצאה אינה ידועה. נדרש בירור מנהל לפני כל פעולה נוספת.'
+                : 'בקשת ההקצאה עדיין מתבצעת. יש להמתין.',
+              life: 7000,
+              key: 'br',
+            });
+            return;
+          }
+          this.confirmFinalizeWithoutAllocation(row);
+        },
+        error: (error) => this.messageService.add({
+          severity: 'error', summary: 'שגיאה',
+          detail: error?.error?.message || 'לא ניתן לבדוק את מצב בקשת ההקצאה.',
+          life: 5000, key: 'br',
+        }),
+      });
+  }
+
+  private confirmFinalizeWithoutAllocation(row: IRowDataTable): void {
     this.confirmationService.confirm({
       message: 'האם אתה בטוח שברצונך להפיק את המסמך ללא מספר הקצאה?<br>הלקוח שלך לא יוכל לקזז את המע״מ.',
       header: 'אישור הפקה ללא מספר הקצאה',

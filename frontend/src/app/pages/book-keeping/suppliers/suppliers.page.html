@@ -14,8 +14,8 @@
 
     <!-- SUPPLIERS TABLE -->
     <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="suppliersTableFields"
-        [dataTable]="mySuppliers | async" [fileActions]="fileActions()" [selectionModeCheckBox]="null"
-        [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig" [mobileCardActions]="fileActions()">
+        [dataTable]="mySuppliers | async" [actions]="fileActions()" [selectionModeCheckBox]="null"
+        [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig">
     </app-generic-table>
 
 </div>

@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
-import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } from 'src/enum';
+import { BusinessType, BusinessFieldType, BusinessProprietorRole, TaxReportingType, VATReportingType } from 'src/enum';
 
 
 // Named explicitly per the schema-drift convention. Nullable column — MySQL
@@ -7,12 +7,23 @@ import { BusinessType, BusinessFieldType, TaxReportingType, VATReportingType } f
 @Entity('business')
 @Index('ux_business_number', ['businessNumber'], { unique: true })
 export class Business {
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+  logoPath: string | null;
+
 
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
   firebaseId: string;
+
+  @Column({
+    type: 'enum',
+    enum: BusinessProprietorRole,
+    enumName: 'BusinessProprietorRole',
+    default: BusinessProprietorRole.PRIMARY,
+  })
+  proprietorRole: BusinessProprietorRole;
 
   @Column({ type: 'varchar', nullable: true, default: null })
   businessName: string | null;
@@ -88,14 +99,17 @@ export class Business {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, default: null })
   advanceTaxPercent: number | null;
 
-  // SHAAM OAuth tokens (encrypted with AES-256)
-  @Column({ type: 'varchar', nullable: true, default: null })
+  // TEMPORARY SHARED-DEV COMPATIBILITY (KT-064): older active branches still
+  // select these columns through their Business metadata. The new SHAAM code
+  // never reads or writes them; select:false prevents accidental use here.
+  // Remove these properties and the DB columns together at the pre-push gate.
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
   shaamAccessToken: string | null;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
-  shaamAccessTokenExp: string | null; // Unix timestamp as string (encrypted)
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
+  shaamAccessTokenExp: string | null;
 
-  @Column({ type: 'varchar', nullable: true, default: null })
+  @Column({ type: 'varchar', nullable: true, default: null, select: false })
   shaamRefreshToken: string | null;
 
   /**

@@ -1,11 +1,13 @@
 import {
   BusinessFieldType,
+  BusinessProprietorRole,
   BusinessType,
   DocumentType,
   EmploymentType,
   FamilyStatus,
   Gender,
   ModuleName,
+  PaymentMethodType,
   SourceType,
   UserRole,
 } from 'src/enum';
@@ -29,6 +31,15 @@ export interface DemoProfile {
   /** Sign-in credentials. The admin sees these on Set so they can log in. */
   email: string;
   password: string;
+
+  /** Grants the signed-in primary user access to the self-service reset endpoint. */
+  allowSelfReset?: boolean;
+
+  /**
+   * The Open-Banking graph is a stable fixture rather than a live provider
+   * connection. Login/manual sync paths must not call Feezback for it.
+   */
+  syntheticOpenBanking?: boolean;
 
   /** Primary user (the one who signs in with `email`/`password`). */
   user: DemoUser;
@@ -60,6 +71,13 @@ export interface DemoProfile {
    * + deductible VAT input 2410, credit 1000). Optional.
    */
   expenses?: DemoExpenseTemplate[];
+
+  /**
+   * Marks a deterministic profile as the local uniform-file fixture. Presence
+   * also makes document/expense seeding strict: a partial fixture is reported
+   * as a failed seed instead of silently leaving misleading test data.
+   */
+  uniformFileScenario?: DemoUniformFileScenario;
 
   /**
    * Orphan Source rows seeded with no parent Bill — needed when transactions
@@ -170,6 +188,8 @@ export interface DemoBusiness {
   businessName: string;
   /** Either the primary user's `id` or the spouse's `id`. */
   businessNumber: string;
+  /** Explicit owner; when omitted the seeder derives it from the two IDs. */
+  proprietorRole?: BusinessProprietorRole;
   /** EXEMPT → vatReportingType=NOT_REQUIRED. LICENSED → DUAL_MONTH_REPORT. */
   businessType: BusinessType;
   businessField?: BusinessFieldType;
@@ -195,6 +215,8 @@ export interface DemoSource {
    *  the corresponding DemoTransactionTemplate carries on `paymentIdentifier`. */
   sourceName: string;
   sourceType: SourceType;
+  /** Which member of a couple owns the provider source. Defaults to primary. */
+  connectionRole?: 'primary' | 'spouse';
   /**
    * Card sources only — mirrors `Source.isDirect`.
    *   true  — Direct/Debit card: its transactions arrive through the BANK feed,
@@ -317,7 +339,9 @@ export interface DemoTransactionTemplate {
   /** Negative for expenses, positive for income (matches existing convention). */
   amount: number;
   /** Subtracted from `today` at seed time to get transactionDate. */
-  daysAgo: number;
+  daysAgo?: number;
+  /** Fixed UTC calendar date (`YYYY-MM-DD`) that remains stable across resets. */
+  transactionDate?: string;
   /**
    * ISO-4217 currency code. Defaults to 'ILS'. For non-ILS values the seed
    * also stamps `ilsAmount` + `fxRateToIls` using hardcoded demo rates so the
@@ -339,10 +363,50 @@ export interface DemoDocumentTemplate {
   recipientId?: string;
   /** Net amount before VAT (after any discount). */
   sumAftDisBefVAT: number;
+  /** Amount before document discount. Defaults to sumAftDisBefVAT. */
+  sumBefDisBefVat?: number;
+  /** Document discount, expressed as a positive input amount. Defaults to 0. */
+  discountSum?: number;
   /** VAT amount (0 for exempt / RECEIPT). */
   vatSum: number;
   /** YYYY-MM-DD */
   docDate: string;
+  /** Resolve docDate/valueDate to today's date in Israel when the profile is seeded. */
+  useCurrentDate?: boolean;
+  /** Save as a restorable draft instead of issuing a document/journal entry. */
+  isDraft?: boolean;
+  /** Optional real document lines, persisted through DocumentsService. */
+  lines?: DemoDocumentLineTemplate[];
+  /** Optional real payments, persisted through DocumentsService. */
+  payments?: DemoDocumentPaymentTemplate[];
+}
+
+export interface DemoDocumentLineTemplate {
+  description: string;
+  unitQuantity: number;
+  sumBefVatPerUnit: number;
+  discount: number;
+  sumAftDisBefVatPerLine: number;
+  vatRate: number;
+  vatPerLine: number;
+}
+
+export interface DemoDocumentPaymentTemplate {
+  paymentMethod: PaymentMethodType;
+  /** YYYY-MM-DD */
+  paymentDate: string;
+  paymentAmount: number;
+  bankNumber?: string;
+  branchNumber?: string;
+  accountNumber?: string;
+}
+
+export interface DemoUniformFileScenario {
+  /** Business selected on the uniform-file screen. */
+  businessNumberRef: string;
+  /** Inclusive YYYY-MM-DD cut dates. Earlier rows exercise B110 opening balance. */
+  startDate: string;
+  endDate: string;
 }
 
 /** A real expense seeded through ExpensesService.addExpense(). */

@@ -536,7 +536,8 @@ export class ClientPanelPage implements OnInit {
 
   // ===================== Tasks tab =====================
 
-  onTabChange(index: number): void {
+  onTabChange(value: string | number): void {
+    const index = Number(value);
     this.activeTabIndex.set(index);
     if (index === 1 && this.tasks().length === 0 && !this.tasksLoading()) {
       this.fetchTasks();

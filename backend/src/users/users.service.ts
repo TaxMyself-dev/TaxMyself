@@ -3,7 +3,7 @@ import { Any, DataSource, EntityManager, Repository } from 'typeorm';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Child } from './child.entity';
-import { UserRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
+import { UserRole, BusinessProprietorRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
 import { AuthService } from './auth.service';
 import * as admin from 'firebase-admin';
 import { UpdateUserDto } from './dtos/update-user.dto';
@@ -14,7 +14,7 @@ import { Business } from 'src/business/business.entity';
 import { SettingDocuments } from 'src/documents/settingDocuments.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Delegation, DelegationStatus, DelegationScope } from '../delegation/delegation.entity';
-import { isDemoEmail } from '../demo-data/profiles';
+import { canSelfResetDemoEmail, isDemoEmail } from '../demo-data/profiles';
 import { BillingService } from '../billing/services/billing.service';
 import { Subscription } from '../billing/entities/subscription.entity';
 import { SubscriptionPlan } from '../billing/entities/subscription-plan.entity';
@@ -75,7 +75,7 @@ export class UsersService {
    * there is exactly one trial definition in the codebase.
    */
   async ensureTrialSubscription(firebaseId: string, manager?: EntityManager): Promise<void> {
-    await this.billingService.ensureTrialSubscription(firebaseId, manager);
+    await this.billingService.ensureTrialSubscriptionRecord(firebaseId, manager);
   }
 
   /** Days a referral-signup trial runs before a card is required, vs. the standard TRIAL_DAYS env value. */
@@ -164,11 +164,26 @@ export class UsersService {
       ? business.businessArray
       : [];
 
-    // Reject a businessType that doesn't match the registration kind
+    // Reject a businessType/proprietor that doesn't match the registration kind.
     // (e.g. a company picking EXEMPT, or a private user picking LIMITED_COMPANY).
     for (const biz of newBusinesses) {
+      if (!biz?.businessName && !biz?.businessNumber && !biz?.businessType) continue;
       if (!isBusinessTypeAllowedForUser(isCompany, biz?.businessType as BusinessType | null | undefined)) {
         throw new BadRequestException(`סוג עסק לא תואם לסוג ההרשמה: ${biz?.businessType}`);
+      }
+      const proprietorRole = biz.proprietorRole as BusinessProprietorRole | undefined;
+      if (isCompany) {
+        if (proprietorRole && proprietorRole !== BusinessProprietorRole.PRIMARY) {
+          throw new BadRequestException('חשבון חברה אינו יכול לשייך עסק לבן/בת זוג');
+        }
+        biz.proprietorRole = BusinessProprietorRole.PRIMARY;
+      } else if (
+        proprietorRole !== BusinessProprietorRole.PRIMARY &&
+        proprietorRole !== BusinessProprietorRole.SPOUSE
+      ) {
+        throw new BadRequestException('יש לבחור בעל/ת עוסק עבור כל עסק');
+      } else if (proprietorRole === BusinessProprietorRole.SPOUSE && !safeSpouse?.spouseId) {
+        throw new BadRequestException('לא ניתן לשייך עסק לבן/בת זוג ללא פרטי בן/בת זוג');
       }
     }
 
@@ -195,6 +210,8 @@ export class UsersService {
       ...safeSpouse,
       role: [UserRole.REGULAR],
       hasOpenBanking: false,
+      hasSpouseFeezbackIdentity: false,
+      profileImagePath: null,
       createdAt: new Date(),
     };
 
@@ -248,6 +265,10 @@ export class UsersService {
 
         const newBusiness = businessRepo.create({
           ...biz,
+          proprietorRole: isCompany
+            ? BusinessProprietorRole.PRIMARY
+            : biz.proprietorRole,
+          logoPath: null,
           firebaseId: personal.firebaseId,
         });
 
@@ -266,15 +287,9 @@ export class UsersService {
           }
         }
 
-        // Fill null business fields from personal or spouse data
-        // Check if businessNumber matches personal.id or spouse.id
-        const businessNumber = newBusiness.businessNumber;
-        const personalId = personal?.id;
-        const spouseId = safeSpouse?.spouseId || safeSpouse?.id;
-
-        if (!isCompany && businessNumber && (businessNumber === personalId || businessNumber === spouseId)) {
-          // Determine source: personal or spouse
-          const isPersonalMatch = businessNumber === personalId;
+        // Fill null business fields from the explicitly selected proprietor.
+        if (!isCompany) {
+          const isPersonalMatch = newBusiness.proprietorRole === BusinessProprietorRole.PRIMARY;
 
           // Fill null business fields from source
           if (!newBusiness.businessPhone) {
@@ -418,6 +433,9 @@ export class UsersService {
     const processedUserData = this.processDateFields(updateUserDto);
     // Provider-confirmed state is not an editable profile field.
     delete processedUserData.hasOpenBanking;
+    delete processedUserData.hasSpouseFeezbackIdentity;
+    delete processedUserData.profileImagePath;
+    delete processedUserData.logoPath;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);
@@ -466,18 +484,30 @@ export class UsersService {
 
       // Enrich with businessNumber(s) from Business table so the frontend
       // always has the correct value in userData (localStorage).
-      const businesses = await this.business_repo.find({ where: { firebaseId } });
-      const [primary, spouse] = businesses.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+      const businesses = await this.business_repo.find({
+        where: { firebaseId },
+        order: { id: 'ASC' },
+      });
+      const primary = businesses.find(
+        (business) => business.proprietorRole === BusinessProprietorRole.PRIMARY,
+      );
+      const spouseBusiness = businesses.find(
+        (business) => business.proprietorRole === BusinessProprietorRole.SPOUSE,
+      );
       return {
         ...user,
         businessNumber: primary?.businessNumber ?? null,
-        spouseBusinessNumber: spouse?.businessNumber ?? null,
-        // Gates the dashboard's "אפס נתוני בדיקה" button. True when the
-        // signed-in user's email matches a DEMO_PROFILES entry — see
-        // demo-data/profiles/index.ts. Persisted into IUserData on the
-        // frontend (localStorage) on every sign-in so the button shows up
-        // immediately after a demo seed without a full reload.
+        businessName: primary?.businessName ?? null,
+        businessAddress: primary?.businessAddress ?? null,
+        businessType: primary?.businessType ?? null,
+        spouseBusinessNumber: spouseBusiness?.businessNumber ?? null,
+        spouseBusinessName: spouseBusiness?.businessName ?? null,
+        spouseBusinessAddress: spouseBusiness?.businessAddress ?? null,
+        spouseBusinessType: spouseBusiness?.businessType ?? null,
+        // General demo identity and narrowly scoped demo capabilities are
+        // intentionally separate. The frontend persists both on every sign-in.
         isDemo: isDemoEmail(user.email),
+        canSelfResetDemoData: canSelfResetDemoEmail(user.email),
       };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -705,7 +735,33 @@ export class UsersService {
           user.email,
         );
         user.driveFolderId = folderId;
-        await this.user_repo.save(user);
+        // Use a constrained UPDATE rather than save(entity). If a concurrent
+        // account cleanup deleted this row while Drive was creating the
+        // folder, TypeORM save() would INSERT the stale entity again.
+        const update = await this.user_repo.update(
+          { index: user.index, firebaseId: user.firebaseId },
+          { driveFolderId: folderId },
+        );
+        if (update.affected !== 1) {
+          // Some MySQL configurations report zero changed rows when the same
+          // folder ID was already stored. Distinguish that benign case from a
+          // row deleted by cleanup before removing the newly created folder.
+          const persisted = await this.user_repo.findOne({
+            where: { index: user.index, firebaseId: user.firebaseId },
+            select: ['driveFolderId'],
+          });
+          if (!persisted) {
+            await this.googleDriveService.deleteFile(folderId);
+            this.logger.warn(
+              `[Drive] discarded folder ${folderId}; user disappeared during provisioning | ${userTag}`,
+            );
+            return;
+          }
+          user.driveFolderId = persisted.driveFolderId;
+          this.logger.log(
+            `[Drive] folder persistence already settled concurrently | ${userTag}`,
+          );
+        }
         createdUserFolder = true;
         this.logger.log(
           `[Drive] ✓ ${previousId ? `replaced stale user folder ${previousId} with` : 'created user folder'} ${folderId} for ${userTag}`,

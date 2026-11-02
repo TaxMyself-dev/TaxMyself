@@ -674,6 +674,7 @@ export class SubscriptionRenewalService {
   /** Resume this exact captured attempt; never run the charge/renewal entry point. */
   async completeCapturedAttempt(attemptId: number): Promise<string> {
     const attempt = await this.dataSource.manager.findOneByOrFail(BillingAttempt, { id: attemptId });
+    if (attempt.operation === 'REFUND') throw new Error('Refunds cannot complete a renewal');
     if (attempt.status !== BillingAttemptStatus.CAPTURED || !attempt.cardcomTransactionId || !attempt.capturedAt) {
       throw new Error('Verified capture required');
     }

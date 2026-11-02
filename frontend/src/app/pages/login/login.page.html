@@ -27,6 +27,46 @@
   </div>
 </div>
 }
+@if (mfaChallenge()) {
+<div class="custom-modal-backdrop" (click)="cancelMfaChallenge()">
+  <div class="custom-modal mfa-challenge" dir="rtl" (click)="$event.stopPropagation()">
+    <h2>אימות דו־שלבי</h2>
+    @if (!mfaSmsSent()) {
+      <p>נשלח קוד חד־פעמי למספר {{ mfaMaskedPhone() }}.</p>
+      <button
+        id="login-mfa-send-button"
+        type="button"
+        class="mfa-primary mfa-send"
+        [disabled]="isLoading()"
+        (click)="sendMfaSmsCode()"
+      >{{ isLoading() ? 'שולח...' : 'שליחת קוד ב־SMS' }}</button>
+    } @else {
+      <p>הקוד נשלח למספר {{ mfaMaskedPhone() }}.</p>
+      <input
+        class="input-field"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        [(ngModel)]="mfaCode"
+        (keyup.enter)="verifyMfaCode()"
+      />
+    }
+    <div id="login-mfa-recaptcha" aria-hidden="true"></div>
+    @if (mfaError()) {
+      <p class="text-error" role="alert">{{ mfaError() }}</p>
+    }
+    <div class="mfa-actions">
+      @if (mfaSmsSent()) {
+      <button type="button" class="mfa-primary" [disabled]="isLoading() || !mfaCode.match('^\\d{6}$')" (click)="verifyMfaCode()">
+        {{ isLoading() ? 'מאמת...' : 'אימות וכניסה' }}
+      </button>
+      }
+      <button type="button" class="mfa-secondary" (click)="cancelMfaChallenge()">ביטול</button>
+    </div>
+  </div>
+</div>
+}
 <div class="login-page">
   <div class="login-section">
     <div class="login-top">
@@ -130,10 +170,12 @@
 
   <aside class="login-media" aria-hidden="true">
     <div class="login-media__text">
-      <p class="image-title">מהיום קל יותר לעקוב אחרי ההוצאות המשותפות!</p>
+      <p class="image-title">מהיום לא מפספסים אף הוצאה!</p>
     </div>
     <img class="login-media__img login-media__bg" src="../../../assets/login_bg.svg" alt="" />
 
-    <img class="login-media__img login-media__el" src="../../../assets/login_el.svg" alt="" />
+    <div class="login-media__illustration">
+      <img class="login-media__img login-media__el" src="../../../assets/login_el.svg" alt="" />
+    </div>
   </aside>
 </div>

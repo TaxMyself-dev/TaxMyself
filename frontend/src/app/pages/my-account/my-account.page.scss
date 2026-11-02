@@ -36,13 +36,19 @@ p.block-title {
   // border: solid 1px green;
 }
 
-// Horizontal row: avatar on the right (RTL first child), text column on its left.
-// align-items: center keeps the avatar vertically centered against the column.
 .user-info-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 64px auto;
+  grid-template-areas: "avatar greeting" "avatar last-login" ". secondary-actions";
   align-items: center;
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 8px;
 }
+.user-info-row > .user-info-text { display: contents; }
+.my-account-avatar { grid-area: avatar; align-self: center; }
+.avatar-text { grid-area: greeting; }
+.last-login { grid-area: last-login; }
+.user-info-buttons { grid-area: secondary-actions; }
 
 .user-info-block--delegated {
   justify-content: flex-start;

@@ -189,18 +189,6 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
   });
 });
 
-/**
- * Unit tests: BillingService.getPlans — exclusivity + live referral-plan resolution.
- *
- * Confirms a user whose Subscription.planId points at a non-public plan
- * (e.g. referral-basic) sees ONLY a referral plan in GET /billing/plans — the
- * general public catalog is never fetched, so they can't accidentally check
- * out on a full-price public plan. WHICH referral plan is resolved live from
- * User.hasOpenBanking (resolveReferralEffectivePlan), never from whichever
- * referral plan happens to be stored — the stored planId can lag reality if
- * the consent-webhook auto-upgrade hasn't run yet or failed. A normal
- * public-plan (or no-plan) user's result is completely unaffected.
- */
 describe('BillingService.getPlans — exclusivity for non-public assigned plans', () => {
   let service: BillingService;
   let planRepo: { find: jest.Mock; findOne: jest.Mock };
@@ -218,7 +206,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
 
   beforeEach(() => {
     planRepo = {
-      find: jest.fn().mockResolvedValue(PUBLIC_PLANS.map(p => ({ ...p }))),
+      find: jest.fn().mockImplementation(({ where }) => Promise.resolve(ALL_PLANS.filter(p => p.isPublic === where.isPublic))),
       findOne: jest.fn().mockImplementation(({ where }: { where: { id?: number; slug?: string } }) => {
         const match = where.id != null
           ? ALL_PLANS.find(p => p.id === where.id)
@@ -261,57 +249,36 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
     subscriptionRepo.findOne.mockResolvedValue({ planId: 1 }); // consumer-basic, already public
     const result = await service.getPlans('client-1');
     expect(result.map(p => p.slug)).toEqual(['consumer-basic', 'consumer-plus']);
-    expect(planRepo.findOne).toHaveBeenCalledWith({ where: { id: 1, isActive: true } });
+    expect(planRepo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
     expect(userRepo.findOne).not.toHaveBeenCalled();
   });
 
-  it('referral-track user WITHOUT open banking sees referral-basic, resolved live — public catalog never fetched', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 }); // stored: referral-basic
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: false });
-    const result = await service.getPlans('client-1');
-    expect(result.map(p => p.slug)).toEqual(['referral-basic']);
-    expect(planRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'referral-basic', isActive: true } });
-    expect(planRepo.find).not.toHaveBeenCalled();
+  it.each([false, true])('shows both referral plans with hasOpenBanking=%s', async hasOpenBanking => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 });
+    userRepo.findOne.mockResolvedValue({ hasOpenBanking });
+    expect((await service.getPlans('client-1')).map(p => p.slug)).toEqual(['referral-basic', 'referral-open-banking']);
+    expect(userRepo.findOne).not.toHaveBeenCalled();
+    expect(planRepo.find).toHaveBeenCalledWith({ where: { isActive: true, isPublic: false }, order: { displayOrder: 'ASC' } });
+  });
+  it('offers basic to banking subscribers for downgrade', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 100 });
+    expect((await service.getPlans('client-1')).map(p => p.slug)).toEqual(['referral-basic', 'referral-open-banking']);
+  });
+  it('keeps the referral catalog when the assigned plan is inactive', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 });
+    planRepo.findOne.mockResolvedValue({ ...REFERRAL_BASIC, isActive: false });
+    planRepo.find.mockResolvedValue([REFERRAL_OPEN_BANKING]);
+    expect((await service.getPlans('client-1')).map(p => p.slug)).toEqual(['referral-open-banking']);
+  });
+  it('excludes unrelated private plans', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 });
+    planRepo.find.mockResolvedValue([REFERRAL_BASIC, REFERRAL_OPEN_BANKING, { id: 200, slug: 'custom-private', isPublic: false }]);
+    expect((await service.getPlans('client-1')).map(p => p.slug)).toEqual(['referral-basic', 'referral-open-banking']);
   });
 
-  it('referral-track user WITH open banking sees referral-open-banking, even though the STORED planId is still referral-basic', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 }); // stored: referral-basic (stale/lagging)
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: true });
-    const result = await service.getPlans('client-1');
-    expect(result.map(p => p.slug)).toEqual(['referral-open-banking']);
-    expect(planRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'referral-open-banking', isActive: true } });
-  });
-
-  it('referral-track user whose stored plan no longer exists/is inactive falls back to the public catalog', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 42 }); // not found -> findOne resolves null
-    const result = await service.getPlans('client-1');
-    expect(result.map(p => p.slug)).toEqual(['consumer-basic', 'consumer-plus']);
-    expect(planRepo.find).toHaveBeenCalled();
-    expect(userRepo.findOne).not.toHaveBeenCalled(); // never reached the referral branch
-  });
-
-  it('referral-track user whose live-resolved target plan is missing/inactive falls back to the stored plan', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ planId: 99 }); // stored: referral-basic
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: true }); // wants referral-open-banking
-    planRepo.findOne.mockImplementation(({ where }: { where: { id?: number; slug?: string } }) => {
-      if (where.id === 99) return Promise.resolve({ ...REFERRAL_BASIC });
-      return Promise.resolve(null); // referral-open-banking deactivated/missing
-    });
-    const result = await service.getPlans('client-1');
-    expect(result.map(p => p.slug)).toEqual(['referral-basic']);
-  });
 });
 
-/**
- * Unit tests: BillingService.createCheckout — referral plan live resolution.
- *
- * Mirrors getPlans(): when the client requests checkout on a referral plan,
- * the actual plan charged/persisted is resolved live from
- * User.hasOpenBanking via resolveReferralEffectivePlan, not trusted blindly
- * from dto.planId — closing the race where the browser rendered a
- * stale/cached plan option. Public-plan checkouts are completely unaffected.
- */
-describe('BillingService.createCheckout — referral plan live resolution', () => {
+describe('BillingService.createCheckout — catalog selection', () => {
   let service: BillingService;
   let planRepo: { findOne: jest.Mock };
   let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
@@ -376,45 +343,25 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
     );
   });
 
-  it('referral checkout requested with a stale plan (basic) while the user already has open banking: overrides to open-banking and persists planId', async () => {
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: true, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' });
-
-    await service.createCheckout(OWNER_ACTOR, { planId: 99 } as any);
-
-    expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 100);
-    expect(subscriptionRepo.update).toHaveBeenCalledWith(
-      {
-        id: 500,
-        planId: 99,
-        billingAccessMode: BillingAccessMode.STANDARD,
-      },
-      { planId: 100 },
-    );
-    expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ planName: 'הפניית רואה חשבון — כולל חיבור בנקאי פתוח' }),
-    );
-    const returnValue = JSON.parse(cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue);
-    expect(returnValue.planId).toBe(100);
+  it.each([[99, true], [100, false]])('honors plan %s with hasOpenBanking=%s', async (planId, hasOpenBanking) => {
+    userRepo.findOne.mockResolvedValue({ hasOpenBanking, email: 'a@b.com' });
+    await service.createCheckout(OWNER_ACTOR, { planId } as any);
+    expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', planId);
+    expect(subscriptionRepo.update).not.toHaveBeenCalled();
+    const value = JSON.parse(cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue);
+    expect(value.planId).toBe(planId);
   });
-
-  it('referral checkout where the live resolution matches what was already stored: no redundant save', async () => {
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: false, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' });
-
-    await service.createCheckout(OWNER_ACTOR, { planId: 99 } as any); // stored planId is already 99 (referral-basic)
-
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-    expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 99);
-  });
-
-  it('public plan checkout: no live resolution, no planId mutation — unaffected by the referral logic', async () => {
-    await service.createCheckout(OWNER_ACTOR, { planId: 1 } as any); // consumer-basic, public
-
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
+  it('allows public checkout for a public subscriber', async () => {
+    subscriptionRepo.findOne.mockResolvedValue({ ...SUBSCRIPTION, planId: 1 });
+    await service.createCheckout(OWNER_ACTOR, { planId: 1 } as any);
     expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 1);
-    // userRepo.findOne is still called once, for customer info — but never for a slug-based referral lookup
-    expect(planRepo.findOne).not.toHaveBeenCalledWith({ where: { slug: expect.anything(), isActive: true } });
   });
-
+  it.each([[1, 99], [99, 1]])('rejects switching catalogs from %s to %s', async (currentId, targetId) => {
+    subscriptionRepo.findOne.mockResolvedValue({ ...SUBSCRIPTION, planId: currentId });
+    await expect(service.createCheckout(OWNER_ACTOR, { planId: targetId } as any)).rejects.toThrow('התוכנית אינה זמינה במסלול שלך.');
+    expect(pricingService.calculateCheckoutPrice).not.toHaveBeenCalled();
+    expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+  });
   it('complimentary full access cannot start a charge flow', async () => {
     subscriptionRepo.findOne.mockResolvedValue({
       ...SUBSCRIPTION,
@@ -428,18 +375,7 @@ describe('BillingService.createCheckout — referral plan live resolution', () =
     expect(cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
   });
 
-  it('referral checkout whose live-resolved target plan is missing/inactive: falls back to the originally requested plan, does not throw', async () => {
-    userRepo.findOne.mockResolvedValue({ hasOpenBanking: true, email: 'a@b.com', fName: 'A', lName: 'B', phone: '050' });
-    planRepo.findOne.mockImplementation(({ where }: { where: { id?: number; slug?: string } }) => {
-      if (where.id === 99) return Promise.resolve({ ...REFERRAL_BASIC });
-      return Promise.resolve(null); // referral-open-banking deactivated/missing
-    });
 
-    await expect(service.createCheckout(OWNER_ACTOR, { planId: 99 } as any)).resolves.toBeDefined();
-
-    expect(pricingService.calculateCheckoutPrice).toHaveBeenCalledWith('client-1', 99);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
 });
 
 /**
@@ -541,6 +477,29 @@ describe('BillingService — owner-mutation authorization', () => {
   }
 
   describe('createCheckout', () => {
+    it.each([true, false])('uses the same paid upgrade and downgrade paths for public=%s', async isPublic => {
+      const f = makeService();
+      const prefix = isPublic ? 'consumer' : 'referral';
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'ACTIVE', planId: 2 });
+      f.planRepo.findOne.mockImplementation(async ({ where }) => ({ id: where.id,
+        slug: `${prefix}-${where.id}`, name: 'Plan', isPublic, isActive: true }));
+      f.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-upgrade', paymentUrl: 'https://example.test/pay' });
+      const dto = { planId: 1, planChangeQuote: 'a'.repeat(64), planChangeQuotedAt: '2026-09-15T00:00:00Z' };
+      await f.service.createCheckout(OWNER, dto);
+      expect(f.planChangeService.preview).toHaveBeenCalledWith(OWNER, 1, dto.planChangeQuotedAt);
+      expect(f.billingLifecycleService.openUpgrade).toHaveBeenCalledWith(expect.objectContaining({ planId: 1,
+        planChangeSnapshot: expect.objectContaining({ action: 'UPGRADE' }) }));
+      expect(f.cardcomService.createLowProfileCheckout).toHaveBeenCalledTimes(1);
+
+      f.planChangeService.preview.mockResolvedValue({ action: 'DOWNGRADE', targetPlanId: 1,
+        finalAmountAgorot: 0, planChangeQuote: dto.planChangeQuote, quotedAt: dto.planChangeQuotedAt } as any);
+      f.billingLifecycleService.openUpgrade.mockClear();
+      f.cardcomService.createLowProfileCheckout.mockClear();
+      expect((await f.service.createCheckout(OWNER, dto)).status).toBe('SCHEDULED');
+      expect(f.planChangeService.applyLocal).toHaveBeenCalledWith(OWNER, expect.objectContaining({ action: 'DOWNGRADE', targetPlanId: 1 }));
+      expect(f.billingLifecycleService.openUpgrade).not.toHaveBeenCalled();
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
     const aggregatePreview = { recoveryQuote: 'a'.repeat(64), obligationIds: [11,12,13], planId: 1,
       finalAmountAgorot: 35400, amountBeforeVatAgorot: 30000, vatAmountAgorot: 5400, currency: 'ILS',
       periods: [{ periodStart: '2026-09-15', periodEnd: '2026-10-15', amountAgorot: 11800 }] };
@@ -941,149 +900,6 @@ describe('BillingService — owner-mutation authorization', () => {
     });
   });
 
-  describe('upgradeToReferralOpenBankingPlan', () => {
-    it('rejects a delegated accountant before any subscription lookup', async () => {
-      const { service, subscriptionRepo } = makeService();
-      await expect(
-        service.upgradeToReferralOpenBankingPlan(DELEGATED_ACCOUNTANT),
-      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
-      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
-    });
-
-    it('rejects an admin impersonating a client before any subscription lookup', async () => {
-      const { service, subscriptionRepo } = makeService();
-      await expect(
-        service.upgradeToReferralOpenBankingPlan(ADMIN_IMPERSONATION),
-      ).rejects.toThrow(OWNER_ONLY_MESSAGE);
-      expect(subscriptionRepo.findOne).not.toHaveBeenCalled();
-    });
-
-    it('allows the genuine owner through to the subscription lookup', async () => {
-      const { service, subscriptionRepo } = makeService();
-      subscriptionRepo.findOne.mockResolvedValue(null); // exercises the lookup, not full success path
-
-      await expect(
-        service.upgradeToReferralOpenBankingPlan(OWNER),
-      ).rejects.toThrow('לא נמצא מנוי עבור המשתמש.');
-      expect(subscriptionRepo.findOne).toHaveBeenCalled();
-    });
-  });
-});
-
-/**
- * Unit tests: BillingService.autoUpgradeReferralOpenBankingIfEligible —
- * automatic referral-basic -> referral-open-banking upgrade on Feezback
- * open-banking consent completion (see FeezbackService.refreshUserSources).
- */
-describe('BillingService.autoUpgradeReferralOpenBankingIfEligible', () => {
-  let service: BillingService;
-  let planRepo: { findOne: jest.Mock };
-  let subscriptionRepo: { findOne: jest.Mock; save: jest.Mock; update: jest.Mock };
-
-  const TARGET_PLAN = { id: 99, slug: 'referral-open-banking', isActive: true };
-
-  beforeEach(() => {
-    planRepo = { findOne: jest.fn() };
-    subscriptionRepo = {
-      findOne: jest.fn(),
-      save: jest.fn().mockImplementation(async (s) => s),
-      update: jest.fn().mockResolvedValue({ affected: 1 }),
-    };
-
-    service = new BillingService(
-      planRepo as any,
-      subscriptionRepo as any,
-      {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any,
-    );
-  });
-
-  it('no subscription row at all: no-op, no writes', async () => {
-    subscriptionRepo.findOne.mockResolvedValue(null);
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(false);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('subscription has no planId at all (never assigned a plan): no-op', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ firebaseId: 'client-1', planId: null });
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(false);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('non-referral user (public plan) is completely untouched', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ firebaseId: 'client-1', planId: 1 });
-    planRepo.findOne.mockResolvedValue({ id: 1, slug: 'consumer-plus' });
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(false);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('already on referral-open-banking: idempotent no-op, not a duplicate upgrade', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ firebaseId: 'client-1', planId: 99 });
-    planRepo.findOne.mockResolvedValue({ id: 99, slug: 'referral-open-banking' });
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(false);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('on referral-basic: upgrades to referral-open-banking, planId swap only (no status/charge fields touched)', async () => {
-    const subscription = {
-      id: 10,
-      firebaseId: 'client-1',
-      planId: 2,
-      status: 'TRIAL',
-      billingAccessMode: BillingAccessMode.STANDARD,
-    };
-    subscriptionRepo.findOne.mockResolvedValue(subscription);
-    planRepo.findOne
-      .mockResolvedValueOnce({ id: 2, slug: 'referral-basic' }) // current plan lookup
-      .mockResolvedValueOnce(TARGET_PLAN); // target plan lookup
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(true);
-    expect(subscriptionRepo.update).toHaveBeenCalledWith(
-      {
-        id: 10,
-        planId: 2,
-        billingAccessMode: BillingAccessMode.STANDARD,
-      },
-      { planId: 99 },
-    );
-    expect(subscription.status).toBe('TRIAL'); // status untouched — never forced to ACTIVE
-  });
-
-  it('a concurrent complimentary grant wins over a stale referral upgrade', async () => {
-    const subscription = {
-      id: 10,
-      firebaseId: 'client-1',
-      planId: 2,
-      status: 'TRIAL',
-      billingAccessMode: BillingAccessMode.STANDARD,
-    };
-    subscriptionRepo.findOne.mockResolvedValue(subscription);
-    subscriptionRepo.update.mockResolvedValue({ affected: 0 });
-    planRepo.findOne
-      .mockResolvedValueOnce({ id: 2, slug: 'referral-basic' })
-      .mockResolvedValueOnce(TARGET_PLAN);
-
-    await expect(service.autoUpgradeReferralOpenBankingIfEligible('client-1')).resolves.toBe(false);
-
-    expect(subscriptionRepo.update).toHaveBeenCalledWith(
-      expect.objectContaining({ billingAccessMode: BillingAccessMode.STANDARD }),
-      { planId: 99 },
-    );
-    expect(subscription.planId).toBe(2);
-  });
-
-  it('on referral-basic but target plan missing/inactive: no-op, does not throw', async () => {
-    subscriptionRepo.findOne.mockResolvedValue({ firebaseId: 'client-1', planId: 2 });
-    planRepo.findOne
-      .mockResolvedValueOnce({ id: 2, slug: 'referral-basic' })
-      .mockResolvedValueOnce(null); // referral-open-banking not found
-    const result = await service.autoUpgradeReferralOpenBankingIfEligible('client-1');
-    expect(result).toBe(false);
-    expect(subscriptionRepo.save).not.toHaveBeenCalled();
-  });
 });
 
 describe('BillingService.expireOverdueTrials — complimentary access concurrency', () => {

@@ -5,7 +5,7 @@ describe('AdminPanelPage', () => {
   let component: AdminPanelPage;
 
   beforeEach(() => {
-    component = new AdminPanelPage(new FormBuilder(), {} as any, {} as any);
+    component = new AdminPanelPage(new FormBuilder(), {} as any);
   });
 
   it('should create', () => {
@@ -21,6 +21,10 @@ describe('AdminPanelPage', () => {
 
   it('includes the educational content tab', () => {
     expect(component.tabs.map((tab) => tab.value)).toContain('content');
+  });
+
+  it('includes the admin-only tax file tab', () => {
+    expect(component.tabs.map((tab) => tab.value)).toContain('tax-file');
   });
 
   it('switches between the nested catalog tabs', () => {

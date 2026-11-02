@@ -16,11 +16,14 @@ const AGENT = 'agent-firebase-uid';
 describe('DelegationController.getUsersForAgent', () => {
   let controller: DelegationController;
   let delegationService: { getUsersForAgent: jest.Mock };
-  let usersService: { isAdmin: jest.Mock };
+  let usersService: { isAdmin: jest.Mock; isAccountant: jest.Mock };
 
   beforeEach(() => {
     delegationService = { getUsersForAgent: jest.fn().mockResolvedValue([{ firebaseId: 'client-1' }]) };
-    usersService = { isAdmin: jest.fn().mockResolvedValue(false) };
+    usersService = {
+      isAdmin: jest.fn().mockResolvedValue(false),
+      isAccountant: jest.fn().mockResolvedValue(true),
+    };
     controller = new DelegationController(delegationService as any, usersService as any);
   });
 
@@ -49,6 +52,12 @@ describe('DelegationController.getUsersForAgent', () => {
     expect(usersService.isAdmin).toHaveBeenCalledWith('admin-uid');
   });
 
+  it('regular user querying their own id is rejected', async () => {
+    usersService.isAccountant.mockResolvedValue(false);
+    await expect(controller.getUsersForAgent(req(AGENT), AGENT)).rejects.toThrow(ForbiddenException);
+    expect(delegationService.getUsersForAgent).not.toHaveBeenCalled();
+  });
+
   it('missing user context → 403', async () => {
     await expect(controller.getUsersForAgent(req(undefined), AGENT)).rejects.toThrow(ForbiddenException);
   });
@@ -67,13 +76,16 @@ describe('DelegationController.getUsersForAgent', () => {
 describe('DelegationController.revokeDelegation', () => {
   let controller: DelegationController;
   let delegationService: { revokeDelegation: jest.Mock };
-  let usersService: { isAdmin: jest.Mock };
+  let usersService: { isAdmin: jest.Mock; isAccountant: jest.Mock };
 
   const CLIENT = 'client-firebase-uid';
 
   beforeEach(() => {
     delegationService = { revokeDelegation: jest.fn().mockResolvedValue(undefined) };
-    usersService = { isAdmin: jest.fn().mockResolvedValue(false) };
+    usersService = {
+      isAdmin: jest.fn().mockResolvedValue(false),
+      isAccountant: jest.fn().mockResolvedValue(false),
+    };
     controller = new DelegationController(delegationService as any, usersService as any);
   });
 

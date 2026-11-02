@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ReadinessService } from './readiness.service';
 //Modules
 import { HttpModule } from '@nestjs/axios';
 import { ClientsModule } from './clients/clients.module';
@@ -85,7 +86,6 @@ import { MailModule } from './mail/mail.module';
 import { MailService } from './mail/mail.service';
 import { SettingDocuments } from './documents/settingDocuments.entity';
 import { DocumentsModule } from './documents/documents.module';
-import { DocumentsService } from './documents/documents.service';
 import { ClientsService } from './clients/clients.service';
 import { JournalEntry } from './bookkeeping/jouranl-entry.entity';
 import { JournalLine } from './bookkeeping/jouranl-line.entity';
@@ -100,6 +100,10 @@ import { BusinessModule } from './business/business.module';
 import { BusinessService } from './business/business.service';
 import { DepreciationModule } from './depreciation/depreciation.module';
 import { AssetDepreciationPosting } from './depreciation/asset-depreciation-posting.entity';
+import { ShaamConnection } from './shaam/entities/shaam-connection.entity';
+import { ShaamOauthState } from './shaam/entities/shaam-oauth-state.entity';
+import { UniformFileSubmission } from './shaam/entities/uniform-file-submission.entity';
+import { ShaamInvoiceAllocationAttempt } from './shaam/entities/shaam-invoice-allocation-attempt.entity';
 
 
 // Boot-time safety valve (added 2026-07-12 after an accidental synchronize
@@ -181,6 +185,7 @@ new Logger('Bootstrap').log(
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
+        ShaamConnection, ShaamOauthState, UniformFileSubmission, ShaamInvoiceAllocationAttempt,
         ],
       synchronize: isSynchronizeEnabled,
       timezone: 'Z',
@@ -226,7 +231,7 @@ new Logger('Bootstrap').log(
     ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
-  providers: [AppService, MailService, DocumentsService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

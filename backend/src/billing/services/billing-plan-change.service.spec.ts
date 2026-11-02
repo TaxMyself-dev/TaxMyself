@@ -6,7 +6,7 @@ import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { BillingEventType } from '../enums/billing.enums';
 import { PlanChangeSnapshot, PLAN_CHANGE_POLICY } from '../domain/billing-plan-change';
 
-describe('BillingPlanChangeService', () => {
+describe.each(['public', 'referral'])('BillingPlanChangeService — %s catalog', catalog => {
   const owner = { actorFirebaseId: 'owner', subjectFirebaseId: 'owner' };
   let sub: any, paid: any, open: any[], events: any[], manager: any, pricing: any, service: BillingPlanChangeService;
   let failSave: boolean;
@@ -24,7 +24,9 @@ describe('BillingPlanChangeService', () => {
     manager = {
       findOne: jest.fn(async (entity, opts) => {
         if (entity === Subscription) return sub;
-        if (entity === SubscriptionPlan) return { id: opts.where.id, name: 'Target', isActive: true, currency: 'ILS', priceMonthlyAgorot: 5000 };
+        if (entity === SubscriptionPlan) return { id: opts.where.id, name: 'Target',
+          slug: `${catalog === 'referral' ? 'referral' : 'consumer'}-${opts.where.id}`,
+          isPublic: catalog === 'public', isActive: true, currency: 'ILS', priceMonthlyAgorot: 5000 };
         if (entity === BillingObligation) return paid;
         if (entity === BillingEvent) {
           if (opts.where.billingAttemptId) return events.find(e => e.billingAttemptId === opts.where.billingAttemptId) ?? null;
@@ -54,6 +56,28 @@ describe('BillingPlanChangeService', () => {
     service = new BillingPlanChangeService(dataSource, pricing);
   });
   afterEach(() => jest.useRealTimers());
+
+  it.each([[2, 'UPGRADE'], [3, 'DOWNGRADE']])('allows referral plan %s as %s', async (targetId, action) => {
+    const original = manager.findOne.getMockImplementation();
+    manager.findOne.mockImplementation(async (entity, opts) => {
+      if (entity === SubscriptionPlan) return { id: opts.where.id, slug: `referral-${opts.where.id}`,
+        isPublic: false, isActive: true, currency: 'ILS', priceMonthlyAgorot: 5000 };
+      return original(entity, opts);
+    });
+    expect((await service.preview(owner, Number(targetId))).action).toBe(action);
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it.each([[true, false], [false, true]])('rejects cross-catalog preview public=%s to public=%s', async (sourcePublic, targetPublic) => {
+    const original = manager.findOne.getMockImplementation();
+    manager.findOne.mockImplementation(async (entity, opts) => {
+      if (entity === SubscriptionPlan) return { id: opts.where.id, slug: opts.where.id === 1 ? 'consumer-basic' : 'referral-open-banking',
+        isPublic: opts.where.id === 1 ? sourcePublic : targetPublic, isActive: true, currency: 'ILS' };
+      return original(entity, opts);
+    });
+    await expect(service.preview(owner, 2)).rejects.toThrow('התוכנית אינה זמינה במסלול שלך.');
+    expect(manager.save).not.toHaveBeenCalled();
+  });
 
   it('previews a frozen half-period difference and keeps the next billing date', async () => {
     const preview = await service.preview(owner, 2);

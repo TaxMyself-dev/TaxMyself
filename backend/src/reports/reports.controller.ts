@@ -753,15 +753,29 @@ export class ReportsController {
         @Body() body: any,
         @Res() res: Response) {  
             const userId = request.user?.firebaseId;
-            console.log("startDate is ", body.startDate);
-            console.log("endDate is ", body.endDate);
-            console.log("businessNumber is ", body.businessNumber);
+            if (!body?.businessNumber) throw new BadRequestException('businessNumber is required');
+            if (!body?.startDate || !body?.endDate) {
+              throw new BadRequestException('startDate and endDate are required');
+            }
+            let startDate: Date;
+            let endDate: Date;
+            try {
+              startDate = this.sharedService.convertStringToDateObject(body.startDate);
+              endDate = this.sharedService.convertStringToDateObject(body.endDate);
+            } catch {
+              throw new BadRequestException('startDate and endDate must be valid calendar dates');
+            }
+            if (startDate.getTime() > endDate.getTime()) {
+              throw new BadRequestException('startDate must not be after endDate');
+            }
+            const startDateIso = startDate.toISOString().slice(0, 10);
+            const endDateIso = endDate.toISOString().slice(0, 10);
 
             const { filePath, zipBuffer, document_summary, list_summary } =
             await this.reportsService.createUniformFile(
               userId,
-              body.startDate,
-              body.endDate,
+              startDateIso,
+              endDateIso,
               body.businessNumber
             );
 

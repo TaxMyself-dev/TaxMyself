@@ -998,6 +998,7 @@ export class BillingAttemptOrchestrationService {
         where: {
           status: BillingAttemptStatus.CAPTURED,
           chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+          operation: 'CHARGE',
           capturedAt: LessThanOrEqual(capturedBefore),
         },
         order: { capturedAt: 'ASC' },
@@ -1023,6 +1024,7 @@ export class BillingAttemptOrchestrationService {
         await manager.find(BillingAttempt, {
           where: {
             status: BillingAttemptStatus.PROCESSING,
+            operation: 'CHARGE',
             leaseExpiresAt: LessThanOrEqual(now),
           },
           order: { leaseExpiresAt: 'ASC' },
@@ -1047,6 +1049,7 @@ export class BillingAttemptOrchestrationService {
         await manager.find(BillingAttempt, {
           where: {
             status: BillingAttemptStatus.UNKNOWN,
+            operation: 'CHARGE',
             nextActionAt: Or(IsNull(), LessThanOrEqual(now)),
             failureCategory: Or(IsNull(), Not(PRE_SUBMISSION_LOCAL_FAILURE)),
           },
@@ -1296,6 +1299,7 @@ export class BillingAttemptOrchestrationService {
       where: { id: attemptId },
     });
     if (!peek) throw new BadRequestException('Billing attempt not found');
+    if (peek.operation === 'REFUND') throw new BadRequestException('Refunds cannot mutate subscription billing');
     const obligation = await manager.findOne(BillingObligation, {
       where: { id: peek.obligationId },
     });
@@ -1625,6 +1629,7 @@ export class BillingAttemptOrchestrationService {
       lock: { mode: 'pessimistic_write' },
     });
     if (!attempt) throw new BadRequestException('Billing attempt not found');
+    if (attempt.operation === 'REFUND') throw new BadRequestException('Refunds require the refund recovery workflow');
     return attempt;
   }
 

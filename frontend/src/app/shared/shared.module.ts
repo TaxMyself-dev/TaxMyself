@@ -44,6 +44,7 @@ import { InputSelectComponent } from '../components/input-select/input-select.co
 // import { ButtonComponentIonic } from '../shared/button/button.component';
 import {InputTextComponent} from '../components/input-text/input-text.component';
 import { ClientsDashboardComponent } from './clients-dashboard/clients-dashboard.component';
+import { OpenBankingManagementComponent } from '../components/open-banking-management/open-banking-management.component';
 import { GenericTableComponent } from '../components/generic-table/generic-table.component';
 import { FeezbackTransactionsDialogComponent } from '../components/feezback-transactions-dialog/feezback-transactions-dialog.component';
 import { TableModule } from 'primeng/table';
@@ -57,6 +58,7 @@ import { SelectModule } from 'primeng/select';
 @NgModule({
   declarations: [CustomToolbarComponent,ModalExpensesComponent,TableComponent,SortDateComponent,SelectMonthComponent,SelectYearComponent,PopupConfirmComponent,selectSupplierComponent,addSupplierComponent,ItemNavigateComponent, SearchBarComponent, GenericSelectComponent, SelectMonthFormatComponent, GenericInputComponent,collapseComponent, AddBillComponent,AddTransactionComponent, CustomInputComponent,editRowComponent, TabBarComponent, UpdateDataComponent, LoadFileComponent, CategoryManagementComponent, BookingAccountCatalogComponent, FilterInputComponent, PopupSelectComponent, MultiInputComponent, TransManagementComponent,ToastComponent, PopupMessageComponent, ButtonComponentIonic, ClientsDashboardComponent],
   imports: [
+    OpenBankingManagementComponent,
     CommonModule,
     IonicModule,
     FormsModule,

@@ -1,9 +1,10 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, ElementRef, OnInit, signal, inject, ViewChild } from '@angular/core';
 import { EMPTY, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { DocCreateService } from 'src/app/pages/doc-create/doc-create.service';
 import { GenericService } from 'src/app/services/generic.service';
-import { IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction, IUserData } from 'src/app/shared/interface';
+import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData } from 'src/app/shared/interface';
 import { DialogService } from 'primeng/dynamicdialog';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import {
@@ -51,7 +52,7 @@ export class ClientsPage implements OnInit {
 
   isLoadingDataTable = signal<boolean>(false);
   myClients: any;
-  fileActions = signal<ITableRowAction[]>([]);
+  fileActions = signal<IGenericTableAction[]>([]);
 
   // Original server records by clientRowId. The table rows carry '-' placeholders
   // for display only; the edit dialog must receive the untouched data.
@@ -188,18 +189,18 @@ export class ClientsPage implements OnInit {
     this.fileActions.set([
       {
         name: 'edit',
+        desktopDisplay: 'icon',
         icon: 'pi pi-pencil',
         title: 'ערוך',
-        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onEditClient(row);
         }
       },
       {
         name: 'delete',
+        desktopDisplay: 'icon',
         icon: 'pi pi-trash',
         title: 'מחק',
-        alwaysShow: true,
         action: (event: any, row: IRowDataTable) => {
           this.onDeleteClient(row);
         }

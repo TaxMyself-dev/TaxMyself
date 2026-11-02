@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Business } from './business.entity';
 import { BusinessService } from './business.service';
+import { BusinessProprietorRole } from '../enum';
 
 /**
  * Signals a future resolver can use to route an imported document to the
@@ -36,15 +37,13 @@ export class BusinessResolverService {
    *
    * - No businesses: throws — nothing to import into.
    * - Exactly one business: returns it.
-   * - Multiple businesses: returns the PRIMARY (first by id ASC, matching the
-   *   existing convention in users.service — primary = first created). This
-   *   preserves today's behavior until real multi-business routing lands.
+   * - Multiple businesses: returns the explicitly assigned PRIMARY business;
+   *   legacy rows without one fall back to the first-created business.
    */
   async resolveTargetBusiness(
     firebaseId: string,
     hints?: BusinessResolutionHints,
   ): Promise<Business> {
-    // getUserBusinesses already orders by id ASC, so [0] is the primary.
     const businesses = await this.businessService.getUserBusinesses(firebaseId);
 
     if (businesses.length === 0) {
@@ -64,7 +63,9 @@ export class BusinessResolverService {
     //   3. OCR / detected business number (hints.detectedBusinessNumber).
     //   4. AI classification of the document content.
     // Until then, preserve current behavior: route to the primary business.
-    const primary = businesses[0];
+    const primary = businesses.find(
+      (business) => business.proprietorRole === BusinessProprietorRole.PRIMARY,
+    ) ?? businesses[0];
     this.logger.log(
       `resolveTargetBusiness: firebaseId=${firebaseId} owns ${businesses.length} businesses — ` +
         `routing to primary (businessNumber=${primary.businessNumber ?? 'null'}, id=${primary.id}) ` +

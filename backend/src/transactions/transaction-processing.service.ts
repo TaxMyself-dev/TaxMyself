@@ -348,7 +348,7 @@ export class TransactionProcessingService {
     // Enrich: resolve billId/billName from paymentIdentifier where not already set.
     const enriched: NormalizedTransaction[] = transactionsToProcess.map((tx) => {
       const resolved = tx.paymentIdentifier
-        ? (billMap.get(tx.paymentIdentifier) ?? null)
+        ? (billMap.get(tx.sourceRecordId ? `#${tx.sourceRecordId}` : tx.paymentIdentifier) ?? null)
         : null;
       return {
         ...tx,
@@ -479,7 +479,7 @@ export class TransactionProcessingService {
       // as the same transaction, overlay that classification, do not create
       // a second slim row.
       if (tx.paymentIdentifier) {
-        const dupKey = this.buildDupKey(tx.paymentIdentifier, tx.merchantName, tx.amount, tx.transactionDate);
+        const dupKey = this.buildDupKey(tx.sourceRecordId ? `#${tx.sourceRecordId}` : tx.paymentIdentifier, tx.merchantName, tx.amount, tx.transactionDate);
         const dupSlim = compositeSlimMap.get(dupKey);
         if (dupSlim) {
           cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, dupSlim, fxStamp));
@@ -1248,8 +1248,13 @@ export class TransactionProcessingService {
     });
 
     const map = new Map<string, BillInfo>();
+    const counts = new Map<string, number>();
+    for (const source of sources) counts.set(source.sourceName, (counts.get(source.sourceName) ?? 0) + 1);
     for (const source of sources) {
       if (source.bill) {
+        const bill = { billId: source.bill.id, billName: source.bill.billName, businessNumber: source.bill.businessNumber ?? null };
+        map.set(`#${source.id}`, bill);
+        if (counts.get(source.sourceName) !== 1) continue;
         map.set(source.sourceName, {
           billId: source.bill.id,
           billName: source.bill.billName,
@@ -1308,7 +1313,7 @@ export class TransactionProcessingService {
 
     const cacheRows = await this.cacheRepo.find({
       where: { userId, paymentIdentifier: In(paymentIdentifiers) },
-      select: ['externalTransactionId', 'paymentIdentifier', 'merchantName', 'amount', 'transactionDate'],
+      select: ['externalTransactionId', 'paymentIdentifier', 'sourceRecordId', 'merchantName', 'amount', 'transactionDate'],
     });
     if (cacheRows.length === 0) return new Map();
 
@@ -1322,7 +1327,7 @@ export class TransactionProcessingService {
     for (const row of cacheRows) {
       const slim = slimByExternalId.get(row.externalTransactionId);
       if (!slim || !row.paymentIdentifier) continue;
-      const key = this.buildDupKey(row.paymentIdentifier, row.merchantName, Number(row.amount), row.transactionDate);
+      const key = this.buildDupKey(row.sourceRecordId ? `#${row.sourceRecordId}` : row.paymentIdentifier, row.merchantName, Number(row.amount), row.transactionDate);
       map.set(key, slim);
     }
     return map;
@@ -1710,6 +1715,7 @@ export class TransactionProcessingService {
       transactionDate: tx.transactionDate,
       paymentDate: tx.paymentDate,
       paymentIdentifier: tx.paymentIdentifier,
+      sourceRecordId: tx.sourceRecordId ?? null,
       businessNumber: tx.businessNumber,
       note: tx.note,
       category: null,
@@ -1783,6 +1789,7 @@ export class TransactionProcessingService {
       externalTransactionId: row.externalTransactionId,
       userId: row.userId,
       paymentIdentifier: row.paymentIdentifier,
+      sourceRecordId: row.sourceRecordId,
       billName: row.billName,
       businessNumber: row.businessNumber,
       name: row.merchantName,

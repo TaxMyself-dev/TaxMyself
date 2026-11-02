@@ -1,16 +1,17 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, map, Observable, of, switchMap, takeWhile, tap, throwError, timer } from 'rxjs';
+import { catchError, map, Observable, of, switchMap, exhaustMap, timeout, takeWhile, tap, throwError, timer } from 'rxjs';
+import { BankingSupportError, bankingRequestError } from '../components/open-banking-management/open-banking-error.component';
 import { environment } from 'src/environments/environment';
 
-export type TriggerSyncStatus = 'started' | 'running';
+export type TriggerSyncStatus = 'started' | 'running' | 'already_running';
 
 /**
  * Response shape from POST /transactions/post-consent-sync.
  *   completed — webhook-triggered sync already covered this consent flow; data is fresh, no polling needed.
  *   pending   — webhook hasn't fired or isn't done yet; frontend should poll /sync-status until terminal.
  */
-export type PostConsentStatus = 'completed' | 'pending';
+export type PostConsentStatus = 'completed' | 'pending' | 'failed';
 
 /** Frontend-facing lifecycle status. This is the only field that drives polling and reload decisions. */
 export type ProcessStatus = 'running' | 'completed' | 'failed' | 'skipped';
@@ -28,8 +29,12 @@ export type ResultStatus = 'none' | 'success' | 'partial_success' | 'failed';
 export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
 
 export interface SourceResult {
+  resultRunId?: string | null;
+  supportError?: BankingSupportError;
   type: 'bank' | 'card';
   sourceId: string;
+  sourceRecordId?: number;
+  connectionRole?: 'primary' | 'spouse';
   resourceId?: string | null;
   status: SourceSyncStatus;
   transactionCount: number;
@@ -38,6 +43,8 @@ export interface SourceResult {
 }
 
 export interface StageState {
+  runId?: string | null;
+  supportError?: BankingSupportError;
   processStatus: ProcessStatus;
   resultStatus:  ResultStatus;
   rowsWritten: number;
@@ -49,6 +56,17 @@ export interface StageState {
 export interface SyncResponse {
   fullSync: StageState;
   sourceResults: SourceResult[];
+}
+
+export function isPreviousPullResult(stage: StageState | null, previousRunId?: string | null): boolean {
+  return !!stage && previousRunId !== undefined && (!stage.runId || stage.runId === previousRunId) &&
+    !(stage.runId === undefined && stage.supportError);
+}
+
+export function currentPullSourceResults(response: SyncResponse | null): SourceResult[] {
+  const stage = response?.fullSync;
+  return stage?.runId && !stage.skipReason
+    ? response!.sourceResults.filter(source=>source.resultRunId===stage.runId && source.status!=='not_synced') : [];
 }
 
 const TERMINAL_STATUSES: ProcessStatus[] = ['completed', 'failed', 'skipped'];
@@ -84,8 +102,8 @@ export class SyncStatusService {
    *   - 'completed' → fresh data already in DB; frontend can skip polling.
    *   - 'pending'   → webhook hasn't fired yet; frontend polls /sync-status.
    */
-  triggerPostConsentSync(): Observable<{ status: PostConsentStatus }> {
-    return this.http.post<{ status: PostConsentStatus }>(this.postConsentSyncUrl, {}).pipe(
+  triggerPostConsentSync(): Observable<{ status: PostConsentStatus; supportError?: BankingSupportError }> {
+    return this.http.post<{ status: PostConsentStatus; supportError?: BankingSupportError }>(this.postConsentSyncUrl, {}).pipe(
       tap(res => console.log('[SyncStatus] triggerPostConsentSync response:', res.status)),
       catchError(err => {
         console.error('[SyncStatus] triggerPostConsentSync failed:', err?.status ?? err?.message ?? err);
@@ -150,9 +168,9 @@ export class SyncStatusService {
     );
   }
 
-  retrySource(type: 'bank' | 'card', sourceId: string): Observable<SourceResult> {
-    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId }).pipe(
-      tap(res => console.log('[SyncStatus] retrySource response:', res)),
+  retrySource(type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): Observable<SourceResult> {
+    return this.http.post<SourceResult>(this.retryUrl, { type, sourceId, sourceRecordId }).pipe(
+      tap(res => console.log('[SyncStatus] retrySource response:', res.status)),
       catchError(err => {
         console.error('[SyncStatus] retrySource failed:', err?.message ?? err);
         throw err;
@@ -161,8 +179,9 @@ export class SyncStatusService {
   }
 
   /** Single HTTP poll — returns null on network/HTTP error. */
-  private getSyncResponse(): Observable<SyncResponse | null> {
+  getSyncResponse(): Observable<SyncResponse | null> {
     return this.http.get<SyncResponse>(this.url).pipe(
+      timeout(15_000),
       catchError((err) => {
         console.log('[SyncStatus] HTTP error while fetching sync status:', err?.status ?? err?.message ?? err);
         return of(null);
@@ -190,16 +209,12 @@ export class SyncStatusService {
       tap(() =>
         console.log(`[SyncStatus] Poll attempt ${++attemptNum}`),
       ),
-      switchMap(() => this.getSyncResponse()),
-      tap((res) => console.log('[SyncStatus] Response received:', res)),
+      exhaustMap(() => this.getSyncResponse()),
+      tap((res) => console.log('[SyncStatus] Response received:', res.fullSync.processStatus)),
       switchMap((res) => {
-        // Only time out when we have NOT yet reached a terminal state.
-        // Callers that need to poll past a stale terminal state (requireRunningFirst)
-        // control stopping via their own takeWhile — if we killed the timer here on
-        // terminal, those callers would be left with a dead source and a stuck UI.
-        const stageProcessStatus = res?.fullSync?.processStatus;
-        const terminal = stageProcessStatus != null && this.isTerminalStatus(stageProcessStatus);
-        if (!terminal && attemptNum >= maxAttempts) {
+        // Bound every session, including callers waiting past an old terminal
+        // result for a newer job. Slow requests complete before the next starts.
+        if (attemptNum >= maxAttempts) {
           console.log(`[SyncStatus] Polling timed out after ${attemptNum} attempts`);
           return throwError(() => new Error(`Polling timed out`));
         }
@@ -222,8 +237,13 @@ export class SyncStatusService {
     return this.pollUntilDone(3000).pipe(
       map(res => ({
         stageState: res?.fullSync ?? null,
-        sourceResults: res?.sourceResults ?? [],
+        sourceResults: currentPullSourceResults(res),
       })),
+      catchError(error => of({ stageState: {
+        processStatus: 'failed' as const, resultStatus:'failed' as const, rowsWritten:0,
+        finishedAt:new Date().toISOString(), failureReason:null, skipReason:null,
+        supportError:bankingRequestError(error, 'OB-03'),
+      }, sourceResults:[] })),
     );
   }
 

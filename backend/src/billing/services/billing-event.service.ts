@@ -311,6 +311,7 @@ export class BillingEventService {
         where: {
           firebaseId,
           eventType: In([
+            BillingEventType.REFUND_SUCCESS,
             BillingEventType.PAYMENT_SUCCESS,
             BillingEventType.PAYMENT_FAILED,
             BillingEventType.RENEWAL_SUCCESS,

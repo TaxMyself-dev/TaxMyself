@@ -17,6 +17,11 @@ and `tx_only` rows and replaces the former overlay review dialog.
 
 ## Main flows
 
+- `reviewRowActions` implements the unified generic-table `actions` contract.
+  Existing custom cell templates and desktop icon/label buttons are retained;
+  ordinary table rows automatically expose the same filtered menu on mobile,
+  without requiring a mobile-card configuration.
+
 - VAT/P&L pre-flight enters with business and period query parameters; archive
   approval may add `focusDocumentId` to load exactly one pending document.
 - Editing opens `ReportReviewEditDialogComponent`. Save is blocking and

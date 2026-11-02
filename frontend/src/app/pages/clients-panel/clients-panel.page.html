@@ -324,8 +324,15 @@
 </p-dialog>
 
 <div class="clients-panel-page">
-  <p-tabView [activeIndex]="activeTabIndex()" (activeIndexChange)="onTabChange($event)">
-    <p-tabPanel header="הלקוחות שלי">
+  <p-tabs [value]="activeTabIndex()" (valueChange)="onTabChange($event)">
+    <p-tablist>
+      <p-tab [value]="0">הלקוחות שלי</p-tab>
+      <p-tab [value]="1">משימות</p-tab>
+      <p-tab [value]="2">קטלוג וכרטיסים</p-tab>
+    </p-tablist>
+
+    <p-tabpanels>
+      <p-tabpanel [value]="0">
       <header class="tab-header">
         <div class="panel-actions">
           <app-p-button
@@ -426,9 +433,9 @@
           </div>
         }
       </section>
-    </p-tabPanel>
+      </p-tabpanel>
 
-    <p-tabPanel header="משימות">
+      <p-tabpanel [value]="1">
       <header class="tab-header tasks-toolbar">
         <div class="tasks-filters">
           <div class="filter-group">
@@ -632,10 +639,10 @@
           </div>
         }
       </section>
-    </p-tabPanel>
+      </p-tabpanel>
 
-    <!-- Phase 6.2: accountant catalog management (D4 layers, D5 queue, D11 add-account) -->
-    <p-tabPanel header="קטלוג וכרטיסים">
+      <!-- Phase 6.2: accountant catalog management (D4 layers, D5 queue, D11 add-account) -->
+      <p-tabpanel [value]="2">
       <section class="pending-approvals-section">
         <h3 class="section-title">ממתינים לטיפול</h3>
         @if (pendingApprovalsLoading()) {
@@ -753,6 +760,7 @@
           <p class="empty-text">בחר עסק כדי לעיין בכרטיסי הייחוס מטופס 6111 ולהפעיל כרטיס עבורו.</p>
         }
       </section>
-    </p-tabPanel>
-  </p-tabView>
+      </p-tabpanel>
+    </p-tabpanels>
+  </p-tabs>
 </div>

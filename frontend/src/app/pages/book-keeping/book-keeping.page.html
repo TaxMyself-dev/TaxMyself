@@ -1,5 +1,14 @@
 <div class="my-documents-page">
-  <p-tabMenu [model]="items()" [activeItem]="activeItem()"></p-tabMenu>
+  <p-tabs [value]="activeRouterLink()">
+    <p-tablist>
+      @for (item of items(); track item.routerLink) {
+        <p-tab [value]="item.routerLink" [routerLink]="item.routerLink">
+          <i [class]="item.icon" aria-hidden="true"></i>
+          <span>{{ item.label }}</span>
+        </p-tab>
+      }
+    </p-tablist>
+  </p-tabs>
 
   <div class="content-container">
     <router-outlet></router-outlet>

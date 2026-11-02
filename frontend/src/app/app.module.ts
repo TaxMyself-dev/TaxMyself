@@ -1,3 +1,4 @@
+import { BankingToastContentComponent } from './components/open-banking-management/banking-toast-content.component';
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { RouteReuseStrategy } from '@angular/router';
@@ -61,6 +62,7 @@ import { PwaBannersComponent } from './components/pwa-banners/pwa-banners.compon
     Dialog,
     UpgradeRequiredDialogComponent,
     PwaBannersComponent,
+    BankingToastContentComponent,
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),

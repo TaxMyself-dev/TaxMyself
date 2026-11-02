@@ -5,6 +5,7 @@ import {
   EmploymentType,
   FamilyStatus,
   Gender,
+  PaymentMethodType,
   SourceType,
 } from 'src/enum';
 import { DemoProfile } from '../demo-profile.types';
@@ -18,13 +19,13 @@ import { DemoProfile } from '../demo-profile.types';
 // otherwise income documents roll back and expense journal lines are skipped.
 // See backend/src/bookkeeping/account.seed.ts.
 const EXEMPT_ID = '111111118'; // עוסק פטור
-const LICENSED_ID = '222222224'; // עוסק מורשה
+const LICENSED_ID = '222222226'; // עוסק מורשה (valid Israeli check digit)
 
 export const LEDGER_TEST_PROFILE: DemoProfile = {
   id: 'ledger-test',
   label: 'בדיקת כרטסת - שני עסקים (פטור + מורשה)',
   description:
-    'משתמש אחד עם שני עסקים (פטור ומורשה), עם מסמכים והוצאות אמיתיים כדי לבדוק את דוח הכרטסת ופקודות היומן.',
+    'משתמש עם מסמכים, הוצאות ופקודות יומן אמיתיים. לבדיקת מבנה אחיד: עסק 222222226, תקופה 01/02/2026–31/03/2026.',
 
   email: 'demo+ledger@keepintax.local',
   password: 'test1234',
@@ -78,6 +79,14 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
 
   transactions: [],
 
+  // Recommended deterministic cut: January movements become B110 opening
+  // balances, while February-March populate the requested period.
+  uniformFileScenario: {
+    businessNumberRef: LICENSED_ID,
+    startDate: '2026-02-01',
+    endDate: '2026-03-31',
+  },
+
   // ── Documents ───────────────────────────────────────────────────────────
   documents: [
     // LICENSED (עוסק מורשה) — VAT documents.
@@ -93,9 +102,29 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       businessNumberRef: LICENSED_ID,
       docType: DocumentType.TAX_INVOICE_RECEIPT,
       recipientName: 'לקוח לדוגמה',
+      recipientId: '515000008',
+      sumBefDisBefVat: 5500,
+      discountSum: 500,
       sumAftDisBefVAT: 5000,
       vatSum: 900,
       docDate: '2026-02-15',
+      lines: [{
+        description: 'חבילת אימון עסקית',
+        unitQuantity: 1,
+        sumBefVatPerUnit: 5500,
+        discount: 500,
+        sumAftDisBefVatPerLine: 5000,
+        vatRate: 18,
+        vatPerLine: 900,
+      }],
+      payments: [{
+        paymentMethod: PaymentMethodType.BANK_TRANSFER,
+        paymentDate: '2026-02-15',
+        paymentAmount: 5900,
+        bankNumber: '10',
+        branchNumber: '800',
+        accountNumber: '123456',
+      }],
     },
     {
       businessNumberRef: LICENSED_ID,
@@ -104,6 +133,20 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       sumAftDisBefVAT: 5000,
       vatSum: 900,
       docDate: '2026-03-15',
+      lines: [{
+        description: 'שירותי ליווי עסקי',
+        unitQuantity: 1,
+        sumBefVatPerUnit: 5000,
+        discount: 0,
+        sumAftDisBefVatPerLine: 5000,
+        vatRate: 18,
+        vatPerLine: 900,
+      }],
+      payments: [{
+        paymentMethod: PaymentMethodType.CASH,
+        paymentDate: '2026-03-15',
+        paymentAmount: 5900,
+      }],
     },
     {
       businessNumberRef: LICENSED_ID,
@@ -112,6 +155,15 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       sumAftDisBefVAT: 1000,
       vatSum: 180,
       docDate: '2026-02-20',
+      lines: [{
+        description: 'זיכוי שירות',
+        unitQuantity: 1,
+        sumBefVatPerUnit: 1000,
+        discount: 0,
+        sumAftDisBefVatPerLine: 1000,
+        vatRate: 18,
+        vatPerLine: 180,
+      }],
     },
 
     // LICENSED — TAX_INVOICE (without payment, stays OPEN)
@@ -119,7 +171,7 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       businessNumberRef: LICENSED_ID,
       docType: DocumentType.TAX_INVOICE,
       recipientName: 'לקוח B בע"מ',
-      recipientId: '515000001',
+      recipientId: '515000008',
       sumAftDisBefVAT: 8000,
       vatSum: 1440,
       docDate: '2026-01-20',
@@ -129,10 +181,19 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       businessNumberRef: LICENSED_ID,
       docType: DocumentType.CREDIT_INVOICE,
       recipientName: 'לקוח B בע"מ',
-      recipientId: '515000001',
+      recipientId: '515000008',
       sumAftDisBefVAT: 2000,
       vatSum: 360,
       docDate: '2026-03-10',
+      lines: [{
+        description: 'זיכוי חבילת ייעוץ',
+        unitQuantity: 1,
+        sumBefVatPerUnit: 2000,
+        discount: 0,
+        sumAftDisBefVatPerLine: 2000,
+        vatRate: 18,
+        vatPerLine: 360,
+      }],
     },
 
     // LICENSED — RECEIPT acknowledges payment received (vatSum=0; VAT was on the invoice)
@@ -144,6 +205,11 @@ export const LEDGER_TEST_PROFILE: DemoProfile = {
       sumAftDisBefVAT: 3000,
       vatSum: 0,
       docDate: '2026-02-25',
+      payments: [{
+        paymentMethod: PaymentMethodType.CASH,
+        paymentDate: '2026-02-25',
+        paymentAmount: 3000,
+      }],
     },
 
     // EXEMPT (עוסק פטור) — receipts, no VAT.

@@ -1,4 +1,10 @@
 <div class="clients-dashboard">
+  <p-dialog [header]="'בנקאות פתוחה — ' + (bankingClient()?.name || '')" [visible]="bankingClient() !== null"
+    (visibleChange)="!$event && !bankingBusy() && bankingClient.set(null)" [closable]="!bankingBusy()" [closeOnEscape]="!bankingBusy()" [modal]="true" [style]="{width: '48rem', maxWidth: '95vw'}">
+    @if (bankingClient(); as client) {
+      <app-open-banking-management [firebaseId]="client.firebaseId" (busyChange)="bankingBusy.set($event)" (connectionChanged)="loadUsers()"></app-open-banking-management>
+    }
+  </p-dialog>
   <div class="dashboard-header">
     <h2>לוח בקרה - לקוחות</h2>
     <div class="stats-cards">
@@ -35,11 +41,11 @@
   </div>
 
   <div class="table-section">
-    <app-generic-table 
-      [isLoadingState]="isLoading()" 
-      [columnsTitle]="columnsTitle" 
+    <app-generic-table
+      [isLoadingState]="isLoading()"
+      [columnsTitle]="columnsTitle"
       [dataTable]="filteredUsers"
-      [fileActions]="fileActions"
+      [actions]="fileActions"
       [tableHeight]="'600px'">
     </app-generic-table>
   </div>
@@ -69,7 +75,7 @@
         <div *ngFor="let src of accountsDialogSources()" style="padding: 6px 0; border-top: 1px solid #f1f5f9;">
           <div style="display: flex; align-items: center; gap: 10px;">
             <i [class]="src.type === 'bank' ? 'pi pi-building' : 'pi pi-credit-card'" style="font-size: 1.1rem; color: #475569;"></i>
-            <span style="font-weight: 600; min-width: 90px; font-family: monospace;">{{ src.paymentIdentifier }}</span>
+            <span style="font-weight: 600; min-width: 90px; font-family: monospace;">{{ src.paymentIdentifier }}</span><span *ngIf="src.connectionRole === 'spouse'">בן/בת הזוג</span>
             <span style="color: #6b7280; min-width: 50px;">{{ src.type === 'bank' ? 'בנק' : 'אשראי' }}</span>
             <i [class]="src.consentStatus === 'valid' ? 'pi pi-check-circle' : 'pi pi-times-circle'"
                [style.color]="consentStatusColor(src.consentStatus)"

@@ -19,26 +19,32 @@
     </app-input-select>
   }
 
+  @if (capturedFile) {
+    <p class="quick-upload__filename">{{ capturedFile.name }}</p>
+    @if (isUploading()) {
+      <p role="status">מעלה את התמונה ל-Drive...</p>
+    }
+  } @else {
   <app-file-uploader-gpt
     [multiple]="true"
     [accept]="'.pdf,.jpg,.jpeg,.png'"
     [supportedText]="'PDF, JPG, PNG'"
     (selectedFiles)="onFilesSelected($event)">
   </app-file-uploader-gpt>
+  }
 
   <div class="quick-upload__actions">
     <app-p-button
       [buttonText]="'ביטול'"
       [buttonColor]="buttonColor.WHITE_BORDER"
       [buttonSize]="buttonSize.BETWEEN"
-      [disabled]="isUploading()"
       (onButtonClicked)="cancel()">
     </app-p-button>
     <app-p-button
       [buttonText]="'העלה'"
       [buttonColor]="buttonColor.BLACK"
       [buttonSize]="buttonSize.BETWEEN"
-      [disabled]="!canUpload()"
+      [disabled]="!canUpload() && !isUploading()"
       [isLoading]="isUploading()"
       (onButtonClicked)="upload()">
     </app-p-button>

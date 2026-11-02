@@ -1,3 +1,5 @@
+import { IdentityImagesModule } from '../identity-images/identity-images.module';
+import { ProfileImageController } from '../identity-images/profile-image.controller';
 import { forwardRef, Module, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { UsersController } from './users.controller';
@@ -17,13 +19,14 @@ import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
+    IdentityImagesModule,
     TypeOrmModule.forFeature([User, Child, Business, Delegation, SettingDocuments]),
     SharedModule,
     forwardRef(() => FeezbackModule),
     GoogleDriveModule,
     forwardRef(() => BillingModule),
   ],
-  controllers: [UsersController],
+  controllers: [UsersController, ProfileImageController],
   providers: [
     UsersService,
     AuthService,

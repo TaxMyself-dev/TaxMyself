@@ -1,4 +1,5 @@
 import { NgModule } from '@angular/core';
+import { OpenBankingErrorComponent } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
@@ -15,11 +16,13 @@ import { ClassifyTranComponent } from "../../components/classify-tran/classify-t
 import { AddCategoryComponent } from "../../components/add-category/add-category.component";
 import { CheckboxModule } from 'primeng/checkbox';
 import { ToastModule } from 'primeng/toast';
+import { DialogModule } from 'primeng/dialog';
 import { FilterPanelComponent } from "../../components/filter-panel/filter-panell.component";
 import { ButtonComponent } from "../../components/button/button.component";
 
 @NgModule({
   imports: [
+    OpenBankingErrorComponent,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
@@ -35,6 +38,7 @@ import { ButtonComponent } from "../../components/button/button.component";
     AddCategoryComponent,
     CheckboxModule,
     ToastModule,
+    DialogModule,
     FilterPanelComponent,
     ButtonComponent
 ],

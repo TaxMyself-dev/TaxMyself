@@ -1,3 +1,5 @@
+import { FeezbackCacheCleanupService } from './feezback-cache-cleanup.service';
+import { FeezbackDisconnectionService } from './feezback-disconnection.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -37,6 +39,8 @@ import { MailModule } from '../mail/mail.module';
   ],
   controllers: [FeezbackController],
   providers: [
+    FeezbackCacheCleanupService,
+    FeezbackDisconnectionService,
     FeezbackService,
     FeezbackJwtService,
     FeezbackAuthService,

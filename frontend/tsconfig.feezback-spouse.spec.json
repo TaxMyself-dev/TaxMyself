@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/feezback-spouse-spec",
+    "types": [
+      "jasmine",
+      "node"
+    ],
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/test.ts",
+    "src/polyfills.ts"
+  ],
+  "include": [
+    "src/app/pages/billing/open-banking/open-banking.page.spec.ts",
+    "src/app/pages/billing/open-banking/open-banking-return.spec.ts",
+    "src/app/pages/settings/settings-source-deletion.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

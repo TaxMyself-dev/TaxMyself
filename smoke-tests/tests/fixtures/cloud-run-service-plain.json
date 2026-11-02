@@ -1,0 +1,33 @@
+{
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "run.googleapis.com/cloudsql-instances": "project:region:instance",
+          "run.googleapis.com/vpc-access-connector": "projects/project/locations/region/connectors/backend",
+          "run.googleapis.com/vpc-access-egress": "all-traffic"
+        }
+      },
+      "spec": {
+        "serviceAccountName": "backend@example.iam.gserviceaccount.com",
+        "containers": [
+          {
+            "image": "region-docker.pkg.dev/project/backend/image@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "env": [
+              { "name": "FIREBASE_PROJECT_ID", "value": "example-project" },
+              { "name": "FIREBASE_CLIENT_EMAIL", "value": "firebase@example.invalid" },
+              { "name": "FIREBASE_PRIVATE_KEY", "value": "fake-private-key\nwith-lines" },
+              { "name": "DB_HOST", "value": "db.example.invalid" },
+              { "name": "DB_PORT", "value": "3306" },
+              { "name": "DB_USERNAME", "value": "app" },
+              { "name": "DB_PASSWORD", "value": "fake-password,with-symbols" },
+              { "name": "DB_DATABASE", "value": "keepintax-prod" },
+              { "name": "GOOGLE_SERVICE_ACCOUNT_JSON", "value": "{\"type\":\"service_account\",\"private_key\":\"fake\"}" },
+              { "name": "GOOGLE_DRIVE_ROOT_FOLDER_ID", "value": "folder-id" }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

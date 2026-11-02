@@ -59,7 +59,7 @@ export class Documents {
   @Column({ type: 'varchar', length: 7, nullable: true })
   generalDocIndex: string;
 
-  @Column({ type: 'varchar', length: 26, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   allocationNum: string;
 
   @Column({ type: 'varchar', nullable: true })

@@ -1,4 +1,4 @@
-<div class="mrc" dir="rtl" (click)="closeMenu()">
+<div class="mrc" dir="rtl">
 
   <!-- ─── Hero section ──────────────────────────────────────────────────── -->
   <div class="mrc__hero">
@@ -24,28 +24,9 @@
           </label>
         }
 
-        @if (actions().length) {
-          <div class="mrc__menu-wrap">
-            <app-p-button
-              [icon]="'pi pi-ellipsis-v'"
-              [iconOnly]="true"
-              [buttonSize]="ButtonSize.ICON"
-              [buttonColor]="ButtonColor.WHITE_BORDER_LIGHT"
-              (onButtonClicked)="toggleMenu($event)">
-            </app-p-button>
+        <app-table-row-actions-menu [actions]="actions()"
+          (actionClicked)="onActionClick($event)" />
 
-            @if (menuOpen()) {
-              <ul class="mrc__menu-dropdown" (click)="$event.stopPropagation()">
-                @for (action of actions(); track action.name) {
-                  <li class="mrc__menu-item" (click)="onActionClick(action)">
-                    <i [class]="action.icon"></i>
-                    <span>{{ action.title ?? action.name }}</span>
-                  </li>
-                }
-              </ul>
-            }
-          </div>
-        }
       </div>
     </div>
 

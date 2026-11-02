@@ -116,8 +116,13 @@ export class MannualExpenseService {
 
     readonly subCategoriesResource = httpResource<ISubCategory[]>(() => {
         const selectedCategory = this.$selectedCategory();
+        // The endpoint is tenant-scoped through the active business header.
+        // Reading this signal makes a business selection/switch invalidate the
+        // resource even when the category name stays the same (notably the
+        // forced "רכוש קבוע (פחת)" category).
+        const selectedBusiness = this.$selectedBusinessNumber();
 
-        if (!selectedCategory) return undefined;
+        if (!selectedCategory || !selectedBusiness) return undefined;
 
         return {
             url: `${environment.apiUrl}expenses/get-sub-categories`,

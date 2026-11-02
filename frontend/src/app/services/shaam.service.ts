@@ -1,8 +1,67 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { environment } from 'src/environments/environment';
-import { IShaamApprovalRequest, IShaamApprovalResponse } from 'src/app/shared/interface';
+
+export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
+  'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
+
+export type ShaamOAuthOrigin = 'document' | 'settings' | 'uniform-file';
+export const SHAAM_OAUTH_ORIGIN_STORAGE_KEY = 'shaam_oauth_origin';
+
+export interface ShaamAllocationStatus {
+  state: string;
+  canRequest: boolean;
+  canFinalizeLocally: boolean;
+  requiresAdminResolution: boolean;
+  requestId: string | null;
+  updatedAt: string | null;
+}
+
+export interface ShaamUnknownAllocationAttempt {
+  attemptId: number;
+  requestId: string;
+  issuerBusinessNumber: string;
+  docNumber: string;
+  docType: string;
+  state: string;
+  environment: string;
+  submittedAt: string;
+  unknownSince: string | null;
+  httpStatus: number | null;
+  failureCategory: string | null;
+  providerErrorCode: string | null;
+}
+
+export type UniformFileSubmissionState =
+  | 'GENERATED'
+  | 'AUTH_REQUIRED'
+  | 'LINKS_RESERVED'
+  | 'INI_UPLOADED'
+  | 'PAIR_UPLOADED'
+  | 'PROCESSING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'RETRYABLE_FAILURE'
+  | 'UNKNOWN_OUTCOME';
+
+export type UniformFileRemoteStatus = 'UPLOADED' | 'APPROVED' | 'REJECTED';
+
+export interface UniformFileSubmission {
+  id: number;
+  state: UniformFileSubmissionState;
+  periodStart: string;
+  periodEnd: string;
+  iniStatus: UniformFileRemoteStatus | null;
+  bkmStatus: UniformFileRemoteStatus | null;
+  errorCategory: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  generatedAt: string;
+  uploadedAt: string | null;
+  lastPolledAt: string | null;
+  completedAt: string | null;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -15,9 +74,9 @@ export class ShaamService {
    * Gets the SHAAM OAuth authorization URL
    * @returns Observable with { url, state }
    */
-  getAuthorizeUrl(): Observable<{ url: string; state: string }> {
-    const url = `${environment.apiUrl}shaam/oauth/authorize-url`;
-    return this.http.get<{ url: string; state: string }>(url);
+  getAuthorizeUrl(businessNumber: string, product = 'INVOICE_ALLOCATION'): Observable<{ url: string }> {
+    const url = `${environment.apiUrl}shaam/oauth/authorize`;
+    return this.http.post<{ url: string }>(url, { businessNumber, product });
   }
 
   /**
@@ -25,35 +84,26 @@ export class ShaamService {
    * This method redirects the browser to the SHAAM login page
    * @param businessNumber - Optional business number to associate tokens with
    */
-  initiateOAuthFlow(businessNumber?: string): void {
-    let redirectUrl = `${environment.apiUrl}shaam/oauth/redirect`;
-    if (businessNumber) {
-      redirectUrl += `?businessNumber=${encodeURIComponent(businessNumber)}`;
-    }
-    window.location.href = redirectUrl;
-  }
-
-  /**
-   * Exchanges authorization code for access token
-   * @param code - Authorization code from SHAAM callback
-   * @param state - State string for validation
-   * @param redirectUri - Redirect URI used in authorization
-   * @returns Observable with token response
-   */
-  exchangeCodeForToken(code: string, state: string, redirectUri?: string): Observable<{
-    accessToken: string;
-    tokenType: string;
-    expiresIn: number;
-  }> {
-    let url = `${environment.apiUrl}shaam/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-    if (redirectUri) {
-      url += `&redirect_uri=${encodeURIComponent(redirectUri)}`;
-    }
-    return this.http.get<{
-      accessToken: string;
-      tokenType: string;
-      expiresIn: number;
-    }>(url);
+  initiateOAuthFlow(
+    businessNumber?: string,
+    onError?: (error: unknown) => void,
+    origin: ShaamOAuthOrigin = 'document',
+    product = 'INVOICE_ALLOCATION',
+  ): void {
+    if (!businessNumber) throw new Error('businessNumber is required');
+    this.getAuthorizeUrl(businessNumber, product).subscribe({
+      next: ({ url }) => {
+        sessionStorage.setItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY, origin);
+        window.location.assign(url);
+      },
+      error: (error) => {
+        if (onError) {
+          onError(error);
+          return;
+        }
+        console.error('SHAAM OAuth initiation failed');
+      },
+    });
   }
 
   /**
@@ -62,34 +112,91 @@ export class ShaamService {
    * @param businessNumber - Business number
    * @returns Observable with access token and expiresIn, or null if no connection exists
    */
-  getValidAccessToken(businessNumber: string): Observable<{
-    accessToken: string;
-    expiresIn: number;
-  } | null> {
-    const url = `${environment.apiUrl}shaam/access-token?businessNumber=${encodeURIComponent(businessNumber)}`;
+  getConnectionStatus(businessNumber: string, product = 'INVOICE_ALLOCATION'): Observable<{
+    connected: boolean;
+    expiresAt: string | null;
+    requiresReauthorization: boolean;
+  }> {
+    const url = `${environment.apiUrl}shaam/connection-status?businessNumber=${encodeURIComponent(businessNumber)}&product=${encodeURIComponent(product)}`;
     return this.http.get<{
-      accessToken: string;
-      expiresIn: number;
-    } | null>(url);
+      connected: boolean;
+      expiresAt: string | null;
+      requiresReauthorization: boolean;
+    }>(url);
+  }
+
+  createUniformFileSubmission(
+    businessNumber: string,
+    startDate: string,
+    endDate: string,
+    representorCompanyId?: string,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.post<UniformFileSubmission>(url, {
+      startDate,
+      endDate,
+      ...(representorCompanyId ? { representorCompanyId } : {}),
+    });
+  }
+
+  getUniformFileSubmission(
+    businessNumber: string,
+    submissionId: number,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions/${submissionId}?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.get<UniformFileSubmission>(url);
+  }
+
+  pollUniformFileSubmission(
+    businessNumber: string,
+    submissionId: number,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions/${submissionId}/poll?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.post<UniformFileSubmission>(url, {});
+  }
+
+  /** Request allocation for an already-persisted invoice. The backend builds
+   * every fiscal field from the stored record and finalizes that same record. */
+  requestInvoiceAllocation(
+    businessNumber: string,
+    docNumber: string,
+    docType: string,
+  ): Observable<any> {
+    const url = `${environment.apiUrl}shaam/invoices/allocation?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.post(url, { docNumber, docType });
+  }
+
+  getInvoiceAllocationStatus(
+    businessNumber: string,
+    docNumber: string,
+    docType: string,
+  ): Observable<ShaamAllocationStatus> {
+    const url = `${environment.apiUrl}shaam/invoices/allocation/status?businessNumber=${encodeURIComponent(businessNumber)}&docNumber=${encodeURIComponent(docNumber)}&docType=${encodeURIComponent(docType)}`;
+    return this.http.get<ShaamAllocationStatus>(url);
+  }
+
+  listUnknownAllocationAttempts(): Observable<ShaamUnknownAllocationAttempt[]> {
+    return this.http.get<ShaamUnknownAllocationAttempt[]>(`${environment.apiUrl}shaam/admin/invoices/allocation/unknown`);
+  }
+
+  resolveUnknownAllocationAttempt(
+    attemptId: number,
+    action: 'CONFIRMED_NOT_ACCEPTED' | 'CONFIRMED_APPROVED',
+    evidenceReference: string,
+    allocationNumber?: string,
+  ): Observable<{ state: string }> {
+    return this.http.post<{ state: string }>(
+      `${environment.apiUrl}shaam/admin/invoices/allocation/${attemptId}/resolve`,
+      { action, evidenceReference, allocationNumber },
+    );
   }
 
   /**
-   * Submits invoice approval to SHAAM
-   * @param accessToken - OAuth2 access token
-   * @param approvalData - Invoice approval data
-   * @param businessNumber - Business number to get token from backend if accessToken is not provided
-   * @returns Observable with approval response containing confirmation_number (allocation number)
+   * Disabled compatibility shim for the retired free-form approval dialog.
+   * Arbitrary browser-supplied fiscal data must never reach SHAAM.
    */
-  submitInvoiceApproval(accessToken: string, approvalData: IShaamApprovalRequest, businessNumber?: string): Observable<IShaamApprovalResponse> {
-    let url = `${environment.apiUrl}shaam/invoices/approval`;
-    if (businessNumber) {
-      url += `?businessNumber=${encodeURIComponent(businessNumber)}`;
-    }
-    return this.http.post<IShaamApprovalResponse>(url, approvalData, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+  submitInvoiceApproval(_approvalData: unknown, _businessNumber: string): Observable<never> {
+    return throwError(() => new Error('Direct invoice approval is disabled; persist the invoice first'));
   }
 }
 

@@ -123,18 +123,18 @@
 
   @let vatReportDataTable = dataTable | async;
   @if (vatReportDataTable?.length > 0) {
-    <app-generic-table 
+    <app-generic-table
       (fileChange)="onFileChange($event)"
-      [fileActions]="fileActions"
+      [actions]="fileActions" [fileAttachmentEnabled]="true"
       [fileEditingEnabled]="canManageExpenses()"
       [filesAttached]="filesAttachedMap()"
       [immediateFileOperation]="false"
       class="expenses-table"
-      [placeholderSearch]="'חיפוש לפי שם עסק'" 
+      [placeholderSearch]="'חיפוש לפי שם עסק'"
       title='הוצאות שעל בסיסם נבנה הדו"ח'
-      [columnsTitle]="fieldsNamesToShow" 
-      [dataTable]="vatReportDataTable" 
-      columnSearch="supplier" 
+      [columnsTitle]="fieldsNamesToShow"
+      [dataTable]="vatReportDataTable"
+      columnSearch="supplier"
       [tableHeight]="'500px'">
     </app-generic-table>
   }

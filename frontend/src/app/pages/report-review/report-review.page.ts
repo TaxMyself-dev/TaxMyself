@@ -1,3 +1,4 @@
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import {
   Component,
   computed,
@@ -18,7 +19,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { VATReportingType } from 'src/app/shared/enums';
-import { IColumnDataTable, IGetSupplier, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IColumnDataTable, IGetSupplier, IRowDataTable } from 'src/app/shared/interface';
 import {
   CatalogRow,
   ReportPreviewResponse,
@@ -1598,7 +1599,7 @@ export class ReportReviewPage implements OnInit {
    *  only "edit" (there's no classification to edit) and the D8 file/
    *  re-kind triage actions (dropped from this page entirely, not just
    *  hidden for annual rows) stay off annual rows. */
-  readonly reviewRowActions: ITableRowAction[] = [
+  readonly reviewRowActions: IGenericTableAction[] = [
     {
       name: 'edit',
       icon: 'pi pi-pencil',

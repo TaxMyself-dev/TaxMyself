@@ -292,7 +292,7 @@ export class BillingReceiptService {
         return { sent: false };
       }
 
-      const docTypeName = 'חשבונית מס קבלה';
+      const docTypeName = event.eventType === BillingEventType.REFUND_SUCCESS ? 'חשבונית זיכוי' : 'חשבונית מס קבלה';
       const attachmentName =
         `${receipt.docType}_${receipt.docNumber}_${receipt.generalDocIndex}.pdf`;
       const emailBody = [

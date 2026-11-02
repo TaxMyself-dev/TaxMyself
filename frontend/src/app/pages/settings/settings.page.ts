@@ -1,5 +1,9 @@
+import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { OpenBankingManagementComponent } from 'src/app/components/open-banking-management/open-banking-management.component';
+import { savedConsentLabel, BankingSupportError, OpenBankingErrorComponent, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
+import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
@@ -10,7 +14,7 @@ import { GenericService } from 'src/app/services/generic.service';
 import { AccessService } from 'src/app/services/access.service';
 import { ModuleName } from 'src/app/shared/access-control';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
-import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable, ITableRowAction } from 'src/app/shared/interface';
+import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shared/interface';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -18,10 +22,10 @@ import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SelectModule } from 'primeng/select';
-import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
+import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, BusinessProprietorRole, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
-import { catchError, EMPTY, finalize } from 'rxjs';
+import { catchError, EMPTY, finalize, take } from 'rxjs';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
 import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
@@ -32,13 +36,30 @@ import { InputDateComponent } from 'src/app/components/input-date/input-date.com
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-access.policy';
+import {
+  SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+  ShaamService,
+} from 'src/app/services/shaam.service';
+import {
+  getBusinessNumberForProprietor,
+  getBusinessProprietorOptions,
+} from './business-proprietor';
+
+type ShaamConnectionViewStatus =
+  | 'loading'
+  | 'connected'
+  | 'disconnected'
+  | 'reauth-required'
+  | 'sandbox-blocked'
+  | 'error';
 
 @Component({
   selector: 'app-settings',
   templateUrl: './settings.page.html',
   styleUrls: ['./settings.page.scss', '../../shared/shared-styling.scss'],
   standalone: true,
-  imports: [
+  imports: [AccountImageComponent, OpenBankingErrorComponent,
+    OpenBankingManagementComponent,
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
@@ -61,6 +82,7 @@ import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-a
   providers: []
 })
 export class SettingsPage implements OnInit {
+  readonly bankingError = signal<BankingSupportError | null>(null);
   readonly phoneError = ISRAELI_PHONE_ERROR;
   authService = inject(AuthService);
   genericService = inject(GenericService);
@@ -74,9 +96,11 @@ export class SettingsPage implements OnInit {
   driveDocsService = inject(DriveDocsService);
   private readonly fb = inject(FormBuilder);
   private readonly accessService = inject(AccessService);
+  private readonly shaamService = inject(ShaamService);
 
   /** sourceName of the account whose single-account pull is in flight (disables that row's button). */
   retryingSourceId = signal<string | null>(null);
+  deletingSourceId = signal<number | null>(null);
 
   userData: IUserData | null = null;
   businesses = signal<Business[]>([]);
@@ -130,6 +154,27 @@ export class SettingsPage implements OnInit {
     return this.isCompany() ? companyBusinessTypeOptionsList : businessTypeOptionsList;
   }
 
+  proprietorOptions() {
+    return getBusinessProprietorOptions(this.userData);
+  }
+
+  syncBusinessNumberToProprietor(
+    form: FormGroup,
+    proprietorRole: string | boolean,
+  ): void {
+    if (
+      this.isCompany() ||
+      (proprietorRole !== BusinessProprietorRole.PRIMARY &&
+        proprietorRole !== BusinessProprietorRole.SPOUSE)
+    ) {
+      return;
+    }
+
+    form.get('businessNumber')?.setValue(
+      getBusinessNumberForProprietor(this.userData, proprietorRole),
+    );
+  }
+
   // ─── Reactive Forms ───
   personalFormGroup  = this.buildPersonalForm();
   spouseFormGroup    = this.buildSpouseForm();
@@ -144,23 +189,29 @@ export class SettingsPage implements OnInit {
   revokingPermissionId = signal<number | null>(null);
 
   /** Account sources (credit cards + bank accounts) from backend `transactions/source` table. */
+  @ViewChild('bankingManagement') bankingManagement?: OpenBankingManagementComponent;
   accountSourcesLoading = signal(false);
   accountSources = signal<
-    { sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
+    { sourceRecordId?: number; connectionRole?: 'primary' | 'spouse'; sourceName: string; sourceType: paymentIdentifierType; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]
   >([]);
+
+  /** Invoice-allocation OAuth status, keyed by issuer business number. */
+  shaamConnectionStatuses = signal<Record<string, ShaamConnectionViewStatus>>({});
+  connectingShaamBusinessNumber = signal<string | null>(null);
 
   /** Flat IRowDataTable rows derived from accountSources for GenericTable. */
   accountSourcesTableData = computed<IRowDataTable[]>(() =>
     this.accountSources().map(s => ({
-      id: s.sourceName,
+      id: s.sourceRecordId?.toString() ?? s.sourceName,
+      sourceRecordId: s.sourceRecordId,
       sourceName: s.sourceName,
+      hasConsent: s.hasConsent,
+      connectionRoleLabel: s.connectionRole === 'spouse' ? 'בן/בת הזוג' : 'ראשי',
       sourceTypeLabel: this.getSourceTypeLabel(s.sourceType, s.isDirect),
       billName: s.billName || 'לא משויך',
       // Direct card: its transactions are received via the bank-account feed —
       // there is nothing to pull from the card feed, so no error/consent nag.
-      consentStatus: s.isDirect === true
-        ? 'נמשך דרך חשבון הבנק'
-        : s.hasConsent ? '✓ פעיל' : '✗ ללא הרשאה',
+      consentStatus: savedConsentLabel(s.hasConsent, s.isDirect),
       isDirect: s.isDirect === true,
     }))
   );
@@ -168,6 +219,7 @@ export class SettingsPage implements OnInit {
   accountSourcesColumns: IColumnDataTable<string, string>[] = [
     { name: 'consentStatus',   value: 'סטטוס' },
     { name: 'sourceName',      value: 'מספר מזהה' },
+    { name: 'connectionRoleLabel', value: 'חיבור' },
     { name: 'sourceTypeLabel', value: 'סוג' },
     { name: 'billName',        value: 'משויך לחשבון' },
   ];
@@ -180,7 +232,28 @@ export class SettingsPage implements OnInit {
     highlightedValueFormat: 'plain',
   };
 
-  accountSourcesRowActions: ITableRowAction[] = [
+  accountSourcesRowActions: IGenericTableAction[] = [
+    {
+      name: 'deleteSource', icon: 'pi pi-trash', title: 'מחק אמצעי תשלום',
+      showWhen: row => row!['hasConsent'] !== true && this.deletingSourceId() === null && !this.retryingSourceId(),
+      isLoading: () => this.bankingActionLoading(),
+      action: (_, row) => {
+        const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
+        if (source) this.onDeleteSource(source);
+      },
+    },
+    {
+      name: 'cancelConsent', icon: 'pi pi-ban', title: 'ביטול הרשאה',
+      showWhen: row => row!['hasConsent'] === true && !this.authService.isViewingAsClient(),
+      isLoading: () => this.bankingActionLoading(),
+      action: (_, row) => this.openSourceConsent(row),
+    },
+    {
+      name: 'reconnectSource', icon: 'pi pi-link', title: 'חיבור מחדש',
+      showWhen: row => row!['hasConsent'] !== true && !this.authService.isViewingAsClient(),
+      isLoading: () => this.bankingActionLoading(),
+      action: (_, row) => this.reconnectSource(row),
+    },
     {
       name: 'pullSource',
       icon: 'pi pi-refresh',
@@ -188,15 +261,81 @@ export class SettingsPage implements OnInit {
       // Direct cards never expose a pull button — their transactions are
       // intentionally received via the bank-account feed, and the backend
       // refuses the pull anyway (skipped_direct).
-      showWhen: (row) => row!['isDirect'] !== true &&
-        (!this.retryingSourceId() || this.retryingSourceId() === row!['sourceName']),
-      isLoading: () => !!this.retryingSourceId(),
+      showWhen: (row) => row!['hasConsent'] === true && this.deletingSourceId() === null && row!['isDirect'] !== true &&
+        (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
+      isLoading: () => this.bankingActionLoading(),
       action: (_, row) => {
-        const source = this.accountSources().find(s => s.sourceName === row!['sourceName']);
+        const source = this.accountSources().find(s => s.sourceRecordId === row!['sourceRecordId']);
         if (source) this.onPullSource(source);
       },
     },
   ];
+
+  bankingActionLoading(): boolean {
+    return this.accountSourcesLoading() || this.retryingSourceId() !== null ||
+      this.deletingSourceId() !== null || !!this.bankingManagement?.loading() ||
+      !!this.bankingManagement?.busy();
+  }
+
+  private canManageSourceConsent(): boolean {
+    return !this.authService.isViewingAsClient() && !!this.bankingManagement &&
+      this.bankingManagement.canManage() && !this.bankingManagement.synthetic() &&
+      !this.bankingActionLoading();
+  }
+
+  openSourceConsent(row?: IRowDataTable): void {
+    if (!this.canManageSourceConsent() || !row) return;
+    const source = this.accountSources().find(s => s.sourceRecordId === row['sourceRecordId']);
+    if (!source?.hasConsent || source.sourceRecordId == null) return;
+    this.bankingManagement!.openSourceConsent(source.sourceRecordId);
+  }
+
+  reconnectSource(row?: IRowDataTable): void {
+    if (!this.canManageSourceConsent() || !row) return;
+    const source = this.accountSources().find(s => s.sourceRecordId === row['sourceRecordId']);
+    if (!source || source.hasConsent || source.sourceRecordId == null) return;
+    this.bankingManagement!.reconnect();
+  }
+
+  private showSourceConsentExplanation(sourceName: string): void {
+    this.confirmationService.confirm({
+      key: 'payment-source',
+      header: 'ביטול הרשאה לאמצעי תשלום',
+      message: `לאמצעי התשלום ⁦${sourceName}⁩ יש הרשאה פעילה. לא ניתן להסיר אמצעי תשלום בודד מתוך הרשאה קיימת. כדי לבטל את ההרשאה לאמצעי זה, יש ליצור הרשאה חדשה ולבחור איזה חשבונות וכרטיסים לאשר ואיזה להשאיר ללא הרשאה.`,
+      icon: 'pi pi-info-circle', acceptLabel: 'הבנתי', rejectVisible: false,
+    });
+  }
+
+  onDeleteSource(source: { sourceRecordId?: number; sourceName: string; hasConsent: boolean }): void {
+    if (this.bankingActionLoading() || source.sourceRecordId == null) return;
+    if (source.hasConsent) { this.showSourceConsentExplanation(source.sourceName); return; }
+    this.confirmationService.confirm({
+      key: 'payment-source',
+      header: 'מחיקת אמצעי תשלום',
+      message: `למחוק את אמצעי התשלום ${source.sourceName}? האמצעי יוסר מהמערכת. התנועות ההיסטוריות יישמרו.`,
+      icon: 'pi pi-exclamation-triangle', acceptLabel: 'מחק', rejectLabel: 'ביטול', rejectVisible: true,
+      accept: () => {
+        if (this.bankingActionLoading()) return;
+        this.deletingSourceId.set(source.sourceRecordId!);
+        this.transactionsService.deleteSource(source.sourceRecordId!)
+          .pipe(finalize(() => this.deletingSourceId.set(null)))
+          .subscribe({
+            next: () => {
+              this.accountSources.update(rows => rows.filter(row => row.sourceRecordId !== source.sourceRecordId));
+              this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'אמצעי התשלום נמחק', key: 'br' });
+            },
+            error: err => {
+              if (err?.error?.code === 'SOURCE_HAS_ACTIVE_CONSENT') {
+                this.fetchAccountSources();
+                this.showSourceConsentExplanation(source.sourceName);
+              } else {
+                this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן למחוק את אמצעי התשלום. נסה שוב.', key: 'br' });
+              }
+            },
+          });
+      },
+    });
+  }
 
   addPermissionDialogVisible = false;
   addPermissionEmail = '';
@@ -235,6 +374,80 @@ export class SettingsPage implements OnInit {
     if (shouldLoadOpenBankingAccountSources(newTabValue, this.hasOpenBankingAccess())) {
       this.fetchAccountSources();
     }
+    if (newTabValue === 'permissions') {
+      this.loadShaamConnectionStatuses();
+    }
+  }
+
+  shaamConnectionStatus(businessNumber: string | null | undefined): ShaamConnectionViewStatus {
+    if (!businessNumber) return 'disconnected';
+    return this.shaamConnectionStatuses()[businessNumber] ?? 'loading';
+  }
+
+  connectShaam(businessNumber: string | null | undefined): void {
+    if (!businessNumber || this.connectingShaamBusinessNumber()) return;
+    if (this.shaamConnectionStatus(businessNumber) === 'sandbox-blocked') return;
+    const startConnection = () => this.startShaamConnection(businessNumber);
+    if (this.shaamConnectionStatus(businessNumber) !== 'connected') {
+      startConnection();
+      return;
+    }
+
+    this.confirmationService.confirm({
+      header: 'חיבור מחדש לרשות המסים',
+      message: 'החיבור החדש יחליף את ההרשאה השמורה עבור העסק. להמשיך לאתר רשות המסים?',
+      icon: 'pi pi-refresh',
+      acceptLabel: 'המשך לחיבור מחדש',
+      rejectLabel: 'ביטול',
+      rejectVisible: true,
+      accept: startConnection,
+    });
+  }
+
+  private startShaamConnection(businessNumber: string): void {
+    this.connectingShaamBusinessNumber.set(businessNumber);
+    this.shaamService.initiateOAuthFlow(businessNumber, () => {
+      this.connectingShaamBusinessNumber.set(null);
+      this.messageService.add({
+        severity: 'error',
+        summary: 'החיבור לא הושלם',
+        detail: 'לא ניתן להתחיל את החיבור לרשות המסים. נסה שוב מאוחר יותר.',
+        life: 6000,
+        key: 'br',
+      });
+    }, 'settings');
+  }
+
+  private loadShaamConnectionStatuses(): void {
+    const businessNumbers = this.businesses()
+      .map((business) => business.businessNumber?.trim())
+      .filter((businessNumber): businessNumber is string => !!businessNumber);
+    if (!businessNumbers.length) {
+      this.shaamConnectionStatuses.set({});
+      return;
+    }
+
+    this.shaamConnectionStatuses.set(Object.fromEntries(
+      businessNumbers.map((businessNumber) => [businessNumber, 'loading' as const]),
+    ));
+    businessNumbers.forEach((businessNumber) => {
+      this.shaamService.getConnectionStatus(businessNumber).pipe(take(1)).subscribe({
+        next: ({ connected, requiresReauthorization }) => this.shaamConnectionStatuses.update((statuses) => ({
+          ...statuses,
+          [businessNumber]: connected
+            ? 'connected'
+            : requiresReauthorization
+              ? 'reauth-required'
+              : 'disconnected',
+        })),
+        error: (error) => this.shaamConnectionStatuses.update((statuses) => ({
+          ...statuses,
+          [businessNumber]: error?.error?.code === SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED
+            ? 'sandbox-blocked'
+            : 'error',
+        })),
+      });
+    });
   }
 
   /**
@@ -297,22 +510,29 @@ export class SettingsPage implements OnInit {
     }
   }
 
+  onBankingConnectionChanged(): void {
+    if (this.hasOpenBankingAccess()) this.fetchAccountSources();
+  }
+
   private fetchAccountSources(): void {
     this.accountSourcesLoading.set(true);
     console.log('[Settings] ניהול הרשאות וחשבונות: שולחים GET get-sources-with-types');
     this.transactionsService.getSourcesWithTypes().subscribe({
       next: (sources) => {
-        const rows = Array.isArray(sources) ? sources : [];
+        if (!Array.isArray(sources)) {
+          this.bankingError.set(bankingRequestError({status:200},'OB-02'));
+          this.accountSourcesLoading.set(false);
+          return;
+        }
+        const rows = sources;
         console.log('[Settings] ניהול הרשאות וחשבונות: תגובה מהשרת (get-sources-with-types)', {
           count: rows.length,
-          rows,
         });
         this.accountSources.set(rows);
         this.accountSourcesLoading.set(false);
       },
       error: (err) => {
-        console.error('[Settings] ניהול הרשאות וחשבונות: שגיאה ב-get-sources-with-types', err);
-        this.accountSources.set([]);
+        this.bankingError.set(bankingRequestError(err,'OB-02'));
         this.accountSourcesLoading.set(false);
       },
     });
@@ -324,51 +544,54 @@ export class SettingsPage implements OnInit {
    * `sourceType` maps to bank/card. Routes to POST /transactions/retry-source
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
-  onPullSource(s: { sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
-    if (this.retryingSourceId()) return; // one at a time
+  onPullSource(s: { hasConsent: boolean; sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
+    this.bankingError.set(null);
+    if (!s.hasConsent || this.bankingActionLoading()) return; // one operation at a time
     if (s.isDirect === true) {
       // Direct card — nothing to pull from the card feed (bank feed covers it).
       this.messageService.add({
         severity: 'info', summary: 'כרטיס דיירקט',
-        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'br',
+        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'banking',
       });
       return;
     }
     const type: 'bank' | 'card' =
       s.sourceType === paymentIdentifierType.CREDIT_CARD ? 'card' : 'bank';
-    this.retryingSourceId.set(s.sourceName);
+    this.retryingSourceId.set(String(s.sourceRecordId ?? s.sourceName));
     this.syncStatusService
-      .retrySource(type, s.sourceName)
+      .retrySource(type, s.sourceName, s.sourceRecordId)
       .pipe(
         catchError((err) => {
+          if (err?.status !== 409) this.bankingError.set(bankingRequestError(err, 'OB-03'));
           const detail =
             err?.status === 409
               ? 'סנכרון כבר רץ — נסה שוב בעוד מספר רגעים'
               : 'משיכת התנועות נכשלה, אנא נסה שוב';
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          if (err?.status === 409) this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'banking' });
           return EMPTY;
         }),
         finalize(() => this.retryingSourceId.set(null)),
       )
       .subscribe((result) => {
+        this.bankingError.set(result.supportError ?? null);
         if (result?.status === 'skipped_direct') {
           // Backend re-detected the card as Direct mid-pull — not a failure.
           this.messageService.add({
             severity: 'info', summary: 'כרטיס דיירקט',
-            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br',
+            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'banking',
           });
           this.fetchAccountSources();
           return;
         }
         const ok = result?.status === 'success';
-        this.messageService.add({
+        if (!result.supportError) this.messageService.add({
           severity: ok ? 'success' : 'warn',
           summary: ok ? 'הסתיים' : 'לא הושלם',
           detail: ok
             ? `נמשכו ${result.transactionCount} תנועות עבור ${s.sourceName}`
-            : `לא ניתן היה למשוך את ${s.sourceName}${result?.error ? ` (${result.error})` : ''}`,
+            : 'לא הצלחנו להשלים את משיכת התנועות. אפשר לנסות שוב.',
           life: 6000,
-          key: 'br',
+          key: 'banking',
         });
         this.fetchAccountSources();
       });
@@ -433,6 +656,16 @@ export class SettingsPage implements OnInit {
     return `${y}-${m}-${day}`;
   }
 
+  onProfileImageChanged(path: string | null): void {
+    if (!this.userData) return;
+    this.userData = { ...this.userData, profileImagePath: path };
+    if (!this.authService.isViewingAsClient()) this.authService.storeUserData(this.userData);
+  }
+  onLogoChanged(index: number, path: string | null): void {
+    const id = this.businesses()[index]?.id;
+    this.businesses.update(list => list.map(b => b.id === id ? { ...b, logoPath: path } : b));
+    this.genericService.updateBusinessLogoCache(id, path);
+  }
   updatePersonalDetails(): void {
     this.savingPersonal.set(true);
     const v = this.personalFormGroup.getRawValue();
@@ -535,6 +768,9 @@ export class SettingsPage implements OnInit {
       const list = this.genericService.businesses();
       this.businesses.set(list);
       this.patchBusinessesFormArray(list);
+      if (this.selectedTab === 'permissions') {
+        this.loadShaamConnectionStatuses();
+      }
     });
   }
 
@@ -664,6 +900,7 @@ export class SettingsPage implements OnInit {
     }
     this.addingBusiness.set(true);
     const payload = {
+      proprietorRole:   this.isCompany() ? BusinessProprietorRole.PRIMARY : v.proprietorRole,
       businessName:      v.businessName?.trim() || undefined,
       businessNumber:    v.businessNumber?.trim() || undefined,
       businessAddress:   v.businessAddress?.trim() || undefined,
@@ -831,6 +1068,7 @@ export class SettingsPage implements OnInit {
     try {
       await this.genericService.updateBusiness({
         id,
+        proprietorRole:   this.isCompany() ? BusinessProprietorRole.PRIMARY : v.proprietorRole,
         businessNumber:      businessNumber || undefined,
         advanceTaxPercent,
         businessName:        (v.businessName as string)?.trim()    || biz?.businessName    || undefined,
@@ -995,6 +1233,7 @@ export class SettingsPage implements OnInit {
 
   buildAddBusinessForm() {
     return this.fb.group({
+      proprietorRole:   this.fb.nonNullable.control(BusinessProprietorRole.PRIMARY, Validators.required),
       businessName:      this.fb.nonNullable.control('', Validators.required),
       businessNumber:    this.fb.nonNullable.control('', Validators.required),
       businessAddress:   this.fb.nonNullable.control(''),
@@ -1034,6 +1273,10 @@ export class SettingsPage implements OnInit {
   /** Builds a single-business FormGroup. Pass no argument for an empty (new) business row. */
   buildBusinessForm(business?: Partial<Business>) {
     return this.fb.group({
+      proprietorRole:     this.fb.nonNullable.control<BusinessProprietorRole>(
+        business?.proprietorRole ?? BusinessProprietorRole.PRIMARY,
+        Validators.required,
+      ),
       businessNumber:      this.fb.nonNullable.control(business?.businessNumber ?? ''),
       businessName:        this.fb.nonNullable.control(business?.businessName ?? ''),
       businessEmail:       this.fb.nonNullable.control(business?.businessEmail ?? '', Validators.email),
@@ -1085,8 +1328,11 @@ export class SettingsPage implements OnInit {
   /** Resets the add-business form to empty state (called on modal open). */
   private patchAddBusinessForm(): void {
     this.addBusinessFormGroup.reset({
+      proprietorRole:   BusinessProprietorRole.PRIMARY,
       businessName:      '',
-      businessNumber:    '',
+      businessNumber:    this.isCompany()
+        ? ''
+        : getBusinessNumberForProprietor(this.userData, BusinessProprietorRole.PRIMARY),
       businessAddress:   '',
       businessPhone:     '',
       businessEmail:     '',
@@ -1146,4 +1392,3 @@ export class SettingsPage implements OnInit {
     return isNaN(date.getTime()) ? null : date;
   }
 }
-

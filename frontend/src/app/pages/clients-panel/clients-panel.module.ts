@@ -7,7 +7,7 @@ import { SharedModule } from '../../shared/shared.module';
 import { ClientPanelPageRoutingModule } from './clients-panel-routing.module';
 import { DialogModule } from 'primeng/dialog';
 import { ToastModule } from 'primeng/toast';
-import { TabViewModule } from 'primeng/tabview';
+import { TabsModule } from 'primeng/tabs';
 import { MessageService } from 'primeng/api';
 import { ButtonComponent } from '../../components/button/button.component';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
@@ -22,7 +22,7 @@ import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
     ReactiveFormsModule,
     DialogModule,
     ToastModule,
-    TabViewModule,
+    TabsModule,
     ButtonComponent,
     DynamicDialogModule,
   ],

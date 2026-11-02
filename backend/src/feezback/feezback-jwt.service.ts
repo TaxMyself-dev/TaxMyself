@@ -82,7 +82,7 @@ export class FeezbackJwtService {
     };
   }
 
-  async generateConsentJwt(firebaseId: string): Promise<string> {
+  async generateConsentJwt(firebaseId: string, spouse = false): Promise<string> {
     const flowId = 'default'; // קבוע
     const context = firebaseId; // context = firebaseId
     const redirects = this.buildRedirectUrls(flowId, context);
@@ -96,10 +96,10 @@ export class FeezbackJwtService {
       throw new Error(`User with firebaseId ${firebaseId} not found`);
     }
 
-    const userId = user.id; // Get the user's ID from database
+    const userId = spouse ? (user.spouseId || "") : user.id; // Get the user's ID from database
 
     const payload: any = {
-      "sub": firebaseId + "_sub",
+      "sub": firebaseId + (spouse ? "_sub_spouse" : "_sub"),
       "encrypt": true,
       "iss": "tpp/KNCAXnwXk1",
       "srv": "ais/user",

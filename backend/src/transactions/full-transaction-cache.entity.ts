@@ -3,7 +3,10 @@ import {
   Column,
   PrimaryGeneratedColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Source } from './source.entity';
 import { ReportPeriodLabel, ExpenseReportScope } from 'src/enum';
 import { ClassificationType } from './enums/classification-type.enum';
 
@@ -49,6 +52,13 @@ export class FullTransactionCache {
 
   @Column({ type: 'varchar', nullable: true, default: null })
   paymentIdentifier: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  sourceRecordId: number | null;
+
+  @ManyToOne(() => Source, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'sourceRecordId', foreignKeyConstraintName: 'FK_cache_source_record' })
+  source: Source | null;
 
   @Column('decimal', { precision: 10, scale: 2 })
   amount: number;

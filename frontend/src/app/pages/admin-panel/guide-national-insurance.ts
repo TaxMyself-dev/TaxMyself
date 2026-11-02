@@ -13,13 +13,18 @@ export function boundedNumber(value: unknown, max: number): number {
   return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0;
 }
 
-export function calculateGuideInsurance(profitInput: number, salaryInput: number, hoursInput: number) {
+export function calculateGuideInsurance(
+  profitInput: number,
+  salaryInput: number,
+  hoursInput: number,
+  qualifiesOverride?: boolean,
+) {
   const f = NI_2026;
   const profit = boundedNumber(profitInput, 100000);
   const salary = boundedNumber(salaryInput, 100000);
   const hours = boundedNumber(hoursInput, 80);
-  const qualifies = hours >= f.fullHours || profit >= f.definitionIncome ||
-    (hours >= f.combinedHours && profit >= f.combinedIncome);
+  const qualifies = qualifiesOverride ?? (hours >= f.fullHours || profit >= f.definitionIncome ||
+    (hours >= f.combinedHours && profit >= f.combinedIncome));
   const reducedRemaining = Math.max(0, f.reducedCeiling - salary);
   const capRemaining = Math.max(0, f.maximumIncome - salary);
   let base: number;

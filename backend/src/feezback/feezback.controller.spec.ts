@@ -34,4 +34,14 @@ describe('Feezback onboarding link', () => {
     expect(provider.markConsentInitiated).not.toHaveBeenCalled();
     expect(provider.createConsentLink).not.toHaveBeenCalled();
   });
+  it('passes explicit spouse selection only after the same enrollment check', async () => {
+    await controller.createConsentLink(request, { spouse: true });
+    expect(enrollment.assertCanConnect).toHaveBeenCalled();
+    expect(provider.createConsentLink).toHaveBeenCalledWith('owner', true);
+  });
+  it('rejects string checkbox values without touching provider state', async () => {
+    await expect(controller.createConsentLink(request, { spouse: 'true' } as any)).rejects.toThrow('spouse must be boolean');
+    expect(provider.createConsentLink).not.toHaveBeenCalled();
+  });
+
 });

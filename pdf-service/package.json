@@ -1,0 +1,20 @@
+{
+  "name": "keepintax-pdf-service",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "build": "tsc ../backend/src/documents/pdf/document-pdf.template.ts --target es2022 --module commonjs --skipLibCheck --outDir dist",
+    "start": "node src/server.cjs",
+    "test": "node --test test/*.test.cjs",
+    "smoke": "node scripts/smoke.cjs"
+  },
+  "dependencies": {
+    "puppeteer-core": "24.17.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

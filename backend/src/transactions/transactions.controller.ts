@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -24,10 +24,12 @@ import { UserSyncStateService } from './user-sync-state.service';
 import { FeezbackService } from '../feezback/feezback.service';
 import { ModuleName } from '../enum';
 import { SourceResult } from './user-source-sync-state.entity';
+import { BankingIssue, issueFromReason } from '../feezback/core/open-banking-issue';
 import { FlowAnalysisDto } from './dtos/flow-analysis.dto';
 import { FlowAnalysisResponse } from './interfaces/flow-analysis-response.interface';
 import { ExpensesService } from '../expenses/expenses.service';
 import { BillingService } from '../billing/services/billing.service';
+import { usesSyntheticOpenBanking } from '../demo-data/profiles';
 
 // ── Dev simulator scenario specs (shared by the 3 staged dev endpoints) ──────
 type SimSpec = {
@@ -101,12 +103,8 @@ export class TransactionsController {
    * webhook (post-consent). This endpoint is polled every 3 s and must not
    * itself be a trigger, otherwise it races with consent flows.
    *
-   * Status translation:
-   *   - If a consent flow is in progress (lastConsentInitiatedAt is fresh and
-   *     no sync has finished after it), report 'running'. The webhook will
-   *     fire the sync; the frontend keeps polling and the dialog stays in
-   *     loading until fullFinishedAt > lastConsentInitiatedAt.
-   *   - Otherwise, 'empty'/null translates to 'completed' so the poller stops.
+   * Only a persisted running job reports 'running'. Consent onboarding is a
+   * separate flow; an empty/missing job translates to 'completed'.
    */
   @Get('sync-status')
   @UseGuards(FirebaseAuthGuard)
@@ -117,18 +115,15 @@ export class TransactionsController {
       this.userSyncStateService.getSourceResults(userId),
     ]);
 
-    const inConsentFlow = this.feezbackService.hasUnprocessedConsentFlow(state);
-
     const toFrontendStatus = (s: string | null | undefined): string => {
       if (s === 'running') return 'running';
-      if (inConsentFlow) return 'running';
       return !s || s === 'empty' ? 'completed' : s;
     };
 
     if (!state) {
       return {
         fullSync: {
-          processStatus: inConsentFlow ? 'running' : 'completed',
+          processStatus: 'completed',
           resultStatus: 'none', rowsWritten: 0, finishedAt: null, failureReason: null, skipReason: null,
         },
         sourceResults: [],
@@ -137,14 +132,17 @@ export class TransactionsController {
 
     return {
       fullSync: {
+        runId: state.fullProcessStatus==='empty' ? null : state.fullRunId ?? null,
         processStatus: toFrontendStatus(state.fullProcessStatus),
         resultStatus:  state.fullResultStatus,
         rowsWritten:   state.fullRowsWritten,
         finishedAt:    state.fullFinishedAt ?? null,
         failureReason: state.fullFailureReason ?? null,
+        supportError: issueFromReason(state.fullFailureReason, state.fullResultStatus !== 'failed'),
         skipReason:    state.fullSkipReason ?? null,
       },
-      sourceResults: sources,
+      sourceResults: state.fullProcessStatus!=='empty' && state.fullRunId && !state.fullSkipReason
+        ? sources.filter(source=>source.resultRunId===state.fullRunId && source.status!=='not_synced') : [],
     };
   }
 
@@ -152,12 +150,13 @@ export class TransactionsController {
   @UseGuards(FirebaseAuthGuard)
   async retrySource(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { type: 'card' | 'bank'; sourceId: string },
+    @Body() body: { type: 'card' | 'bank'; sourceId: string; sourceRecordId?: number },
   ) {
     const userId = request.user?.firebaseId;
     if (!body?.type || !body?.sourceId) {
       throw new BadRequestException('type and sourceId are required');
     }
+    await this.assertLiveSyncAllowed(userId);
 
     // Block per-source retry while a full sync is running — both paths write to
     // user_source_sync_state and call processingService.process(); racing them
@@ -167,7 +166,7 @@ export class TransactionsController {
       throw new ConflictException('Sync is already running — please wait for it to finish');
     }
 
-    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId);
+    const result = await this.feezbackService.retrySource(userId, body.type, body.sourceId, body.sourceRecordId);
     return result;
   }
 
@@ -181,7 +180,8 @@ export class TransactionsController {
    */
   private async syncStateAllowsFetch(userId: string): Promise<boolean> {
     const state = await this.userSyncStateService.getSyncState(userId);
-    return state?.fullProcessStatus === 'completed';
+    // Existing cached rows remain readable while a refresh runs or fails.
+    return !!state;
   }
 
   /**
@@ -205,6 +205,7 @@ export class TransactionsController {
   @HttpCode(HttpStatus.OK)
   async triggerSync(@Req() request: AuthenticatedRequest): Promise<{ status: 'started' | 'already_running' }> {
     const userId = request.user?.firebaseId;
+    await this.assertLiveSyncAllowed(userId);
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
     this.logger.log(`[TriggerSync] Manual sync requested | firebaseId=${masked}`);
@@ -227,6 +228,13 @@ export class TransactionsController {
     );
 
     return { status: 'started' };
+  }
+
+  private async assertLiveSyncAllowed(firebaseId: string): Promise<void> {
+    const user = await this.usersService.findByFirebaseId(firebaseId);
+    if (usesSyntheticOpenBanking(user?.email)) {
+      throw new ConflictException('נתוני הבנקאות בחשבון הדמו הם סינתטיים ומתעדכנים באמצעות איפוס הנתונים');
+    }
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -319,15 +327,15 @@ export class TransactionsController {
     console.log(`  (valid accounts below)`);
     console.log(`════════════════════════════════════`);
     console.log(`  Bank (${banks.length}):`);
-    for (const s of banks) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    for (const s of banks) console.log(`    •  ***${s.sourceId.replace(/\D/g,'').slice(-4)}   hasConsent=${!!s.consentId}`);
     console.log(`  Cards (${cards.length}):`);
-    for (const s of cards) console.log(`    •  ${s.sourceId}   consentId=${s.consentId ?? '—'}`);
+    for (const s of cards) console.log(`    •  ***${s.sourceId.replace(/\D/g,'').slice(-4)}   hasConsent=${!!s.consentId}`);
     console.log(`════════════════════════════════════\n`);
 
     // Register discovered sources as 'not_synced' (discovered, not yet pulled)
     // and stamp the freshness marker so hasUnprocessedConsentFlow() → false
     // (post-consent-sync flips to 'completed' → FE enables the pull button).
-    await this.userSyncStateService.updateSourceResults(
+    await this.userSyncStateService.updateSimulatedSourceResults(
       userId,
       sim.sources.map(s => ({ ...s, status: 'not_synced' as const, transactionCount: 0, error: undefined })),
     );
@@ -379,8 +387,10 @@ export class TransactionsController {
     console.log(`  DONE | ${sim.rowsWritten} saved | total=0s (mocked)\n`);
 
     // Seed the finished sync state with the scenario's per-source results.
-    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten);
-    await this.userSyncStateService.updateSourceResults(userId, sim.sources);
+    const run = await this.userSyncStateService.markSyncRunning(userId,'manual');
+    if (!run.acquired) throw new ConflictException('A sync is already running');
+    await this.userSyncStateService.updateSimulatedSourceResults(userId, sim.sources.map(source=>({...source,runId:run.runId})));
+    await this.userSyncStateService.markSyncFinished(userId, sim.processStatus, sim.resultStatus, sim.rowsWritten, undefined, run.runId);
     return { status: 'pull-simulated', scenario };
   }
 
@@ -422,7 +432,7 @@ export class TransactionsController {
   @HttpCode(HttpStatus.OK)
   async postConsentSync(
     @Req() request: AuthenticatedRequest,
-  ): Promise<{ status: 'completed' | 'pending' }> {
+  ): Promise<{ status: 'completed' | 'pending' | 'failed'; supportError?: BankingIssue }> {
     const userId = request.user?.firebaseId;
     const masked = userId?.length >= 8 ? userId.substring(0, 8) + '...' : (userId ?? '?');
 
@@ -433,6 +443,12 @@ export class TransactionsController {
     // it again from here doubled the Feezback API calls for no functional gain
     // (the decision below uses only timestamps, not source rows).
     const state = await this.userSyncStateService.getSyncState(userId);
+
+    const discoveryError = issueFromReason(state?.sourcesRefreshFailureReason);
+    if (discoveryError && state?.lastConsentInitiatedAt && state.lastSourcesRefreshAttemptAt &&
+      new Date(state.lastSourcesRefreshAttemptAt).getTime() >= new Date(state.lastConsentInitiatedAt).getTime()) {
+      return {status:'failed',supportError:discoveryError};
+    }
 
     if (state?.fullProcessStatus === 'running') {
       this.logger.log(`[PostConsentSync] Sync in flight — frontend will poll | firebaseId=${masked}`);
@@ -611,7 +627,7 @@ export class TransactionsController {
     @Body() body: any,
   ): Promise<Source> {
     const userId = request.user?.firebaseId;
-    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId);
+    return this.transactionsService.addSourceToBill(billId, body.sourceName, body.sourceType, userId, body.sourceRecordId);
   }
 
 
@@ -628,6 +644,13 @@ export class TransactionsController {
   async getSources(@Req() request: AuthenticatedRequest) {
     const userId = request.user?.firebaseId;
     return this.transactionsService.getSources(userId);
+  }
+
+  @Delete('sources/:sourceRecordId')
+  @UseGuards(FirebaseAuthGuard)
+  async deleteSource(@Req() request: AuthenticatedRequest, @Param('sourceRecordId', ParseIntPipe) sourceRecordId: number) {
+    if (sourceRecordId <= 0) throw new BadRequestException('Invalid sourceRecordId');
+    return this.transactionsService.deleteDisconnectedSource(request.user?.firebaseId, sourceRecordId);
   }
 
   @Get('get-sources-with-types')

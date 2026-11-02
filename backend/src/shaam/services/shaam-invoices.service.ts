@@ -1,9 +1,20 @@
-import { Injectable, Logger, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { getShaamUrls, REQUEST_TIMEOUT_MS } from '../shaam.constants';
 import { ShaamApprovalDto } from '../dto/shaam-approval.dto';
 import { ShaamApprovalResponseDto } from '../dto/shaam-approval-response.dto';
+import {
+  ShaamConfirmationLookupDto,
+  ShaamInvoiceDetailsResponseDto,
+} from '../dto/shaam-document-allocation.dto';
+import { markShaamAuthorizationRejection } from '../utils/shaam-authorization-error.util';
 
 @Injectable()
 export class ShaamInvoicesService {
@@ -32,88 +43,254 @@ export class ShaamInvoicesService {
     // Validate payment amount calculation
     const paymentAmount = approvalData.payment_amount || 0;
     const vatAmount = approvalData.vat_amount || 0;
-    const paymentAmountIncludingVat = approvalData.payment_amount_including_vat || 0;
+    const paymentAmountIncludingVat =
+      approvalData.payment_amount_including_vat || 0;
     const expected = paymentAmount + vatAmount;
     const difference = Math.abs(paymentAmountIncludingVat - expected);
 
     if (difference > 0.01) {
       throw new BadRequestException(
-        `payment_amount_including_vat (${paymentAmountIncludingVat}) must equal payment_amount (${paymentAmount}) + vat_amount (${vatAmount}). Difference: ${difference.toFixed(2)}`,
+        `payment_amount_including_vat (${paymentAmountIncludingVat}) must equal payment_amount (${paymentAmount}) + vat_amount (${vatAmount}). Difference: ${difference.toFixed(
+          2,
+        )}`,
       );
     }
 
     const approvalUrl = this.urls.invoicesApproval;
     const clientId = process.env.SHAAM_CLIENT_ID || '';
+    const startedAt = Date.now();
 
     try {
-      const maskedToken = accessToken.substring(0, 10) + '...';
-      this.logger.log('Submitting invoice approval to SHAAM', {
-        invoice_id: approvalData.invoice_id,
-        invoice_reference_number: approvalData.invoice_reference_number,
-        token: maskedToken,
-        tokenLength: accessToken.length,
-        url: approvalUrl,
-      });
-
-      // Log token details before building CURL
-      this.logger.log('=== TOKEN DETAILS ===');
-      this.logger.log(`Token length: ${accessToken.length}`);
-      this.logger.log(`Token starts with: ${accessToken.substring(0, 30)}`);
-      this.logger.log(`Token ends with: ...${accessToken.substring(accessToken.length - 20)}`);
-      this.logger.log(`Token preview (first 50 chars): ${accessToken.substring(0, 50)}`);
-      
-      // Build CURL command for logging
-      const requestBody = JSON.stringify(approvalData, null, 2);
-      const curlCommand = `curl -X POST "${approvalUrl}" \\\n` +
-        `  -H "Authorization: Bearer ${accessToken}" \\\n` +
-        `  -H "X-IBM-Client-Id: ${clientId}" \\\n` +
-        `  -H "Content-Type: application/json" \\\n` +
-        `  -H "Accept: application/json" \\\n` +
-        `  -d '${requestBody.replace(/'/g, "'\\''")}'`;
-      
-      this.logger.log('=== SHAAM REQUEST (CURL FORMAT) ===');
-      this.logger.log(curlCommand);
-      this.logger.log('=== END CURL REQUEST ===');
-
       const response = await firstValueFrom(
-        this.httpService.post(approvalUrl, approvalData, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-IBM-Client-Id': clientId,
-          },
-          timeout: REQUEST_TIMEOUT_MS,
-        }).pipe(timeout(REQUEST_TIMEOUT_MS)),
+        this.httpService
+          .post(approvalUrl, approvalData, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-IBM-Client-Id': clientId,
+            },
+            timeout: REQUEST_TIMEOUT_MS,
+          })
+          .pipe(timeout(REQUEST_TIMEOUT_MS)),
       );
 
-      // Log response from SHAAM
-      this.logger.log('=== SHAAM RESPONSE ===');
-      this.logger.log(JSON.stringify(response.data, null, 2));
-      this.logger.log('=== END SHAAM RESPONSE ===');
-
-      this.logger.log('Successfully submitted invoice approval', {
-        invoice_id: approvalData.invoice_id,
-        status: response.status,
-        confirmation_number: response.data?.confirmation_number,
+      this.logSuccess('approval', approvalUrl, startedAt, response.status, {
         approved: response.data?.approved,
+        confirmationReturned: Boolean(response.data?.confirmation_number),
       });
 
-      return response.data as ShaamApprovalResponseDto;
+      return {
+        ...response.data,
+        status: response.status,
+      } as ShaamApprovalResponseDto;
     } catch (error: any) {
-      const maskedToken = accessToken.substring(0, 10) + '...';
-      this.logger.error('Failed to submit invoice approval', {
-        invoice_id: approvalData.invoice_id,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        message: error.message,
-        token: maskedToken,
-        tokenLength: accessToken.length,
-        responseData: error.response?.data,
-      });
+      this.logFailure('approval', approvalUrl, startedAt, error);
 
       throw this.handleError(error);
     }
+  }
+
+  /**
+   * Recovers an allocation number for a request whose response was lost.
+   * The lookup fields are built from the persisted invoice, never from the
+   * browser, and include the recommended final invoice reference number.
+   */
+  async recoverConfirmation(
+    accessToken: string,
+    lookup: ShaamConfirmationLookupDto,
+  ): Promise<any> {
+    if (!accessToken) throw new BadRequestException('Access token is required');
+    const startedAt = Date.now();
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService
+          .post(this.urls.invoiceConfirmation, lookup, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-IBM-Client-Id': process.env.SHAAM_CLIENT_ID || '',
+            },
+            timeout: REQUEST_TIMEOUT_MS,
+          })
+          .pipe(timeout(REQUEST_TIMEOUT_MS)),
+      );
+      this.logSuccess(
+        'confirmation_recovery',
+        this.urls.invoiceConfirmation,
+        startedAt,
+        response.status,
+        {
+          confirmationReturned: Boolean(
+            response.data?.confirmation_number ??
+              response.data?.Confirmation_Number ??
+              response.data?.message?.confirmation_number ??
+              response.data?.message?.Confirmation_Number,
+          ),
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      this.logFailure(
+        'confirmation_recovery',
+        this.urls.invoiceConfirmation,
+        startedAt,
+        error,
+      );
+      throw this.handleError(error);
+    }
+  }
+
+  async getInvoiceDetails(
+    accessToken: string,
+    confirmationNumber: string,
+    vatNumber: number,
+    customerVatNumber: number,
+  ): Promise<ShaamInvoiceDetailsResponseDto> {
+    if (!accessToken) throw new BadRequestException('Access token is required');
+    const startedAt = Date.now();
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService
+          .post(
+            this.urls.invoiceDetails,
+            {
+              customer_vat_number: customerVatNumber,
+              confirmation_number: confirmationNumber,
+              vat_number: vatNumber,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-IBM-Client-Id': process.env.SHAAM_CLIENT_ID || '',
+              },
+              timeout: REQUEST_TIMEOUT_MS,
+            },
+          )
+          .pipe(timeout(REQUEST_TIMEOUT_MS)),
+      );
+      this.logSuccess(
+        'allocation_details',
+        this.urls.invoiceDetails,
+        startedAt,
+        response.status,
+        { detailsReturned: Boolean(response.data?.message) },
+      );
+      return response.data as ShaamInvoiceDetailsResponseDto;
+    } catch (error: any) {
+      this.logFailure(
+        'allocation_details',
+        this.urls.invoiceDetails,
+        startedAt,
+        error,
+      );
+      throw this.handleError(error);
+    }
+  }
+
+  private logSuccess(
+    operation: string,
+    url: string,
+    startedAt: number,
+    httpStatus: unknown,
+    result: Record<string, boolean | undefined>,
+  ): void {
+    this.logger.log('SHAAM invoice API request succeeded', {
+      operation,
+      outcome: 'success',
+      environment: this.environment(),
+      gatewayHost: this.gatewayHost(url),
+      clientIdConfigured: Boolean(process.env.SHAAM_CLIENT_ID),
+      httpStatus: this.safeHttpStatus(httpStatus),
+      durationMs: Date.now() - startedAt,
+      ...result,
+    });
+  }
+
+  private logFailure(
+    operation: string,
+    url: string,
+    startedAt: number,
+    error: any,
+  ): void {
+    this.logger.error('SHAAM invoice API request failed', {
+      operation,
+      outcome: 'failure',
+      environment: this.environment(),
+      gatewayHost: this.gatewayHost(url),
+      clientIdConfigured: Boolean(process.env.SHAAM_CLIENT_ID),
+      httpStatus: this.safeHttpStatus(error?.response?.status),
+      durationMs: Date.now() - startedAt,
+      errorCategory: this.errorCategory(error),
+      providerErrorId: this.safeProviderErrorId(
+        error?.response?.data?.error_id,
+      ),
+      providerReason: this.providerReason(error),
+    });
+  }
+
+  private environment(): string {
+    return (process.env.SHAAM_ENV || 'tsandbox').toLowerCase() === 'production'
+      ? 'production'
+      : 'tsandbox';
+  }
+
+  private gatewayHost(url: string): string {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return 'invalid-configured-url';
+    }
+  }
+
+  private safeHttpStatus(value: unknown): number | null {
+    const status = Number(value);
+    return Number.isInteger(status) && status >= 100 && status <= 599
+      ? status
+      : null;
+  }
+
+  private errorCategory(error: any): string {
+    if (error?.response) return 'provider_response';
+    const code = String(error?.code || '').toUpperCase();
+    if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') return 'timeout';
+    return 'network_or_unknown';
+  }
+
+  private safeProviderErrorId(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim();
+    return /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/.test(normalized)
+      ? normalized
+      : null;
+  }
+
+  private providerReason(error: any): string {
+    const source = [
+      error?.response?.data?.message,
+      error?.response?.data?.error_description,
+      error?.response?.headers?.['www-authenticate'],
+    ]
+      .filter((value) => typeof value === 'string')
+      .join(' ')
+      .toLowerCase();
+
+    if (/invalid[_ -]?token/.test(source)) return 'invalid_token';
+    if (/token.{0,24}expired|expired.{0,24}token/.test(source))
+      return 'expired_token';
+    if (/insufficient[_ -]?scope|invalid[_ -]?scope/.test(source))
+      return 'scope_rejected';
+    if (/client[_ -]?id|x-ibm-client-id|api[_ -]?key/.test(source))
+      return 'client_identity_rejected';
+    if (/not[_ -]?authori[sz]ed|unauthori[sz]ed/.test(source))
+      return 'unauthorized';
+    if (/forbidden/.test(source)) return 'forbidden';
+    return 'unspecified';
   }
 
   private handleError(error: any): HttpException {
@@ -161,7 +338,7 @@ export class ShaamInvoicesService {
     }
 
     // Generic error handling
-    return new HttpException(
+    const exception = new HttpException(
       {
         statusCode: status,
         message: data?.message || error.message || 'Unknown error',
@@ -169,7 +346,8 @@ export class ShaamInvoicesService {
       },
       status,
     );
+    return status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN
+      ? markShaamAuthorizationRejection(exception)
+      : exception;
   }
 }
-
-

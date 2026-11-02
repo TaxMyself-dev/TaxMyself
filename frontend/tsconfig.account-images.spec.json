@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "skipLibCheck": true },
+  "include": [
+    "src/app/services/account-images.service.spec.ts",
+    "src/app/components/account-image/account-image.component.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

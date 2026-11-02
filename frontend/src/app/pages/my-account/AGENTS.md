@@ -1,5 +1,10 @@
 ## Purpose
 Main integration keeps server verification authoritative: returning from Feezback does not optimistically set hasOpenBanking in UI or local storage.
+The dashboard subscribes to validated owner-profile cache updates so cancellation
+updates `hasOpenBanking` and the existing yellow disconnected banner without a
+browser reload, including when Ionic retains the page. Owner events are ignored
+in represented-client mode and when the Firebase UID differs. `ionViewWillEnter`
+also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
@@ -8,6 +13,10 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
 ## Main flows
+
+- The unclassified-transactions table passes `rowActions` through unified
+  `actions`. Mobile inherits account-association/classification predicates
+  automatically, including quick-classification loading state.
 - KT-053: accepted banking consent routes through /billing/open-banking before
   requesting a Feezback link. Browser consent success no longer writes a local
   connected flag; completed discovery reloads the provider-confirmed user flag.
@@ -16,6 +25,8 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - Open Banking: connect a new source (with consent confirmation), retry a failed source, associate an unmatched account.
 - Classify or quick-classify pending transactions; Home "הוספת הוצאה" is an `app-menu-button` with Manual Expense (`MannualExpenseComponent`) and Quick Upload to Drive (`QuickUploadDriveDialogComponent` → `DriveDocsService.uploadFilesToInbox`). Also add bill/category via modals.
 - Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
+- Mobile (the shared `isMobile()` breakpoint) additionally offers "צילום והעלאה ל-Drive". A hidden single-image input with `capture="environment"` opens synchronously in the menu action after the existing access/business checks. Cancel sends no request; confirmed capture passes the file to the quick-upload dialog. One business uploads automatically; multiple businesses require selection. Native camera behavior requires Android/iPhone verification.
+- For LAN phone testing, `npm run mobile` selects Angular's `mobile` configuration and `environment.mobile.ts`, which reaches port 3000 on the hostname serving the frontend. Ordinary `npm start` keeps `environment.ts` and `localhost:3000`. Restart the mobile dev server after changing its configuration; connect phone and computer to the same Wi-Fi.
 - Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
 - Canonical checkout return consumes tm.checkoutLowProfileId and scopes
   BillingStateService refreshes to that hosted attempt via GET /billing/me.
@@ -23,10 +34,23 @@ Main dashboard/home page shown after login: account sync status, transactions-to
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
-- Demo users receive the same dashboard actions as regular users; demo profile creation/reset remains in the admin panel and no reset control is exposed on this page.
+- Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 
 ## Related topics
 Backend: transactions, expenses, feezback, billing, demo-data
 Frontend pages: doc-create, transactions
 Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-tran modals used here live under `src/app/components/`, not `src/app/shared/`)
+
+## Profile avatar
+- The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.
+
+Optional spouse source keys end in _spouse; sync result labels render this as בן/בת הזוג, while retries retain the exact internal source key. Identity selection is handled immediately before the provider redirect on /billing/open-banking.
+
+Banking status/error handling (2026-11-01): cached rows are fetched during background synchronization and retained on failure. The table opts into preserveRowsDuringSync. Only a real backend running state shows banking progress; the initial scheduling grace is bounded to ten seconds. A failed post-consent discovery returns its persisted support issue immediately rather than waiting for webhook timeout. Slow status requests are not canceled on every poll tick, and polling is bounded even for stale terminal responses.
+
+The terminal banking dialog prioritizes the aggregate support error over per-source provider-read successes or an empty source list, so failed/partial persistence cannot display a success dialog.
+
+## Pull-result isolation and permission changes
+
+The post-consent pull reads its baseline run ID before triggering a new pull. It ignores that previous run even if it finished recently, while allowing a response that joins an already-running job. The comparison survives poll retries and never suppresses transport errors. Both API and polling service return source outcomes only for the current fullRunId; discovery-only skipped_direct and historical successes are excluded. Owner-profile updates and retained-page entry refetch existing displayed cache, so verified cleanup is reflected without a new transaction pull. Nullable run tags require docs/features/feezback-pull-run.sql before this backend is started.

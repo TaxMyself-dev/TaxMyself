@@ -1,7 +1,7 @@
 import { TemplateRef } from "@angular/core";
 import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
-import { AccountantTaskSource, AccountantTaskType, BusinessFieldType, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
+import { AccountantTaskSource, AccountantTaskType, BusinessFieldType, BusinessProprietorRole, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
 
 /** רשומת משימה של רואה חשבון – החזרה מה-API (כולל שמות לקוח/עסק לתצוגה) */
 export interface IAccountantTask {
@@ -129,6 +129,7 @@ export interface ISubCategory {
 }
 
 export interface IUserData {
+    profileImagePath?: string | null;
     businessDate: string;
     businessField: string;
     businessInventory: boolean;
@@ -150,7 +151,7 @@ export interface IUserData {
     businessStatus: BusinessStatus;
     lName: string;
     phone: string;
-    role: string;
+    role: string | string[];
     spouseBusinessDate: string;
     spouseBusinessField: string;
     spouseBusinessInventory: boolean;
@@ -170,14 +171,15 @@ export interface IUserData {
     taxReportingType: string;
     vatReportingType: string;
     hasOpenBanking: boolean;
+    hasSpouseFeezbackIdentity?: boolean;
     /** Timestamp of the sign-in BEFORE the current session. Null for first-ever login. */
     previousLoginAt: string | null;
     /** Timestamp of the current session's sign-in. */
     lastLoginAt: string | null;
-    /** True when the signed-in user's email matches a DEMO_PROFILES entry —
-     *  enables the "אפס נתוני בדיקה" button on the dashboard. Stamped by
-     *  the backend on every sign-in (users.service.findFireUser). */
+    /** True when the signed-in user's email matches a registered demo profile. */
     isDemo: boolean;
+    /** Backend-issued capability; true only for the dedicated designer sandbox. */
+    canSelfResetDemoData: boolean;
 }
 
 export interface IChild {
@@ -413,6 +415,7 @@ export interface ICityData {
 
 export interface ITransactionData {
     paymentIdentifier: string,
+    sourceRecordId?: number,
     subCategory: string,
     isRecognized: boolean | string,
     vatPercent: number,
@@ -633,8 +636,10 @@ export interface BusinessInfo {
 }
 
 export interface Business {
+    logoPath?: string | null;
     id?: number;
     firebaseId: string;
+    proprietorRole: BusinessProprietorRole;
     businessName: string | null;
     businessField: BusinessFieldType | null;
     businessNumber: string | null;

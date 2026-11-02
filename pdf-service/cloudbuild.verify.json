@@ -1,0 +1,34 @@
+{
+  "steps": [
+    {
+      "id": "build-and-unit-test-pdf-service",
+      "name": "gcr.io/cloud-builders/docker",
+      "args": [
+        "build",
+        "-f",
+        "pdf-service/Dockerfile",
+        "-t",
+        "pdf-service:verify",
+        "."
+      ],
+      "timeout": "1200s"
+    },
+    {
+      "id": "http-pdf-smoke-one-cpu-one-gib",
+      "name": "gcr.io/cloud-builders/docker",
+      "entrypoint": "bash",
+      "args": [
+        "-c",
+        "set -e; mkdir -p /workspace/pdf-artifacts; docker run --name pdf-service-verify --memory=1g --cpus=1 --network=none --entrypoint=node pdf-service:verify scripts/smoke.cjs || { docker inspect --format 'PDF_CONTAINER_OOM={{.State.OOMKilled}}' pdf-service-verify; exit 1; }; docker cp pdf-service-verify:/tmp/pdf-service-artifacts/. /workspace/pdf-artifacts/; docker rm pdf-service-verify"
+      ],
+      "timeout": "240s"
+    }
+  ],
+  "timeout": "1500s",
+  "artifacts": {
+    "objects": {
+      "location": "gs://${PROJECT_ID}_cloudbuild/pdf-service-verification/$BUILD_ID/",
+      "paths": ["pdf-artifacts/*.pdf", "pdf-artifacts/report.json"]
+    }
+  }
+}

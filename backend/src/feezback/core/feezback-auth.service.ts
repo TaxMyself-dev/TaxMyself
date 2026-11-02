@@ -1,3 +1,5 @@
+import { isPublicKeyLookupFailure, PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS } from './feezback-key-lookup-retry';
+import { sleep } from './feezback-retry.utils';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
@@ -5,6 +7,9 @@ import { AxiosResponse } from 'axios';
 import { FeezbackJwtService } from '../feezback-jwt.service';
 import { toFeezbackHttpError } from './feezback-errors';
 import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
+
+// Feezback confirmed access tokens are valid for at most ten minutes.
+const MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 600;
 
 interface TokenCacheEntry {
   token: string;
@@ -82,10 +87,22 @@ export class FeezbackAuthService {
     try {
       jwtToken = this.feezbackJwtService.generateAccessToken(sub);
 
-      const response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }> =
-        await firstValueFrom(
-          this.http.post(this.tokenUrl, { token: jwtToken }),
-        );
+      // Sign once and reuse exactly the same request body for the one bounded
+      // retry. A new JWT would hide whether the provider key lookup recovered.
+      const body = { token: jwtToken };
+      let response: AxiosResponse<{ token?: string; expiresIn?: number; expires_in?: number }>;
+      let requestedAt = Date.now();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          requestedAt = Date.now();
+          response = await firstValueFrom(this.http.post(this.tokenUrl, body));
+          break;
+        } catch (error) {
+          const mapped = toFeezbackHttpError('POST', this.tokenUrl, error);
+          if (attempt !== 0 || !isPublicKeyLookupFailure(mapped)) throw mapped;
+          await sleep(PUBLIC_KEY_LOOKUP_RETRY_DELAY_MS);
+        }
+      }
 
       const accessToken = response.data?.token;
       if (!accessToken || typeof accessToken !== 'string') {
@@ -93,7 +110,8 @@ export class FeezbackAuthService {
       }
 
       const expiresInSeconds = this.extractExpiresIn(response.data);
-      const expiresAt = Date.now() + expiresInSeconds * 1000;
+      // Count from the request start so network latency cannot extend validity.
+      const expiresAt = requestedAt + expiresInSeconds * 1000;
       this.tokenCache.set(sub, { token: accessToken, expiresAt });
 
       return accessToken;
@@ -105,20 +123,11 @@ export class FeezbackAuthService {
   }
 
   private extractExpiresIn(payload: { expiresIn?: number; expires_in?: number } | undefined): number {
-    const fallback = 3600; // 1 hour default
-    if (!payload) {
-      return fallback;
-    }
-
-    if (typeof payload.expiresIn === 'number' && payload.expiresIn > 0) {
-      return payload.expiresIn;
-    }
-
-    if (typeof payload.expires_in === 'number' && payload.expires_in > 0) {
-      return payload.expires_in;
-    }
-
-    return fallback;
+    const reportedLifetimes = [payload?.expiresIn, payload?.expires_in]
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+    // Respect a shorter provider lifetime, but never cache beyond ten minutes,
+    // even when expiry metadata is missing, invalid, or unexpectedly longer.
+    return Math.min(MAX_ACCESS_TOKEN_LIFETIME_SECONDS, ...reportedLifetimes);
   }
 
   private describeError(error: unknown): string {

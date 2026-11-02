@@ -82,7 +82,7 @@ export class AccountAssociationDialogComponent implements OnInit {
   }
 
   addSource(bill: number, paymentIdentifier: string, paymentMethodType: string ): void {
-      this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType)
+      this.transactionService.addSource(bill, paymentIdentifier, paymentMethodType, typeof this.rowData()?.sourceRecordId === 'number' ? this.rowData().sourceRecordId as number : undefined)
         .pipe(
           finalize(() => this.isLoading.set(false)),
           catchError((err) => {

@@ -8,6 +8,21 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 - `transactions.module.ts` / `-routing.module.ts` — Angular module wiring; imports `TopNavComponent`, `ImageBunnerComponent`, `GenericTableComponent`, `AccountAssociationDialogComponent`, `AddBillComponent`, `ClassifyTranComponent`, `AddCategoryComponent`, `FilterPanelComponent`.
 
 ## Main flows
+- A verified disconnected effective profile shows the same yellow banking
+  banner above the income/expense tables. Owner CTA repeats the feature gate,
+  requires explicit consent, then uses `/billing/open-banking`; represented
+  clients see information only. Owner cache updates and Ionic reentry refresh
+  connection state; selected-client identity must match before using its flag.
+- A known disconnected profile clears retained browser rows/filters, cancels
+  pending reads and stops sync polling before showing
+  "אין נתונים כי אין חיבור לבנקאות פתוחה". Old local filter/search state cannot
+  replace that explanation. Reconnection resumes polling. Connected, unknown,
+  loading, sync-failed and transaction-read-failed states retain their existing
+  presentation; connected filter/search-empty states keep the default copy.
+
+- Both tables pass `expenseRowActions`/`incomeRowActions` through the unified
+  `actions` input. Desktop/mobile availability uses the same account-association
+  and canManageExpenses/confirmed predicates; loading actions cannot execute.
 - `ngOnInit`: loads user data, starts `SyncStatusService` polling (`startSyncStatusPolling` — running/completed/failed/error state machine that gates when data may be fetched), loads bills and categories.
 - `getTransactions`/`getExpensesData`/`handleTableData`: fetch and shape income/expense rows into `IRowDataTable[]` for the generic table, with column sets built via `buildTransactionColumns` (varies by `businessStatus` single/multi and `isOnlyEmployer`).
 - Row actions per table (`expenseRowActions`/`incomeRowActions`): "שייך לחשבון" (`onAssociateAccount`, only for rows with no billName), "סיווג תנועה" (`onClassifyTransaction`, opens classify dialog), "סיווג מהיר" (`onQuickClassify`, one-click classify).

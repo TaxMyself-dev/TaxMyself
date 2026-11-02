@@ -19,6 +19,7 @@ export interface NormalizedTransaction {
   transactionDate: Date;
   paymentDate: Date | null;
   paymentIdentifier: string | null;
+  sourceRecordId?: number | null;
   billId: number | null;
   billName: string | null;
   businessNumber: string | null;

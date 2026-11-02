@@ -220,6 +220,33 @@ export class CatalogService {
   }
 
   /**
+   * Effective active chart for one business context. Account identity is its
+   * code, so a higher-precedence CLIENT/ACCOUNTANT row overrides the same code
+   * from a lower layer. Business-type visibility is applied after the scoped
+   * read and before the precedence merge.
+   */
+  async getEffectiveAccounts(ctx: CatalogContext): Promise<BookingAccount[]> {
+    const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
+    const rows = await this.accountRepo.find({
+      where: { chartOwnerKey: In(chartOwnerKeys), isActive: true },
+      relations: ['section'],
+    });
+    const rank = new Map(chartOwnerKeys.map((key, index) => [key, index]));
+    const byCode = new Map<string, BookingAccount>();
+
+    for (const row of rows.filter((account) => this.isVisibleToBusinessType(account, ctx.businessType))) {
+      const existing = byCode.get(row.code);
+      if (!existing || (rank.get(row.chartOwnerKey) ?? Infinity) < (rank.get(existing.chartOwnerKey) ?? Infinity)) {
+        byCode.set(row.code, row);
+      }
+    }
+
+    return [...byCode.values()].sort((a, b) =>
+      a.code.localeCompare(b.code, undefined, { numeric: true }),
+    );
+  }
+
+  /**
    * Merged category list for a business context, CLIENT > ACCOUNTANT > SYSTEM
    * by name (D4). A `Category` carries no `booking_account` of its own (D1
    * revised: only `sub_category` points at a card) — its business-type

@@ -28,6 +28,7 @@ import { AdminBillingController } from './admin-billing.controller';
 
 // Services
 import { BillingService } from './services/billing.service';
+import { BillingRefundService } from './services/billing-refund.service';
 import { BillingPlanChangeService } from './services/billing-plan-change.service';
 import { BillingCancellationService } from './services/billing-cancellation.service';
 import { OpenBankingEnrollmentService } from './services/open-banking-enrollment.service';
@@ -88,6 +89,7 @@ import { BusinessModule } from 'src/business/business.module';
     AdminBillingController,
   ],
   providers: [
+    BillingRefundService,
     FirebaseAuthGuard,
     BillingService,
     BillingPlanChangeService,

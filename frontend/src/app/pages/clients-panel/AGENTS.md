@@ -2,7 +2,7 @@
 Accountant-facing panel: manage the list of clients (create/delete, drill into a client's account) and a "Tasks" tab for tracking/creating accountant tasks (VAT report, advance tax, annual report, custom) and marking report workflows as filed.
 
 ## Key entities/files
-- `clients-panel.page.ts` — `ClientPanelPage`; three tabs — "הלקוחות שלי" (clients list), "משימות" (tasks), and "קטלוג וכרטיסים" (Phase 6.2 catalog management) — each with its own filters, modals, and CRUD actions.
+- `clients-panel.page.ts` — `ClientPanelPage`; three PrimeNG `Tabs` views — "הלקוחות שלי" (clients list), "משימות" (tasks), and "קטלוג וכרטיסים" (Phase 6.2 catalog management) — each with its own filters, modals, and CRUD actions. Keep this on the current `Tabs` API; the deprecated `TabView` shares a conflicting dynamic-style key with `TabMenu` in PrimeNG 19.
 - `clients-panel.module.ts` / `-routing.module.ts` — standard page module wiring.
 - Depends on `ClientPanelService` (`src/app/services/clients-panel.service.ts` — `Client`, `CreateClientPayload` types), `TaskDataService`, `ReportWorkflowService`, `AuthService`.
 

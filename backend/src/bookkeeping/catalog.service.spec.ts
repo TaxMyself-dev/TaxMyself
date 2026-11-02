@@ -148,6 +148,46 @@ describe('CatalogService', () => {
     );
   });
 
+  describe('getEffectiveAccounts', () => {
+    it('applies tenant scope, active/business visibility, and code precedence', async () => {
+      accountRepo.rows.push(
+        {
+          id: 2, code: '1000', name: 'accountant override', chartOwnerKey: 'ACCOUNTANT_agent-1',
+          isActive: true, visibleBusinessTypes: [BusinessFieldType.SERVICE_PROVIDER],
+        },
+        {
+          id: 3, code: '1000', name: 'invisible client override', chartOwnerKey: CLIENT,
+          isActive: true, visibleBusinessTypes: [BusinessFieldType.COMMERCIAL],
+        },
+        {
+          id: 4, code: '2000', name: 'client account', chartOwnerKey: CLIENT,
+          isActive: true, visibleBusinessTypes: [BusinessFieldType.SERVICE_PROVIDER],
+        },
+        {
+          id: 5, code: '3000', name: 'foreign tenant', chartOwnerKey: 'CLIENT_999999999',
+          isActive: true, visibleBusinessTypes: [BusinessFieldType.SERVICE_PROVIDER],
+        },
+        {
+          id: 6, code: '4000', name: 'inactive client account', chartOwnerKey: CLIENT,
+          isActive: false, visibleBusinessTypes: [BusinessFieldType.SERVICE_PROVIDER],
+        },
+      );
+      accountRepo.rows[0].visibleBusinessTypes = [BusinessFieldType.SERVICE_PROVIDER];
+
+      const result = await service.getEffectiveAccounts({
+        businessNumber: '123456789',
+        accountantIds: ['agent-1'],
+        businessType: BusinessFieldType.SERVICE_PROVIDER,
+      });
+
+      expect(result.map((account) => [account.code, account.name])).toEqual([
+        ['1000', 'accountant override'],
+        ['2000', 'client account'],
+        ['60220', 'דלק'],
+      ]);
+    });
+  });
+
   // ── merge precedence (D4) ──────────────────────────────────────────────
 
   describe('getMergedCategories', () => {

@@ -5,7 +5,7 @@ import { BookKeepingPage } from './book-keeping.page';
 import { BookKeepingPageRoutingModule } from './book-keeping-routing.module';
 import { SharedModule } from '../../shared/shared.module';
 import { CardNavigateComponent } from "src/app/components/card-navigate/card-navigate.component";
-import { TabMenu } from "primeng/tabmenu";
+import { TabsModule } from 'primeng/tabs';
 
 @NgModule({
   imports: [
@@ -15,7 +15,7 @@ import { TabMenu } from "primeng/tabmenu";
     BookKeepingPageRoutingModule,
     SharedModule,
     CardNavigateComponent,
-    TabMenu
+    TabsModule,
 ],
   declarations: [BookKeepingPage]
 })
