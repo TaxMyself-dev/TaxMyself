@@ -278,6 +278,7 @@ describe('Lychee document workflow without sending', () => {
       prepared: jest.fn().mockResolvedValue({}),
       enqueue: jest.fn(),
       selectBusiness: jest.fn().mockResolvedValue(false),
+      explainSelectedBusiness: jest.fn().mockResolvedValue(false),
       claim: jest.fn(),
       retry: jest.fn(),
       block: jest.fn(),
@@ -335,6 +336,24 @@ describe('Lychee document workflow without sending', () => {
     store.complete.mockRejectedValueOnce(new Error('fake database failure'));
     await expect(service.process(job)).rejects.toThrow();
     expect(notifications.wake).not.toHaveBeenCalled();
+  });
+  it('routes a repeat choice to the explanation outbox without importing or overwriting reply status', async () => {
+    const reply = {
+      ...job,
+      payload: {
+        ...event,
+        has_media: false,
+        text: 'second choice',
+        reply_to_whatsapp_message_id: 'old-question',
+      },
+    };
+    store.explainSelectedBusiness.mockResolvedValueOnce(true);
+    await service.process(reply);
+    expect(store.explainSelectedBusiness).toHaveBeenCalledWith(reply, 'owner');
+    expect(notifications.wake).toHaveBeenCalledTimes(1);
+    expect(store.complete).not.toHaveBeenCalled();
+    expect(importer.importDocument).not.toHaveBeenCalled();
+    expect(client.download).not.toHaveBeenCalled();
   });
   it('acknowledges durable enqueue before immediately importing, without duplicate imports', async () => {
     jest.useFakeTimers();

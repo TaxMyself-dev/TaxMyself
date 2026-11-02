@@ -11,6 +11,7 @@ import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
 import { lycheeLog } from './lychee-log';
 import { commitDocumentResults } from './lychee-notification.store';
 import { ImportBlockCode } from '../document-import/document-import-blocked.error';
+import { selectedBusinessSnapshot } from './lychee-selection-reminder';
 
 export interface LycheeJob {
   event_id: string;
@@ -314,6 +315,55 @@ export class LycheeEventStore {
       return false;
     }
     return true;
+  }
+
+  /** Finalize the reply + explanation together; the original document is never updated. */
+  async explainSelectedBusiness(
+    job: LycheeJob,
+    owner: string,
+  ): Promise<boolean> {
+    const event = job.payload;
+    if (
+      event.has_media ||
+      !event.reply_to_whatsapp_message_id ||
+      !lycheeSender(event)
+    )
+      return false;
+    let explained = false;
+    await commitDocumentResults(this.db, async (sql) => {
+      const rows = await sql.query(
+        `SELECT event_id,channel_id,sender_phone,firebase_id,status,
+        business_number,business_choices,payload,prompt_whatsapp_message_id FROM lychee_intake_events
+        WHERE channel_id=? AND sender_phone=? AND firebase_id=? AND prompt_whatsapp_message_id=?
+        LIMIT 2 FOR UPDATE`,
+        [
+          event.channel_id,
+          lycheeSender(event),
+          owner,
+          event.reply_to_whatsapp_message_id,
+        ],
+      );
+      const snapshot =
+        rows.length === 1 && selectedBusinessSnapshot(rows[0], event, owner);
+      if (!snapshot) return [];
+      const changed = await sql.query(
+        `UPDATE lychee_intake_events SET status='BUSINESS_LOCKED',firebase_id=?,
+        business_number=?,business_choices=?,lease_token=NULL,lease_until=NULL
+        WHERE event_id=? AND lease_token=?`,
+        [
+          owner,
+          snapshot.businessNumber,
+          JSON.stringify([snapshot]),
+          job.event_id,
+          job.lease_token,
+        ],
+      );
+      if (changed.affectedRows !== 1)
+        throw new ConflictException('Reply lease no longer owned');
+      explained = true;
+      return [job.event_id];
+    });
+    return explained;
   }
 
   /** Read-only lookup: completed prompts retain ownership for late/repeated replies. */

@@ -3,6 +3,11 @@ import { createHash, randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import type { BusinessQuestionRequest } from './lychee-business-question';
 import { lycheeSender } from './lychee-sender';
+import {
+  reminderSnapshot,
+  selectedBusinessSnapshot,
+  sameSelectionSnapshot,
+} from './lychee-selection-reminder';
 
 export interface ResultDraft {
   kind: 'DOCUMENT_RESULT';
@@ -12,7 +17,8 @@ export interface ResultDraft {
     | 'ALREADY_IMPORTED'
     | 'FAILED'
     | 'REJECTED_BUSINESS'
-    | 'BLOCKED_IMPORT';
+    | 'BLOCKED_IMPORT'
+    | 'BUSINESS_LOCKED';
   owner: string | null;
   business: string | null;
   request: BusinessQuestionRequest;
@@ -49,8 +55,10 @@ export function documentResult(row: any): ResultDraft | null {
   const event =
     typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
   const sender = event && lycheeSender(event);
+  const reminder =
+    row.status === 'BUSINESS_LOCKED' ? reminderSnapshot(row) : null;
   if (
-    !event?.has_media ||
+    (!event?.has_media && !reminder) ||
     !sender ||
     sender !== row.sender_phone ||
     event.channel_id !== row.channel_id ||
@@ -64,7 +72,17 @@ export function documentResult(row: any): ResultDraft | null {
       'FAILED',
       'REJECTED_BUSINESS',
       'BLOCKED_IMPORT',
+      'BUSINESS_LOCKED',
     ].includes(row.status)
+  )
+    return null;
+  if (
+    row.status === 'BUSINESS_LOCKED' &&
+    (!reminder ||
+      event.has_media ||
+      !row.firebase_id ||
+      reminder.businessNumber !== row.business_number ||
+      reminder.questionId !== event.reply_to_whatsapp_message_id)
   )
     return null;
   const success = ['IMPORTED', 'ALREADY_IMPORTED'].includes(row.status);
@@ -82,7 +100,11 @@ export function documentResult(row: any): ResultDraft | null {
       'הקובץ ריק או גדול מדי. יש לשלוח קובץ תקין בגודל של עד 10 מגה־בייט.',
   };
   const text =
-    row.status === 'BLOCKED_IMPORT'
+    row.status === 'BUSINESS_LOCKED'
+      ? `המסמך הזה כבר שויך לעסק ${
+          reminder!.name
+        }. כדי לשייך אותו לעסק אחר, שלח אותו מחדש.`
+      : row.status === 'BLOCKED_IMPORT'
       ? blockTexts[row.last_error] ||
         'לא ניתן לקלוט את המסמך כרגע. אפשר לפנות לתמיכה.'
       : row.status === 'REJECTED_BUSINESS'
@@ -102,14 +124,15 @@ export function documentResult(row: any): ResultDraft | null {
       channel_id: row.channel_id,
       phone: sender,
       text,
-      reply_to_whatsapp_message_id: event.whatsapp_message_id,
+      reply_to_whatsapp_message_id:
+        reminder?.documentWhatsappMessageId || event.whatsapp_message_id,
     },
   };
 }
 
 type Sql = { query: (sql: string, values?: any[]) => Promise<any> };
 const resultColumns =
-  'event_id,channel_id,message_id,sender_phone,payload,status,firebase_id,business_number,drive_file_id,last_error';
+  'event_id,channel_id,message_id,sender_phone,payload,status,firebase_id,business_number,business_choices,drive_file_id,last_error';
 /** The terminal transition and its outbox entry commit together; old completed documents are never backfilled. */
 export async function commitDocumentResults(
   db: DataSource,
@@ -206,7 +229,25 @@ export class LycheeNotificationStore {
       `SELECT ${resultColumns} FROM lychee_intake_events WHERE event_id=? AND channel_id=?`,
       [job.payload.documentEventId, job.channel_id],
     );
-    return rows.length === 1 ? rows[0] : null;
+    if (rows.length !== 1) return null;
+    const row = rows[0];
+    if (row.status === 'BUSINESS_LOCKED') {
+      const snapshot = reminderSnapshot(row);
+      if (!snapshot) return null;
+      const originals = await this.db.query(
+        `SELECT event_id,channel_id,sender_phone,firebase_id,status,
+        business_number,business_choices,payload,prompt_whatsapp_message_id FROM lychee_intake_events
+        WHERE event_id=? AND channel_id=?`,
+        [snapshot.documentEventId, row.channel_id],
+      );
+      const event =
+        typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+      const expected =
+        originals.length === 1 &&
+        selectedBusinessSnapshot(originals[0], event, row.firebase_id);
+      if (!expected || !sameSelectionSnapshot(expected, snapshot)) return null;
+    }
+    return row;
   }
 
   async receipt(job: ResultJob, providerId: string): Promise<void> {

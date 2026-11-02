@@ -100,6 +100,31 @@ class MemoryDb {
         ? [copy(row)]
         : [];
     }
+    if (q.startsWith('SELECT') && q.includes('prompt_whatsapp_message_id=?')) {
+      return copy(
+        all
+          .filter(
+            (r) =>
+              r.channel_id === p[0] &&
+              r.sender_phone === p[1] &&
+              r.firebase_id === p[2] &&
+              r.prompt_whatsapp_message_id === p[3],
+          )
+          .slice(0, 2),
+      );
+    }
+    if (q.includes("SET status='BUSINESS_LOCKED',firebase_id=?")) {
+      const r = rows.get(p[3]);
+      if (!r || r.lease_token !== p[4]) return { affectedRows: 0 };
+      Object.assign(r, {
+        status: 'BUSINESS_LOCKED',
+        firebase_id: p[0],
+        business_number: p[1],
+        business_choices: JSON.parse(p[2]),
+        lease_token: null,
+      });
+      return { affectedRows: 1 };
+    }
     if (q.includes("SET status='FAILED'") && q.includes('LEASE_EXPIRED')) {
       const r = rows.get(p[0]);
       if (!r || r.status !== 'PROCESSING' || !r.expired || r.attempts < 5)
@@ -239,6 +264,41 @@ describe('document result notifications (all boundaries mocked)', () => {
   const notice = () =>
     [...db.rows.values()].find((r) => r.event_id.startsWith('notice:'));
   const parent = () => db.rows.get(event.event_id);
+  function repeatChoice(label = '2. שובל') {
+    Object.assign(parent(), {
+      status: 'IMPORTED',
+      firebase_id: 'test-owner',
+      business_number: 'test-business',
+      drive_file_id: 'original-drive-file',
+      prompt_whatsapp_message_id: 'wamid.test-question',
+      business_choices: [
+        { businessNumber: 'test-business', name: 'נגרות', label: '1. נגרות' },
+        { businessNumber: 'other-business', name: 'שובל', label: '2. שובל' },
+      ],
+    });
+    const reply = {
+      ...event,
+      event_id: 'test-repeat',
+      message_id: 'test-repeat-message',
+      whatsapp_message_id: 'wamid.test-repeat',
+      has_media: false,
+      message_type: 'text',
+      text: label,
+      reply_to_whatsapp_message_id: 'wamid.test-question',
+    };
+    const replyJob = { ...job, event_id: reply.event_id, payload: reply };
+    db.rows.set(reply.event_id, {
+      ...copy(replyJob),
+      channel_id: event.channel_id,
+      message_id: reply.message_id,
+      sender_phone: '972501234567',
+      status: 'PROCESSING',
+      firebase_id: null,
+      business_number: null,
+      drive_file_id: null,
+    });
+    return replyJob;
+  }
   const succeed = async (status = 'IMPORTED') =>
     events.complete(
       job,
@@ -283,6 +343,76 @@ describe('document result notifications (all boundaries mocked)', () => {
     );
   });
   afterEach(() => service.onModuleDestroy());
+  it.each(['1. נגרות', '2. שובל'])(
+    'explains an already selected business for repeat choice %s without modifying the document',
+    async (label) => {
+      const reply = repeatChoice(label);
+      const original = copy(parent());
+      expect(await events.explainSelectedBusiness(reply, 'test-owner')).toBe(
+        true,
+      );
+      expect(parent()).toEqual(original);
+      expect(db.rows.get(reply.event_id).status).toBe('BUSINESS_LOCKED');
+      expect(notice().payload.request.text).toContain('כבר שויך לעסק נגרות');
+      expect(notice().payload.request.text).toContain('שלח אותו מחדש');
+      expect(notice().payload.request.text).not.toContain('לעסק שובל');
+      expect(notice().payload.request.reply_to_whatsapp_message_id).toBe(
+        event.whatsapp_message_id,
+      );
+      await service.tick();
+      await service.tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      expect(parent()).toEqual(original);
+      expect(notice().status).toBe('NOTICE_SENT');
+      await expect(
+        events.explainSelectedBusiness(reply, 'test-owner'),
+      ).rejects.toThrow('lease');
+      expect(
+        [...db.rows.keys()].filter((k) => k.startsWith('notice:')),
+      ).toHaveLength(1);
+    },
+  );
+  it('rolls back repeat-reply completion if its explanation draft cannot be persisted', async () => {
+    const reply = repeatChoice();
+    const original = copy(parent());
+    db.failInsert = true;
+    await expect(
+      events.explainSelectedBusiness(reply, 'test-owner'),
+    ).rejects.toThrow();
+    expect(db.rows.get(reply.event_id).status).toBe('PROCESSING');
+    expect(parent()).toEqual(original);
+    expect(notice()).toBeUndefined();
+  });
+  it.each(['owner', 'sender', 'quote', 'label', 'waiting', 'ambiguous'])(
+    'does not stage an explanation for an unsafe repeat: %s',
+    async (reason) => {
+      const reply = repeatChoice();
+      if (reason === 'owner') parent().firebase_id = 'another-owner';
+      if (reason === 'sender') parent().sender_phone = '972509999999';
+      if (reason === 'quote')
+        reply.payload.reply_to_whatsapp_message_id = 'other-question';
+      if (reason === 'label') reply.payload.text = 'unrelated text';
+      if (reason === 'waiting') parent().status = 'WAITING_FOR_BUSINESS';
+      if (reason === 'ambiguous')
+        db.rows.set('ambiguous-parent', {
+          ...copy(parent()),
+          event_id: 'ambiguous-parent',
+        });
+      expect(await events.explainSelectedBusiness(reply, 'test-owner')).toBe(
+        false,
+      );
+      expect(notice()).toBeUndefined();
+      expect(transport.send).not.toHaveBeenCalled();
+    },
+  );
+  it('rechecks the original assignment before delivering the explanation', async () => {
+    const reply = repeatChoice();
+    await events.explainSelectedBusiness(reply, 'test-owner');
+    parent().business_number = 'other-business';
+    await service.tick();
+    expect(notice().status).toBe('NOTICE_CANCELLED');
+    expect(transport.send).not.toHaveBeenCalled();
+  });
 
   it.each(['IMPORTED', 'ALREADY_IMPORTED'])(
     'stages %s atomically, quotes the source and reports the chosen business',

@@ -51,6 +51,11 @@ HTTP/network/unknown failures remain retryable; never infer permanence from 4xx.
 Lychee supplies traceEventId to the shared importer for safe drive.import.* phase
 timings. Trace IDs are not persisted; no request, content or raw error is logged by
 the new phase tracer. Agent verification remains mocked-only; do not start the app.
+Repeated valid choices for an already selected document stage an explanation as
+BUSINESS_LOCKED on the incoming reply row, atomically with its result notice.
+Never update/reimport the original document. Snapshot its chosen business and
+question/document identities; revalidate that context and current ownership before
+delivery. A repeated webhook event produces one notice; a new click is a new reply.
 
 ## Existing development simulator
 

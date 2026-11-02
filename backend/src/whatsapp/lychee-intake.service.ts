@@ -218,6 +218,16 @@ export class LycheeIntakeService {
     lycheeLog(e.event_id, 'user.lookup', 'completed', 'נמצא חשבון יחיד');
     if (!e.has_media) {
       const selected = await this.store.selectBusiness(e, owner);
+      if (!selected && (await this.store.explainSelectedBusiness(job, owner))) {
+        this.notifications.wake();
+        lycheeLog(
+          e.event_id,
+          'business.reply.explanation',
+          'completed',
+          'המסמך כבר שויך; נשמרה הודעת הסבר עם העסק המקורי ללא שינוי בשיוך או ייבוא נוסף',
+        );
+        return;
+      }
       lycheeLog(
         e.event_id,
         'business.reply',
