@@ -219,3 +219,58 @@ daily renewal batch, another charge or a replacement invoice.
   and enable local completion delivery. A changed tunnel needs env/job updates.
 - Documentation-only tracked changes; no executable changes or repeat builds.
   No production access, live charge/mail/invoice, env commit, merge or push.
+
+## Dev runtime connection (2026-11-02)
+- User explicitly authorized updated feature code on port 3000, dev only and no
+  additional charge. Current port is free; main is not changed or integrated.
+- ADC consent failed (cloud-platform scope not consented); user was given the
+  exact login repair and can finish while local safety runtime is implemented.
+- Adding an opt-in completion-only dev startup profile: keepintax-dev binding,
+  synchronize/boot seed off, all schedule decorators off, CardCom network entry
+  points blocked and HTTP routes restricted to health/readiness/task endpoints.
+- Acceptance: guarded actual-dev DB preflight, updated worktree code on 3000,
+  verified local/ngrok endpoint identity and queue test with no-op missing-row id,
+  zero provider/charge/mail/document writes, and no production/main/push.
+
+### Connected dev runtime handoff
+
+- Result: updated compiled feature code running on port 3000 with isolated
+  completion-only profile. No main code or existing user process was changed;
+  port was free, then only our own worker was restarted to enable the task flag.
+- New opt-in profile validates dev DB/project binding, disables synchronize,
+  boot seeding and all Nest schedule decorators. HTTP only permits readiness/
+  health and authenticated task routes; CardCom's seven network entry points
+  reject before HTTP. Normal profile remains unchanged.
+- Initial ADC login had failed because cloud-platform consent was absent. The
+  user completed consent during the turn; ADC then existed and the official
+  Google client read the dev queue with verified keepintax-dev quota project.
+  No token/key was printed or committed. Local ignored BILLING_TASKS_ENABLED
+  changed false -> true only after this verification; other env preserved.
+- Guarded read-only SELECT DATABASE verified actual keepintax-dev binding.
+  Before/after counts were attempts=11, documents=46, events=94. No pending
+  captured charges or attempted failed invoice emails were present.
+- Local ready returned 200; no-identity completion 403; checkout/daily-task
+  returned 503 before any provider/controller invocation. Public curl health
+  through ngrok returned 200 (PowerShell's public HTTPS client timed out; curl
+  and the actual Google deliveries succeeded, so no host network change was made).
+- Compiled application publisher created the sole MAIL task for missing event
+  id 2147483647, verified absent beforehand. Resumed dev queue; inbound authenticated
+  completion returned 204 and Cloud Tasks removed the completed task. No provider,
+  PDF, mail or invoice creation ran for this missing row.
+- After confirming zero pending work, resumed Scheduler and forced its daily
+  repair once: ngrok recorded repair HTTP 204, Scheduler status OK, no tasks
+  created. An initial run while paused was rejected by Google with
+  FAILED_PRECONDITION and did not execute; enabling then running succeeded.
+- Final dev queue RUNNING/empty; Scheduler ENABLED at 04:00 Asia/Jerusalem.
+  No production access, schema change, main integration, deployment or push.
+- Validation: focused 4 suites / 33 tests passed, then final
+  npm test -- --runInBand --silent src/billing passed 38 suites / 572 tests,
+  exit 0. npm run build passed, exit 0. Actual local readiness/HTTP restrictions,
+  guarded dev reads and both external authenticated delivery paths passed above.
+- Documentation: billing AGENTS, feature guide and this task record. No frontend
+  code changed, so frontend checks were not repeated. Full source diff reviewed;
+  git diff --check passed. Env stays ignored. Live PDF/mail failure and crash/race
+  scenarios with an actual existing test invoice remain separate acceptance work;
+  no real customer mail or invoice was processed to claim those scenarios passed.
+- Push requires renewed personal manual-main verification and explicit approval
+  for the current executable revision. No such approval is inferred here.

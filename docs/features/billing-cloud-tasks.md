@@ -157,3 +157,36 @@ The running port-3000 backend belongs to main, which does not yet contain the
 Cloud Tasks feature; it was not restarted or modified. Runtime ADC is also absent.
 Queue/job remain paused pending runtime credentials, backend feature availability
 and live dev acceptance. CLI authentication is separate from runtime ADC.
+
+## Connected local development runtime (2026-11-02)
+
+The feature backend now runs on port 3000 through the verified HTTPS tunnel,
+using the compiled worktree code via npm run start:billing-completion-dev.
+main remains unchanged. The launcher loads this worktree env explicitly, pins
+port 3000, disables schema sync and boot seed, and selects a completion-only profile.
+All Nest cron/interval/timeout decorators are disabled. Every CardCom network
+entry point (including reads/refunds) rejects before any provider request. Only
+GET/HEAD health/readiness, OPTIONS and authenticated task POST routes are exposed;
+other application routes return 503. Restart this command after a backend rebuild.
+
+Runtime ADC consent succeeded and the official client independently read the dev
+queue with quota_project=keepintax-dev. The ignored local task flag is enabled.
+The queue is RUNNING/empty and the daily Scheduler job is ENABLED at 04:00
+Asia/Jerusalem. Both remain development-project resources only.
+
+Live acceptance used MAIL id 2147483647, verified absent from the actual
+keepintax-dev database before publication. The application's compiled publisher
+created the only queued task; Google delivered it with worker OIDC through ngrok,
+HTTP 204 was observed, and the task was automatically removed. The existing
+Scheduler repair job was then forced once after verifying no pending capture/mail
+work; its authenticated repair request also returned 204. Queue was empty after.
+The DB retained 11 attempts, 46 documents and 94 events before/after; no mail,
+invoice, charge, refund, schema or billing-record write occurred during acceptance.
+Keepintax-dev database binding was checked with SELECT DATABASE before any query.
+
+This proves ADC -> Cloud Tasks -> Google OIDC -> ngrok -> updated local worker ->
+dev DB lookup/ack, plus Scheduler identity/repair delivery. It does not replace the
+previously documented live failure/crash/PDF/mail acceptance scenarios. No real
+customer invoice or email was processed. If the PC/tunnel is unavailable, remote
+delivery retries according to the configured policies; update task env and job
+target/audience if the tunnel URL changes. No credentials are committed.

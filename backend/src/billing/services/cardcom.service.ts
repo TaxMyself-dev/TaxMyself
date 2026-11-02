@@ -1,3 +1,4 @@
+import { assertCardcomNetworkAllowed, isDevCompletionOnly } from '../domain/dev-completion-mode';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
@@ -143,6 +144,7 @@ export class CardcomService implements OnModuleInit {
    * The app will not start if any are missing.
    */
   onModuleInit(): void {
+    if (isDevCompletionOnly()) return;
     const required: Record<string, string | undefined> = {
       CARDCOM_TERMINAL_NUMBER: process.env.CARDCOM_TERMINAL_NUMBER,
       CARDCOM_API_NAME: process.env.CARDCOM_API_NAME,
@@ -184,6 +186,7 @@ export class CardcomService implements OnModuleInit {
   async createLowProfileCheckout(
     input: CardcomLowProfileInput,
   ): Promise<CardcomLowProfileResult> {
+    assertCardcomNetworkAllowed();
     // CardCom expects amount in NIS (decimal shekels). We store in integer agorot.
     const amountNis = input.amountAgorot / 100;
 
@@ -319,6 +322,7 @@ export class CardcomService implements OnModuleInit {
    * Response schema: LowProfileResult — same shape as the webhook payload.
    */
   async getLowProfileResult(lowProfileId: string): Promise<Record<string, any>> {
+    assertCardcomNetworkAllowed();
     const resultUrl = 'https://secure.cardcom.solutions/api/v11/LowProfile/GetLpResult';
 
     const payload = {
@@ -362,6 +366,7 @@ export class CardcomService implements OnModuleInit {
    * Never logs params.token.
    */
   async chargeByToken(input: CardcomChargeByTokenInput): Promise<CardcomTransactionInfo> {
+    assertCardcomNetworkAllowed();
     const amountNis = input.amountAgorot / 100;
     const terminalNumberInt = parseInt(this.terminalNumber, 10);
 
@@ -425,6 +430,7 @@ export class CardcomService implements OnModuleInit {
   async getTransactionByExternalUniqTran(
     externalUniqTranId: string,
   ): Promise<CardcomTransactionInfo> {
+    assertCardcomNetworkAllowed();
     const payload = {
       TerminalNumber: parseInt(this.terminalNumber, 10),
       ApiName: this.apiName,
@@ -474,6 +480,7 @@ export class CardcomService implements OnModuleInit {
    * Never logs credentials.
    */
   async getTransactionInfoById(tranzactionId: number): Promise<CardcomExtShvaParams[]> {
+    assertCardcomNetworkAllowed();
     const payload = {
       TerminalNumber: parseInt(this.terminalNumber, 10),
       UserName: this.apiName,
@@ -524,6 +531,7 @@ export class CardcomService implements OnModuleInit {
   async refundTransaction(input: { transactionId: string; amountAgorot: number; requestId: string }): Promise<{
     ResponseCode: number; NewTranzactionId?: number; Description?: string | null;
   }> {
+    assertCardcomNetworkAllowed();
     const id = Number(input.transactionId);
     if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(input.amountAgorot) || input.amountAgorot <= 0) {
       throw new Error('Invalid refund parameters');
@@ -551,6 +559,7 @@ export class CardcomService implements OnModuleInit {
 
   /** Read-only official ListTransactions. Return a whitelist; tokens/card data never escape. */
   async listRefundEvidence(from: Date, to: Date) {
+    assertCardcomNetworkAllowed();
     const date = (d: Date) => `${String(d.getUTCDate()).padStart(2, '0')}${String(d.getUTCMonth() + 1).padStart(2, '0')}${d.getUTCFullYear()}`;
     const transactions: Array<{ transactionId: number; uid: string; amount: number; responseCode: number;
       description: string | null; isRefund: boolean; coinId: number; terminal: number; date: string }> = [];

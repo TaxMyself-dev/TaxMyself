@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { isAllowedDevCompletionRequest } from './billing/domain/dev-completion-mode';
 import { pdfDiagnosticsMiddleware } from './documents/pdf/pdf-diagnostics';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -18,6 +19,12 @@ async function bootstrap() {
         logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
       }),
   );
+  app.use((req: any, res: any, next: () => void) => {
+    if (!isAllowedDevCompletionRequest(req.method, req.path)) {
+      return res.status(503).json({ status: 'dev_completion_only', message: 'Only readiness and authenticated completion routes are enabled' });
+    }
+    next();
+  });
   app.use(pdfDiagnosticsMiddleware);
   // TypeORM establishes its connection while Nest builds the application
   // graph. This is a readiness milestone, not an isolated DB duration.

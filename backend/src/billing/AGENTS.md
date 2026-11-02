@@ -702,3 +702,17 @@ independently of billing_attempt status, including legacy/completed charges.
 They only download/send the existing PDF. The Cloud Tasks transport above supersedes
 the original minute recovery runner; no schema change is required. Brevo acceptance is not inbox
 delivery; ambiguous transport/crash failures can cause duplicate email on retry.
+
+## Opt-in local completion worker
+
+npm run start:billing-completion-dev starts the compiled feature backend on port
+3000 from its own ignored env. It forces BILLING_DEV_COMPLETION_ONLY=true,
+DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true, requires keepintax-dev DB/project
+binding and disables all Nest schedule decorators (cron/interval/timeout).
+All CardcomService network entry points fail before HTTP in this profile, including
+lookup/refund operations. HTTP is limited to health/readiness and the authenticated
+Cloud Tasks completion/repair endpoints; ordinary UI/API routes return 503.
+Normal runtime behavior is unchanged when the profile is absent/false. This is an
+isolated queue acceptance worker, not a replacement for the full UI backend.
+Actual dev DB binding, ADC quota project and queue/Scheduler delivery were verified
+on 2026-11-02 without billing-record writes; see the feature guide/task handoff.
