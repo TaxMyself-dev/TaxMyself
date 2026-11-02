@@ -108,3 +108,12 @@
 - Expanded source-outcome-consent-race suite has 3 failures/4 passes, reproduced with the HEAD helper through an isolated Jest mapping; service/test source files are unchanged. These stale expectations concern aggregate OB-04 failures and resultRunId fields from the prior implementation, not cancellation diagnostics. No broad all-tests-green claim is made. Reports and baseline fixtures are outside Git.
 - Re-review covered pre-HTTP exceptions, redaction, per-consent and full-scope failures, partial continuation, asynchronous pending, transport-error recovery, late verification, profile-refresh failure, stored OB-05 decoding and UUID continuity through display/copy. No additional actionable issue found within this follow-up.
 - Schema/accounting/external-contract impact: no migration or durable-data changes; additive supportError in per-consent responses and OB-05 support code. No live provider cancellation, production access/change, main merge or remote push performed.
+
+
+## Proxy empty-body follow-up — 2026-11-02
+
+- Fixes the fallback body reader waiting for an end event that already fired after Express consumed an empty request. Keeps zero bytes distinct from parsed empty objects/arrays and forwards actual empty JSON bodies to match their framing. Existing source routes, auth, retry policy, webhook forwarding and malformed-JSON rejection are unchanged.
+- Adds a permanent local HTTP regression harness using actual Express 5.1.0 and http-proxy-middleware from this worktree's lockfile. Upstream is loopback-only; startup/NAT probing is disabled and webhook fetch is mocked. No live provider request is issued.
+- Before the fix, the regression tests reproduced stalls for zero-length DELETE and empty JSON requests. Final npm test in proxy: 25 passed, zero failed. Both modified/new JavaScript files passed node --check; git diff --check passed. There is no proxy build step; backend/frontend code is unchanged, so their builds were not rerun for this follow-up.
+- Re-review covered already-consumed bodies, no-body framing, empty objects/arrays, chunked payloads, forwarding once, query/method/header/body preservation, JSON-key compatibility, malformed JSON, webhooks and credential redaction. No remaining actionable issue found within this change.
+- Runtime fix is local only; no proxy deployment, production operation, real consent cancellation, database/schema change, accounting change, main merge or push. Temporary frontend port edits remain outside the follow-up commit.
