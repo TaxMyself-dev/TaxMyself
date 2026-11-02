@@ -1,68 +1,86 @@
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { DataSource, IsNull, LessThanOrEqual, MoreThan, Or } from 'typeorm';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { BillingObligation } from '../entities/billing-obligation.entity';
+import { BillingAttemptStatus, BillingChargeMode, BillingEventType } from '../enums/billing.enums';
+import { BillingHostedCompletionService } from './billing-hosted-completion.service';
+import { SubscriptionRenewalService } from './subscription-renewal.service';
 import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-import { BillingChargeMode } from '../enums/billing.enums';
-import { BillingAttemptOrchestrationService } from './billing-attempt-orchestration.service';
-import { BillingHostedCompletionService } from './billing-hosted-completion.service';
-import { SubscriptionRenewalService } from './subscription-renewal.service';
+import { BillingTasksService, CompletionTaskKind } from './billing-tasks.service';
 
-/** Local post-capture work only. No charge/renewal entry point or provider submission. */
+/** HTTP queue delivery executes local work. Daily repair only enqueues orphaned work. */
 @Injectable()
 export class BillingCompletionRecoveryService {
   private readonly logger = new Logger(BillingCompletionRecoveryService.name);
   private running = false;
+  constructor(private readonly hosted: BillingHostedCompletionService, private readonly renewal: SubscriptionRenewalService,
+    private readonly events: BillingEventService, private readonly receipts: BillingReceiptService,
+    private readonly issuers: BillingIssuerConfigService, private readonly tasks: BillingTasksService,
+    private readonly dataSource: DataSource) {}
 
-  constructor(
-    private readonly orchestration: BillingAttemptOrchestrationService,
-    private readonly hosted: BillingHostedCompletionService,
-    private readonly renewal: SubscriptionRenewalService,
-    private readonly events: BillingEventService,
-    private readonly receipts: BillingReceiptService,
-    private readonly issuers: BillingIssuerConfigService,
-  ) {}
+  async handle(kind: CompletionTaskKind, id: number, now = new Date()): Promise<void> {
+    if (!this.tasks.enabled) throw new ServiceUnavailableException('Billing task delivery is disabled');
+    if (kind === 'MAIL') {
+      const event = await this.events.findReceiptTaskEvent(id);
+      if (!event) return;
+      if (![BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType) ||
+        event.receiptEmailSent || event.metadata?.receiptEmail?.skipped === 'NO_RECIPIENT') return;
+      if (!event.receiptDocId) throw new ServiceUnavailableException('Existing receipt is not ready');
+      const issuer = await this.issuers.getKeepintaxIssuer();
+      const result = await this.receipts.sendReceiptEmailForPaymentEvent(id, issuer.issuerName);
+      if (result.error) throw new ServiceUnavailableException('Receipt email remains pending');
+      return;
+    }
+    const attempt = await this.dataSource.manager.findOne(BillingAttempt, { where: { id } });
+    if (!attempt || attempt.operation !== 'CHARGE' || attempt.status !== BillingAttemptStatus.CAPTURED) return;
+    if ((attempt.nextActionAt && attempt.nextActionAt > now) || (attempt.leaseExpiresAt && attempt.leaseExpiresAt > now)) {
+      throw new ServiceUnavailableException('Captured completion is deferred');
+    }
+    const debt = await this.dataSource.manager.findOne(BillingObligation, { where: { id: attempt.obligationId } });
+    if (!debt) throw new ServiceUnavailableException('Captured obligation unavailable');
+    const status = attempt.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED
+      ? await this.hosted.completeCapturedHostedAttempt({ firebaseId: debt.firebaseIdSnapshot,
+          subscriptionId: debt.subscriptionId, billingAttemptId: id, scheduledOnly: true })
+      : await this.renewal.completeCapturedAttempt(id, true);
+    if (!['COMPLETED', 'ALREADY_COMPLETED'].includes(status)) throw new ServiceUnavailableException('Captured completion remains pending');
+  }
 
-  @Cron('*/1 * * * *', { name: 'billingCompletionRecovery', timeZone: 'Asia/Jerusalem' })
   async recover(now = new Date()): Promise<void> {
-    if (this.running) return;
+    if (!this.tasks.enabled || this.running) return;
     this.running = true;
+    let failed = false;
+    const generation = `repair-${now.toISOString().slice(0, 10)}`;
     try {
-      const candidates = await this.orchestration.findDueCapturedAttempts(now, 20);
-      for (const candidate of candidates) {
-        try {
-          const status = candidate.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED
-            ? await this.hosted.completeCapturedHostedAttempt({
-                firebaseId: candidate.firebaseId, subscriptionId: candidate.subscriptionId,
-                billingAttemptId: candidate.attemptId,
-                scheduledOnly: true,
-              })
-            : await this.renewal.completeCapturedAttempt(candidate.attemptId, true);
-          if (status === 'RECEIPT_PENDING') {
-            this.logger.warn(`Captured attempt #${candidate.attemptId} still needs local completion; retry scheduled`);
-          }
-        } catch {
-          // Do not log provider/customer payloads. One broken row cannot block others.
-          this.logger.error(`Captured attempt #${candidate.attemptId} could not resume local completion`);
+      let afterId = 0;
+      for (let page = 0; page < 20; page++) {
+        const attempts = await this.dataSource.manager.find(BillingAttempt, { where: {
+          id: MoreThan(afterId), operation: 'CHARGE', status: BillingAttemptStatus.CAPTURED,
+          capturedAt: LessThanOrEqual(new Date(now.getTime() - 60000)),
+          nextActionAt: Or(IsNull(), LessThanOrEqual(now)), leaseExpiresAt: Or(IsNull(), LessThanOrEqual(now)),
+        }, order: { id: 'ASC' }, take: 100 });
+        for (const attempt of attempts) {
+          if (!await this.tasks.enqueue('CAPTURE', attempt.id, attempt.nextActionAt ?? now, generation)) failed = true;
         }
+        if (attempts.length < 100) break;
+        afterId = attempts[attempts.length - 1].id;
+        if (page === 19) { failed = true; this.logger.error('Captured daily repair reached its 2000-row limit; operator review required'); }
       }
-    } catch {
-      this.logger.error('Could not list captured attempts for local completion');
-    }
+    } catch { failed = true; this.logger.error('Could not enqueue captured daily repair'); }
     try {
-      // Independent of attempt status and capture-scan failures.
-      const pendingEmails = await this.events.findDueReceiptEmails(now, 20);
-      if (pendingEmails.length) {
-        const issuer = await this.issuers.getKeepintaxIssuer();
-        for (const event of pendingEmails) {
-          try { await this.receipts.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName); }
-          catch { this.logger.error(`Receipt email #${event.id} could not resume`); }
+      let afterId = 0;
+      for (let page = 0; page < 20; page++) {
+        const events = await this.events.findDueReceiptEmails(now, 100, afterId);
+        for (const event of events) {
+          if (!await this.tasks.enqueue('MAIL', event.id, now, generation)) failed = true;
         }
+        if (events.length < 100) break;
+        afterId = events[events.length - 1].id;
+        if (page === 19) { failed = true; this.logger.error('Mail daily repair reached its 2000-row limit; operator review required'); }
       }
-    } catch {
-      this.logger.error('Could not recover pending receipt emails');
-    } finally {
-      this.running = false;
-    }
+    } catch { failed = true; this.logger.error('Could not enqueue receipt email daily repair'); }
+    finally { this.running = false; }
+    if (failed) throw new ServiceUnavailableException('Daily billing task repair is incomplete');
   }
 }

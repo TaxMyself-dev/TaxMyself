@@ -1,17 +1,33 @@
 ## Purpose
-Captured charge completion recovery (2026-10-28): BillingCompletionRecoveryService
-runs every minute, independently of renewal eligibility, with a bounded batch
-of 20 CHARGE/CAPTURED attempts. It routes hosted captures through hosted completion
-and token captures through completeCapturedAttempt, never chargeSubscription.
-Existing exclusive finalization leases serialize worker/admin/daily completion.
-Claim persists a crash wake-up; failure persists next_action_at with delays of
-1/5/15/30 minutes then hourly. The run count and sanitized category use the existing
-failure_category POST_CAPTURE:<category>:<run> tag; provider reconciliation counters
-are untouched. Null schedules on old captures are eligible after a one-minute grace.
-The canonical receipt pointer is saved on the attempt before PDF work, checking
-documents.billing_attempt_id provenance. Completion clears the local retry tag and
-schedule. PDF retries reuse the existing document/journal; mail errors also keep
-completion pending. No schema change. See docs/features/billing-pdf-recovery.md.
+Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
+PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)
+and validates explicit queue/project/HTTPS audience/service-account/database binding
+at startup. Official Google clients already in googleapis create tasks with ADC;
+no credentials are loaded or Google contacted while disabled. Capture/admin
+resolution, finalization claim/release and email claim/failure enqueue only AFTER
+their durable DB transactions commit. Failed enqueue leaves pending DB authority.
+The initial synchronous capture/activation/manual-send path is preserved.
+
+POST internal/billing/completion uses Google OIDC verification (exact audience,
+Google issuer, verified exact service-account email, subject and expiry). Cloud
+Tasks headers never authorize. Payload contains kind CAPTURE/MAIL and id only.
+The worker reloads state, reuses the existing completion/mail leases and retry
+dates, acknowledges terminal work and returns non-2xx for pending/transient errors.
+It never invokes chargeSubscription/provider submission, refund or replacement
+invoice creation. Existing invoice/journal uniqueness and provenance are retained.
+Mail delivery remains independent of attempt status, including completed/legacy
+charges, and uses the saved PDF. Duplicate/crashed mail can still be ambiguous.
+
+POST internal/billing/repair uses the same verified identity, intended for Cloud
+Scheduler daily at 04:00 Asia/Jerusalem. No application recovery timer is registered.
+Repair only enqueues due pending work (100/id-page, max 2000 per kind), with fresh
+daily task generations to survive queue tombstones/retention/exhaustion. Partial
+failures/caps log and return 503; capture scan failure cannot block mail repair.
+Daily repair is required for DB-commit/enqueue gaps and must be configured before
+activation. No new schema, production access or cloud resources were changed.
+See docs/features/billing-cloud-tasks.md for configuration, IAM, Scheduler and
+manual dev checks; earlier minute-sweep documentation is historical.
+
 Admin refund PDF access: GET subscriptions/:id/refunds/:attemptId/document is
 admin-only, validates source subscription/user and linked credit document attempt
 provenance, then streams the existing PDF with no-store. Never bypass ownership
@@ -681,8 +697,8 @@ leases serialize manual/automatic sends. Failure retries after 1/5/15/30 minutes
 then hourly; a crash wake-up is persisted before storage/mail I/O. Success sets
 both the column and metadata sent flags, clears error/schedule/lease. Missing
 recipient is explicitly skipped until a manual retry. Persistence failures throw.
-The existing recovery runner additionally selects bounded failed email events
-independently of billing_attempt status, including legacy/completed charges;
-it only downloads/sends the existing PDF. No new cron, queue or schema is added.
-Cloud Tasks remains a separate unimplemented plan. Brevo acceptance is not inbox
+Cloud Tasks MAIL delivery and daily safety repair handle failed email events
+independently of billing_attempt status, including legacy/completed charges.
+They only download/send the existing PDF. The Cloud Tasks transport above supersedes
+the original minute recovery runner; no schema change is required. Brevo acceptance is not inbox
 delivery; ambiguous transport/crash failures can cause duplicate email on retry.

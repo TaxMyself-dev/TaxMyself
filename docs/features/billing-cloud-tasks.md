@@ -1,0 +1,130 @@
+# Billing completion with Cloud Tasks
+
+## Local implementation status
+
+This replaces the minute PDF/email recovery cron. Initial capture/activation and
+manual send behavior stay synchronous; failed or crashed completion is dispatched
+by Cloud Tasks. The DB is authoritative, using the existing billing_attempt state,
+schedule, version and lease, and billing_event.metadata.receiptEmail delivery state.
+There is no schema change or new outbox table. Refund recovery remains separate.
+
+The feature is OFF unless BILLING_TASKS_ENABLED=true. No Google credentials are
+resolved and no tasks are created while disabled. No dev/prod infrastructure,
+credentials or environment file was changed as part of the code implementation.
+The previous minute cron is removed, including when this feature is disabled.
+Do not enable the feature before queue/IAM/Scheduler validation below.
+
+## Reliability and identity
+
+- Capture/admin-resolution transactions commit before enqueue. Finalization and
+  email claims also commit crash wake-ups before PDF/storage/mail I/O; failure
+  transactions commit their retry dates before enqueue. Enqueue failure never
+  converts a verified charge into a retryable provider submission.
+- Payload is only {kind: CAPTURE, id: attemptId} or {kind: MAIL, id: eventId}.
+  No payment, recipient, storage path or credential is supplied by the task.
+- POST /internal/billing/completion requires a Google-signed ID token, exact
+  configured audience, Google issuer, verified service-account email, subject and
+  unexpired token. X-CloudTasks headers never authenticate a request. Ordinary
+  customer Firebase authentication does not grant access to this endpoint.
+- The worker reloads the DB and uses the existing exclusive finalization/mail
+  leases. Completed/missing/ineligible work is acknowledged as a no-op; a DB error,
+  live lease, future retry or transient completion error returns non-2xx so the
+  queue retries. Refund/UNKNOWN/DECLINED attempts are never submitted as charges.
+- Mail tasks work for completed and legacy charges independently of attempt status.
+  They download the linked PDF only, never generate an invoice or charge again.
+- DB retry gates remain 1/5/15/30 minutes then hourly. Cloud Tasks retry backoff
+  adds latency; these are not exact delivery times. A lease crash waits five
+  minutes plus its persisted delay. HTTP dispatch deadline is 240 seconds.
+- Explicit task names are hashed from ids/schedule/generation and coalesce repeated
+  notifications. Only Google's ALREADY_EXISTS response is treated as a duplicate.
+  This is not exactly-once execution. An ambiguous mail API response or crash after
+  acceptance can duplicate email; no provider idempotency guarantee is invented.
+
+## The daily repair job is required
+
+MySQL commit and Cloud Tasks creation are not atomic. A crash between them, queue
+retention or retry exhaustion can leave pending DB work with no live task. A
+Cloud Scheduler job must POST /internal/billing/repair once daily at 04:00
+Asia/Jerusalem using the same verified Google identity/audience. This external
+invocation works with an idle/scaled-to-zero Cloud Run instance; no application
+timer or minute polling is registered for completion recovery.
+
+Repair scans due captures and explicitly attempted/failed invoice emails only,
+using ascending-id pagination (100/page, at most 20 pages per kind). It enqueues
+work and never executes receipts, mail, activation or money operations itself.
+A new daily task-name generation bypasses old completed/exhausted task tombstones;
+repeated repairs in one day coalesce. One failed capture scan cannot suppress mail
+repair. Partial errors/queue failures or the 2000-row cap log an operator error and
+return 503 so Scheduler can retry. Persistent cap/DB/queue errors require operator
+review; there is no claim of unlimited automatic backlog recovery.
+
+## Development configuration
+
+Only configure a verified development project and keepintax-dev database. These
+are names/URLs, not secrets. ADC belongs to the runtime; never paste or commit a key.
+
+```dotenv
+BILLING_TASKS_ENABLED=false
+BILLING_TASKS_PROJECT_ID=YOUR_DEV_PROJECT_ID
+BILLING_TASKS_LOCATION=YOUR_DEV_QUEUE_REGION
+BILLING_TASKS_QUEUE=billing-completion-dev
+BILLING_TASKS_TARGET_URL=https://YOUR_DEV_BACKEND/internal/billing/completion
+BILLING_TASKS_AUDIENCE=https://YOUR_DEV_BACKEND
+BILLING_TASKS_SERVICE_ACCOUNT=billing-worker@YOUR_DEV_PROJECT_ID.iam.gserviceaccount.com
+BILLING_TASKS_EXPECTED_DATABASE=keepintax-dev
+```
+
+When enabled, incomplete configuration, HTTP URLs, a wrong completion path or a
+mismatched actual database fail startup. For Cloud Run IAM, audience normally uses
+the service's base URL; both Google IAM and the application must accept that exact
+audience. Target and audience cannot include credentials, query or fragment.
+
+Dev provisioning checklist (not executed by Codex):
+
+1. Verify the explicit dev project, region, HTTPS backend and DB binding. Enable
+   Cloud Tasks/Cloud Scheduler APIs there. Create the dedicated dev queue and worker
+   service account in that project. Do not alter production services/credentials.
+2. Give the backend runtime identity roles/cloudtasks.enqueuer for this queue and
+   iam.serviceAccounts.actAs (roles/iam.serviceAccountUser) on the worker identity.
+   Keep the Cloud Tasks service agent's service-agent role. Where Cloud Run is
+   IAM-private, grant the worker roles/run.invoker on the dev service. The scheduler
+   invoker needs permission to mint an OIDC token for the same verified identity;
+   retain the Cloud Scheduler service-agent role. Do not grant broad project admin.
+3. Configure the dedicated queue's bounded delivery policy, for example:
+
+```powershell
+gcloud tasks queues update billing-completion-dev --project=YOUR_DEV_PROJECT_ID --location=YOUR_DEV_QUEUE_REGION --max-concurrent-dispatches=2 --max-dispatches-per-second=1 --min-backoff=60s --max-backoff=3600s --max-doublings=5 --max-attempts=100 --max-retry-duration=604800s
+```
+
+4. Configure the daily safety job (use explicit dev values):
+
+```powershell
+gcloud scheduler jobs create http billing-completion-repair-dev --project=YOUR_DEV_PROJECT_ID --location=YOUR_DEV_SCHEDULER_REGION --schedule="0 4 * * *" --time-zone="Asia/Jerusalem" --uri="https://YOUR_DEV_BACKEND/internal/billing/repair" --http-method=POST --oidc-service-account-email="billing-worker@YOUR_DEV_PROJECT_ID.iam.gserviceaccount.com" --oidc-token-audience="https://YOUR_DEV_BACKEND" --attempt-deadline=300s --max-retry-attempts=3 --min-backoff=60s --max-backoff=3600s
+```
+
+5. Describe/verify the dev queue, identity bindings and daily job before setting
+   BILLING_TASKS_ENABLED=true. Inspect task creation/delivery and Scheduler results
+   with synthetic dev rows/test recipient only. No full application boot is needed
+   for unit tests; do not run against production, a prod copy or real customers.
+6. Monitor enqueue failures, daily-repair errors/caps, queue retry exhaustion,
+   oldest pending DB work and Scheduler failures. Disabling/purging a queue does not
+   resolve DB work; preserve pending state and repair after restoring service.
+
+## Development acceptance checks
+
+Mock tests cover deterministic/minimal tasks, enqueue failure and duplicate names,
+commit-before-enqueue and rollback, crash wake-ups, DB retry/lease gates, verified
+OIDC identity and spoofed headers, duplicate terminal delivery, mail with an existing
+PDF/completed attempt, disabled configuration and bounded paginated daily repair.
+
+Live dev verification remains required: timeout PDF/mail, kill after DB commit and
+after claim, deny task creation then run daily repair, duplicate/multi-instance
+delivery and manual-send races, wrong identity/audience, forced queue exhaustion
+then next-day repair. Snapshot invoice id/count and journal count; verify zero new
+charges, unchanged provider transaction id and reuse of the same invoice/PDF.
+Mock tests do not prove IAM, runtime credentials, real storage/signing or delivery.
+
+Official references:
+- [HTTP tasks, payload and OIDC](https://docs.cloud.google.com/tasks/docs/creating-http-target-tasks)
+- [Queue retry/rate configuration](https://docs.cloud.google.com/tasks/docs/configuring-queues)
+- [Task names and deduplication](https://docs.cloud.google.com/tasks/docs/creating-http-target-tasks#naming_tasks)

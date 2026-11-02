@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { BillingTasksService } from './billing-tasks.service';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
@@ -36,6 +37,7 @@ export class BillingEventService {
   constructor(
     @InjectRepository(BillingEvent)
     private readonly billingEventRepo: Repository<BillingEvent>,
+    @Optional() private readonly tasks?: BillingTasksService,
   ) {}
 
   async logEvent(input: LogBillingEventInput): Promise<BillingEvent | null> {
@@ -224,7 +226,8 @@ export class BillingEventService {
 
   /** Durable delivery claims throw on DB failure: never send without a saved lease. */
   async claimReceiptEmail(eventId: number, manual = false, now = new Date(), actor?: string): Promise<string | null> {
-    return this.billingEventRepo.manager.transaction(async manager => {
+    let wakeup: Date | undefined;
+    const result = await this.billingEventRepo.manager.transaction(async manager => {
       const event = await manager.findOne(BillingEvent, { where: { id: eventId }, lock: { mode: 'pessimistic_write' } });
       if (!event?.receiptDocId || ![BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS, BillingEventType.REFUND_SUCCESS].includes(event.eventType)) return null;
       const previous = event.metadata?.receiptEmail ?? {};
@@ -242,11 +245,17 @@ export class BillingEventService {
       // Manual resend after an earlier success must also survive a failed send/crash.
       event.receiptEmailSent = false;
       await manager.save(BillingEvent, event);
+      if ([BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType)) {
+        wakeup = new Date(event.metadata.receiptEmail.nextAttemptAt);
+      }
       return leaseId;
     });
+    if (wakeup) await this.tasks?.enqueue('MAIL', eventId, wakeup).catch(() => undefined);
+    return result;
   }
 
   async finishReceiptEmail(eventId: number, leaseId: string, sent: boolean, error?: string, skipped = false): Promise<void> {
+    let wakeup: Date | undefined;
     await this.billingEventRepo.manager.transaction(async manager => {
       const event = await manager.findOne(BillingEvent, { where: { id: eventId }, lock: { mode: 'pessimistic_write' } });
       if (!event || event.metadata?.receiptEmail?.leaseId !== leaseId) return;
@@ -261,10 +270,14 @@ export class BillingEventService {
         skipped: skipped ? 'NO_RECIPIENT' : null,
       } };
       await manager.save(BillingEvent, event);
+      if (!sent && !skipped && [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType)) {
+        wakeup = new Date(event.metadata.receiptEmail.nextAttemptAt);
+      }
     });
+    if (wakeup) await this.tasks?.enqueue('MAIL', eventId, wakeup).catch(() => undefined);
   }
 
-  async findDueReceiptEmails(now = new Date(), limit = 20): Promise<BillingEvent[]> {
+  async findDueReceiptEmails(now = new Date(), limit = 20, afterId = 0): Promise<BillingEvent[]> {
     return this.billingEventRepo.createQueryBuilder('e')
       .where('e.eventType IN (:...types)', { types: [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS] })
       .andWhere('e.receiptDocId IS NOT NULL AND e.receiptEmailSent = false')
@@ -272,7 +285,13 @@ export class BillingEventService {
       .andWhere("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.skipped')), '') <> 'NO_RECIPIENT'")
       .andWhere("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.nextAttemptAt')), 'null'), '') <= :now", { now: now.toISOString() })
       .andWhere("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.leaseUntil')), 'null'), '') <= :now", { now: now.toISOString() })
-      .orderBy('e.createdAt', 'ASC').take(limit).getMany();
+      .andWhere('e.id > :afterId', { afterId })
+      .orderBy('e.id', 'ASC').take(limit).getMany();
+  }
+
+  /** Queue processing must distinguish a missing row from a failed DB read. */
+  async findReceiptTaskEvent(id: number): Promise<BillingEvent | null> {
+    return this.billingEventRepo.findOne({ where: { id } });
   }
 
   async markReceiptEmailSent(eventId: number): Promise<void> {

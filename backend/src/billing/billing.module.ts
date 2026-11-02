@@ -1,3 +1,5 @@
+import { BillingTaskController, BillingTaskGuard } from './billing-task.controller';
+import { BillingTasksService } from './services/billing-tasks.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -85,11 +87,14 @@ import { BusinessModule } from 'src/business/business.module';
     ]),
   ],
   controllers: [
+    BillingTaskController,
     BillingController,
     CardcomWebhookController,
     AdminBillingController,
   ],
   providers: [
+    BillingTasksService,
+    BillingTaskGuard,
     BillingRefundService,
     FirebaseAuthGuard,
     BillingService,

@@ -104,3 +104,60 @@ daily renewal batch, another charge or a replacement invoice.
   exit 0. Changes since the successful frontend build/tests were backend code
   plus comments/documentation only. Across successful runs: 15 distinct backend
   suites / 269 distinct tests, plus 3 isolated frontend tests; no live integration.
+
+## Cloud Tasks transition (2026-11-02)
+- Status: MANAGER_REVIEW; same chat owns this continuation, base 15f75c10.
+- Approved: replace minute completion scan with authenticated Cloud Tasks delivery
+  and bounded daily orphan repair; existing schema only, dev implementation only.
+- Acceptance: verified Google OIDC identity, durable pending state before enqueue,
+  post-commit enqueue hooks for capture/claim/failure/email, DB-authoritative replay
+  handling, due/lease protection, mail recovery for completed/legacy charges,
+  no additional charge/new invoice on retries, mock integration and backend build.
+- No production access, IAM/queue creation, credentials, schema, merge or push.
+- Cloud runtime activation remains opt-in with explicit database binding; configure
+  dev queue/service account and verify live delivery separately after code review.
+
+### Cloud Tasks implementation handoff
+
+- Result: local code complete; dev cloud activation awaits verified project and
+  HTTPS backend details. No queue/service account/IAM/Scheduler/env was changed.
+- Transport: existing googleapis dependency with ADC, explicit OIDC identity,
+  minimal hashed/named tasks; no new npm dependency or schema.
+- Pending DB state/leases commit before all enqueue calls. Task creation failure
+  preserves captured/email state. Only ALREADY_EXISTS is treated as dedup success.
+- Minute cron removed. External authenticated Cloud Scheduler daily repair is
+  required, rather than relying on timers in idle Cloud Run containers. Repair
+  enqueues only, paginates by id, caps work, survives independent scan failures
+  and returns 503 for partial repair/cap/failure. Daily generations recover queue
+  tombstones/exhaustion; same-day repair notifications coalesce.
+- New internal endpoints authorize only verified Google OIDC worker identity;
+  existing customer/admin authorization is unchanged. Unknown/declined/refund
+  attempts never submit payments. Mail processing uses only the saved PDF even
+  when its charge attempt is completed/legacy. Capture completion preserves the
+  existing canonical invoice/journal uniqueness and provenance checks.
+- Validation: `npm test -- --runInBand --silent src/billing` passed 37 suites /
+  568 tests, exit 0 on the final executable code. `npm run build` passed, exit 0.
+  No frontend executable change, so no repeated frontend tests/build required.
+- Earlier non-elevated Jest attempt hit cache EPERM (0 tests executed). A focused
+  elevated run found 2 mail-read tests failing because the worker used the
+  best-effort audit lookup. Fixed to strict findReceiptTaskEvent (DB error throws;
+  missing row is a no-op); 2 focused suites / 25 tests passed, then the complete
+  final 37-suite run above passed. No failing product check was waived.
+- Unit/mock coverage includes post-commit enqueue vs rollback, enqueue failure,
+  deterministic ids/daily regeneration, verified vs spoofed identity, DB/lease/due
+  gates, terminal duplicate delivery, failed mail with existing PDF/completed
+  attempt, disabled configuration, independent capture/mail repair and pagination.
+- Full scoped diff reviewed and git diff --check passed. No live DB/provider,
+  signer/storage/Brevo, Cloud Tasks or Scheduler request was made. No app boot,
+  production access, credential disclosure, migration, main integration or push.
+- Live dev acceptance still required: queue/IAM/token configuration, Scheduler
+  invocation from idle runtime, intentional PDF/mail failure, kill/restart,
+  enqueue denial, duplicate/multi-instance/manual races, exhausted queue recovery
+  and unchanged provider transaction/document/journal counts. Mail ambiguity can
+  still duplicate an email; no exactly-once guarantee is made. Old pending work
+  after enqueue loss can wait until the next daily repair. A 2000-row repair cap
+  or persistent infrastructure error requires operator review.
+- Docs: docs/features/billing-cloud-tasks.md, historical notice in
+  billing-pdf-recovery.md, billing AGENTS and this task record. No governance edits.
+- Push remains gated on Elazar's current local-main manual verification and
+  explicit push approval. Neither code completion nor test success grants it.

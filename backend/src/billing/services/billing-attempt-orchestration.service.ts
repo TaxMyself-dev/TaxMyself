@@ -1,3 +1,4 @@
+import { BillingTasksService } from './billing-tasks.service';
 import {
   BadRequestException,
   ConflictException,
@@ -277,9 +278,16 @@ export class BillingAttemptOrchestrationService {
     @Optional()
     @Inject(BILLING_EXTERNAL_KEY_FACTORY)
     externalKeyFactory?: () => string,
+    @Optional() private readonly tasks?: BillingTasksService,
   ) {
     this.externalKeyFactory =
       externalKeyFactory ?? (() => `b${randomBytes(16).toString('base64url')}`);
+  }
+
+  private async enqueueCompletion(attempt?: BillingAttempt): Promise<void> {
+    if (attempt?.operation !== 'CHARGE' || attempt.status !== BillingAttemptStatus.CAPTURED) return;
+    const due = attempt.nextActionAt ?? new Date((attempt.capturedAt?.getTime() ?? Date.now()) + 60000);
+    await this.tasks?.enqueue('CAPTURE', attempt.id, due, String(attempt.stateVersion)).catch(() => undefined);
   }
 
   assertOwnerMutation(context: BillingMutationActorContext): void {
@@ -352,7 +360,7 @@ export class BillingAttemptOrchestrationService {
   /** Called only behind the controller's real-caller admin gate. No provider I/O. */
   async prepareAdminResolution(subscriptionId: number, attemptId: number,
     actorFirebaseId: string, dto: ResolveBillingAttemptDto, now = new Date()): Promise<BillingAttempt> {
-    return this.inTransaction(async manager => {
+    const result: BillingAttempt = await this.inTransaction<BillingAttempt>(async manager => {
       const sub = await this.lockSubscriptionOfAttempt(manager, attemptId);
       if (!sub || sub.id !== subscriptionId) throw new ForbiddenException('Attempt does not belong to subscription');
       const attempt = await this.lockAttempt(manager, attemptId);
@@ -425,6 +433,8 @@ export class BillingAttemptOrchestrationService {
       }));
       return attempt;
     });
+    await this.enqueueCompletion(result);
+    return result;
   }
 
   async recordHostedCreationFailure(attemptId: number, definiteRejection: boolean): Promise<void> {
@@ -752,7 +762,7 @@ export class BillingAttemptOrchestrationService {
     now = new Date(),
     options: ApplyNormalizedOutcomeOptions = {},
   ): Promise<BillingAttempt> {
-    return this.inTransaction(async (manager) => {
+    const result: BillingAttempt = await this.inTransaction<BillingAttempt>(async (manager) => {
       await this.lockCollectionSubscription(manager, attemptId);
       // Lock order matches createOrGetAttempt (subscription first), so a
       // concurrent opener and a decline can never deadlock each other.
@@ -841,6 +851,8 @@ export class BillingAttemptOrchestrationService {
       attempt.stateVersion += 1;
       return manager.save(BillingAttempt, attempt);
     });
+    await this.enqueueCompletion(result);
+    return result;
   }
 
   /**
@@ -1171,7 +1183,7 @@ export class BillingAttemptOrchestrationService {
     leaseMs = FINALIZATION_LEASE_MS,
     scheduledOnly = false,
   ): Promise<FinalizationLeaseResult> {
-    return this.inTransaction(async (manager) => {
+    const result: FinalizationLeaseResult = await this.inTransaction<FinalizationLeaseResult>(async (manager) => {
       await this.lockCollectionSubscription(manager, attemptId);
       const attempt = await this.lockAttempt(manager, attemptId);
       const obligation = await this.lockObligation(
@@ -1205,6 +1217,8 @@ export class BillingAttemptOrchestrationService {
       await manager.save(BillingAttempt, attempt);
       return { claimed: true, attempt };
     });
+    if (result.claimed) await this.enqueueCompletion(result.attempt);
+    return result;
   }
 
   /**
@@ -1219,7 +1233,7 @@ export class BillingAttemptOrchestrationService {
     failureCategory = 'RECEIPT_STEP_FAILED',
     now = new Date(),
   ): Promise<void> {
-    await this.inTransaction(async (manager) => {
+    const result = await this.inTransaction(async (manager) => {
       const attempt = await this.lockAttempt(manager, attemptId);
       if (
         attempt.status !== BillingAttemptStatus.CAPTURED ||
@@ -1231,8 +1245,9 @@ export class BillingAttemptOrchestrationService {
       const run = Math.max(1, completionRunCount(attempt.failureCategory));
       attempt.failureCategory = `POST_CAPTURE:${failureCategory}:${run}`;
       attempt.nextActionAt = new Date(now.getTime() + completionDelay(run));
-      await manager.save(BillingAttempt, attempt);
+      return manager.save(BillingAttempt, attempt);
     });
+    await this.enqueueCompletion(result);
   }
 
   /** Link the already-created canonical document before slow PDF/signing I/O. */

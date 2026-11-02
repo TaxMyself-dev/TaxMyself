@@ -1,5 +1,11 @@
 # Captured charge PDF recovery
 
+Current transport (2026-11-02): [Cloud Tasks completion](billing-cloud-tasks.md)
+replaces the minute recovery cron, with an authenticated worker and a required
+external daily safety-repair invocation. Activation requires dev queue/IAM/Scheduler
+configuration and live verification. The minute-sweep descriptions below document
+the earlier local commits; they are not the current execution transport.
+
 ## Behavior
 
 A captured charge can have a committed invoice but no PDF after a timeout.

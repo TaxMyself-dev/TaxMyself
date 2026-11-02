@@ -141,6 +141,32 @@ describe('BillingAttemptOrchestrationService', () => {
     );
   });
 
+  it('commits the captured state before queue publication, retaining it on enqueue failure', async () => {
+    const now = new Date('2026-09-17T00:00:00Z');
+    const row = attempt({ operation: 'CHARGE', status: BillingAttemptStatus.PROCESSING,
+      stateVersion: 1, leaseOwner: 'worker', leaseExpiresAt: new Date(now.getTime() + 60000) });
+    manager.findOne.mockResolvedValue(row);
+    const enqueue = jest.fn(async () => {
+      expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+      expect(row.status).toBe(BillingAttemptStatus.CAPTURED);
+      return false;
+    });
+    (service as any).tasks = { enqueue };
+    await service.applyNormalizedOutcome(row.id, 'worker', 1, { kind: 'CAPTURED', cardcomTransactionId: 'deal-77' }, now);
+    expect(enqueue).toHaveBeenCalledWith('CAPTURE', row.id, new Date(now.getTime() + 60000), String(row.stateVersion));
+    expect(row.cardcomTransactionId).toBe('deal-77');
+  });
+
+  it('never publishes capture work when the state transaction rolls back', async () => {
+    const now = new Date('2026-09-17T00:00:00Z');
+    const row = attempt({ operation: 'CHARGE', status: BillingAttemptStatus.PROCESSING,
+      stateVersion: 1, leaseOwner: 'worker', leaseExpiresAt: new Date(now.getTime() + 60000) });
+    manager.findOne.mockResolvedValue(row); manager.save.mockRejectedValueOnce(new Error('DB unavailable'));
+    const enqueue = jest.fn(); (service as any).tasks = { enqueue };
+    await expect(service.applyNormalizedOutcome(row.id, 'worker', 1, { kind: 'CAPTURED', cardcomTransactionId: 'deal-77' }, now)).rejects.toThrow();
+    expect(enqueue).not.toHaveBeenCalled(); expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+  });
+
   it('enforces owner-only billing mutation context', () => {
     expect(() => service.assertOwnerMutation(owner)).not.toThrow();
     for (const context of [
