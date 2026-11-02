@@ -16,7 +16,7 @@ import {
 } from './lychee-notification.service';
 import {
   LycheePromptTransport,
-  DevelopmentOnlyPromptTransport,
+  ConfiguredLycheeTransport,
 } from './lychee-prompt.transport';
 
 @Module({
@@ -32,11 +32,11 @@ import {
     LycheeNotificationService,
     {
       provide: LycheeNotificationTransport,
-      useClass: DevelopmentOnlyPromptTransport,
+      useClass: ConfiguredLycheeTransport,
     },
     {
       provide: LycheePromptTransport,
-      useClass: DevelopmentOnlyPromptTransport,
+      useClass: ConfiguredLycheeTransport,
     },
   ],
 })

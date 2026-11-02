@@ -59,6 +59,6 @@ send `בדיקות`, check `route.command` logs, send a captionless document, th
 send `סיום בדיקות`. Commands are not sent to either backend. No WhatsApp
 confirmation is sent. A local backend alone suffices for this dev upload flow.
 
-Quoted business replies retain the existing ownership resolver; this adapter
-does not change its production/dev lookup requirements. No questions are sent by
-the current intake implementation.
+Quoted business replies retain the ownership resolver; this adapter does not
+change its production/dev lookup requirements. Question and result delivery use
+the backend's validated deployment identity; see [production delivery](lychee-production.md).

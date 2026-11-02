@@ -52,7 +52,7 @@ export class LycheePromptService {
 
   @Interval(10000)
   async tick(): Promise<void> {
-    // Registered transport permits only the explicitly authorized development runtime.
+    // Registered transport requires matching deployment/database identity and valid configuration.
     if (!this.transport.available || this.running) return;
     this.running = true;
     let job: PromptJob | null = null;

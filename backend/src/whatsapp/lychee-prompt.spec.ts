@@ -10,14 +10,17 @@ import {
   LycheePromptTransport,
   NoSendPromptTransport,
   LycheeHttpPromptTransport,
-  DevelopmentOnlyPromptTransport,
+  ConfiguredLycheeTransport,
 } from './lychee-prompt.transport';
 import { LycheeModule } from './lychee.module';
 import { Logger } from '@nestjs/common';
+import axios from 'axios';
+jest.mock('axios');
 import { PromptDeliveryError } from './lychee-prompt-diagnostic';
 
 /** Offline SQL boundary with fault injection; never opens a connection. */
 class MemoryDb {
+  options = { database: 'keepintax-dev' };
   rows = new Map<string, any>();
   queries = 0;
   failInsert = false;
@@ -62,6 +65,8 @@ class MemoryDb {
   }
   async query(sql: string, args: any[] = []): Promise<any> {
     this.queries++;
+    if (sql === 'SELECT DATABASE() AS db')
+      return [{ db: this.options.database }];
     const rows = [...this.rows.values()];
     if (sql.includes("SET status='WAITING_FOR_BUSINESS'")) {
       const row = this.rows.get(args[5]);
@@ -343,6 +348,62 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(journal().status).toBe('PROMPT_SENT');
     await makeService().tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+  it.each(['development', 'production'] as const)(
+    'delivers a question end-to-end with %s settings and mocked HTTP/SQL',
+    async (environment) => {
+      const prior = { ...process.env };
+      const database =
+        environment === 'production' ? 'keepintax-prod' : 'keepintax-dev';
+      process.env.NODE_ENV = environment;
+      process.env.DB_DATABASE = database;
+      process.env.LYCHEE_API_KEY = 'fake-delivery-key';
+      process.env.LYCHEE_CHANNEL_ID = 'channel';
+      db.options.database = database;
+      const post = axios.post as jest.Mock;
+      post.mockReset();
+      post.mockResolvedValue({
+        data: { ok: true, waId: 'wamid.fake-question' },
+      });
+      const worker = makeService(new ConfiguredLycheeTransport(db as any));
+      try {
+        await stage('doc', false);
+        await worker.tick();
+        await worker.tick();
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(post.mock.calls[0][1].buttons).toHaveLength(2);
+        expect(db.rows.get('doc').prompt_whatsapp_message_id).toBe(
+          'wamid.fake-question',
+        );
+        expect(journal().status).toBe('PROMPT_SENT');
+      } finally {
+        worker.onModuleDestroy();
+        process.env = prior;
+      }
+    },
+  );
+  it('production settings do not bypass ownership preflight', async () => {
+    const prior = { ...process.env };
+    Object.assign(process.env, {
+      NODE_ENV: 'production',
+      DB_DATABASE: 'keepintax-prod',
+      LYCHEE_API_KEY: 'fake-key',
+      LYCHEE_CHANNEL_ID: 'channel',
+    });
+    db.options.database = 'keepintax-prod';
+    const post = axios.post as jest.Mock;
+    post.mockReset();
+    const worker = makeService(new ConfiguredLycheeTransport(db as any));
+    try {
+      await stage();
+      businesses.find.mockResolvedValue([{ businessNumber: '123' }]);
+      await worker.tick();
+      expect(journal().status).toBe('PROMPT_CANCELLED');
+      expect(post).not.toHaveBeenCalled();
+    } finally {
+      worker.onModuleDestroy();
+      process.env = prior;
+    }
   });
   it('can durably stage and deliver a question before media download, without duplicate sends', async () => {
     await stage('doc', false);
@@ -725,7 +786,7 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(transport.send).not.toHaveBeenCalled();
   });
 
-  it('explicit offline transport never claims jobs; app uses only the dev-guarded binding', async () => {
+  it('explicit offline transport never claims jobs; app uses only the environment-guarded binding', async () => {
     await stage();
     const queries = db.queries;
     await makeService(new NoSendPromptTransport()).tick();
@@ -735,7 +796,7 @@ describe('Durable business question delivery — fake database and fake transpor
     const providers = Reflect.getMetadata('providers', LycheeModule);
     expect(providers).toContainEqual({
       provide: LycheePromptTransport,
-      useClass: DevelopmentOnlyPromptTransport,
+      useClass: ConfiguredLycheeTransport,
     });
     expect(providers).not.toContain(LycheeHttpPromptTransport);
   });

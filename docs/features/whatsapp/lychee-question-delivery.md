@@ -1,25 +1,24 @@
-# Business-question delivery (development activation)
+# Business-question delivery
 
-Question delivery is tested with fake SQL and mock HTTP. The user subsequently
-authorized live business questions in development only. No manual live question,
-schema change, deployment or push was performed as part of activation. Success/
-failure confirmations remain out of scope.
+Question and result delivery are tested with fake SQL and mock HTTP. Code supports
+development and production deployment identities. No live production access,
+messages, schema execution, cloud changes, deployment or push are performed by
+this implementation. See [production preparation](lychee-production.md).
 
 ## Runtime safety
 
-LycheeModule binds LycheePromptTransport to DevelopmentOnlyPromptTransport.
-It is available ONLY with NODE_ENV=development, the actual DataSource configured
-for keepintax-dev, and LYCHEE_API_KEY/LYCHEE_CHANNEL_ID configured. Other database
-names (including production copies), production/test/unset NODE_ENV, or missing
-configuration block claiming and sending. Before each send, verify the request's
-channel and original quoted message, and SELECT DATABASE() on the active pool.
-It must return keepintax-dev. Generic DB_DATABASE from env is not a substitute
-for either check. No separate worker enable flag is required.
+LycheeModule binds both outbound tokens to ConfiguredLycheeTransport. It requires
+NODE_ENV=development with keepintax-dev, or NODE_ENV=production with keepintax-prod.
+DB_DATABASE, DataSource configuration and actual SELECT DATABASE() must all agree.
+Copies, unknown/test/unset runtimes, crossed databases and missing key/channel
+configuration block claiming/sending. Before HTTP, verify the request channel and
+original quoted message and reject configuration drift during the DB check. No
+separate worker enable flag is required.
 
 Only the guarded transport delegates to the unregistered low-level HTTP adapter.
 NoSendPromptTransport remains available for offline use; synthetic IDs exist only
-in fake SQL tests. Tests mock axios completely. Production activation remains
-unauthorized and blocked by code.
+in fake SQL tests. Tests mock axios completely. Live deployment remains a separate
+operator action, not part of the mocked verification.
 
 ## Local use
 
@@ -30,14 +29,14 @@ New multi-business documents create drafts; the question worker may send existin
 PROMPT_PENDING drafts as well. Earlier preview-only waits without a draft are
 still not automatically backfilled.
 
-The dev quoted-reply proxy changes are on the feature branch only until a later
-authorized integration/deployment. Enabling local sends does not update the
-deployed proxy; full phone-button testing still needs that routing revision.
+Local implementation does not update a deployed proxy; operator deployment must
+include the signed reply-owner routing supported by the current proxy code.
 
 ## Existing-table outbox
 
-waitForBusiness uses one transaction to retain document bytes/choice snapshot and
-insert one stable draft. A lost document lease or conflicting existing draft
+waitForBusiness uses one transaction to retain the document metadata/choice snapshot
+and insert one stable draft before media download. Bytes are fetched after business
+selection; older retained bytes are reused. A lost document lease or conflicting draft
 rolls back both operations. No schema change: the existing intake table holds
 metadata-only question rows under prompt: + SHA-256(channel, document event).
 These statuses never enter the document worker's PENDING/RETRY/PROCESSING flow.
@@ -73,7 +72,8 @@ so dev SQL reply routing cannot mistake two rows for two owners.
   recovery resumes linking. Expired linking leases resume linking only.
 
 This is at-most-one automatic external attempt, NOT a provider exactly-once
-guarantee. Provider idempotency is not established. UNKNOWN without a persisted
+guarantee. A stable environment-scoped Idempotency-Key is sent, preserving legacy
+development keys; it is not permission to resend UNKNOWN. UNKNOWN without a persisted
 receipt needs provider-side reconciliation before an operator authorizes further
 action. No automatic reconciliation/resend or operator UI exists here.
 

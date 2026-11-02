@@ -89,10 +89,12 @@ table schema, accounting logic and permissions are unchanged; no SQL was run.
 Focused concurrency tests use fake storage; live Cloud Run connectivity and
 multi-connection MySQL verification remain deployment verification steps.
 
-## Multiple businesses / sending disabled
+## Multiple businesses and delivery
 
-Each document is downloaded immediately and retained in its own SQL row as
-WAITING_FOR_BUSINESS, with a snapshot of business choices. No question is sent.
+Each multi-business document is retained as metadata in its own SQL row as
+WAITING_FOR_BUSINESS with a snapshot of choices and a durable question draft.
+The question can be sent before media download. A fresh media link is requested
+after an owned selection; validated bytes retained by earlier versions are reused.
 The selection flow builds a vendor-compatible preview
 quoted to the original document. New choice snapshots contain short unique
 labels with business names (number fallback); up to three choices use buttons,
@@ -100,11 +102,12 @@ larger lists use a numbered quoted text menu. The future sender must use these
 stored labels, not recalculate labels from a potentially reordered business list.
 The document and a durable question draft are staged in one SQL transaction.
 `business.prompt.queued` logs only a count, never the question/recipient content.
-The delivery worker is now authorized for development only. Its registered
-DevelopmentOnlyPromptTransport requires NODE_ENV=development, DataSource database
-keepintax-dev, configured key/channel, and checks the actual connection's database
-before sending. Production and other environments remain blocked. No synthetic
-provider IDs are generated at runtime.
+Both delivery workers use ConfiguredLycheeTransport: matching development/
+keepintax-dev or production/keepintax-prod identities, configured key/channel and
+actual connection database verification before HTTP. Copies and crossed settings
+remain blocked; no new activation flag. No synthetic provider IDs are generated.
+See [production deployment preparation](lychee-production.md) for schema, settings
+and background-worker platform requirements. Implementation verification is mocked.
 See [question delivery](lychee-question-delivery.md) for receipt-first recovery,
 duplicate prevention and the unknown-result policy.
 `prompt_whatsapp_message_id` is reserved for the future authorized send adapter;

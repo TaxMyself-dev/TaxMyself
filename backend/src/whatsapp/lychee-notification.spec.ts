@@ -11,8 +11,10 @@ import {
   LycheeNotificationTransport,
 } from './lychee-notification.service';
 import { LycheeModule } from './lychee.module';
-import { DevelopmentOnlyPromptTransport } from './lychee-prompt.transport';
+import { ConfiguredLycheeTransport } from './lychee-prompt.transport';
 import * as logging from './lychee-log';
+import axios from 'axios';
+jest.mock('axios');
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const event: any = {
@@ -35,6 +37,7 @@ const job: any = {
 
 /** Fake SQL/transactions only; rejects unimplemented statements and never opens a connection. */
 class MemoryDb {
+  options = { database: 'keepintax-dev' };
   rows = new Map<string, any>();
   failInsert = false;
   failReceipts = 0;
@@ -66,6 +69,7 @@ class MemoryDb {
   }
   private execute(rows: Map<string, any>, sql: string, p: any[]): any {
     const q = sql.replace(/\s+/g, ' ').trim();
+    if (q === 'SELECT DATABASE() AS db') return [{ db: this.options.database }];
     const all = [...rows.values()];
     if (q.startsWith('INSERT INTO') && q.includes("'NOTICE_PENDING'")) {
       if (this.failInsert) throw new Error('fake outbox unavailable');
@@ -343,6 +347,80 @@ describe('document result notifications (all boundaries mocked)', () => {
     );
   });
   afterEach(() => service.onModuleDestroy());
+  it.each([
+    ['development', 'keepintax-dev', 'IMPORTED'],
+    ['production', 'keepintax-prod', 'IMPORTED'],
+    ['production', 'keepintax-prod', 'ALREADY_IMPORTED'],
+    ['production', 'keepintax-prod', 'FAILED'],
+    ['production', 'keepintax-prod', 'BLOCKED_IMPORT'],
+  ])(
+    'delivers %s / %s / %s through the real guard with mocked HTTP and SQL',
+    async (environment, database, result) => {
+      const prior = { ...process.env };
+      Object.assign(process.env, {
+        NODE_ENV: environment,
+        DB_DATABASE: database,
+        LYCHEE_API_KEY: 'fake-notice-key',
+        LYCHEE_CHANNEL_ID: event.channel_id,
+      });
+      db.options.database = database;
+      const post = axios.post as jest.Mock;
+      post.mockReset();
+      post.mockResolvedValue({ data: { ok: true, waId: 'wamid.fake-result' } });
+      service.onModuleDestroy();
+      service = new LycheeNotificationService(
+        outbox,
+        new ConfiguredLycheeTransport(db as any),
+        users,
+        businesses,
+      );
+      try {
+        if (result === 'FAILED') await events.retry({ ...job, attempts: 5 });
+        else if (result === 'BLOCKED_IMPORT')
+          await events.block(job, 'DRIVE_FOLDER_MISSING');
+        else await succeed(result);
+        await service.tick();
+        await service.tick();
+        expect(post).toHaveBeenCalledTimes(1);
+        expect(post.mock.calls[0][1]).not.toHaveProperty('buttons');
+        expect(post.mock.calls[0][1].reply_to_whatsapp_message_id).toBe(
+          event.whatsapp_message_id,
+        );
+        expect(notice().status).toBe('NOTICE_SENT');
+        expect(notice().payload.providerMessageId).toBe('wamid.fake-result');
+      } finally {
+        process.env = prior;
+      }
+    },
+  );
+  it('production delivery still cancels a notice for revoked business ownership', async () => {
+    const prior = { ...process.env };
+    Object.assign(process.env, {
+      NODE_ENV: 'production',
+      DB_DATABASE: 'keepintax-prod',
+      LYCHEE_API_KEY: 'fake-key',
+      LYCHEE_CHANNEL_ID: event.channel_id,
+    });
+    db.options.database = 'keepintax-prod';
+    const post = axios.post as jest.Mock;
+    post.mockReset();
+    service.onModuleDestroy();
+    service = new LycheeNotificationService(
+      outbox,
+      new ConfiguredLycheeTransport(db as any),
+      users,
+      businesses,
+    );
+    try {
+      await succeed();
+      businesses.findOne.mockResolvedValueOnce(null);
+      await service.tick();
+      expect(notice().status).toBe('NOTICE_CANCELLED');
+      expect(post).not.toHaveBeenCalled();
+    } finally {
+      process.env = prior;
+    }
+  });
   it.each(['1. נגרות', '2. שובל'])(
     'explains an already selected business for repeat choice %s without modifying the document',
     async (label) => {
@@ -722,7 +800,7 @@ describe('document result notifications (all boundaries mocked)', () => {
     const providers = Reflect.getMetadata('providers', LycheeModule);
     expect(providers).toContainEqual({
       provide: LycheeNotificationTransport,
-      useClass: DevelopmentOnlyPromptTransport,
+      useClass: ConfiguredLycheeTransport,
     });
     await succeed();
     service.onModuleDestroy();

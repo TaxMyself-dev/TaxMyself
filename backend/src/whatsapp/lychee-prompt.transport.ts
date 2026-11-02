@@ -11,9 +11,20 @@ import {
   promptDiagnostic,
 } from './lychee-prompt-diagnostic';
 
+export interface LycheeDeliveryScope {
+  environment: 'development' | 'production';
+  database: string;
+}
+// Existing deployment identities; copies and cross-environment connections are not delivery targets.
+const deliveryDatabases = {
+  development: 'keepintax-dev',
+  production: 'keepintax-prod',
+} as const;
+
 export function questionIdempotencyKey(
   channelId: string,
   questionId: string,
+  scope?: LycheeDeliveryScope,
 ): string {
   if (
     typeof questionId !== 'string' ||
@@ -23,15 +34,22 @@ export function questionIdempotencyKey(
     channelId.length > 255
   )
     throw new Error('Invalid question operation identifier');
+  if (scope && deliveryDatabases[scope.environment] !== scope.database)
+    throw new Error('Invalid Lychee delivery scope');
   return (
     'lychee-question-' +
     createHash('sha256')
       .update(
-        JSON.stringify([
-          'lychee.business-question.dev.v1',
-          channelId,
-          questionId,
-        ]),
+        JSON.stringify(
+          scope?.environment === 'production'
+            ? [
+                'lychee.business-question.production.v1',
+                scope.database,
+                channelId,
+                questionId,
+              ]
+            : ['lychee.business-question.dev.v1', channelId, questionId],
+        ),
       )
       .digest('hex')
   );
@@ -92,9 +110,12 @@ export class NoSendPromptTransport extends LycheePromptTransport {
   }
 }
 
-/** Low-level adapter: the application can reach it only through the development guard. */
+/** Low-level adapter: registered only behind the runtime/connection/channel guard. */
 export class LycheeHttpPromptTransport extends LycheePromptTransport {
   readonly available = true;
+  constructor(private readonly scope?: LycheeDeliveryScope) {
+    super();
+  }
   async send(
     request: BusinessQuestionRequest,
     questionId: string,
@@ -102,6 +123,7 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
     const idempotencyKey = questionIdempotencyKey(
       request.channel_id,
       questionId,
+      this.scope,
     );
     const key = process.env.LYCHEE_API_KEY;
     if (!key) throw new Error('Lychee API key unavailable');
@@ -234,47 +256,61 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
   }
 }
 
-/** User-authorized development activation. No production binding or enable flag. */
+/** No enable flag: use a matching existing deployment identity and recheck the live connection. */
 @Injectable()
-export class DevelopmentOnlyPromptTransport extends LycheePromptTransport {
-  private readonly http = new LycheeHttpPromptTransport();
+export class ConfiguredLycheeTransport extends LycheePromptTransport {
   constructor(private readonly db: DataSource) {
     super();
   }
 
   get available(): boolean {
-    return (
-      process.env.NODE_ENV === 'development' &&
-      this.db.options.database === 'keepintax-dev' &&
-      !!process.env.LYCHEE_API_KEY &&
-      !!process.env.LYCHEE_CHANNEL_ID
-    );
+    return this.scope() !== null;
+  }
+
+  private scope(): LycheeDeliveryScope | null {
+    const environment = process.env.NODE_ENV;
+    if (environment !== 'development' && environment !== 'production')
+      return null;
+    const database = deliveryDatabases[environment];
+    if (
+      process.env.DB_DATABASE !== database ||
+      this.db.options.database !== database ||
+      !process.env.LYCHEE_API_KEY?.trim() ||
+      !process.env.LYCHEE_CHANNEL_ID?.trim()
+    )
+      return null;
+    return { environment, database };
   }
 
   async send(
     request: BusinessQuestionRequest,
     questionId: string,
   ): Promise<string> {
-    // Recheck at use, including the actual connection, not just DB_DATABASE from env.
+    // Snapshot configuration, then check the actual connection and changes during the await.
+    const scope = this.scope();
+    const channel = process.env.LYCHEE_CHANNEL_ID;
+    const key = process.env.LYCHEE_API_KEY;
     if (
-      !this.available ||
-      request.channel_id !== process.env.LYCHEE_CHANNEL_ID ||
+      !scope ||
+      request.channel_id !== channel ||
       !request.reply_to_whatsapp_message_id
     )
-      throw new Error('Development question sending not permitted');
+      throw new Error('Lychee sending not permitted for this environment');
     const rows = await timePromptStage(
       questionId,
       'business.prompt.db.environment',
-      'אימות מסד הדב הפעיל לפני שליחה',
+      'אימות שמסד הנתונים הפעיל תואם לסביבת השליחה',
       () => this.db.query('SELECT DATABASE() AS db'),
     );
     if (
       rows.length !== 1 ||
-      rows[0].db !== 'keepintax-dev' ||
-      !this.available
+      rows[0].db !== scope.database ||
+      this.scope()?.environment !== scope.environment ||
+      process.env.LYCHEE_CHANNEL_ID !== channel ||
+      process.env.LYCHEE_API_KEY !== key
     ) {
-      throw new Error('Development question database mismatch');
+      throw new Error('Lychee delivery environment or database mismatch');
     }
-    return this.http.send(request, questionId);
+    return new LycheeHttpPromptTransport(scope).send(request, questionId);
   }
 }

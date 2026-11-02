@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import {
   LycheeHttpPromptTransport,
   NoSendPromptTransport,
-  DevelopmentOnlyPromptTransport,
+  ConfiguredLycheeTransport,
   questionIdempotencyKey,
 } from './lychee-prompt.transport';
 jest.mock('axios');
@@ -24,6 +25,7 @@ describe('Question send API contract — mocked HTTP only', () => {
     post.mockReset();
     get.mockReset();
     process.env.NODE_ENV = 'development';
+    process.env.DB_DATABASE = 'keepintax-dev';
     process.env.LYCHEE_CHANNEL_ID = 'test-channel';
     process.env.LYCHEE_API_KEY = 'fake-key-for-unit-tests';
   });
@@ -55,7 +57,7 @@ describe('Question send API contract — mocked HTTP only', () => {
         },
       });
       expect(
-        await new DevelopmentOnlyPromptTransport(db).send(result, operationId),
+        await new ConfiguredLycheeTransport(db).send(result, operationId),
       ).toBe('wamid.test-only-result');
       expect(db.query).toHaveBeenCalledWith('SELECT DATABASE() AS db');
       expect(post).toHaveBeenCalledTimes(1);
@@ -211,10 +213,7 @@ describe('Question send API contract — mocked HTTP only', () => {
           data: { ok: true, waId: 'wamid.test-only-question' },
         };
       });
-      await new DevelopmentOnlyPromptTransport(db).send(
-        request,
-        'test-only-prompt',
-      );
+      await new ConfiguredLycheeTransport(db).send(request, 'test-only-prompt');
       const logs = debug.mock.calls.map((args) =>
         JSON.parse(args[0] as string),
       );
@@ -585,7 +584,7 @@ describe('Question send API contract — mocked HTTP only', () => {
       options: { database: 'keepintax-dev' },
       query: jest.fn().mockResolvedValue([{ db: 'keepintax-dev' }]),
     };
-    const transport = new DevelopmentOnlyPromptTransport(db);
+    const transport = new ConfiguredLycheeTransport(db);
     post.mockResolvedValue({ data: { whatsapp_message_id: 'test-only-id' } });
     expect(transport.available).toBe(true);
     expect(await transport.send(request, 'test-only-prompt')).toBe(
@@ -603,7 +602,7 @@ describe('Question send API contract — mocked HTTP only', () => {
       undefined,
     ]) {
       const db: any = { options: { database }, query: jest.fn() };
-      const transport = new DevelopmentOnlyPromptTransport(db);
+      const transport = new ConfiguredLycheeTransport(db);
       expect(transport.available).toBe(false);
       await expect(
         transport.send(request, 'test-only-prompt'),
@@ -613,7 +612,7 @@ describe('Question send API contract — mocked HTTP only', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
-  it('blocks non-development environments without any connection or HTTP', async () => {
+  it('blocks invalid environment/database combinations without any connection or HTTP', async () => {
     for (const nodeEnv of ['production', 'test', '', undefined]) {
       if (nodeEnv === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = nodeEnv;
@@ -621,7 +620,7 @@ describe('Question send API contract — mocked HTTP only', () => {
         options: { database: 'keepintax-dev' },
         query: jest.fn(),
       };
-      const transport = new DevelopmentOnlyPromptTransport(db);
+      const transport = new ConfiguredLycheeTransport(db);
       expect(transport.available).toBe(false);
       await expect(
         transport.send(request, 'test-only-prompt'),
@@ -636,9 +635,9 @@ describe('Question send API contract — mocked HTTP only', () => {
       options: { database: 'keepintax-dev' },
       query: jest.fn().mockResolvedValue([{ db: 'other' }]),
     };
-    const transport = new DevelopmentOnlyPromptTransport(db);
+    const transport = new ConfiguredLycheeTransport(db);
     await expect(transport.send(request, 'test-only-prompt')).rejects.toThrow(
-      'Development question database mismatch',
+      'Lychee delivery environment or database mismatch',
     );
     await expect(
       transport.send({ ...request, channel_id: 'other' }, 'test-only-prompt'),
@@ -652,10 +651,122 @@ describe('Question send API contract — mocked HTTP only', () => {
       query: jest.fn(),
     };
     delete process.env.LYCHEE_API_KEY;
-    expect(new DevelopmentOnlyPromptTransport(db).available).toBe(false);
+    expect(new ConfiguredLycheeTransport(db).available).toBe(false);
     process.env.LYCHEE_API_KEY = 'fake';
     delete process.env.LYCHEE_CHANNEL_ID;
-    expect(new DevelopmentOnlyPromptTransport(db).available).toBe(false);
+    expect(new ConfiguredLycheeTransport(db).available).toBe(false);
     expect(post).not.toHaveBeenCalled();
   });
+  it('supports production buttons with an environment-scoped stable idempotency key', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DB_DATABASE = 'keepintax-prod';
+    const db: any = {
+      options: { database: 'keepintax-prod' },
+      query: jest.fn(async () => [{ db: 'keepintax-prod' }]),
+    };
+    const transport = new ConfiguredLycheeTransport(db);
+    const scope = {
+      environment: 'production' as const,
+      database: 'keepintax-prod',
+    };
+    post.mockResolvedValue({
+      data: { ok: true, waId: 'wamid.fake-production-question' },
+    });
+    expect(transport.available).toBe(true);
+    expect(await transport.send(request, 'prompt:fake-prod')).toBe(
+      'wamid.fake-production-question',
+    );
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post.mock.calls[0][1]).toEqual(request);
+    const id = post.mock.calls[0][2].headers['Idempotency-Key'];
+    expect(id).toBe(
+      questionIdempotencyKey(request.channel_id, 'prompt:fake-prod', scope),
+    );
+    expect(id).not.toBe(
+      questionIdempotencyKey(request.channel_id, 'prompt:fake-prod'),
+    );
+    process.env.LYCHEE_API_KEY = 'fake-rotated-key';
+    expect(
+      questionIdempotencyKey(request.channel_id, 'prompt:fake-prod', scope),
+    ).toBe(id);
+  });
+  it('preserves the legacy development operation key exactly', () => {
+    const expected =
+      'lychee-question-' +
+      createHash('sha256')
+        .update(
+          JSON.stringify([
+            'lychee.business-question.dev.v1',
+            request.channel_id,
+            'old-prompt',
+          ]),
+        )
+        .digest('hex');
+    expect(questionIdempotencyKey(request.channel_id, 'old-prompt')).toBe(
+      expected,
+    );
+    expect(
+      questionIdempotencyKey(request.channel_id, 'old-prompt', {
+        environment: 'development',
+        database: 'keepintax-dev',
+      }),
+    ).toBe(expected);
+  });
+  it.each([
+    ['production', 'keepintax-prod', 'keepintax-dev'],
+    ['production', 'keepintax-dev', 'keepintax-dev'],
+    ['development', 'keepintax-prod', 'keepintax-prod'],
+    ['production', 'keepintax_prodcopy', 'keepintax_prodcopy'],
+    ['production', undefined, 'keepintax-prod'],
+  ])(
+    'blocks cross-environment configuration %s / %s / %s before database or HTTP',
+    async (nodeEnv, databaseEnv, configuredDatabase) => {
+      process.env.NODE_ENV = nodeEnv;
+      if (databaseEnv === undefined) delete process.env.DB_DATABASE;
+      else process.env.DB_DATABASE = databaseEnv;
+      const db: any = {
+        options: { database: configuredDatabase },
+        query: jest.fn(),
+      };
+      const transport = new ConfiguredLycheeTransport(db);
+      expect(transport.available).toBe(false);
+      await expect(transport.send(request, 'fake-prompt')).rejects.toThrow();
+      expect(db.query).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
+    },
+  );
+  it('blocks a production runtime connected to dev despite matching configured production names', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DB_DATABASE = 'keepintax-prod';
+    const db: any = {
+      options: { database: 'keepintax-prod' },
+      query: jest.fn(async () => [{ db: 'keepintax-dev' }]),
+    };
+    await expect(
+      new ConfiguredLycheeTransport(db).send(request, 'fake-prompt'),
+    ).rejects.toThrow('mismatch');
+    expect(post).not.toHaveBeenCalled();
+  });
+  it.each(['channel', 'key', 'database', 'environment'])(
+    'blocks configuration drift during the connection check: %s',
+    async (changed) => {
+      process.env.NODE_ENV = 'production';
+      process.env.DB_DATABASE = 'keepintax-prod';
+      const db: any = {
+        options: { database: 'keepintax-prod' },
+        query: jest.fn(async () => {
+          if (changed === 'channel')
+            process.env.LYCHEE_CHANNEL_ID = 'other-channel';
+          if (changed === 'key') process.env.LYCHEE_API_KEY = 'other-key';
+          if (changed === 'database') process.env.DB_DATABASE = 'keepintax-dev';
+          if (changed === 'environment') process.env.NODE_ENV = 'development';
+          return [{ db: 'keepintax-prod' }];
+        }),
+      };
+      await expect(
+        new ConfiguredLycheeTransport(db).send(request, 'fake-prompt'),
+      ).rejects.toThrow('mismatch');
+      expect(post).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -313,7 +313,7 @@ export class LycheeIntakeService {
         e.event_id,
         'business.prompt.queued',
         'completed',
-        'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; רכיב השליחה יבדוק הרשאת סביבת דב לפני משלוח',
+        'שאלת בחירת העסק נשמרה בתור יחד עם המסמך; רכיב השליחה יבדוק את הערוץ וסביבת הבק לפני משלוח',
         { count: question.choices.length },
       );
       // waitForBusiness committed document + outbox together before this signal.

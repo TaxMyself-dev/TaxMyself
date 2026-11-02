@@ -21,10 +21,14 @@ documents remain WAITING_FOR_BUSINESS. Document metadata/choices and one prompt:
 outbox draft are staged transactionally before media download. New documents
 download a fresh media link only after business selection; existing retained bytes
 are reused. No detached media task or guessed business is introduced.
-User authorized development-only
-question sends: DevelopmentOnlyPromptTransport requires NODE_ENV=development,
-actual DataSource/connection database keepintax-dev and configured key/channel.
-It alone wraps the HTTP adapter. Production sends remain unauthorized/blocked.
+User authorized code support for development and production delivery. The bound
+ConfiguredLycheeTransport requires matching NODE_ENV / DB_DATABASE / DataSource
+configuration and actual SELECT DATABASE(): development -> keepintax-dev,
+production -> keepintax-prod. Backups, copies, mixed pairs and unset/test runtimes
+are blocked. Key/channel/quote are required; configuration drift during the check
+is blocked. No new enable flag. No live production access or sends are authorized
+for agent verification; use mock HTTP/SQL only. Production idempotency uses its
+own namespace; legacy development keys remain byte-for-byte unchanged.
 Tests mock HTTP; NoSendPromptTransport remains for offline use. Provider receipts live
 in outbox JSON; only the document gets prompt_whatsapp_message_id. UNKNOWN sends
 must not be retried blindly; persisted receipts retry linking only. Never invent
@@ -37,10 +41,9 @@ Document result notifications use `notice:` rows and `NOTICE_*` states in the
 same table. Terminal document updates and result drafts commit atomically.
 Transient retries and business-selection waits do not announce failure.
 Result notification delivery has a SEPARATE transport token. User subsequently
-authorized development result delivery: it is bound to DevelopmentOnlyPromptTransport,
-which requires development runtime, configured channel/key and actual keepintax-dev
-connection. Production stays blocked; NoSendNotificationTransport remains for offline
-tests. Never trigger live messages during agent verification. Recorded receipts
+authorized result delivery: it uses the same ConfiguredLycheeTransport environment
+guard for development and production. NoSendNotificationTransport remains for
+offline tests. Never trigger live messages during agent verification. Recorded receipts
 recover persistence only; unknown send
 results must not be resent blindly. NOTICE_SENT means provider acceptance, not
 confirmed delivery to the phone. No historical completed rows are backfilled.
