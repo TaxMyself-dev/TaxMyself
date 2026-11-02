@@ -193,3 +193,29 @@ daily renewal batch, another charge or a replacement invoice.
 - Only documentation changed locally in this step; cloud read-back checks above
   are the validation. Existing 37-suite/568-test code validation remains unchanged.
   No merge, push or production deployment.
+
+## Local tunnel and Scheduler preparation (2026-11-02)
+
+- User reported ngrok forwarding port 3000. Elevated local inspection verified
+  HTTPS tunnel margeret-guttiform-overfondly.ngrok-free.dev -> localhost:3000.
+- Read-only process inspection found port 3000 belongs to the primary checkout;
+  main does not contain Cloud Tasks commit 0d0ccb74. No process was stopped,
+  restarted or replaced, and main was not modified/integrated.
+- No runtime ADC file exists and no process GOOGLE_APPLICATION_CREDENTIALS override
+  is present. CLI login works but does not supply application-default credentials.
+  Runtime ADC login requires the user's interactive Google authorization.
+- Verified feature backend env DB_DATABASE=keepintax-dev and that backend/.env is
+  Git-ignored. Added only 8 previously absent BILLING_TASKS_* settings with the
+  dev project/queue/worker, europe-west1 and this verified HTTPS target/audience.
+  Existing keys, credentials and other environment values were preserved.
+  BILLING_TASKS_ENABLED remains false. No DB connection or application boot.
+- Created billing-completion-repair-dev in europe-west1 in keepintax-dev with
+  POST /internal/billing/repair at the verified tunnel, exact worker OIDC identity
+  and tunnel-base audience, daily 04:00 Asia/Jerusalem, 300s deadline and 3 retries.
+  Paused immediately; read-back confirmed PAUSED and expected URL/auth/schedule.
+  No manual Scheduler run or task submission occurred. The queue remains paused.
+- Still required: runtime ADC, a backend containing the feature with verified dev
+  configuration, live identity/retry tests and only then resume queue/Scheduler
+  and enable local completion delivery. A changed tunnel needs env/job updates.
+- Documentation-only tracked changes; no executable changes or repeat builds.
+  No production access, live charge/mail/invoice, env commit, merge or push.

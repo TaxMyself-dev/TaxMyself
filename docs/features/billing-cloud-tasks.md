@@ -145,3 +145,15 @@ credentials were changed, and no application/DB/production access was performed.
 Keep the queue paused until these activation prerequisites are verified. The
 backend runs on the developer computer, so Scheduler/Tasks need an active HTTPS
 tunnel; a deployed Cloud Run dev service is not required.
+
+### Local tunnel preparation follow-up
+
+The local ngrok endpoint was verified forwarding port 3000. The daily dev job
+billing-completion-repair-dev has now been created in europe-west1, configured for
+04:00 Asia/Jerusalem with the exact worker OIDC identity, and verified PAUSED.
+The feature worktree's ignored env now contains task-specific settings only,
+with BILLING_TASKS_ENABLED=false after verifying DB_DATABASE=keepintax-dev.
+The running port-3000 backend belongs to main, which does not yet contain the
+Cloud Tasks feature; it was not restarted or modified. Runtime ADC is also absent.
+Queue/job remain paused pending runtime credentials, backend feature availability
+and live dev acceptance. CLI authentication is separate from runtime ADC.
