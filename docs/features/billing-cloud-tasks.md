@@ -128,3 +128,20 @@ Official references:
 - [HTTP tasks, payload and OIDC](https://docs.cloud.google.com/tasks/docs/creating-http-target-tasks)
 - [Queue retry/rate configuration](https://docs.cloud.google.com/tasks/docs/configuring-queues)
 - [Task names and deduplication](https://docs.cloud.google.com/tasks/docs/creating-http-target-tasks#naming_tasks)
+
+## Verified development provisioning (2026-11-02)
+
+After explicit user authorization, keepintax-dev (project number 41317664815) now
+has queue billing-completion-dev in europe-west1, state PAUSED, empty at read-back.
+The queue uses the bounded retry/rate policy above. me-west1 is not a supported
+Cloud Tasks region; use europe-west1 for this dev queue. The worker identity is
+billing-worker@keepintax-dev.iam.gserviceaccount.com. Required Tasks/Scheduler/IAM
+APIs and Google service-agent roles were verified; no service-account key exists
+from this setup. Setup-user access is scoped to the queue and worker account.
+
+Local application/tunnel, runtime ADC, task environment settings, the daily repair
+job and live dev acceptance have not yet been connected. No existing env or
+credentials were changed, and no application/DB/production access was performed.
+Keep the queue paused until these activation prerequisites are verified. The
+backend runs on the developer computer, so Scheduler/Tasks need an active HTTPS
+tunnel; a deployed Cloud Run dev service is not required.

@@ -161,3 +161,35 @@ daily renewal batch, another charge or a replacement invoice.
   billing-pdf-recovery.md, billing AGENTS and this task record. No governance edits.
 - Push remains gated on Elazar's current local-main manual verification and
   explicit push approval. Neither code completion nor test success grants it.
+
+## Development queue provisioning (2026-11-02)
+
+- User explicitly authorized continuing queue setup after gcloud reauthentication.
+  Verified project keepintax-dev / 41317664815 / ACTIVE and billing enabled.
+- Enabled cloudtasks.googleapis.com, cloudscheduler.googleapis.com and
+  iam.googleapis.com in that project only. No global gcloud project was changed.
+- Cloud Tasks does not support me-west1 (verified via API and official location
+  list). Created billing-completion-dev in europe-west1 and immediately paused it.
+- Verified state PAUSED, no queued tasks, max concurrent dispatches 2, dispatch
+  rate 1/second, min/max backoff 60/3600s, maxDoublings 5, maxAttempts 100 and
+  maxRetryDuration 604800s. No test task or real billing work was submitted.
+- Created billing-worker@keepintax-dev.iam.gserviceaccount.com as the OIDC worker
+  identity. No private key was created/downloaded. Granted the authenticated setup
+  user queue-scoped roles/cloudtasks.enqueuer and service-account-scoped
+  roles/iam.serviceAccountUser on that worker only. Verified Google's Cloud Tasks
+  and Cloud Scheduler service-agent roles in the dev project.
+- Initial service-discovery calls saw API propagation delay; later enabled-service
+  listing and Tasks location/queue APIs succeeded. No permission failure was
+  bypassed with project-wide admin grants.
+- Local ngrok API was unavailable. No backend/app was booted, no DB accessed and
+  no live mail, charge, invoice, webhook or production resource was touched.
+- Pending activation: verified local keepintax-dev backend + active HTTPS tunnel,
+  correct application-default credentials (gcloud CLI login alone does not prove
+  runtime ADC), local task env settings, daily Scheduler job targeting the current
+  tunnel, identity/retry acceptance tests, then explicit queue resume. Keep the
+  queue paused and BILLING_TASKS_ENABLED off until these are ready. No Scheduler
+  job was created using an old/unverified tunnel URL. Existing env and credentials
+  were not overwritten.
+- Only documentation changed locally in this step; cloud read-back checks above
+  are the validation. Existing 37-suite/568-test code validation remains unchanged.
+  No merge, push or production deployment.
