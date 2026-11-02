@@ -1,6 +1,9 @@
+import { By } from '@angular/platform-browser';
+import { ButtonComponent } from '../button/button.component';
+import { MessageService } from 'primeng/api';
 import { TestBed } from '@angular/core/testing';
 import { GenericService } from 'src/app/services/generic.service';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Subject, of, throwError } from 'rxjs';
 import { AuthService } from 'src/app/services/auth.service';
@@ -18,9 +21,27 @@ describe('open banking disconnection', () => {
       refreshPermissions: jasmine.createSpy().and.returnValue(of({ consents: [consent], complete: true, hasOpenBanking: true, errors: [] })),
       disconnect: jasmine.createSpy().and.returnValue(of({ status: 'success', remainingConsents: [], complete: true, hasOpenBanking: false, errors: [], results: [] })) };
     auth = { isViewingAsClient: jasmine.createSpy().and.returnValue(false), restoreUserData: jasmine.createSpy().and.returnValue(of(null)) };
-    router = { navigate: jasmine.createSpy() };
-    TestBed.configureTestingModule({ imports: [OpenBankingManagementComponent], providers: [ provideNoopAnimations(), { provide: GenericService, useValue: { isMobile: () => false } }, { provide: FeezbackService, useValue: service }, { provide: AuthService, useValue: auth }, { provide: Router, useValue: router } ] });
+    router = { navigate: jasmine.createSpy(), events: of() };
+    TestBed.configureTestingModule({ imports: [OpenBankingManagementComponent], providers: [ {provide:ActivatedRoute,useValue:{}}, MessageService, provideNoopAnimations(), { provide: GenericService, useValue: { isMobile: () => false } }, { provide: FeezbackService, useValue: service }, { provide: AuthService, useValue: auth }, { provide: Router, useValue: router } ] });
     component = TestBed.runInInjectionContext(() => new OpenBankingManagementComponent());
+  });
+  it('uses shared buttons and displays their loader while refreshing', () => {
+    service.refreshPermissions.and.returnValue(new Subject());
+    const fixture = TestBed.createComponent(OpenBankingManagementComponent);fixture.detectChanges();
+    fixture.componentInstance.refresh();fixture.detectChanges();
+    const buttons=fixture.debugElement.queryAll(By.directive(ButtonComponent));
+    expect(buttons.length).toBeGreaterThan(1);
+    const refresh=buttons.map(x=>x.componentInstance as ButtonComponent).find(x=>x.buttonText().includes('בודק הרשאות'));
+    expect(refresh?.isLoading()).toBeTrue();fixture.destroy();
+  });
+  it('shows only the correlated snackbar when refresh is partial', () => {
+    const add=spyOn(TestBed.inject(MessageService),'add');
+    const fixture=TestBed.createComponent(OpenBankingManagementComponent);fixture.detectChanges();
+    service.refreshPermissions.and.returnValue(of({consents:[],complete:false,hasOpenBanking:true,errors:[],supportError:{code:'OB-01',errorId:'refresh-case',message:'בדיקה נכשלה'}}));
+    fixture.componentInstance.refresh();fixture.detectChanges();
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(add.calls.mostRecent().args[0].data.supportError.errorId).toBe('refresh-case');
+    expect(fixture.nativeElement.querySelector('[role=alert]')).toBeNull();fixture.destroy();
   });
   it('renders bank and card labels for actual stored source types', () => {
     const fixture = TestBed.createComponent(OpenBankingManagementComponent);

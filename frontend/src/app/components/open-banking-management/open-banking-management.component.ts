@@ -1,6 +1,9 @@
+import { BankingNotificationService } from './banking-notification.service';
+import { ButtonComponent } from '../button/button.component';
+import { ButtonSize } from '../button/button.enum';
 import { CommonModule } from '@angular/common';
 import { OpenBankingErrorComponent, BankingSupportError, bankingRequestError } from './open-banking-error.component';
-import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { DialogModule } from 'primeng/dialog';
 import { catchError, finalize, map, of, switchMap } from 'rxjs';
@@ -12,11 +15,16 @@ import { IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shar
 
 @Component({
   selector: 'app-open-banking-management', standalone: true,
-  imports: [CommonModule, DialogModule, GenericTableComponent, OpenBankingErrorComponent],
+  imports: [ButtonComponent, CommonModule, DialogModule, GenericTableComponent, OpenBankingErrorComponent],
   templateUrl: './open-banking-management.component.html',
   styleUrls: ['./open-banking-management.component.scss'],
 })
 export class OpenBankingManagementComponent implements OnInit, OnChanges {
+  readonly small=ButtonSize.AUTO;
+  private readonly notifications=inject(BankingNotificationService);
+  constructor(){effect(()=>{const issue=this.supportError(),error=this.error(),message=this.message();
+    if(issue)return;if(error)this.notifications.message(error);else if(message)this.notifications.message(message,true);
+  });}
   readonly supportError = signal<BankingSupportError | null>(null);
   @Input() firebaseId?: string;
   @Input() embedded = false;
@@ -112,7 +120,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
     this.previewVerified.set(false);
     this.confirmation.set(null); this.choices.set(null);
   }
-  refresh(): void { this.load(undefined, true); }
+  refresh(): void { this.load(()=>this.message.set('בדיקת ההרשאות הושלמה.'), true); }
   load(onLoaded?: () => void, live = false): void {
     if (!this.canManage() || this.busy() || this.loading() || this.externalBusy) return;
     this.closePreview(); this.loading.set(true); this.error.set(''); this.message.set(''); this.synthetic.set(false); this.supportError.set(null);
@@ -121,7 +129,7 @@ export class OpenBankingManagementComponent implements OnInit, OnChanges {
         ? this.auth.restoreUserData().pipe(catchError(() => of(null)), map(() => data)) : of(data)),
       finalize(() => this.loading.set(false)),
     ).subscribe({
-      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? null); this.previewVerified.set(live && data.complete); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
+      next: data => { this.targets.set(data); this.supportError.set(data.supportError ?? (data.complete ? null : bankingRequestError(null))); this.previewVerified.set(live && data.complete); if (live) this.connectionChanged.emit(); if (!live || data.complete) onLoaded?.(); },
       error: err => {
         this.synthetic.set(err?.error?.code === 'SYNTHETIC_OPEN_BANKING');
         if (!this.synthetic()) this.supportError.set(bankingRequestError(err));

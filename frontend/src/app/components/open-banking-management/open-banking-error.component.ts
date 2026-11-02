@@ -1,4 +1,5 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges, inject } from '@angular/core';
+import { BankingNotificationService } from './banking-notification.service';
 
 export interface BankingSupportError { code: string; errorId: string; message: string; partial?: boolean; }
 
@@ -14,26 +15,10 @@ export function bankingRequestError(error: any, code = 'OB-01'): BankingSupportE
   return issue;
 }
 
-@Component({
-  selector: 'app-open-banking-error', standalone: true,
-  template: `@if (issue) {
-    <div role="alert" dir="rtl" class="banking-error">
-      <p>{{ issue.message }}</p>
-      <p>קוד: {{ issue.code }} · מזהה שגיאה: <bdi>{{ issue.errorId }}</bdi></p>
-      <button type="button" (click)="copy()">העתקת פרטי השגיאה לתמיכה</button>
-      @if (copyMessage) { <span role="status">{{ copyMessage }}</span> }
-    </div>
-  }`,
-  styles: [`.banking-error { color: #a12222; padding: .75rem; margin-block: .75rem; border: 1px solid currentColor; border-radius: .4rem; overflow-wrap: anywhere; } button { margin-inline-end: .5rem; }`],
-})
-export class OpenBankingErrorComponent {
-  @Input() issue: BankingSupportError | null | undefined;
-  copyMessage = '';
-  async copy(): Promise<void> {
-    if (!this.issue) return;
-    try {
-      await navigator.clipboard.writeText(`${this.issue.message}\nקוד: ${this.issue.code}\nמזהה שגיאה: ${this.issue.errorId}`);
-      this.copyMessage = 'פרטי השגיאה הועתקו';
-    } catch { this.copyMessage = 'לא הצלחנו להעתיק. אפשר להעתיק את הקוד ומזהה השגיאה שמופיעים כאן.'; }
-  }
+@Component({selector:'app-open-banking-error',standalone:true,template:''})
+export class OpenBankingErrorComponent implements OnChanges {
+ @Input() issue:BankingSupportError|null|undefined;
+ private readonly notifications=inject(BankingNotificationService);private previousId:string|undefined;
+ ngOnChanges():void{if(!this.issue){this.previousId=undefined;return;}
+  if(this.issue.errorId!==this.previousId){this.previousId=this.issue.errorId;this.notifications.support(this.issue);}}
 }

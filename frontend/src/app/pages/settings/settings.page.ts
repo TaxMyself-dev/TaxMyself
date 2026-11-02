@@ -261,7 +261,7 @@ export class SettingsPage implements OnInit {
       // Direct cards never expose a pull button — their transactions are
       // intentionally received via the bank-account feed, and the backend
       // refuses the pull anyway (skipped_direct).
-      showWhen: (row) => this.deletingSourceId() === null && row!['isDirect'] !== true &&
+      showWhen: (row) => row!['hasConsent'] === true && this.deletingSourceId() === null && row!['isDirect'] !== true &&
         (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
       isLoading: () => this.bankingActionLoading(),
       action: (_, row) => {
@@ -544,14 +544,14 @@ export class SettingsPage implements OnInit {
    * `sourceType` maps to bank/card. Routes to POST /transactions/retry-source
    * → feezbackService.retrySource → pullOneSource (no getUserAccounts re-pull).
    */
-  onPullSource(s: { sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
+  onPullSource(s: { hasConsent: boolean; sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
     this.bankingError.set(null);
-    if (this.bankingActionLoading()) return; // one operation at a time
+    if (!s.hasConsent || this.bankingActionLoading()) return; // one operation at a time
     if (s.isDirect === true) {
       // Direct card — nothing to pull from the card feed (bank feed covers it).
       this.messageService.add({
         severity: 'info', summary: 'כרטיס דיירקט',
-        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'br',
+        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'banking',
       });
       return;
     }
@@ -567,7 +567,7 @@ export class SettingsPage implements OnInit {
             err?.status === 409
               ? 'סנכרון כבר רץ — נסה שוב בעוד מספר רגעים'
               : 'משיכת התנועות נכשלה, אנא נסה שוב';
-          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'br' });
+          if (err?.status === 409) this.messageService.add({ severity: 'error', summary: 'שגיאה', detail, life: 5000, key: 'banking' });
           return EMPTY;
         }),
         finalize(() => this.retryingSourceId.set(null)),
@@ -578,20 +578,20 @@ export class SettingsPage implements OnInit {
           // Backend re-detected the card as Direct mid-pull — not a failure.
           this.messageService.add({
             severity: 'info', summary: 'כרטיס דיירקט',
-            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br',
+            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'banking',
           });
           this.fetchAccountSources();
           return;
         }
         const ok = result?.status === 'success';
-        this.messageService.add({
+        if (!result.supportError) this.messageService.add({
           severity: ok ? 'success' : 'warn',
           summary: ok ? 'הסתיים' : 'לא הושלם',
           detail: ok
             ? `נמשכו ${result.transactionCount} תנועות עבור ${s.sourceName}`
-            : 'לא הצלחנו להשלים את משיכת התנועות. פרטי השגיאה מופיעים במסך.',
+            : 'לא הצלחנו להשלים את משיכת התנועות. אפשר לנסות שוב.',
           life: 6000,
-          key: 'br',
+          key: 'banking',
         });
         this.fetchAccountSources();
       });
@@ -1392,4 +1392,3 @@ export class SettingsPage implements OnInit {
     return isNaN(date.getTime()) ? null : date;
   }
 }
-

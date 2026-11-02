@@ -1,3 +1,5 @@
+import { MessageService } from 'primeng/api';
+import { ActivatedRoute } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { MyAccountPage } from 'src/app/pages/my-account/my-account.page';
@@ -18,10 +20,10 @@ describe('Banking cancellation preview regressions',()=>{
     const live={...saved,consents:[{...consent,sources:[account,addedCard]}]};
     const service={disconnectionTargets:jasmine.createSpy().and.returnValue(of(saved)),
       refreshPermissions:jasmine.createSpy().and.returnValue(of(live)),disconnect:jasmine.createSpy()};
-    TestBed.configureTestingModule({imports:[OpenBankingManagementComponent],providers:[provideNoopAnimations(),
+    TestBed.configureTestingModule({imports:[OpenBankingManagementComponent],providers:[MessageService,{provide:ActivatedRoute,useValue:{}},provideNoopAnimations(),
       {provide:GenericService,useValue:{isMobile:()=>false}},{provide:FeezbackService,useValue:service},
       {provide:AuthService,useValue:{isViewingAsClient:()=>false,restoreUserData:()=>of({hasOpenBanking:true})}},
-      {provide:Router,useValue:{navigate:jasmine.createSpy()}}]});
+      {provide:Router,useValue:{navigate:jasmine.createSpy(),events:of()}}]});
     const component=TestBed.runInInjectionContext(()=>new OpenBankingManagementComponent());
     component.ngOnInit();
     return {component,service,saved,live};
