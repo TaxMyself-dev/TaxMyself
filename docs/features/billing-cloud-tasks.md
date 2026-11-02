@@ -190,3 +190,34 @@ previously documented live failure/crash/PDF/mail acceptance scenarios. No real
 customer invoice or email was processed. If the PC/tunnel is unavailable, remote
 delivery retries according to the configured policies; update task env and job
 target/audience if the tunnel URL changes. No credentials are committed.
+
+
+### Verified controlled recovery results
+
+On 2026-11-02 the real dev DB, compiled worker, Google Cloud Tasks/OIDC and
+local Chromium renderer passed both controlled failure scenarios on existing
+invoice 30000 (document 19, attempt 2, event 50). PDF generation failed once,
+remained CAPTURED with the same document pointers, then recovered after the
+real scheduled retry. Mail then failed once with socket hang up while the
+attempt was COMPLETED; its second delivery attempt succeeded using identical
+PDF paths and SHA-256, without rendering again. No retry timestamp was advanced.
+No new invoice or charge attempt was created. Provider calls and invoice
+creation were blocked. Signing, Firebase storage and Brevo were replaced with
+local preview files/MIME sink, so this does not verify real provider delivery.
+
+The runner snapshotted/restored the legacy canonical links and five affected
+rows, removed only its tagged audit events and exact recorded tasks, and
+verified final counts: 11 attempts, 46 documents, 94 events. Original stored PDFs
+were never read or modified. Normal isolated worker was restarted without fault
+adapters; dev queue resumed RUNNING and daily Scheduler ENABLED. Production,
+main and GitHub were untouched.
+
+Reproduction: build backend, pause the dev Scheduler, ensure the queue is empty,
+then run `node scripts/qa/verify-billing-recovery-dev.cjs init`. Start the isolated
+worker with BILLING_DEV_RECOVERY_PROBE_CONFIG pointing at the returned private
+config.json, then run `node scripts/qa/verify-billing-recovery-dev.cjs run PRIVATE_RUN_DIRECTORY`.
+The runner validates actual DB and ADC quota project, restores fixtures in finally
+and leaves queue/Scheduler paused for normal-worker restart and explicit resume.
+Keep the private snapshot until restoration succeeds; never commit it. The
+fixture intentionally supports only the verified existing dev records and fails
+closed when their prerequisites differ. It is not a legacy data migration.

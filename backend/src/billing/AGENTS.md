@@ -716,3 +716,8 @@ Normal runtime behavior is unchanged when the profile is absent/false. This is a
 isolated queue acceptance worker, not a replacement for the full UI backend.
 Actual dev DB binding, ADC quota project and queue/Scheduler delivery were verified
 on 2026-11-02 without billing-record writes; see the feature guide/task handoff.
+
+Controlled dev PDF/mail retry acceptance passed on existing invoice 30000 on
+2026-11-02. Optional BILLING_DEV_RECOVERY_PROBE_CONFIG installs strictly scoped
+local adapters only in the isolated dev profile; normal startup installs none.
+See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.

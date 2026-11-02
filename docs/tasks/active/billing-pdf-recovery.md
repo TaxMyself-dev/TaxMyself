@@ -274,3 +274,49 @@ daily renewal batch, another charge or a replacement invoice.
   no real customer mail or invoice was processed to claim those scenarios passed.
 - Push requires renewed personal manual-main verification and explicit approval
   for the current executable revision. No such approval is inferred here.
+
+## Real dev retry acceptance (2026-11-02)
+- User authorized controlled PDF/mail failures and real retry recovery on an
+  existing dev invoice, without new charge or invoice. Using local Chromium
+  preview PDF/storage and local MIME sink; Google queue, OIDC, DB and retry
+  schedules are real. Signing/Firebase/Brevo production boundaries are not called.
+- Scope is existing dev attempt 2 / event 50 / invoice document 19 (30000).
+  Legacy canonical links and temporary test state will be snapshotted/restored;
+  original stored PDFs are never read, overwritten or re-signed.
+- Local-only adapters require isolated dev profile and matching DB/project;
+  no remote fault-control endpoint. New invoice creation is fail-closed.
+
+
+### Verified controlled recovery results
+
+On 2026-11-02 the real dev DB, compiled worker, Google Cloud Tasks/OIDC and
+local Chromium renderer passed both controlled failure scenarios on existing
+invoice 30000 (document 19, attempt 2, event 50). PDF generation failed once,
+remained CAPTURED with the same document pointers, then recovered after the
+real scheduled retry. Mail then failed once with socket hang up while the
+attempt was COMPLETED; its second delivery attempt succeeded using identical
+PDF paths and SHA-256, without rendering again. No retry timestamp was advanced.
+No new invoice or charge attempt was created. Provider calls and invoice
+creation were blocked. Signing, Firebase storage and Brevo were replaced with
+local preview files/MIME sink, so this does not verify real provider delivery.
+
+The runner snapshotted/restored the legacy canonical links and five affected
+rows, removed only its tagged audit events and exact recorded tasks, and
+verified final counts: 11 attempts, 46 documents, 94 events. Original stored PDFs
+were never read or modified. Normal isolated worker was restarted without fault
+adapters; dev queue resumed RUNNING and daily Scheduler ENABLED. Production,
+main and GitHub were untouched.
+
+Reproduction: build backend, pause the dev Scheduler, ensure the queue is empty,
+then run `node scripts/qa/verify-billing-recovery-dev.cjs init`. Start the isolated
+worker with BILLING_DEV_RECOVERY_PROBE_CONFIG pointing at the returned private
+config.json, then run `node scripts/qa/verify-billing-recovery-dev.cjs run PRIVATE_RUN_DIRECTORY`.
+The runner validates actual DB and ADC quota project, restores fixtures in finally
+and leaves queue/Scheduler paused for normal-worker restart and explicit resume.
+Keep the private snapshot until restoration succeeds; never commit it. The
+fixture intentionally supports only the verified existing dev records and fails
+closed when their prerequisites differ. It is not a legacy data migration.
+
+Validation for this revision: backend build passed; native adapter guard tests
+2/2 passed; billing-related Jest suites 39/39 and tests 574/574 passed;
+git diff --check passed. Actual queue empty after normal worker restart.
