@@ -1,0 +1,12 @@
+// Reusable destructive action: white fill, red label and border.
+:host ::ng-deep .p-button.red-outline {
+  background: white;
+  border-color: #b91c1c;
+  color: #b91c1c;
+
+  &:enabled:hover {
+    background: #fef2f2;
+    border-color: #991b1b;
+    color: #991b1b;
+  }
+}

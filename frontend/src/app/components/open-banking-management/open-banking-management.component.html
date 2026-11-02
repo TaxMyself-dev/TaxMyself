@@ -14,8 +14,8 @@
     }
     <div class="actions banking-footer">
       <app-p-button    (onButtonClicked)="openFullDisconnect()"
-        [disabled]="busy() || loading() || externalBusy || synthetic()" buttonText="התנתקות מלאה מבנקאות פתוחה" [buttonSize]="small" [isLoading]="loading()" severity="danger" />
-      <app-p-button   (onButtonClicked)="refresh()" [disabled]="loading() || busy() || externalBusy" [buttonText]="loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות'" [buttonSize]="small" [isLoading]="loading()" />
+        [disabled]="busy() || loading() || externalBusy || synthetic()" buttonText="התנתקות מלאה מבנקאות פתוחה" [buttonSize]="small" [isLoading]="loading()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
+      <app-p-button   [buttonColor]="buttonColor.WHITE_BORDER" variant="outlined" (onButtonClicked)="refresh()" [disabled]="loading() || busy() || externalBusy" [buttonText]="loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות'" [buttonSize]="small" [isLoading]="loading()" />
       @if (!embedded && !firebaseId && !synthetic()) {
         <app-p-button   (onButtonClicked)="reconnect()" [disabled]="busy() || loading() || externalBusy" buttonText="חיבור מחדש" [buttonSize]="small" [isLoading]="false" />
       }
@@ -51,7 +51,7 @@
     <div class="actions">
       <app-p-button   (onButtonClicked)="closePreview()" [disabled]="busy()" buttonText="חזרה" [buttonSize]="small" [isLoading]="false" />
       @if (!choices()) {
-        <app-p-button    (onButtonClicked)="confirm()" [disabled]="!canConfirm()" [buttonText]="busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה')" [buttonSize]="small" [isLoading]="busy()" severity="danger" />
+        <app-p-button    (onButtonClicked)="confirm()" [disabled]="!canConfirm()" [buttonText]="busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה')" [buttonSize]="small" [isLoading]="busy()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
       }
     </div>
   </div>

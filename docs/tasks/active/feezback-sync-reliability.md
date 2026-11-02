@@ -131,3 +131,6 @@
 ### Banking UI follow-up (2026-11-02)
 Use shared app-p-button (including danger severity and native loading); hide source pulls without saved consent and guard callbacks. Banking support errors are emitted once through the existing PrimeNG toast system, with support code/ID and clipboard action; copied feedback resets after one second. The ordinary inline error is removed. Clipboard failures are announced without a false success. No backend, schema or provider operations in this follow-up.
 Validation: 60 targeted ChromeHeadless banking/settings/sync tests passed; production frontend build passed with existing bundle/style/CommonJS warnings. Final review covered duplicate errors, pending button state, no-consent callback guard, copy feedback and cancellation-preview regression tests. Backend and database unchanged.
+
+UI color correction: refresh uses existing WHITE_BORDER with outlined variant; destructive banking actions use reusable ButtonColor.RED_OUTLINE with component-scoped white background and red text/border, including hover styling. The standard loading behavior is retained. All 60 targeted tests passed.
+Production frontend build passed (existing budget/CommonJS warnings); no production operations, merge or push.

@@ -1,4 +1,5 @@
 import { By } from '@angular/platform-browser';
+import { ButtonColor } from '../button/button.enum';
 import { ButtonComponent } from '../button/button.component';
 import { MessageService } from 'primeng/api';
 import { TestBed } from '@angular/core/testing';
@@ -32,7 +33,12 @@ describe('open banking disconnection', () => {
     const buttons=fixture.debugElement.queryAll(By.directive(ButtonComponent));
     expect(buttons.length).toBeGreaterThan(1);
     const refresh=buttons.map(x=>x.componentInstance as ButtonComponent).find(x=>x.buttonText().includes('בודק הרשאות'));
-    expect(refresh?.isLoading()).toBeTrue();fixture.destroy();
+    expect(refresh?.isLoading()).toBeTrue();
+    expect(refresh?.buttonColor()).toBe(ButtonColor.WHITE_BORDER);
+    expect(refresh?.variant()).toBe('outlined');
+    const disconnect=buttons.map(x=>x.componentInstance as ButtonComponent).find(x=>x.severity()==='danger');
+    expect(disconnect?.buttonColor()).toBe(ButtonColor.RED_OUTLINE);
+    expect(disconnect?.variant()).toBe('outlined');fixture.destroy();
   });
   it('shows only the correlated snackbar when refresh is partial', () => {
     const add=spyOn(TestBed.inject(MessageService),'add');

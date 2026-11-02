@@ -1,6 +1,6 @@
 import { BankingNotificationService } from './banking-notification.service';
 import { ButtonComponent } from '../button/button.component';
-import { ButtonSize } from '../button/button.enum';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { CommonModule } from '@angular/common';
 import { OpenBankingErrorComponent, BankingSupportError, bankingRequestError } from './open-banking-error.component';
 import { Component, EventEmitter, Input, OnChanges, OnInit, SimpleChanges, Output, computed, effect, inject, signal } from '@angular/core';
@@ -20,6 +20,7 @@ import { IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shar
   styleUrls: ['./open-banking-management.component.scss'],
 })
 export class OpenBankingManagementComponent implements OnInit, OnChanges {
+  readonly buttonColor = ButtonColor;
   readonly small=ButtonSize.AUTO;
   private readonly notifications=inject(BankingNotificationService);
   constructor(){effect(()=>{const issue=this.supportError(),error=this.error(),message=this.message();
