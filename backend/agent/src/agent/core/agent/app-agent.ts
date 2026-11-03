@@ -4,6 +4,7 @@ import type { ModelMessage, StopCondition, Telemetry } from "ai";
 
 import type { AgentChatUserSteers } from "@/agent/chat/turn/agent-chat-user-steers.server";
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
+import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
@@ -54,6 +55,8 @@ interface AppAgentRequest {
   opportunities: TaskOpportunityStore;
   webSearch: WebSearch;
   email: EmailSender;
+  // KeepInTax's books (keepintax-ports.ts).
+  books: KeepInTaxBooks;
   // What tools show on the chat page; none in evals.
   pageData?: AgentChatPageData;
   supabase: UserSupabaseClient;
@@ -236,6 +239,7 @@ export const createAppAgent = (request: AppAgentRequest) => {
     opportunities: request.opportunities,
     webSearch: request.webSearch,
     email: request.email,
+    books: request.books,
     pageData: request.pageData ?? noAgentChatPageData,
     settings: request.settings,
   };
@@ -273,6 +277,7 @@ export const createAppAgent = (request: AppAgentRequest) => {
       listRecentScans: toolContext,
       listTaskOpportunities: toolContext,
       changeTaskOpportunityStatus: toolContext,
+      queryExpenses: toolContext,
       searchWeb: toolContext,
       sendEmail: toolContext,
       searchEarlierResults: toolContext,

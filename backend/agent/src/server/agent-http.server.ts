@@ -46,6 +46,7 @@ import {
   updateTrackingTask,
 } from "@/lib/tasks/tracking-task-persistence";
 import { writeUserPageState } from "@/lib/user-state/user-page-state";
+import type { AgentDomain } from "@/server/runtime/agent-domain";
 import { runInAgentRequest } from "@/server/runtime/agent-request-context";
 import type { AgentRequestUser } from "@/server/runtime/agent-request-identity";
 import {
@@ -239,30 +240,37 @@ const routeAgentRequest = async (request: Request): Promise<Response> => {
  *
  * @param request - The request, as a web Request.
  * @param user - The verified user (FirebaseAuthGuard's request.user).
+ * @param domain - KeepInTax's domain, bound to that user, for the tools.
  * @returns The response, streamed for the chat.
  */
 export const handleAgentHttpRequest = async (
   request: Request,
-  user: AgentRequestUser
+  user: AgentRequestUser,
+  domain?: AgentDomain
 ): Promise<Response> => {
   const started = performance.now();
 
-  const response = await runInAgentRequest(request, user, async () => {
-    try {
-      return await paraglideMiddleware(
-        request,
-        async () => await routeAgentRequest(request)
-      );
-    } catch (error) {
-      // A route that fails is a server error, recorded like any other
-      // response (the template's response hook counted it).
-      await appRuntime.runPromise(
-        Effect.logError("AGENT_REQUEST_FAILED", error)
-      );
+  const response = await runInAgentRequest(
+    request,
+    user,
+    async () => {
+      try {
+        return await paraglideMiddleware(
+          request,
+          async () => await routeAgentRequest(request)
+        );
+      } catch (error) {
+        // A route that fails is a server error, recorded like any other
+        // response (the template's response hook counted it).
+        await appRuntime.runPromise(
+          Effect.logError("AGENT_REQUEST_FAILED", error)
+        );
 
-      return jsonError(500, "AGENT_REQUEST_FAILED", "The agent failed.");
-    }
-  });
+        return jsonError(500, "AGENT_REQUEST_FAILED", "The agent failed.");
+      }
+    },
+    domain
+  );
 
   runInAgentRequest(request, user, () => {
     recordAppRequestEnd(

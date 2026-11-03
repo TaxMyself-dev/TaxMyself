@@ -25,6 +25,7 @@ import { agentChatMessageText } from "@/lib/agent-chat/conversation/agent-chat-m
 import type { AgentChatMessage } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { UserSettings } from "@/lib/settings/user-settings/user-settings-schema";
 import {
+  createKeepInTaxBooks,
   createTaskOpportunityStore,
   createTrackingTaskStore,
   emailSender,
@@ -198,6 +199,7 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
           opportunities: createTaskOpportunityStore(supabase),
           webSearch,
           email: emailSender,
+          books: createKeepInTaxBooks(),
           locale: body.locale ?? "en",
           pageData: page.pageData,
           traceIntegrations,

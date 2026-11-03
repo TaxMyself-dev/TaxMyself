@@ -471,6 +471,73 @@
     }
   },
   {
+    "name": "queryExpenses",
+    "description": "Read the user's expenses in KeepInTax for a date range: approved totals (paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and what still waits for review. Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])$",
+          "description": "The range's first day, YYYY-MM-DD. \"This year\" starts on January 1 of the current year"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])$",
+          "description": "The range's last day, YYYY-MM-DD, inclusive"
+        },
+        "search": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Words to find in the category, sub-category, supplier or note, as the user said them (\"דלק\")"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "An exact category name"
+        },
+        "subCategory": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "An exact sub-category name"
+        },
+        "supplier": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "The supplier's name, or part of it"
+        },
+        "groupBy": {
+          "type": "string",
+          "enum": [
+            "category",
+            "subCategory",
+            "supplier",
+            "month"
+          ],
+          "description": "Totals per category, sub-category or supplier (largest first), or per month (in order)"
+        },
+        "includeRows": {
+          "type": "boolean",
+          "description": "Also return the expenses themselves, newest first (up to 50): when the user asks which expenses, not only how much"
+        },
+        "businessNumber": {
+          "type": "string",
+          "pattern": "^\\d{5,12}$",
+          "description": "Another of the user's businesses (from otherBusinesses in an earlier result); left out, their current one"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "searchWeb",
     "description": "Search the web now. Brings maxResults results (the number the user asked for, or 10) with title, link and snippet; answer from them with their links and offer more.",
     "inputSchema": {
@@ -748,7 +815,7 @@
   },
   {
     "name": "readAppKnowledge",
-    "description": "Read how YourApp works: its parts, every page with its path, the settings sections, the plans with prices, and the help center's answers with links. Call it for any question about the app that your other tools do not answer.",
+    "description": "Read how KeepInTax works: its parts, every page with its path, the settings sections, the plans with prices, and the help center's answers with links. Call it for any question about the app that your other tools do not answer.",
     "inputSchema": {
       "type": "object",
       "additionalProperties": false

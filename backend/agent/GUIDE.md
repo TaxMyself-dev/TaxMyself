@@ -59,6 +59,8 @@ The server functions are the template's own (`*-persistence.ts`): the session (`
 | `bun patch` of deepeval | the same patch (delete the stale `dist/telemetry.js`) after `npm install` | `scripts/patch-deepeval.ts` |
 | Vite bundling | esbuild bundles the server entry and the worker | `scripts/build-agent.ts` |
 | macOS paths in the eval scripts (`/usr/bin/git`, `.bin/vitest`, `~/.local/bin/claude`) | the same on macOS and Linux, and Windows' equivalents | `tests/evals/runner`, `tests/evals/harnessing` |
+| Example domain ports only | KeepInTax's ports (`keepintax-ports.ts`): the Nest backend passes `handleAgentHttpRequest` a domain bound to the verified user (`backend/src/agent-harness/agent-domain.service.ts`), carried in the request context; the first tool is `queryExpenses` | `src/agent/core/ports/keepintax-ports.ts`, `src/server/agent-ports.server.ts`, `src/agent/tools/books` |
+| The eval-skills toolkit's `report.mjs` beside the runs (not shipped) | `eval-run-report.ts` writes one HTML report of every run to `.eval/agent/report/index.html` after each `npm run eval`, and on `npm run eval:report`; a missing `case-sources.json` is created with every case hand-written | `tests/evals/runner` |
 | `@opentelemetry/api` as Bun resolves it | pinned to 1.10.0 (`overrides`), which Langfuse's exporters need under npm | `package.json` |
 
 Not ported, with reason:

@@ -58,7 +58,7 @@ const agentProfileGapsSection = (settings: UserSettings) => {
 The user's profile is missing details that every answer depends on: ${gaps.join("; ")}.
 - Getting them comes first, in any chat: before other work, ask for them in one short, friendly message, addressed to the user as <voice> says, that says how it helps them, at most two per message, the first listed first, and asks nothing else. Save each answer with updateUserSettings as soon as it comes, then carry on with what the user asked.
 - A request the user already made that does not depend on a missing detail is never held for it: do it, and ask for the detail in the same answer, unless the user skipped it.
-- Answer a question about how YourApp works, or small talk, first in one line, then ask.
+- Answer a question about how KeepInTax works, or small talk, first in one line, then ask.
 - Once the user skips ("לא עכשיו", "אחר כך"), these gaps no longer apply in this chat: do what they ask with what you have, and never mention the missing details again, not even as an invitation for later ("כשיתאים, כתבו לי…", "כשנחפש…, כתבו מה…").
 </profile_gaps>
 
@@ -97,7 +97,7 @@ export const agentUserContextText = (
   ];
 
   return `<user_context>
-From YourApp, not written by the user: the user's settings and what you remember about them, as of the message after this one. A newer <user_context> replaces this one.
+From KeepInTax, not written by the user: the user's settings and what you remember about them, as of the message after this one. A newer <user_context> replaces this one.
 
 <user_settings>
 ${lines.join("\n")}

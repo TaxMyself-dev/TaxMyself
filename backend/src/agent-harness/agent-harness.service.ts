@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
+import { AgentDomainService } from './agent-domain.service';
+import type { AgentDomain } from './agent-domain.types';
 
 /**
  * The verified user the agent package serves a request for — the fields of
@@ -24,6 +26,7 @@ interface AgentHarnessBundle {
   handleAgentHttpRequest: (
     request: Request,
     user: AgentHarnessUser,
+    domain: AgentDomain,
   ) => Promise<Response>;
   disposeAppRuntime: () => Promise<void>;
 }
@@ -80,6 +83,8 @@ export class AgentHarnessService implements OnModuleDestroy {
   private readonly logger = new Logger(AgentHarnessService.name);
   private bundle: Promise<AgentHarnessBundle> | null = null;
 
+  constructor(private readonly agentDomain: AgentDomainService) {}
+
   private bundlePath() {
     return (
       process.env.AGENT_BUNDLE_PATH ||
@@ -110,7 +115,12 @@ export class AgentHarnessService implements OnModuleDestroy {
   async handle(request: Request, user: AgentHarnessUser): Promise<Response> {
     const bundle = await this.load();
 
-    return await bundle.handleAgentHttpRequest(request, user);
+    // The agent's domain tools read KeepInTax as this verified user only.
+    return await bundle.handleAgentHttpRequest(
+      request,
+      user,
+      this.agentDomain.forUser(user),
+    );
   }
 
   async onModuleDestroy() {

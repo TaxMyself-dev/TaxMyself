@@ -16,6 +16,7 @@
   },
   "private": true,
   "dependencies": {
+    "@ai-sdk/angular": "3.0.148",
     "@angular/animations": "^19.2.2",
     "@angular/cdk": "^19.2.3",
     "@angular/common": "^19.2.2",

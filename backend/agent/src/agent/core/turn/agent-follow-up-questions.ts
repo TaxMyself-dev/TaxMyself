@@ -93,7 +93,7 @@ export const writeAgentFollowUpQuestions = Effect.fn(
             schema: toStandardSchema(agentFollowUpQuestionsSchema),
           }),
           instructions:
-            "Suggest what the user of YourApp's agent might ask next, after the answer below: two or three short questions in the user's voice and language (2 to 12 words each), each following from this answer (the next step on what it found or did, not a tour of the app) and something the agent can do: manage tasks, search the web, write and send emails [list your agent's abilities]. A wrong or generic question is worse than none. When the answer asks the user for something, as a question or as a request (write, tell, send), return none: their reply comes next. Never write a placeholder such as [business type].",
+            "Suggest what the user of KeepInTax's agent might ask next, after the answer below: two or three short questions in the user's voice and language (2 to 12 words each), each following from this answer (the next step on what it found or did, not a tour of the app) and something the agent can do: read the user's expenses (totals by category, supplier or month, and which expenses), manage tracking tasks, search the web, write and send emails. A wrong or generic question is worse than none. When the answer asks the user for something, as a question or as a request (write, tell, send), return none: their reply comes next. Never write a placeholder such as [business type].",
           prompt: `${
             input.maxLength === undefined
               ? ""

@@ -42,6 +42,7 @@ const firstRequestBody = async (harness?: AgentHarnessOverride) => {
     opportunities: createEvalOpportunityStore([], []),
     webSearch: { search: () => Effect.die(new Error("unused")) },
     email: { send: () => Effect.die(new Error("unused")) },
+    books: { queryExpenses: () => Effect.die(new Error("unused")) },
     harness,
   });
 

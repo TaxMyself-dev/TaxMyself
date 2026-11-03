@@ -4,6 +4,7 @@ import { expect } from "vitest";
 import { createAppAgent } from "@/agent/core/agent/app-agent";
 import { AgentLanguageModel } from "@/agent/core/model/agent-model";
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
+import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
@@ -49,6 +50,9 @@ export interface AgentEvalScenario {
   webSearch?: WebSearch;
   // Fixed answers for sendEmail; without them, sending fails the case.
   email?: EmailSender;
+  // Fixed answers for KeepInTax's books (queryExpenses); without them, a
+  // query fails the case.
+  books?: KeepInTaxBooks;
   settings?: UserSettings;
   memories?: AgentMemory[];
   data?: AgentEvalData;
@@ -71,6 +75,10 @@ const unreachable = (port: string) => () =>
 const unreachableWebSearch: WebSearch = { search: unreachable("WEB_SEARCH") };
 
 const unreachableEmail: EmailSender = { send: unreachable("EMAIL") };
+
+const unreachableBooks: KeepInTaxBooks = {
+  queryExpenses: unreachable("BOOKS"),
+};
 
 /**
  * The user's tracking tasks in memory: the case's starting tasks, changed by
@@ -244,6 +252,7 @@ export const createEvalAgent = async (
     ),
     webSearch: scenario.webSearch ?? unreachableWebSearch,
     email: scenario.email ?? unreachableEmail,
+    books: scenario.books ?? unreachableBooks,
     settings,
     locale: scenario.locale,
     traceIntegrations,

@@ -16,7 +16,7 @@ import {
 import { getHelpQuestionGroups } from "@/website/help-question-data";
 import { getPricingPlans } from "@/website/pricing-plans-data";
 
-// What the agent knows about YourApp itself, read with
+// What the agent knows about KeepInTax itself, read with
 // readAppKnowledge: how the parts work together, every page with the line
 // it opens with, the settings sections, the plans as the pricing page sells
 // them, and the help center's questions and answers. Pages, plans and help
@@ -27,7 +27,7 @@ import { getPricingPlans } from "@/website/pricing-plans-data";
 
 // EXAMPLE: how your product's parts work together, in a few lines each.
 // Write only what the pages, plans and help center below do not say.
-const appHowItWorks = `YourApp [one sentence: what it does for the user].
+const appHowItWorks = `KeepInTax keeps the books of Israeli self-employed businesses and their accountants: expenses, income documents, bank and card transactions, and VAT and income-tax reports.
 
 - Tasks: each tracking task is one sentence of what to find. While it is active, the background worker scans its sources on its scan frequency, scores each new item against the task and the user's preferences, and records the matches as opportunities, with an in-app alert when its alerts are on. A task is suggested (waits until the user starts it), active, paused or finished; its sheet shows its last scans.
 - Opportunities: what the tasks found, newest first, each with what the person wants, why it fits and its score. The user files each one: new, in progress, replied, closed or irrelevant.
@@ -60,7 +60,7 @@ const appSettingsSections = () => [
 ];
 
 /**
- * What the agent knows about YourApp itself: how it works, its pages and
+ * What the agent knows about KeepInTax itself: how it works, its pages and
  * settings, in the page's language.
  *
  * @returns The knowledge, as the tool's result.

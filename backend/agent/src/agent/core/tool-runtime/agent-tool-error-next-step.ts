@@ -23,6 +23,22 @@ const agentToolErrorNextSteps = new Map([
     "The email may have been sent. Tell the user so, and do not send it again.",
   ],
   [
+    "BOOKS_UNAVAILABLE",
+    "KeepInTax's books did not answer. Try once more; if it fails again, tell the user the numbers cannot be read right now, without guessing any.",
+  ],
+  [
+    "BUSINESS_NOT_FOUND",
+    "That business is not one the user can read. Query again without businessNumber (their current business), or with one from otherBusinesses.",
+  ],
+  [
+    "BUSINESS_REQUIRED",
+    "The user has several businesses and none is current. Ask which one they mean (askUserQuestion, with otherBusinesses' names when you have them), then query it.",
+  ],
+  [
+    "EXPENSE_RANGE_INVALID",
+    "The range is not valid: from must be on or before to, and the range at most 10 years. Fix the dates and query again.",
+  ],
+  [
     "TRACKING_TASK_NOT_FOUND",
     "That task no longer exists. Call listTrackingTasks and work from the tasks that exist.",
   ],

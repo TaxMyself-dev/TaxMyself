@@ -1,10 +1,12 @@
 import { Effect } from "effect";
 
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
+import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
 } from "@/agent/core/ports/tracking-task-ports";
+import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
 import {
   changeStoredTaskOpportunityStatus,
@@ -86,4 +88,49 @@ export const emailSender: EmailSender = {
       // @effect-diagnostics-next-line globalErrorInEffectFailure:off
       new Error("EMAIL_OUTCOME_UNKNOWN: no email provider is connected yet")
     ),
+};
+
+// A KeepInTax failure keeps its CODE: (the domain's own); anything else
+// (a thrown Nest exception, a lost connection) is the books being
+// unavailable, which the model reads with a next step.
+const keepInTaxFailure = (message: string) =>
+  new Error(
+    /^[A-Z][A-Z0-9_]+:/u.test(message)
+      ? message
+      : `BOOKS_UNAVAILABLE: ${message}`
+  );
+
+/**
+ * The user's books, through KeepInTax's domain the Nest backend gave this
+ * request (already bound to the verified user and their data owner). Outside
+ * the backend (the task worker) there is none, and every query fails with
+ * BOOKS_UNAVAILABLE.
+ *
+ * @returns The books port.
+ */
+export const createKeepInTaxBooks = (): KeepInTaxBooks => {
+  const domain = currentAgentDomain();
+
+  if (domain === undefined) {
+    return {
+      queryExpenses: () =>
+        Effect.fail(
+          keepInTaxFailure("the agent runs without KeepInTax's backend")
+        ),
+    };
+  }
+
+  return {
+    queryExpenses: (query) =>
+      // The ports' contract: an Error whose message starts with its CODE:
+      // (keepintax-ports.ts).
+      // @effect-diagnostics-next-line globalErrorInEffectCatch:off
+      Effect.tryPromise({
+        try: async () => await domain.queryExpenses(query),
+        catch: (error) =>
+          keepInTaxFailure(
+            error instanceof Error ? error.message : String(error)
+          ),
+      }),
+  };
 };

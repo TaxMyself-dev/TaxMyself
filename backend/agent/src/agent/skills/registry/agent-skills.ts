@@ -55,7 +55,7 @@ export const agentSkillNames: [AgentSkillName, ...AgentSkillName[]] = [
  * @returns The section's text.
  */
 export const agentSkillInstructions = () => `<skills>
-From YourApp, not written by the user: the playbooks you can load.
+From KeepInTax, not written by the user: the playbooks you can load.
 Playbooks are step-by-step procedures for flows that take several steps; each line says when one applies.
 - When the user's request is that flow, call loadAgentSkill with its name in your first step, together with the reads the request plainly needs (the user's tasks), then follow its steps in order. A request one tool answers needs no playbook, and a shared word alone (task, research) is not a match.
 - Never act from these lines alone, and never name a playbook to the user. A loaded playbook holds until its flow is done; when the user asks for something it does not do, follow the user.

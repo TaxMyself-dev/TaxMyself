@@ -1,0 +1,116 @@
+<div class="dev-agent">
+  <header class="bar">
+    <div>
+      <h1>AI agent — dev test</h1>
+      <div class="meta">
+        <span>agent user: <code>{{ agentUserId() ?? '…' }}</code></span>
+        <span>business: <code>{{ businessNumber ?? 'none' }}</code></span>
+        @if (clientId) {
+          <span>acting for client: <code>{{ clientId }}</code></span>
+        }
+        <span>API: <code>{{ apiUrl }}</code></span>
+      </div>
+    </div>
+    <div class="actions">
+      <button type="button" [class.on]="locale() === 'he'" (click)="setLocale('he')">עברית</button>
+      <button type="button" [class.on]="locale() === 'en'" (click)="setLocale('en')">English</button>
+      <button type="button" (click)="newChat()" [disabled]="!agentUserId()">New chat</button>
+    </div>
+  </header>
+
+  @if (setupError(); as error) {
+    <div class="setup-error">{{ error }}</div>
+  }
+
+  @if (chat(); as c) {
+    <div class="messages" #scroller>
+      @if (c.messages.length === 0) {
+        <div class="empty">
+          <p>Try one of these, or write your own:</p>
+          @for (prompt of examplePrompts; track prompt) {
+            <button type="button" class="chip" dir="rtl" (click)="send(prompt)">{{ prompt }}</button>
+          }
+        </div>
+      }
+
+      @for (message of c.messages; track message.id) {
+        <div class="message" [class.user]="message.role === 'user'" [class.assistant]="message.role === 'assistant'">
+          <div class="role">{{ message.role }}</div>
+          @for (part of message.parts; track $index) {
+            @if (part.type === 'text') {
+              <div class="text" dir="auto">{{ text(part) }}</div>
+            } @else if (part.type === 'reasoning') {
+              @if (text(part)) {
+                <details class="reasoning">
+                  <summary>reasoning</summary>
+                  <div dir="auto">{{ text(part) }}</div>
+                </details>
+              }
+            } @else if (isTool(part)) {
+              @let tool = toolView(part);
+              <details class="tool" [class.error]="tool.state === 'output-error'" [open]="!!tool.approvalId">
+                <summary>
+                  🔧 <b>{{ tool.name }}</b>
+                  <span class="state">{{ tool.state }}</span>
+                </summary>
+                <h5>input</h5>
+                <pre>{{ json(tool.input) }}</pre>
+                @if (tool.errorText) {
+                  <h5>error</h5>
+                  <pre class="error-text">{{ tool.errorText }}</pre>
+                } @else if (tool.state === 'output-available') {
+                  <h5>output</h5>
+                  <pre>{{ json(tool.output) }}</pre>
+                }
+              </details>
+              @if (tool.approvalId; as approvalId) {
+                <div class="approval">
+                  <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
+                  <button type="button" class="approve" (click)="answerApproval(approvalId, true)">Approve</button>
+                  <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
+                </div>
+              }
+            } @else if (part.type === 'data-followUps') {
+              <div class="follow-ups">
+                @for (question of followUps(part); track question) {
+                  <button type="button" class="chip" dir="auto" (click)="send(question)">{{ question }}</button>
+                }
+              </div>
+            } @else if (part.type !== 'step-start') {
+              <details class="data">
+                <summary>{{ part.type }}</summary>
+                <pre>{{ json(part) }}</pre>
+              </details>
+            }
+          }
+        </div>
+      }
+
+      @if (c.status === 'submitted') {
+        <div class="thinking">The agent is working…</div>
+      }
+      @if (c.error; as error) {
+        <div class="chat-error">
+          {{ error.message }}
+          <button type="button" (click)="c.clearError()">Dismiss</button>
+        </div>
+      }
+    </div>
+
+    <footer class="composer">
+      <textarea
+        [(ngModel)]="draft"
+        (keydown)="onComposerKey($event)"
+        [dir]="locale() === 'he' ? 'rtl' : 'ltr'"
+        rows="2"
+        placeholder="Message the agent (Enter sends, Shift+Enter is a new line)"
+      ></textarea>
+      @if (isBusy(c)) {
+        <button type="button" class="stop" (click)="stop()">Stop</button>
+      } @else {
+        <button type="button" (click)="send()" [disabled]="!draft.trim()">Send</button>
+      }
+    </footer>
+    <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>
+  }
+</div>

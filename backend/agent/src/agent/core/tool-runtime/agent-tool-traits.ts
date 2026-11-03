@@ -27,6 +27,8 @@ const agentToolEffects = {
   suggestTrackingTasks: "ui",
   listTaskOpportunities: "read",
   changeTaskOpportunityStatus: "write",
+  // KeepInTax's books: reads what the expenses page reads.
+  queryExpenses: "read",
   // EXAMPLE domain tools: give each of yours its effect here.
   searchWeb: "external",
   sendEmail: "approval",

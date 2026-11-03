@@ -15,6 +15,7 @@
     "fix": "ultracite fix",
     "test": "vitest run --project unit",
     "eval": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/runner/run-agent-evals.ts",
+    "eval:report": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/runner/eval-run-report.ts",
     "harness": "tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/harnessing/run-agent-harnessing.ts",
     "prepare": "effect-tsgo patch --typescript --oxlint"
   },

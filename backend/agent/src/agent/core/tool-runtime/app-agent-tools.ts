@@ -1,5 +1,6 @@
 import { openai } from "@ai-sdk/openai";
 
+import { queryExpensesTool } from "@/agent/tools/books/query-expenses-tool";
 import { setAgentActionRuleTool } from "@/agent/tools/conversation/agent-action-rule-tool";
 import {
   forgetAgentMemoriesTool,
@@ -43,6 +44,8 @@ export const appAgentTools = {
   suggestTrackingTasks: suggestTrackingTasksTool,
   listTaskOpportunities: listTaskOpportunitiesTool,
   changeTaskOpportunityStatus: changeTaskOpportunityStatusTool,
+  // KeepInTax's books (src/agent/tools/books), through KeepInTaxBooks.
+  queryExpenses: queryExpensesTool,
   // EXAMPLE domain tools (src/agent/tools/examples): replace with yours.
   searchWeb: searchWebTool,
   sendEmail: sendEmailTool,

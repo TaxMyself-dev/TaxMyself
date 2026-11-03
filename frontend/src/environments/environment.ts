@@ -6,6 +6,8 @@
 export const environment = {
   production: false,
   enableDevTools: true,
+  // The AI agent's test page (/dev/agent); local development only.
+  agentDevPage: true,
   apiUrl: 'http://localhost:3000/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",

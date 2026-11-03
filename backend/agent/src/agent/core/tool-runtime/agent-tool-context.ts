@@ -1,6 +1,7 @@
 import { Predicate, Schema } from "effect";
 
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
+import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
@@ -13,8 +14,9 @@ import { toStandardSchema } from "../../../../backend/shared/schema/standard-sch
 
 // What every agent tool receives from the request (see createAppAgent): the
 // conversation, the signed-in user, their database client and settings, the
-// ports to the outside world (tracking-task-ports.ts, and example-ports.ts:
-// replace those with your domain's),
+// ports to the outside world (tracking-task-ports.ts, KeepInTax's
+// keepintax-ports.ts, and example-ports.ts: replace those with your
+// domain's),
 // and what it may show on the chat page beyond its answer
 // (AgentChatPageData). The server builds the client, ports and page data
 // itself, so they are checked only to be objects.
@@ -36,6 +38,9 @@ export const agentToolContextSchema = toStandardSchema(
       Predicate.isObject(value)
     ),
     email: Schema.declare((value): value is EmailSender =>
+      Predicate.isObject(value)
+    ),
+    books: Schema.declare((value): value is KeepInTaxBooks =>
       Predicate.isObject(value)
     ),
     pageData: Schema.declare((value): value is AgentChatPageData =>

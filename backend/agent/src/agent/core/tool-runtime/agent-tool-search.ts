@@ -11,7 +11,7 @@ import type { AppAgentToolName } from "./app-agent-tools";
 // same for their long tail (docs/research/agent-harness/overview.md, item 14).
 // OpenAI recommends namespaces of fewer than 10 functions with high-level
 // descriptions (developers.openai.com/api/docs/guides/tools-tool-search).
-// The core YourApp work (your main records, memory
+// The core KeepInTax work (your main records, memory
 // and the chat's own tools) stays loaded on every request.
 // EXAMPLE namespaces: put each group of your rare tools in one, with a
 // high-level description of when it is needed.

@@ -24,7 +24,7 @@ const agentChatTitleMaxLength = 60;
 
 const agentChatTitleNone = "NONE";
 
-const agentChatTitlePrompt = `Write a title for a chat in YourApp. 2 to 5 words naming what the user asked about, written in the same language as the user's question. Examples: "Research on solar installers", "משימות לשבוע הבא", "Email to the landlord". No quotes, no period, no emoji. If the user has not said what they want yet (only a greeting or small talk), reply ${agentChatTitleNone}. Reply with the title only.`;
+const agentChatTitlePrompt = `Write a title for a chat in KeepInTax. 2 to 5 words naming what the user asked about, written in the same language as the user's question. Examples: "Research on solar installers", "משימות לשבוע הבא", "Email to the landlord". No quotes, no period, no emoji. If the user has not said what they want yet (only a greeting or small talk), reply ${agentChatTitleNone}. Reply with the title only.`;
 
 /**
  * The saved title, or null when the chat already has a name or nothing to

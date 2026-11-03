@@ -10,6 +10,7 @@ import {
   evalListedTestsSchema,
   evalShortHash,
 } from "./eval-run-records";
+import { writeEvalReport } from "./eval-run-report";
 import { summarizeEvalRun } from "./eval-run-summary";
 
 // Runs the evals as one recorded, resumable run (npm run eval), following
@@ -89,9 +90,30 @@ const buildEvalGoldens = () => {
     )
   );
 
+  // Where each case came from; until a case is mined from a real chat
+  // (mine-agent-chats.ts), every case was written by hand.
+  const sourcesPath = path.join(evalRoot, "dataset/case-sources.json");
+
+  if (!existsSync(sourcesPath)) {
+    writeFileSync(
+      sourcesPath,
+      JSON.stringify(
+        {
+          default: {
+            kind: "synthetic",
+            rationale: "Written with the eval case",
+          },
+          cases: {},
+        },
+        null,
+        2
+      )
+    );
+  }
+
   const sources = Schema.decodeSync(
     Schema.fromJsonString(evalCaseSourcesSchema)
-  )(readFileSync(path.join(evalRoot, "dataset/case-sources.json"), "utf-8"));
+  )(readFileSync(sourcesPath, "utf-8"));
 
   const goldens = listed.map((test) => {
     // A case id names its file with forward slashes on every system (on
@@ -217,17 +239,10 @@ const runAgentEvals = (runVariant: string) => {
     reps,
     compareTo,
   });
-  // The report script uses Node's standard library only; the Node running the
-  // evals (process.execPath) runs it, not a node found on PATH.
-  execFileSync(
-    process.execPath,
-    [
-      path.join(evalRoot, "scripts/report.mjs"),
-      "--runs",
-      path.join(evalRoot, "runs"),
-    ],
-    { stdio: "inherit" }
-  );
+  // Every run's cases, checks, answers and tool calls on one page
+  // (eval-run-report.ts; the template ran the eval-skills toolkit's
+  // report.mjs here, which it does not ship).
+  console.log(`Eval report: ${writeEvalReport(evalRoot)}`);
 };
 
 if (variant === undefined) {

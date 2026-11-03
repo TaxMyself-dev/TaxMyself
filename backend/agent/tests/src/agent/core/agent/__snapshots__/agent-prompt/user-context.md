@@ -1,5 +1,5 @@
 <user_context>
-From YourApp, not written by the user: the user's settings and what you remember about them, as of the message after this one. A newer <user_context> replaces this one.
+From KeepInTax, not written by the user: the user's settings and what you remember about them, as of the message after this one. A newer <user_context> replaces this one.
 
 <user_settings>
 - Account: business
