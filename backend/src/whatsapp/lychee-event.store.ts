@@ -10,6 +10,7 @@ import {
 import { PromptDraft, promptEventId, promptHash } from './lychee-prompt.store';
 import { lycheeLog } from './lychee-log';
 import { commitDocumentResults } from './lychee-notification.store';
+import { isIntakeRejection } from './lychee-intake-rejections';
 import { ImportBlockCode } from '../document-import/document-import-blocked.error';
 import { selectedBusinessSnapshot } from './lychee-selection-reminder';
 
@@ -111,8 +112,11 @@ export class LycheeEventStore {
         [status, owner, business, drive, job.event_id, job.lease_token],
       );
     if (
-      job.payload.has_media &&
-      ['IMPORTED', 'ALREADY_IMPORTED', 'REJECTED_BUSINESS'].includes(status)
+      (job.payload.has_media ||
+        (status === 'REJECTED_BUSINESS_SELECTION' &&
+          !!job.payload.reply_to_whatsapp_message_id)) &&
+      (['IMPORTED', 'ALREADY_IMPORTED', 'REJECTED_BUSINESS'].includes(status) ||
+        isIntakeRejection(status))
     ) {
       await commitDocumentResults(this.db, async (sql) => {
         const result = await update(sql);

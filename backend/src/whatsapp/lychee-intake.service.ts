@@ -172,7 +172,8 @@ export class LycheeIntakeService {
         'blocked',
         'סוג ההודעה אינו מסמך או תמונה; לא תבוצע הורדה',
       );
-      await this.store.complete(job, 'IGNORED');
+      await this.store.complete(job, 'REJECTED_MEDIA_TYPE');
+      this.notifications.wake();
       return;
     }
     const normalized = lycheeSender(e);
@@ -211,7 +212,13 @@ export class LycheeIntakeService {
           : 'לא נמצא משתמש רשום עם מספר הטלפון הזה',
         { count: users.length },
       );
-      await this.store.complete(job, 'REJECTED_SENDER');
+      await this.store.complete(
+        job,
+        users.length
+          ? 'REJECTED_ACCOUNT_AMBIGUOUS'
+          : 'REJECTED_ACCOUNT_MISSING',
+      );
+      this.notifications.wake();
       return;
     }
     const owner = users[0].firebaseId;
@@ -238,9 +245,15 @@ export class LycheeIntakeService {
       );
       await this.store.complete(
         job,
-        selected ? 'BUSINESS_SELECTED' : 'IGNORED',
-        owner,
+        selected
+          ? 'BUSINESS_SELECTED'
+          : e.reply_to_whatsapp_message_id
+          ? 'REJECTED_BUSINESS_SELECTION'
+          : 'IGNORED',
+        selected || !e.reply_to_whatsapp_message_id ? owner : null,
       );
+      if (!selected && e.reply_to_whatsapp_message_id)
+        this.notifications.wake();
       return;
     }
     const businesses = (
@@ -277,7 +290,8 @@ export class LycheeIntakeService {
         'blocked',
         'בעל החשבון השתנה מאז שמירת המסמך; הייבוא נעצר',
       );
-      await this.store.complete(job, 'REJECTED_SENDER');
+      await this.store.complete(job, 'REJECTED_ACCOUNT_CHANGED');
+      this.notifications.wake();
       return;
     }
     const selected = prepared?.business_number;

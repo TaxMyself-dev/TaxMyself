@@ -47,6 +47,12 @@ offline tests. Never trigger live messages during agent verification. Recorded r
 recover persistence only; unknown send
 results must not be resent blindly. NOTICE_SENT means provider acceptance, not
 confirmed delivery to the phone. No historical completed rows are backfilled.
+Fixed intake rejection explanations (ambiguous/unknown/changed account, unsupported
+media and invalid quoted business selections) go to the authenticated event sender
+without selecting an account. These drafts must have no owner/business/Drive
+identity, use fixed text, and still pass parent/hash/channel/phone/quote and runtime
+checks. Account-free final FAILED/BLOCKED_IMPORT notices are similarly generic.
+Account/business-specific success and result notices retain ownership checks.
 Typed local blockers DRIVE_FOLDER_MISSING, UNSUPPORTED_MEDIA_CONTENT and
 INVALID_MEDIA_SIZE finalize as BLOCKED_IMPORT with last_error + a specific result
 notice in one transaction, without increasing attempts or waiting for five retries.

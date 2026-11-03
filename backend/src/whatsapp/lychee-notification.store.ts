@@ -4,6 +4,11 @@ import { DataSource } from 'typeorm';
 import type { BusinessQuestionRequest } from './lychee-business-question';
 import { lycheeSender } from './lychee-sender';
 import {
+  intakeRejections,
+  IntakeRejection,
+  isIntakeRejection,
+} from './lychee-intake-rejections';
+import {
   reminderSnapshot,
   selectedBusinessSnapshot,
   sameSelectionSnapshot,
@@ -18,7 +23,8 @@ export interface ResultDraft {
     | 'FAILED'
     | 'REJECTED_BUSINESS'
     | 'BLOCKED_IMPORT'
-    | 'BUSINESS_LOCKED';
+    | 'BUSINESS_LOCKED'
+    | IntakeRejection;
   owner: string | null;
   business: string | null;
   request: BusinessQuestionRequest;
@@ -58,7 +64,13 @@ export function documentResult(row: any): ResultDraft | null {
   const reminder =
     row.status === 'BUSINESS_LOCKED' ? reminderSnapshot(row) : null;
   if (
-    (!event?.has_media && !reminder) ||
+    (!event?.has_media &&
+      !reminder &&
+      !(
+        row.status === 'REJECTED_BUSINESS_SELECTION' &&
+        typeof event?.reply_to_whatsapp_message_id === 'string' &&
+        event.reply_to_whatsapp_message_id.trim()
+      )) ||
     !sender ||
     sender !== row.sender_phone ||
     event.channel_id !== row.channel_id ||
@@ -66,14 +78,17 @@ export function documentResult(row: any): ResultDraft | null {
     typeof event.whatsapp_message_id !== 'string' ||
     !event.whatsapp_message_id.trim() ||
     event.whatsapp_message_id.length > 255 ||
-    ![
-      'IMPORTED',
-      'ALREADY_IMPORTED',
-      'FAILED',
-      'REJECTED_BUSINESS',
-      'BLOCKED_IMPORT',
-      'BUSINESS_LOCKED',
-    ].includes(row.status)
+    !(
+      isIntakeRejection(row.status) ||
+      [
+        'IMPORTED',
+        'ALREADY_IMPORTED',
+        'FAILED',
+        'REJECTED_BUSINESS',
+        'BLOCKED_IMPORT',
+        'BUSINESS_LOCKED',
+      ].includes(row.status)
+    )
   )
     return null;
   if (
@@ -86,6 +101,12 @@ export function documentResult(row: any): ResultDraft | null {
   )
     return null;
   const success = ['IMPORTED', 'ALREADY_IMPORTED'].includes(row.status);
+  // Rejections must not carry identity or business data into a phone-only reply.
+  if (
+    isIntakeRejection(row.status) &&
+    (row.firebase_id || row.business_number || row.drive_file_id)
+  )
+    return null;
   if (
     success &&
     (!row.drive_file_id || !row.firebase_id || !row.business_number)
@@ -99,21 +120,22 @@ export function documentResult(row: any): ResultDraft | null {
     INVALID_MEDIA_SIZE:
       'הקובץ ריק או גדול מדי. יש לשלוח קובץ תקין בגודל של עד 10 מגה־בייט.',
   };
-  const text =
-    row.status === 'BUSINESS_LOCKED'
-      ? `המסמך הזה כבר שויך לעסק ${
-          reminder!.name
-        }. כדי לשייך אותו לעסק אחר, שלח אותו מחדש.`
-      : row.status === 'BLOCKED_IMPORT'
-      ? blockTexts[row.last_error] ||
-        'לא ניתן לקלוט את המסמך כרגע. אפשר לפנות לתמיכה.'
-      : row.status === 'REJECTED_BUSINESS'
-      ? 'לא הצלחנו לשייך את המסמך לעסק בחשבון שלך. אפשר לפנות לתמיכה.'
-      : row.status === 'FAILED'
-      ? 'לא הצלחנו להשלים את שמירת המסמך אחרי כמה ניסיונות. אפשר לפנות לתמיכה.'
-      : row.status === 'ALREADY_IMPORTED'
-      ? `המסמך כבר קיים בדרייב של עסק ${row.business_number}. לא נוצר עותק נוסף.`
-      : `המסמך נשמר בהצלחה בדרייב של עסק ${row.business_number}.`;
+  const text = isIntakeRejection(row.status)
+    ? intakeRejections[row.status]
+    : row.status === 'BUSINESS_LOCKED'
+    ? `המסמך הזה כבר שויך לעסק ${
+        reminder!.name
+      }. כדי לשייך אותו לעסק אחר, שלח אותו מחדש.`
+    : row.status === 'BLOCKED_IMPORT'
+    ? blockTexts[row.last_error] ||
+      'לא ניתן לקלוט את המסמך כרגע. אפשר לפנות לתמיכה.'
+    : row.status === 'REJECTED_BUSINESS'
+    ? 'לא הצלחנו לשייך את המסמך לעסק בחשבון שלך. אפשר לפנות לתמיכה.'
+    : row.status === 'FAILED'
+    ? 'לא הצלחנו להשלים את שמירת המסמך אחרי כמה ניסיונות. אפשר לפנות לתמיכה.'
+    : row.status === 'ALREADY_IMPORTED'
+    ? `המסמך כבר קיים בדרייב של עסק ${row.business_number}. לא נוצר עותק נוסף.`
+    : `המסמך נשמר בהצלחה בדרייב של עסק ${row.business_number}.`;
   return {
     kind: 'DOCUMENT_RESULT',
     documentEventId: row.event_id,
@@ -128,6 +150,18 @@ export function documentResult(row: any): ResultDraft | null {
         reminder?.documentWhatsappMessageId || event.whatsapp_message_id,
     },
   };
+}
+
+/** Narrow exception for safe failure text to the authenticated webhook sender.
+ * Parent reconstruction, channel, quote and phone checks still apply. */
+export function isPhoneOnlyFailure(draft: ResultDraft): boolean {
+  return (
+    !draft.owner &&
+    !draft.business &&
+    (isIntakeRejection(draft.result) ||
+      draft.result === 'FAILED' ||
+      draft.result === 'BLOCKED_IMPORT')
+  );
 }
 
 type Sql = { query: (sql: string, values?: any[]) => Promise<any> };

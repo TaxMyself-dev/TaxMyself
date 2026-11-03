@@ -14,6 +14,7 @@ import { LycheeModule } from './lychee.module';
 import { ConfiguredLycheeTransport } from './lychee-prompt.transport';
 import * as logging from './lychee-log';
 import axios from 'axios';
+import { intakeRejections } from './lychee-intake-rejections';
 jest.mock('axios');
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -347,6 +348,54 @@ describe('document result notifications (all boundaries mocked)', () => {
     );
   });
   afterEach(() => service.onModuleDestroy());
+  it.each(Object.keys(intakeRejections))(
+    'persists and sends one safe %s explanation without selecting an account',
+    async (status) => {
+      if (status === 'REJECTED_BUSINESS_SELECTION') {
+        parent().payload.has_media = false;
+        parent().payload.reply_to_whatsapp_message_id = 'wamid.question';
+      }
+      const sourceJob = { ...job, payload: copy(parent().payload) };
+      await events.complete(sourceJob, status);
+      const draft = copy(notice().payload);
+      expect(draft.request.text).toBe(intakeRejections[status]);
+      expect(draft.owner).toBeNull();
+      expect(draft.business).toBeNull();
+      expect(draft.request.reply_to_whatsapp_message_id).toBe(
+        event.whatsapp_message_id,
+      );
+      users.createQueryBuilder.mockImplementation(() => {
+        throw new Error('must not resolve an account');
+      });
+      await service.tick();
+      await service.tick();
+      expect(transport.send).toHaveBeenCalledTimes(1);
+      expect(notice().status).toBe('NOTICE_SENT');
+      expect(businesses.findOne).not.toHaveBeenCalled();
+      await commitDocumentResults(db as any, async () => [event.event_id]);
+      expect(
+        [...db.rows.keys()].filter((k) => k.startsWith('notice:')),
+      ).toHaveLength(1);
+    },
+  );
+  it('rejects rejection notices with account data or an altered sender', () => {
+    Object.assign(parent(), {
+      status: 'REJECTED_ACCOUNT_AMBIGUOUS',
+      firebase_id: 'private-owner',
+    });
+    expect(documentResult(parent())).toBeNull();
+    parent().firebase_id = null;
+    parent().sender_phone = '972509999999';
+    expect(documentResult(parent())).toBeNull();
+  });
+  it('rolls back account rejection if its notice cannot be persisted', async () => {
+    db.failInsert = true;
+    await expect(
+      events.complete(job, 'REJECTED_ACCOUNT_AMBIGUOUS'),
+    ).rejects.toThrow();
+    expect(parent().status).toBe('PROCESSING');
+    expect(notice()).toBeUndefined();
+  });
   it.each([
     ['development', 'keepintax-dev', 'IMPORTED'],
     ['production', 'keepintax-prod', 'IMPORTED'],

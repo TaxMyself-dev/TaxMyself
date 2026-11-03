@@ -14,6 +14,7 @@ import {
 } from './lychee-prompt-diagnostic';
 import {
   documentResult,
+  isPhoneOnlyFailure,
   LycheeNotificationStore,
   ResultJob,
   resultEventId,
@@ -102,23 +103,34 @@ export class LycheeNotificationService {
         await this.cancel(job, 'DOCUMENT_RESULT_CHANGED');
         return;
       }
-      const matches = await timePromptStage(
-        draft.documentEventId,
-        'notification.db.user',
-        'אימות שהנמען עדיין משויך לחשבון יחיד',
-        () =>
-          this.users
-            .createQueryBuilder('u')
-            .where(
-              "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') IN (:...phones)",
-              { phones: [job!.sender_phone, '0' + job!.sender_phone.slice(3)] },
-            )
-            .take(2)
-            .getMany(),
-      );
+      const phoneOnlyFailure = isPhoneOnlyFailure(expected);
+      // A fixed rejection explains why account resolution failed; requiring a
+      // unique account again would silently cancel that very explanation.
+      const matches = phoneOnlyFailure
+        ? []
+        : await timePromptStage(
+            draft.documentEventId,
+            'notification.db.user',
+            'אימות שהנמען עדיין משויך לחשבון יחיד',
+            () =>
+              this.users
+                .createQueryBuilder('u')
+                .where(
+                  "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') IN (:...phones)",
+                  {
+                    phones: [
+                      job!.sender_phone,
+                      '0' + job!.sender_phone.slice(3),
+                    ],
+                  },
+                )
+                .take(2)
+                .getMany(),
+          );
       if (
-        matches.length !== 1 ||
-        (draft.owner && matches[0].firebaseId !== draft.owner)
+        !phoneOnlyFailure &&
+        (matches.length !== 1 ||
+          (draft.owner && matches[0].firebaseId !== draft.owner))
       ) {
         await this.cancel(job, 'RECIPIENT_CHANGED_OR_AMBIGUOUS');
         return;

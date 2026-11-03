@@ -101,6 +101,17 @@ cloud proxy's /lychee/webhook; its forward target ends in /webhooks/lychee.
 
 ## Release verification
 
+Intake rejection notices: duplicate/missing phone-account mappings, changed owner,
+unsupported message media and rejected quoted business choices now stage a fixed
+explanation atomically with the terminal state. These phone-only notices contain
+no account/business identity; sender/channel/quote/parent/hash/runtime validation
+still applies. Normal text without media or a quote is ignored. Account-free
+final processing failures can also notify the verified sender without choosing
+an account. Existing completed rows are not backfilled. No schema/env changes.
+Invalid signatures/phones cannot receive a safe reply; provider outages, UNKNOWN
+send outcomes and CPU throttling can still delay/prevent notification delivery.
+Question-send cancellation/unknown outcomes remain operational review cases.
+
 Mock coverage must exercise real service outboxes + guarded transport under both
 runtime profiles, production buttons and success/failure notifications, current
 ownership rejection, actual-database mismatch, copies/crossed configurations,

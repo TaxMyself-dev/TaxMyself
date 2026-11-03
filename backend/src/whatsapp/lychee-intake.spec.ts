@@ -607,7 +607,15 @@ describe('Lychee document workflow without sending', () => {
       await service.process(job);
     }
     expect(client.download).not.toHaveBeenCalled();
-    expect(store.complete).toHaveBeenCalledWith(job, 'REJECTED_SENDER');
+    expect(store.complete).toHaveBeenCalledWith(
+      job,
+      'REJECTED_ACCOUNT_MISSING',
+    );
+    expect(store.complete).toHaveBeenCalledWith(
+      job,
+      'REJECTED_ACCOUNT_AMBIGUOUS',
+    );
+    expect(notifications.wake).toHaveBeenCalledTimes(2);
   });
   it('rechecks selected business ownership before importing retained content', async () => {
     store.prepared.mockResolvedValue({
