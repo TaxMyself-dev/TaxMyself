@@ -57,6 +57,14 @@ describe('loadUniformFileOauthConfig', () => {
       loadUniformFileOauthConfig({
         ...validEnv,
         SHAAM_UNIFORM_FILE_ENV: 'production',
+        SHAAM_UNIFORM_FILE_AUTHORIZE_URL:
+          'https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/authorize',
+        SHAAM_UNIFORM_FILE_TOKEN_URL:
+          'https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/token',
+        SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL:
+          'https://ita-api.taxes.gov.il/shaam/production/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+        SHAAM_UNIFORM_FILE_STATUS_URL:
+          'https://ita-api.taxes.gov.il/shaam/production/FilesStatusApi/v1/Files/get-file-status',
       }),
     ).toThrow('production is disabled');
   });

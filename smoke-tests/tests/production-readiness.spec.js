@@ -12,6 +12,10 @@ test("the exact deployed backend revision is ready", async ({ request }) => {
   expect(readiness).toMatchObject({
     status: "ready",
     revision: expect.any(String),
-    checks: { database: "ok", signupSchema: "ok" },
+    checks: {
+      database: "ok",
+      databaseTarget: "ok",
+      signupSchema: "ok",
+    },
   });
 });

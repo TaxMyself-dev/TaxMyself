@@ -382,4 +382,38 @@ describe('ShaamConnectionService', () => {
     );
     expect(JSON.stringify(warn.mock.calls)).not.toContain('enc:r');
   });
+
+  it('clears rejected token material only on the matching connection row', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
+    const { service, repo } = setup(row);
+
+    await service.markReauthorizationRequired(
+      7,
+      ShaamProduct.UNIFORM_FILE,
+      ShaamEnvironment.TSANDBOX,
+    );
+
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: {
+        businessId: 7,
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: ShaamEnvironment.TSANDBOX,
+      },
+    });
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        scopes: null,
+      }),
+    );
+  });
 });

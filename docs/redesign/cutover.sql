@@ -2662,3 +2662,88 @@ FROM `business` b
 LEFT JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
 WHERE u.`firebaseId` IS NULL
    OR (b.`proprietorRole` = 'SPOUSE' AND (u.`isCompany` = 1 OR u.`spouseId` IS NULL OR u.`spouseId` = ''));
+
+
+-- Feezback sync reliability (2026-11-01)
+-- Prepared only. NOT executed by the application or by this task.
+-- Apply this additive section before deploying the matching backend.
+-- Take the normal schema backup first. Do not rerun the entire historical cutover.sql.
+-- Preflight: must return zero rows; stop for investigation otherwise.
+SELECT `status`, COUNT(*) AS rows_count FROM `user_source_sync_state`
+WHERE `status` NOT IN ('not_synced', 'success', 'failed', 'skipped_direct') GROUP BY `status`;
+
+ALTER TABLE `user_source_sync_state`
+  MODIFY COLUMN `status` varchar(32) NOT NULL DEFAULT 'not_synced';
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='source' AND COLUMN_NAME='metadataVerifiedAt')=0,
+  'ALTER TABLE `source` ADD COLUMN `metadataVerifiedAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='consentVerifiedAt')=0,
+  'ALTER TABLE `user_source_sync_state` ADD COLUMN `consentVerifiedAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `permissionsSnapshot` json NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='feezback_webhook_events' AND COLUMN_NAME='processing_started_at')=0,
+  'ALTER TABLE `feezback_webhook_events` ADD COLUMN `processing_started_at` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+-- Verification: inspect type/default/nullability against the matching entities.
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND
+ ((TABLE_NAME='source' AND COLUMN_NAME='metadataVerifiedAt')
+ OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME IN ('status','consentVerifiedAt'))
+ OR (TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')
+ OR (TABLE_NAME='feezback_webhook_events' AND COLUMN_NAME='processing_started_at'));
+-- Rollback: revert code first; leave the wider status type and nullable columns in place.
+-- Narrowing back to the old enum would reject skipped_direct and is not a safe rollback.
+
+
+-- Feezback remove duplicate permission storage (2026-11-01)
+-- Upgrade for the approved dev database; back up the old column before execution.
+-- No permission list or source mapping is stored in the two operational fields.
+-- Keep existing flow timestamps precise enough to distinguish attempts within one second.
+ALTER TABLE `user_sync_state`
+  MODIFY COLUMN `lastSourcesRefreshAt` timestamp(3) NULL DEFAULT NULL,
+  MODIFY COLUMN `lastConsentInitiatedAt` timestamp(3) NULL DEFAULT NULL;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='lastSourcesRefreshAttemptAt')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `lastSourcesRefreshAttemptAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='sourcesRefreshFailureReason')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `sourcesRefreshFailureReason` varchar(255) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')>0,
+  'ALTER TABLE `user_sync_state` DROP COLUMN `permissionsSnapshot`', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user_sync_state'
+AND COLUMN_NAME IN ('lastSourcesRefreshAt','lastConsentInitiatedAt','lastSourcesRefreshAttemptAt','sourcesRefreshFailureReason','permissionsSnapshot');
+
+-- Feezback current-pull membership (2026-11-01)
+-- Apply only to an explicitly approved database before starting the matching backend.
+-- Nullable operational run identifiers. No financial data or permission-list copy.
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')=0,
+ 'ALTER TABLE `user_sync_state` ADD COLUMN `fullRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId')=0,
+ 'ALTER TABLE `user_source_sync_state` ADD COLUMN `resultRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')
+ OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId'));

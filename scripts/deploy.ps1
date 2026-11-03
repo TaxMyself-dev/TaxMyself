@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-Plans or executes a guarded KeepInTax production release.
+Executes a guarded full, backend-only, or frontend-only KeepInTax production
+release.
 
 .DESCRIPTION
 The script verifies a clean main branch, builds and tests all relevant
@@ -11,34 +12,67 @@ preview channel, promotes that exact version to live, and runs full signup
 smoke coverage. Post-promotion failures trigger best-effort frontend and
 backend rollback while preserving the original failed stage and reason.
 
-Plan mode is the default and performs no production writes. Apply mode also
-requires KEEPINTAX_PRODUCTION_DEPLOY=taxmyself-prod.
+Target defaults to Full. SkipLocalTests omits only the local backend Jest and
+smoke configuration test suites. Production builds, candidate readiness,
+browser smoke, full live signup/login/cleanup smoke, and rollback protections
+remain mandatory.
 
 .NOTES
 Authentication:
-No password is accepted or stored by this script. The first Apply stage opens
-interactive login for both deployment CLIs:
+No password is accepted or stored by this script. The first stage checks existing sessions and opens
+interactive login only when a required session cannot access the project:
 
   gcloud auth login
   firebase login --reauth
 
 Git uses the machine's existing Git Credential Manager/session. After login,
 preflight performs read-only authorization checks and stops before build/deploy
-if a session is missing, expired, or lacks access to taxmyself-prod. Plan mode
-does not open an interactive login and only validates existing sessions.
+if a session is missing, expired, or lacks access to taxmyself-prod.
 #>
 [CmdletBinding()]
 param(
-  [switch]$Plan,
-  [switch]$Apply,
+  [Parameter(Position = 0)]
+  [ValidateSet('Full', 'Backend', 'Frontend')]
+  [string]$Target = 'Full',
+  [switch]$SkipLocalTests,
+  [Alias('h')]
+  [switch]$Help,
   [string]$Project = 'taxmyself-prod',
   [string]$Region = 'me-west1',
   [string]$BackendService = 'taxmys16elf-prod',
   [string]$HostingSite = 'taxmyself-prod',
   [string]$PublicApiUrl = 'https://taxmys16elf-prod-tau7bgxb3q-zf.a.run.app',
   [string]$BrowserChannel = 'chrome',
+  [Parameter(DontShow)]
   [string]$TestStatePath
 )
+
+if ($Help) {
+  @'
+KeepInTax production deployment
+
+Usage:
+  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests]
+  .\scripts\deploy -Help
+
+Target (optional; default: full):
+  full       Deploy backend and frontend.
+  backend    Deploy only the backend, then run live compatibility smoke.
+  frontend   Deploy only the frontend, then run live compatibility smoke.
+
+Options:
+  -SkipLocalTests  Skip local backend Jest and smoke configuration tests.
+                   Builds and all production safety checks still run.
+  -Help, -h        Show this help without starting a deployment.
+
+Examples:
+  .\scripts\deploy
+  .\scripts\deploy backend
+  .\scripts\deploy frontend
+  .\scripts\deploy backend -SkipLocalTests
+'@ | Write-Output
+  return
+}
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -86,7 +120,7 @@ function Write-ReleaseStatus([string]$State, [string]$Message, [ConsoleColor]$Co
   }
 }
 
-function Invoke-Stage([string]$Name, [scriptblock]$Action) {
+function Invoke-Stage([string]$Name, [scriptblock]$Action, [switch]$InteractiveOutput) {
   $script:StageNumber++
   $script:CurrentStage = $Name
   $started = Get-Date
@@ -94,7 +128,12 @@ function Invoke-Stage([string]$Name, [scriptblock]$Action) {
   try {
     $script:QuietConsole = $true
     try {
-      & $Action | ForEach-Object { Write-ReleaseLog $_ }
+      if ($InteractiveOutput) {
+        # Login must inherit the terminal, without a pipeline or redirection.
+        & $Action
+      } else {
+        & $Action | ForEach-Object { Write-ReleaseLog $_ }
+      }
     } finally {
       $script:QuietConsole = $false
     }
@@ -164,6 +203,57 @@ function Invoke-NativeCapture([string]$Command, [string[]]$Arguments) {
   return ($stdout -join "`n")
 }
 
+function Invoke-NativeInteractive([string]$Command, [string[]]$Arguments) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments
+    $nativeExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($nativeExitCode -ne 0) {
+    throw "$Command failed with exit code $nativeExitCode"
+  }
+}
+
+function Test-DeploymentSession([string]$Provider) {
+  try {
+    if ($Provider -eq 'gcloud') {
+      $account = (Invoke-NativeCapture $script:GcloudCommand @(
+        'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
+      )).Trim()
+      if (!$account) { return $false }
+      $resolved = (Invoke-NativeCapture $script:GcloudCommand @(
+        'projects', 'describe', $Project, '--format=value(projectId)'
+      )).Trim()
+      return ($resolved -eq $Project)
+    }
+    $json = Invoke-NativeCapture $script:FirebaseCommand @('projects:list', '--json', '--non-interactive')
+    $projects = $json | ConvertFrom-Json
+    return ($Project -in @($projects.result | ForEach-Object { $_.projectId }))
+  } catch {
+    Write-ReleaseLog "$Provider session check failed: $($_.Exception.Message)"
+    return $false
+  }
+}
+
+function Initialize-DeploymentSessions {
+  if (!(Test-DeploymentSession 'gcloud')) {
+    Write-Host 'Google Cloud session needs attention; opening interactive login.'
+    Invoke-NativeInteractive $script:GcloudCommand @('auth', 'login')
+    if (!(Test-DeploymentSession 'gcloud')) {
+      throw "Google Cloud login completed but project access could not be verified for $Project"
+    }
+  }
+  if ($deployFrontend -and !(Test-DeploymentSession 'firebase')) {
+    Write-Host 'Firebase session needs attention; opening interactive login.'
+    Invoke-NativeInteractive $script:FirebaseCommand @('login', '--reauth')
+    if (!(Test-DeploymentSession 'firebase')) {
+      throw "Firebase login completed but project access could not be verified for $Project"
+    }
+  }
+}
 function Get-CommandName([string]$Name) {
   $windowsName = "$Name.cmd"
   if ($env:OS -eq 'Windows_NT' -and (Get-Command $windowsName -ErrorAction SilentlyContinue)) {
@@ -296,9 +386,8 @@ function Remove-ReleaseDirectory {
   Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 
-if ($Plan -and $Apply) { throw 'Choose either Plan or Apply, not both' }
-if (!$Plan -and !$Apply) { $Plan = $true }
-if ($TestStatePath -and $Apply) { throw 'TestStatePath cannot be used with Apply' }
+$deployBackend = $Target -in @('Full', 'Backend')
+$deployFrontend = $Target -in @('Full', 'Frontend')
 
 foreach ($item in @{
   Project = $Project
@@ -316,6 +405,15 @@ if (![uri]::TryCreate($PublicApiUrl, [UriKind]::Absolute, [ref]$parsedPublicApiU
 $PublicApiUrl = $parsedPublicApiUrl.AbsoluteUri
 
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$testFixtureRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'tests')).TrimEnd('\', '/') +
+  [IO.Path]::DirectorySeparatorChar
+if ($TestStatePath) {
+  $resolvedTestStatePath = (Resolve-Path -LiteralPath $TestStatePath).Path
+  if (!$resolvedTestStatePath.StartsWith($testFixtureRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'TestStatePath is restricted to repository deployment fixtures'
+  }
+  $TestStatePath = $resolvedTestStatePath
+}
 $backendDirectory = Join-Path $repositoryRoot 'backend'
 $frontendDirectory = Join-Path $repositoryRoot 'frontend'
 $smokeDirectory = Join-Path $repositoryRoot 'smoke-tests'
@@ -332,29 +430,24 @@ $script:LogWriter.AutoFlush = $true
 $script:PowerShellCommand = (Get-Process -Id $PID).Path
 Write-ReleaseLog "KeepInTax production release log"
 Write-ReleaseLog "Started: $((Get-Date).ToString('o'))"
-Write-ReleaseLog "Mode: $(if ($Apply) { 'Apply' } else { 'Plan' })"
+Write-ReleaseLog 'Mode: Deploy'
+Write-ReleaseLog "Target: $Target"
+Write-ReleaseLog "Local tests: $(if ($SkipLocalTests) { 'skipped by operator' } else { 'required' })"
 Write-ReleaseLog "Project: $Project"
 Write-Host "Detailed log: $($script:LogPath)" -ForegroundColor DarkGray
 
 try {
-  # Apply stage 1: Require the anti-accident gate, then authenticate
-  # interactively with the two systems that perform the backend and frontend
-  # deployments. The CLIs manage their own tokens; this script never receives
-  # or stores a password. Plan mode deliberately skips interactive login.
-  if ($Apply) {
-    Invoke-Stage 'Production authorization and interactive deployment login' {
-      if ($env:KEEPINTAX_PRODUCTION_DEPLOY -ne $Project) {
-        throw "Set KEEPINTAX_PRODUCTION_DEPLOY=$Project before using -Apply"
+  # Reuse valid deployment sessions; interactively authenticate only when needed for the
+  # deployment. The CLIs manage their own tokens; this script never receives
+  # or stores a password. Fixture-backed regression tests skip cloud access.
+  if (!$TestStatePath) {
+    Invoke-Stage 'Production authorization and interactive deployment login' -InteractiveOutput {
+      $script:GcloudCommand = Get-CommandName 'gcloud'
+      if ($deployFrontend) {
+        $script:FirebaseCommand = Get-CommandName 'firebase'
       }
 
-      $script:GcloudCommand = Get-CommandName 'gcloud'
-      $script:FirebaseCommand = Get-CommandName 'firebase'
-
-      Write-ReleaseStatus 'INFO' 'Opening Google Cloud login for the backend deployment' DarkGray
-      Invoke-Native $script:GcloudCommand @('auth', 'login')
-
-      Write-ReleaseStatus 'INFO' 'Opening Firebase login for the frontend deployment' DarkGray
-      Invoke-Native $script:FirebaseCommand @('login', '--reauth')
+      Initialize-DeploymentSessions
     }
   }
 
@@ -400,7 +493,9 @@ try {
     }
     $script:GitCommand = Get-CommandName 'git'
     $script:GcloudCommand = Get-CommandName 'gcloud'
-    $script:FirebaseCommand = Get-CommandName 'firebase'
+    if ($deployFrontend) {
+      $script:FirebaseCommand = Get-CommandName 'firebase'
+    }
     $script:NpmCommand = Get-CommandName 'npm'
     Set-Location $repositoryRoot
     $branch = (Invoke-NativeCapture $script:GitCommand @('branch', '--show-current')).Trim()
@@ -432,19 +527,21 @@ try {
       throw "gcloud did not resolve the expected project $Project"
     }
 
-    try {
-      $firebaseProjectsJson = Invoke-NativeCapture $script:FirebaseCommand @(
-        'projects:list',
-        '--json',
-        '--non-interactive'
-      )
-      $firebaseProjects = $firebaseProjectsJson | ConvertFrom-Json
-      $firebaseProjectIds = @($firebaseProjects.result | ForEach-Object { $_.projectId })
-    } catch {
-      throw "Firebase authentication/authorization check failed for $Project. Run 'firebase login --reauth' and verify project access"
-    }
-    if ($Project -notin $firebaseProjectIds) {
-      throw "Firebase CLI is authenticated but cannot access project $Project"
+    if ($deployFrontend) {
+      try {
+        $firebaseProjectsJson = Invoke-NativeCapture $script:FirebaseCommand @(
+          'projects:list',
+          '--json',
+          '--non-interactive'
+        )
+        $firebaseProjects = $firebaseProjectsJson | ConvertFrom-Json
+        $firebaseProjectIds = @($firebaseProjects.result | ForEach-Object { $_.projectId })
+      } catch {
+        throw "Firebase authentication/authorization check failed for $Project. Run 'firebase login --reauth' and verify project access"
+      }
+      if ($Project -notin $firebaseProjectIds) {
+        throw "Firebase CLI is authenticated but cannot access project $Project"
+      }
     }
   }
 
@@ -487,40 +584,52 @@ try {
     Write-ReleaseStatus 'INFO' "Current backend revision: $($script:OldBackendRevision)" DarkGray
   }
 
-  if ($Plan) {
-    Write-ReleaseStatus 'PLAN' 'No changes were made. Apply will run these stages:' Yellow
-    @(
-      'Install pinned dependencies and run backend tests/build',
-      'Build the production frontend and validate smoke tooling',
-      'Create a clean backend source snapshot from the current commit',
-      'Deploy a tagged backend revision with zero production traffic',
-      'Run /ready against the tagged candidate URL',
-      'Create or update private verification and cleanup jobs from the exact candidate image',
-      'Move 100% backend traffic to the exact candidate revision',
-      'Deploy the frontend to a Firebase preview channel and run read-only browser smoke',
-      'Clone the current Firebase live release to the production-rollback channel',
-      'Promote the exact tested preview version to Firebase live',
-      'Run the full production signup/login/cleanup smoke suite'
-    ) | ForEach-Object { Write-ReleaseLog "  - $_" }
-    Write-ReleaseLog "Planned release: $($script:ReleaseId)"
-    Write-ReleaseLog "Apply gate: `$env:KEEPINTAX_PRODUCTION_DEPLOY='$Project'"
+  if ($TestStatePath) {
+    Write-ReleaseStatus 'TEST' 'Fixture validation completed; no production changes were made' Yellow
+    $plannedStages = [System.Collections.Generic.List[string]]::new()
+    if ($deployBackend) {
+      $plannedStages.Add('Install pinned backend dependencies, run the selected local verification, and build')
+      $plannedStages.Add('Create a clean backend source snapshot from the current commit')
+      $plannedStages.Add('Deploy a tagged backend revision with zero production traffic')
+      $plannedStages.Add('Run /ready against the tagged candidate URL')
+      $plannedStages.Add('Create or update private verification and cleanup jobs from the exact candidate image')
+      $plannedStages.Add('Move 100% backend traffic to the exact candidate revision')
+    }
+    if ($deployFrontend) {
+      $plannedStages.Add('Build the production frontend')
+    }
+    $plannedStages.Add('Install smoke dependencies and run the selected local verification')
+    if ($deployFrontend) {
+      $plannedStages.Add('Deploy the frontend to a Firebase preview channel and run read-only browser smoke')
+      $plannedStages.Add('Clone the current Firebase live release to the production-rollback channel')
+      $plannedStages.Add('Promote the exact tested preview version to Firebase live')
+    }
+    $plannedStages.Add('Run the full production signup/login/cleanup smoke suite')
+    $plannedStages | ForEach-Object { Write-ReleaseLog "  - $_" }
+    Write-ReleaseLog "Target: $Target"
+    Write-ReleaseLog "Local tests: $(if ($SkipLocalTests) { 'skipped; builds and production gates remain required' } else { 'required' })"
+    Write-ReleaseLog "Fixture release: $($script:ReleaseId)"
     return
   }
 
   # Install exactly the locked backend dependencies, run the full Jest suite,
   # and prove the Nest production bundle compiles before touching the cloud.
-  Invoke-Stage 'Backend dependencies, tests, and production build' {
+  if ($deployBackend) { Invoke-Stage 'Backend dependencies, tests, and production build' {
     Push-Location $backendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
-      Invoke-Native $script:NpmCommand @('test', '--', '--runInBand')
+      if ($SkipLocalTests) {
+        Write-Output 'Skipping backend Jest suite by explicit operator request'
+      } else {
+        Invoke-Native $script:NpmCommand @('test', '--', '--runInBand')
+      }
       Invoke-Native $script:NpmCommand @('run', 'build')
     } finally { Pop-Location }
-  }
+  } }
 
   # Build the Angular production output that will later be uploaded to a
   # preview channel and, only after browser verification, cloned to live.
-  Invoke-Stage 'Frontend dependencies and production build' {
+  if ($deployFrontend) { Invoke-Stage 'Frontend dependencies and production build' {
     Push-Location $frontendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
@@ -529,7 +638,7 @@ try {
         throw 'Frontend production build did not create dist/app/index.html'
       }
     } finally { Pop-Location }
-  }
+  } }
 
   # Validate the external Playwright package and its guarded configuration.
   # Browser tests against production do not run yet.
@@ -537,13 +646,17 @@ try {
     Push-Location $smokeDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
-      Invoke-Native $script:NpmCommand @('test')
+      if ($SkipLocalTests) {
+        Write-Output 'Skipping smoke configuration unit tests by explicit operator request'
+      } else {
+        Invoke-Native $script:NpmCommand @('test')
+      }
     } finally { Pop-Location }
   }
 
   # Package backend source from the verified Git commit, never from mutable
   # working-tree files. Secrets, dependencies, and build output are excluded.
-  Invoke-Stage 'Create clean backend source snapshot' {
+  if ($deployBackend) { Invoke-Stage 'Create clean backend source snapshot' {
     Set-Location $repositoryRoot
     $dirty = Invoke-NativeCapture $script:GitCommand @('status', '--porcelain')
     if ($dirty.Trim()) { throw 'Working tree changed during verification; refusing to deploy' }
@@ -559,11 +672,11 @@ try {
     Expand-Archive -LiteralPath $archive -DestinationPath $source
     @('.git', 'node_modules', 'dist', '.env', '.env.*', '*.key', '*.pem') |
       Set-Content -LiteralPath (Join-Path $source '.gcloudignore') -Encoding ascii
-  }
+  } }
 
   # Build/deploy a new immutable Cloud Run revision with a direct tag URL but
   # keep all public production traffic on the previously serving revision.
-  Invoke-Stage 'Deploy backend candidate with zero traffic' {
+  if ($deployBackend) { Invoke-Stage 'Deploy backend candidate with zero traffic' {
     $source = Join-Path $script:ReleaseDirectory 'backend-source'
     $expectedRevision = "$BackendService-$($script:ReleaseId)"
     try {
@@ -618,11 +731,11 @@ try {
     }
     Write-ReleaseStatus 'INFO' "Candidate revision: $($script:CandidateRevision)" DarkGray
     Write-ReleaseStatus 'INFO' "Candidate URL: $($script:CandidateUrl)" DarkGray
-  }
+  } }
 
   # Call /ready on the candidate tag URL. This checks the candidate's actual
   # production DB connection and signup-critical schema before promotion.
-  Invoke-Stage 'Candidate backend readiness' {
+  if ($deployBackend) { Invoke-Stage 'Candidate backend readiness' {
     Invoke-Native $script:PowerShellCommand @(
       '-NoProfile',
       '-ExecutionPolicy', 'Bypass',
@@ -630,11 +743,11 @@ try {
       '-ApiUrl', $script:CandidateUrl,
       '-BrowserChannel', $BrowserChannel
     )
-  }
+  } }
 
   # Create/update the private Firebase verification and cleanup jobs from the
   # exact candidate image digest. Neither job is executed in this stage.
-  Invoke-Stage 'Configure private smoke jobs from candidate image' {
+  if ($deployBackend) { Invoke-Stage 'Configure private smoke jobs from candidate image' {
     $previousGate = $env:SMOKE_CONFIGURE_JOBS
     try {
       $env:SMOKE_CONFIGURE_JOBS = $Project
@@ -651,11 +764,11 @@ try {
     } finally {
       $env:SMOKE_CONFIGURE_JOBS = $previousGate
     }
-  }
+  } }
 
   # Move traffic to the explicit candidate revision, then read Cloud Run state
   # back and verify that it alone receives 100% (never promote LATEST).
-  Invoke-Stage 'Promote exact backend revision to 100% traffic' {
+  if ($deployBackend) { Invoke-Stage 'Promote exact backend revision to 100% traffic' {
     Invoke-Native $script:GcloudCommand @(
       'run', 'services', 'update-traffic', $BackendService,
       "--to-revisions=$($script:CandidateRevision)=100",
@@ -665,11 +778,11 @@ try {
     )
     $script:BackendPromoted = $true
     Assert-BackendTraffic $script:CandidateRevision
-  }
+  } }
 
   # Upload the already-built frontend to an expiring preview channel. Live
   # users still receive the old Firebase Hosting version at this point.
-  Invoke-Stage 'Deploy Firebase frontend preview' {
+  if ($deployFrontend) { Invoke-Stage 'Deploy Firebase frontend preview' {
     Set-Location $repositoryRoot
     $previewOutput = Invoke-NativeCapture $script:FirebaseCommand @(
       'hosting:channel:deploy', $script:ReleaseId,
@@ -685,11 +798,11 @@ try {
     }
     $script:PreviewUrl = $previewMatch.Value
     Write-ReleaseStatus 'INFO' "Frontend preview URL: $($script:PreviewUrl)" DarkGray
-  }
+  } }
 
   # Open the preview with Playwright and verify registration UI/API wiring
   # without creating a user or modifying production application data.
-  Invoke-Stage 'Read-only browser smoke against frontend preview' {
+  if ($deployFrontend) { Invoke-Stage 'Read-only browser smoke against frontend preview' {
     $previousWebUrl = $env:SMOKE_WEB_URL
     $previousApiUrl = $env:SMOKE_API_URL
     $previousBrowser = $env:SMOKE_BROWSER_CHANNEL
@@ -706,29 +819,29 @@ try {
       $env:SMOKE_API_URL = $previousApiUrl
       $env:SMOKE_BROWSER_CHANNEL = $previousBrowser
     }
-  }
+  } }
 
   # Preserve the exact currently-live Hosting version in a fixed rollback
   # channel immediately before changing the live frontend.
-  Invoke-Stage 'Back up current Firebase live release' {
+  if ($deployFrontend) { Invoke-Stage 'Back up current Firebase live release' {
     Invoke-Native $script:FirebaseCommand @(
       'hosting:clone', "${HostingSite}:live", "${HostingSite}:$($script:BackupChannel)",
       "--project=$Project",
       '--non-interactive'
     )
     $script:FrontendBackupCreated = $true
-  }
+  } }
 
   # Promote by cloning the exact preview version that passed browser smoke;
   # do not rebuild or upload a different set of frontend files.
-  Invoke-Stage 'Promote tested Firebase preview to live' {
+  if ($deployFrontend) { Invoke-Stage 'Promote tested Firebase preview to live' {
     $script:FrontendDeploymentStarted = $true
     Invoke-Native $script:FirebaseCommand @(
       'hosting:clone', "${HostingSite}:$($script:ReleaseId)", "${HostingSite}:live",
       "--project=$Project",
       '--non-interactive'
     )
-  }
+  } }
 
   # Exercise the real public flow: readiness, UI, signup, private verification,
   # login/dashboard, and guaranteed private cleanup.
@@ -754,13 +867,13 @@ try {
   $originalError = $_.Exception.Message
   $failedStage = $script:CurrentStage
 
-  if ($Apply -and $script:CandidateRevision -and !$script:BackendPromoted) {
+  if ($script:CandidateRevision -and !$script:BackendPromoted) {
     Write-ReleaseStatus 'SAFE' "Candidate $($script:CandidateRevision) was not promoted; existing production traffic remains unchanged" Yellow
   }
 
   # If live Hosting may have changed, restore the version saved immediately
   # before promotion. Report rollback failure separately from the root cause.
-  if ($Apply -and $script:FrontendDeploymentStarted -and $script:FrontendBackupCreated) {
+  if ($script:FrontendDeploymentStarted -and $script:FrontendBackupCreated) {
     try {
       Invoke-Stage 'ROLLBACK: restore previous Firebase live release' {
         Invoke-Native $script:FirebaseCommand @(
@@ -776,7 +889,7 @@ try {
 
   # If backend traffic may have moved, restore the exact old revision and
   # verify Cloud Run reports it at 100% again.
-  if ($Apply -and $script:BackendPromoted -and $script:OldBackendRevision) {
+  if ($script:BackendPromoted -and $script:OldBackendRevision) {
     try {
       Invoke-Stage 'ROLLBACK: restore previous backend revision' {
         Invoke-Native $script:GcloudCommand @(

@@ -2,6 +2,9 @@
   <input #fileInput type="file" hidden accept=".pdf,.jpg,.jpeg,.png"
     (change)="onFileChange($event)" (cancel)="onFileSelectionCanceled()" />
 }
+@if (hasRetainedRows() && useSyncState() && processStatus() === 'running') {
+  <p role="status" dir="rtl">מעדכנים את הנתונים. בינתיים מוצגים הנתונים הקיימים.</p>
+}
 <div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
@@ -147,7 +150,7 @@
               <p class="sync-loading-text">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
             </div>
           }
-        } @else if (useSyncState() && processStatus() === 'failed') {
+        } @else if (useSyncState() && processStatus() === 'failed' && !hasRetainedRows()) {
           <div class="empty-data-container">
             <img class="empty-data-img" src="../../../assets/not_data.svg" alt="No Data" />
             <p class="sync-error-text">נראה שהייתה שגיאה במשיכת הנתונים. כדאי לנסות שוב</p>

@@ -46,7 +46,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       markSourcesRefreshed: jest.fn().mockResolvedValue(undefined),
     };
     const sourceRepository = {
-      find: jest.fn().mockResolvedValue([{ id: 11, sourceName: '3221' }, { id: 12, sourceName: '9999' }]),
+      find: jest.fn().mockResolvedValue([{ id: 11, sourceName: '3221',isDirect:true }, { id: 12, sourceName: '9999',isDirect:false }]),
       query: jest.fn().mockResolvedValue(undefined),
       findOne: jest.fn().mockResolvedValue(null),
     };
@@ -79,6 +79,15 @@ describe('FeezbackService — Direct/Debit card handling', () => {
     return { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository, userRepository, processingService };
   }
 
+  it('does not introduce direct classification or fetch an unverified card with missing balances',async()=>{
+    const {service,sourceRepository,feezbackApiService,consentApi}=makeService();
+    sourceRepository.find.mockResolvedValue([]);
+    feezbackApiService.getUserCards.mockResolvedValue({cards:[directCard]});
+    const result=await (service as any).getAndSaveUserCardTransactionsInternal(USER,SUB,'booked');
+    expect(consentApi.getCardTransactions).not.toHaveBeenCalled();
+    expect(result.directCards).toHaveLength(0);
+    expect(result.cardErrors[0].code).toBe('CARD_DATA_NOT_READY');
+  });
   // ─── determineIsDirect ─────────────────────────────────────────────────────
 
   describe('determineIsDirect', () => {
@@ -113,7 +122,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       // 2. Source upserted with isDirect=true BEFORE any transaction fetch.
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.stringContaining('COALESCE(VALUES(`isDirect`), `isDirect`)'),
-        [USER, '3221', SourceType.CREDIT_CARD, true, 'primary'],
+        [USER, '3221', SourceType.CREDIT_CARD, true, 'primary', expect.any(Date)],
       );
 
       // 3. Card excluded from processing, exposed as a skipped direct card.
@@ -151,7 +160,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
 
       expect(sourceRepository.query).toHaveBeenCalledWith(
         expect.any(String),
-        [USER, '9999', SourceType.CREDIT_CARD, false, 'primary'],
+        [USER, '9999', SourceType.CREDIT_CARD, false, 'primary', expect.any(Date)],
       );
       expect(consentApi.getCardTransactions).toHaveBeenCalledWith(
         SUB, 'consent-1', 'card-credit', 'booked', undefined, undefined,
@@ -205,7 +214,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       ]);
 
       const [sql, params] = sourceRepository.query.mock.calls[0];
-      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null, 'primary']);
+      expect(params).toEqual([USER, '1234567', SourceType.BANK_ACCOUNT, null, 'primary', expect.any(Date)]);
       // The SQL-side guarantee: a NULL incoming value never overwrites a stored one.
       expect(sql).toContain('COALESCE(VALUES(`isDirect`), `isDirect`)');
     });
@@ -265,9 +274,10 @@ describe('FeezbackService — Direct/Debit card handling', () => {
       expect(userSyncStateService.markCacheReadyAfterSourcePull).not.toHaveBeenCalled();
     });
 
-    it('refuses via fresh balance detection when stored isDirect is still NULL', async () => {
+    it('fails without declaring Direct when stored kind is unknown and no readiness was received', async () => {
       const { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository, processingService } = makeService();
       sourceRepository.findOne.mockResolvedValue({ sourceName: '3221', isDirect: null });
+      sourceRepository.find.mockResolvedValue([{id:11,sourceName:'3221',isDirect:null}]);
       userSyncStateService.getSourceResults.mockResolvedValue([
         { sourceRecordId: 11, connectionRole: 'primary', sourceId: '3221', type: 'card', resourceId: 'card-direct', consentId: 'consent-1' },
       ]);
@@ -275,12 +285,12 @@ describe('FeezbackService — Direct/Debit card handling', () => {
 
       const result = await service.retrySource(USER, 'card', '3221');
 
-      expect(result.status).toBe('skipped_direct');
+      expect(result.status).toBe('failed');
       expect(consentApi.getCardTransactions).not.toHaveBeenCalled();
       expect(processingService.process).not.toHaveBeenCalled();
       expect(userSyncStateService.markCacheReadyAfterSourcePull).not.toHaveBeenCalled();
       expect(userSyncStateService.updateSourceResults).toHaveBeenCalledWith(USER, [
-        expect.objectContaining({ status: 'skipped_direct', resourceId: 'card-direct' }),
+        expect.objectContaining({ status: 'failed', resourceId: 'card-direct' }),
       ]);
     });
 

@@ -69,7 +69,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceRecordId: 11 },
+        expect.objectContaining({ userId: USER, sourceRecordId: 11 }),
         expect.objectContaining({ status: 'skipped_direct', transactionCount: 0, error: null }),
       );
     });
@@ -85,7 +85,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceRecordId: 11 },
+        expect.objectContaining({ userId: USER, sourceRecordId: 11 }),
         expect.objectContaining({ status: 'not_synced' }),
       );
     });
@@ -101,7 +101,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       const patch = sourceRepo.update.mock.calls[0][1];
-      expect(patch).not.toHaveProperty('status');
+      expect(patch).toMatchObject({ status: 'not_synced', error: null });
     });
   });
 
@@ -116,13 +116,13 @@ describe('UserSyncStateService — skipped_direct handling', () => {
 
       expect(cleared).toBe(3);
       expect(sourceRepo.update).toHaveBeenCalledTimes(2);
-      expect(sourceRepo.update.mock.calls[0][1]).toEqual({
+      expect(sourceRepo.update.mock.calls[0][1]).toMatchObject({
         consentId: null, status: 'not_synced', error: null,
       });
       expect(sourceRepo.update.mock.calls[1][0]).toEqual(
         expect.objectContaining({ status: 'skipped_direct' }),
       );
-      expect(sourceRepo.update.mock.calls[1][1]).toEqual({ consentId: null });
+      expect(sourceRepo.update.mock.calls[1][1]).toMatchObject({ consentId: null, consentVerifiedAt: expect.any(Date) });
     });
   });
 

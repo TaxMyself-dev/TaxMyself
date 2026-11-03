@@ -35,9 +35,9 @@ describe('connection options reconcile current provider permissions', () => {
   it('suppresses the stale spouse choice after complete absence of permissions without any termination', async () => {
     const original = JSON.stringify(await sources.find());
     expect(await controller.connectionOptions(req)).toEqual({ offerSpouse: false });
-    expect(user).toMatchObject({ hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
+    expect(user).toMatchObject({ hasOpenBanking: true, hasSpouseFeezbackIdentity: true });
     expect(api.getUserConsents.mock.calls).toEqual([['owner_sub', true], ['owner_sub_spouse', true]]);
-    expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
     expect(JSON.stringify(await sources.find())).toBe(original);
   });
   it('treats terminated/revoked permissions as fully disconnected before reading options', async () => {

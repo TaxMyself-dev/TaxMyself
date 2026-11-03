@@ -7,8 +7,9 @@ used after a synthetic signup test.
 ## Key files
 
 - `../readiness.service.ts` — public read-only deployment gate that verifies DB
-  connectivity and signup-critical TypeORM schema metadata against the
-  connected database.
+  connectivity, requires the live connection's `DATABASE()` to be exactly
+  `keepintax-prod`, and checks signup-critical TypeORM schema metadata against
+  that database.
 - `cleanup-smoke-user.ts` — standalone Cloud Run Job entrypoint. It initializes
   only MySQL, Firebase Admin, and a service-account Google Drive client; it
   never boots `AppModule` and does not require the system-user Drive OAuth
@@ -24,6 +25,8 @@ used after a synthetic signup test.
 
 - `/ready` returns generic failure state to callers and logs schema detail only
   server-side; it never writes data or exposes missing table/column names.
+- `/ready` must reject any database target other than the compiled
+  `keepintax-prod` identity before querying signup schema metadata.
 - Never expose smoke cleanup through a public HTTP controller.
 - Email verification also remains a private Job and requires its own explicit
   enable flag.

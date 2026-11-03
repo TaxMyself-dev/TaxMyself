@@ -1,5 +1,6 @@
 import { IsNull } from 'typeorm';
 import { SourceType } from '../enum';
+import { BankingBatchError } from '../feezback/core/open-banking-issue';
 import { UserSyncStateService } from './user-sync-state.service';
 
 /** A pull may finish after consent termination or renewal. Provider metadata is discovery-owned. */
@@ -22,7 +23,16 @@ describe('source outcomes after disconnection or reconnection', () => {
   it('propagates an actual first-insert database failure', async () => {
     const { service, outcomes } = setup(null);
     outcomes.insert.mockRejectedValue(new Error('database unavailable'));
-    await expect(service.updateSourceResults('u', [incoming])).rejects.toThrow('database unavailable');
+    const result = service.updateSourceResults('u', [incoming]);
+    await expect(result).rejects.toBeInstanceOf(BankingBatchError);
+    await expect(result).rejects.toMatchObject({
+      completed: 0,
+      issues: [expect.objectContaining({
+        code: 'OB-04', partial: false,
+        errorId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+      })],
+    });
+    await expect(result).rejects.toThrow(/^OB-04\|[0-9a-f-]{36}$/);
   });
   const incoming: any = { type: 'card', sourceId: '1234', sourceRecordId: 7, connectionRole: 'primary',
     consentId: 'old-consent', resourceId: 'old-resource', status: 'success', transactionCount: 5 };
@@ -43,14 +53,15 @@ describe('source outcomes after disconnection or reconnection', () => {
     const { service, outcomes } = setup({ consentId: 'old-consent', resourceId: 'old-resource' });
     await service.updateSourceResults('u', [incoming]);
     expect(outcomes.update).toHaveBeenCalledWith({ userId: 'u', sourceRecordId: 7,
-      consentId: 'old-consent', resourceId: 'old-resource' }, { status: 'success', transactionCount: 5, error: null });
+      consentId: 'old-consent', resourceId: 'old-resource' }, { status: 'success', transactionCount: 5, error: null, resultRunId: null });
     expect(outcomes.upsert).not.toHaveBeenCalled();
   });
   it('does not write metadata from a failed result that lacks consent/resource identifiers', async () => {
     const { service, outcomes } = setup({ consentId: 'new-consent', resourceId: 'new-resource' });
     await service.updateSourceResults('u', [{ ...incoming, consentId: undefined, resourceId: undefined, status: 'failed', error: 'offline' }]);
     expect(outcomes.update).toHaveBeenCalledWith(expect.objectContaining({ consentId: 'new-consent', resourceId: 'new-resource' }),
-      { status: 'failed', transactionCount: 5, error: 'offline' });
+      { status: 'failed', transactionCount: 5, resultRunId: null,
+        error: expect.stringMatching(/^OB-03\|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) });
   });
   it('guards nullable metadata against a concurrent discovery instead of overwriting the row', async () => {
     const { service, outcomes } = setup({ consentId: null, resourceId: null });

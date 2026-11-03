@@ -22,6 +22,12 @@ describe('settings banking row action routing', () => {
     } as any;
     return page;
   }
+  it('does not pull a source without consent even through a stale callback', () => {
+    const page = setup();
+    (page as any).bankingError = signal(null);
+    page.onPullSource({ sourceName: '5678', sourceType: 'CREDIT_CARD' as any, hasConsent: false });
+    expect(page.retryingSourceId()).toBeNull();
+  });
   const row = (sourceRecordId: number) => ({ id: String(sourceRecordId), sourceRecordId }) as IRowDataTable;
 
   it('previews only the selected stable source record despite matching account numbers', () => {

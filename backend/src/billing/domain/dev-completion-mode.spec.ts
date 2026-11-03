@@ -24,7 +24,13 @@ describe('isolated dev completion runtime', () => {
       expect(isAllowedDevCompletionRequest('POST', path)).toBe(false);
     }
   });
+  it('honors the global schedule disable switch outside the completion profile', () => {
+    process.env.BILLING_DEV_COMPLETION_ONLY = 'false';
+    process.env.DISABLE_SCHEDULED_TASKS = 'true';
+    expect(devCompletionScheduleOptions()).toEqual({ cronJobs: false, intervals: false, timeouts: false });
+  });
   it('preserves normal behavior when the profile is disabled', () => {
+    delete process.env.DISABLE_SCHEDULED_TASKS;
     process.env.BILLING_DEV_COMPLETION_ONLY = 'false';
     expect(devCompletionScheduleOptions()).toEqual({}); expect(() => assertCardcomNetworkAllowed()).not.toThrow();
     expect(isAllowedDevCompletionRequest('POST', '/billing/checkout')).toBe(true);

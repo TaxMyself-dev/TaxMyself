@@ -15,17 +15,22 @@ export interface UniformFileOauthConfig {
   redirectUri: string;
   authorizeUrl: string;
   tokenUrl: string;
-  stateSecret: string;
+  uploadLinksUrl: string;
+  statusUrl: string;
+  sandboxCaseNumberOverride: string | null;
   scopes: readonly string[];
 }
-const REQUIRED_WHEN_ENABLED = [
-  'SHAAM_UNIFORM_FILE_CLIENT_ID',
-  'SHAAM_UNIFORM_FILE_CLIENT_SECRET',
-  'SHAAM_UNIFORM_FILE_REDIRECT_URI',
-  'SHAAM_UNIFORM_FILE_AUTHORIZE_URL',
-  'SHAAM_UNIFORM_FILE_TOKEN_URL',
-  'SHAAM_UNIFORM_FILE_STATE_SECRET',
-] as const;
+
+const TSANDBOX_DEFAULTS = {
+  authorizeUrl:
+    'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/authorize',
+  tokenUrl:
+    'https://openapi.taxes.gov.il/shaam/tsandbox/dailytoken/oauth2/token',
+  uploadLinksUrl:
+    'https://ita-api.taxes.gov.il/shaam/tsandbox/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+  statusUrl:
+    'https://ita-api.taxes.gov.il/shaam/tsandbox/FilesStatusApi/v1/Files/get-file-status',
+} as const;
 
 function parseEnvironment(value: string | undefined): ShaamEnvironment {
   const normalized = (value || ShaamEnvironment.TSANDBOX).trim().toLowerCase();
@@ -69,27 +74,78 @@ function assertRedirectUri(value: string): void {
   }
 }
 
+function assertUniformFileApiUrl(
+  name: string,
+  value: string,
+  environment: ShaamEnvironment,
+  suffix: string,
+): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid absolute URL`);
+  }
+  const allowedHosts = new Set(['openapi.taxes.gov.il', 'ita-api.taxes.gov.il']);
+  const expectedPath = `/shaam/${environment}/${suffix}`;
+  if (
+    parsed.protocol !== 'https:' ||
+    !allowedHosts.has(parsed.hostname) ||
+    parsed.pathname !== expectedPath ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(`${name} must use a verified Tax Authority ${expectedPath} endpoint`);
+  }
+}
+
 export function loadUniformFileOauthConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): UniformFileOauthConfig {
   const enabled = env.SHAAM_UNIFORM_FILE_ENABLED === 'true';
   const environment = parseEnvironment(env.SHAAM_UNIFORM_FILE_ENV);
+  const sandboxDefaults =
+    environment === ShaamEnvironment.TSANDBOX ? TSANDBOX_DEFAULTS : undefined;
 
   const config: UniformFileOauthConfig = {
     enabled,
     environment,
-    clientId: env.SHAAM_UNIFORM_FILE_CLIENT_ID?.trim() || '',
-    clientSecret: env.SHAAM_UNIFORM_FILE_CLIENT_SECRET || '',
-    redirectUri: env.SHAAM_UNIFORM_FILE_REDIRECT_URI?.trim() || '',
-    authorizeUrl: env.SHAAM_UNIFORM_FILE_AUTHORIZE_URL?.trim() || '',
-    tokenUrl: env.SHAAM_UNIFORM_FILE_TOKEN_URL?.trim() || '',
-    stateSecret: env.SHAAM_UNIFORM_FILE_STATE_SECRET || '',
+    clientId:
+      env.SHAAM_UNIFORM_FILE_CLIENT_ID?.trim() || env.SHAAM_CLIENT_ID?.trim() || '',
+    clientSecret:
+      env.SHAAM_UNIFORM_FILE_CLIENT_SECRET || env.SHAAM_CLIENT_SECRET || '',
+    redirectUri:
+      env.SHAAM_UNIFORM_FILE_REDIRECT_URI?.trim() ||
+      env.SHAAM_REDIRECT_URI?.trim() ||
+      '',
+    authorizeUrl:
+      env.SHAAM_UNIFORM_FILE_AUTHORIZE_URL?.trim() ||
+      sandboxDefaults?.authorizeUrl ||
+      '',
+    tokenUrl:
+      env.SHAAM_UNIFORM_FILE_TOKEN_URL?.trim() || sandboxDefaults?.tokenUrl || '',
+    uploadLinksUrl:
+      env.SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL?.trim() ||
+      sandboxDefaults?.uploadLinksUrl ||
+      '',
+    statusUrl:
+      env.SHAAM_UNIFORM_FILE_STATUS_URL?.trim() || sandboxDefaults?.statusUrl || '',
+    sandboxCaseNumberOverride:
+      env.SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER?.trim() || null,
     scopes: UNIFORM_FILE_OAUTH_SCOPES,
   };
 
   if (!enabled) return config;
 
-  const missing = REQUIRED_WHEN_ENABLED.filter((name) => !env[name]?.trim());
+  const missing = [
+    ['SHAAM_UNIFORM_FILE_CLIENT_ID or SHAAM_CLIENT_ID', config.clientId],
+    ['SHAAM_UNIFORM_FILE_CLIENT_SECRET or SHAAM_CLIENT_SECRET', config.clientSecret],
+    ['SHAAM_UNIFORM_FILE_REDIRECT_URI or SHAAM_REDIRECT_URI', config.redirectUri],
+    ['SHAAM_UNIFORM_FILE_AUTHORIZE_URL', config.authorizeUrl],
+    ['SHAAM_UNIFORM_FILE_TOKEN_URL', config.tokenUrl],
+    ['SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL', config.uploadLinksUrl],
+    ['SHAAM_UNIFORM_FILE_STATUS_URL', config.statusUrl],
+  ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length > 0) {
     throw new Error(
       `Uniform-file SHAAM OAuth is enabled but missing: ${missing.join(', ')}`,
@@ -105,12 +161,37 @@ export function loadUniformFileOauthConfig(
     );
   }
 
-  if (Buffer.byteLength(config.stateSecret, 'utf8') < 32) {
-    throw new Error('SHAAM_UNIFORM_FILE_STATE_SECRET must contain at least 32 bytes');
+  if (
+    config.sandboxCaseNumberOverride &&
+    !/^\d{9}$/.test(config.sandboxCaseNumberOverride)
+  ) {
+    throw new Error(
+      'SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER must contain exactly nine digits',
+    );
+  }
+  if (
+    environment === ShaamEnvironment.PRODUCTION &&
+    config.sandboxCaseNumberOverride
+  ) {
+    throw new Error(
+      'SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER is forbidden in production',
+    );
   }
 
   assertTaxAuthorityUrl('SHAAM_UNIFORM_FILE_AUTHORIZE_URL', config.authorizeUrl);
   assertTaxAuthorityUrl('SHAAM_UNIFORM_FILE_TOKEN_URL', config.tokenUrl);
+  assertUniformFileApiUrl(
+    'SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL',
+    config.uploadLinksUrl,
+    environment,
+    'UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles',
+  );
+  assertUniformFileApiUrl(
+    'SHAAM_UNIFORM_FILE_STATUS_URL',
+    config.statusUrl,
+    environment,
+    'FilesStatusApi/v1/Files/get-file-status',
+  );
   assertRedirectUri(config.redirectUri);
 
   return config;

@@ -45,6 +45,9 @@ export class Source {
   @Column({ type: 'boolean', nullable: true, default: null })
   isDirect: boolean | null;
 
+  @Column({ type: 'datetime', precision: 3, nullable: true })
+  metadataVerifiedAt: Date | null;
+
   @ManyToOne(() => Bill, bill => bill.sources)
   bill: Bill;
 

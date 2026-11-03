@@ -15,7 +15,7 @@ export class AppController {
     return { status: 'ok' };
   }
 
-  /** Deployment gate: verifies this revision's DB connection and signup schema. */
+  /** Deployment gate: verifies production DB identity and signup schema. */
   @Get('ready')
   @Header('Cache-Control', 'no-store')
   readinessCheck() {

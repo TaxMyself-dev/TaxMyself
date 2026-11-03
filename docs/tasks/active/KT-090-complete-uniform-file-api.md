@@ -31,11 +31,12 @@ tokens or upload capabilities to the browser.
 - [x] Persist state before every external boundary and implement idempotent,
       restart-safe recovery. Never request a second link pair after an
       ambiguous outcome without reconciling saved file IDs.
-- [x] Expose only authenticated, owner/delegate-scoped submission/status APIs;
+- [x] Expose authenticated, owner-only external submission/polling APIs and
+      business-scoped local status reads;
       never return Daily Tokens, signed URLs or upload-session URLs.
 - [x] Add frontend connection, submission and status UX while retaining the ZIP
       download fallback and never displaying `Uploaded` as `Approved`.
-- [ ] Add focused client/orchestrator/controller/frontend tests for success,
+- [x] Add focused client/orchestrator/controller/frontend tests for success,
       partial pair, rejection, authorization errors, timeouts, restart,
       concurrency and unknown outcomes.
 - [ ] Run controlled tsandbox acceptance with synthetic/official test data and
@@ -99,6 +100,10 @@ tokens or upload capabilities to the browser.
   pass. The two focused Angular specs compile, but the local ChromeHeadless
   process crashes in the Windows GPU/cache sandbox before Jasmine executes;
   manual UI verification remains required.
+- Branch integration added focused coverage for the observed tsandbox link
+  order, empty reservation ID, fixture case number, mocked status, 406
+  reauthorization, token clearing and owner-only enforcement. No external call
+  was made during that verification.
 - Dev schema was verified read-only. No DDL was run and production DB was not
   queried.
 - Remaining gate: configure non-production variables locally, perform the

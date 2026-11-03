@@ -28,6 +28,21 @@ describe('transaction failure response logging', () => {
     } as any);
   });
   afterEach(() => log.mockRestore());
+  it('logs each failed DELETE retry without changing the retry budget',async()=>{
+    http.delete=jest.fn().mockReturnValueOnce(failed(503)).mockReturnValueOnce(failed(503))
+      .mockReturnValueOnce(of({status:204,data:null}));
+    await expect(client.delete('/tpp/v1/users/owner-sub@tpp/consents/c',{sub:'owner-sub'})).resolves.toBeNull();
+    expect(http.delete).toHaveBeenCalledTimes(3);
+    expect(log.mock.calls.map(([value])=>JSON.parse(value.slice('[FeezbackResponse] '.length)).attempt)).toEqual([1,2]);
+  });
+  it('logs sanitized DELETE failures with provider status and attempt timing',async()=>{
+    http.delete=jest.fn().mockReturnValue(failed(403));
+    await expect(client.delete('/tpp/v1/users/owner-sub@tpp/consents/c',{sub:'owner-sub'})).rejects.toMatchObject({status:403});
+    expect(http.delete).toHaveBeenCalledTimes(1);expect(log).toHaveBeenCalledTimes(1);
+    const output=String(log.mock.calls[0][0]);
+    expect(JSON.parse(output.slice('[FeezbackResponse] '.length))).toMatchObject({method:'DELETE',status:403,attempt:1,responseBody:{error_code:4031}});
+    for(const secret of ['opaque-access-token','owner-sub','private-id','never-serialize-config'])expect(output).not.toContain(secret);
+  });
   it.each(['accounts', 'cards'])('logs sanitized 403 for %s without retry', async resource => {
     http.get.mockReturnValue(failed(403));
     await expect(client.get(`/tpp/v1/users/owner-sub@tpp/consents/c/${resource}/r/transactions?token=query-secret`,
@@ -44,6 +59,37 @@ describe('transaction failure response logging', () => {
     for (const secret of ['opaque-access-token', 'owner-sub', 'query-secret', 'private-id', 'never-serialize-config']) {
       expect(output).not.toContain(secret);
     }
+  });
+  it.each(['', '/consents/c'])('logs card-list 403 and redacts encrypted tokens for scope %s', async scope => {
+    const token = 'eyJhbGciOiJSU0EtT0FFUC0yNTYi.encrypted-key.iv.ciphertext.tag';
+    client = new FeezbackHttpClient(http, {
+      getTppApiUrl: () => 'https://provider.test/proxy',
+      getAuthHeaders: async () => ({ Authorization: 'Bearer ' + token }),
+    } as any);
+    http.get.mockReturnValue(throwError(() => ({
+      isAxiosError: true, code: 'ERR_BAD_REQUEST', message: 'Denied Bearer ' + token,
+      config: { secret: 'never-serialize-config' },
+      response: { status: 403, headers: {}, data: {
+        error_code: 4031, description: 'Card access denied', token,
+        nested: { authorization: 'Bearer ' + token }, detail: 'echo ' + token + ' owner-sub',
+      } },
+    })));
+    await expect(client.get('/tpp/v1/users/owner-sub@tpp' + scope + '/cards',
+      { sub: 'owner-sub', params: { preventUpdate: true, withInvalid: false, withBalances: true } }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(http.get).toHaveBeenCalledTimes(1);
+    expect(http.get.mock.calls[0][1].params).toEqual({ preventUpdate: true, withInvalid: false, withBalances: true });
+    expect(log).toHaveBeenCalledTimes(1);
+    const output = log.mock.calls[0][0];
+    const data = JSON.parse(output.slice('[FeezbackResponse] '.length));
+    expect(data).toMatchObject({ status: 403, attempt: 1,
+      responseBody: { error_code: 4031, description: 'Card access denied', token: '<REDACTED>' } });
+    for (const secret of [token, 'owner-sub', 'never-serialize-config']) expect(output).not.toContain(secret);
+  });
+  it('does not log successful card lists', async () => {
+    http.get.mockReturnValue(of({ status: 200, data: { cards: [] } }));
+    await expect(client.get('/tpp/v1/users/owner/cards')).resolves.toEqual({ cards: [] });
+    expect(log).not.toHaveBeenCalled();
   });
   it('logs every failed attempt and preserves transient retry behavior', async () => {
     http.get.mockReturnValueOnce(failed(503)).mockReturnValueOnce(failed(503))

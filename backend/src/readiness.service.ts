@@ -17,14 +17,21 @@ type SchemaColumnRow = {
   columnName: string;
 };
 
+type DatabaseNameRow = {
+  databaseName: unknown;
+};
+
 export type ReadinessResult = {
   status: 'ready';
   revision: string;
   checks: {
     database: 'ok';
+    databaseTarget: 'ok';
     signupSchema: 'ok';
   };
 };
+
+const EXPECTED_PRODUCTION_DATABASE = 'keepintax-prod';
 
 const SIGNUP_ENTITIES: EntityTarget<unknown>[] = [
   User,
@@ -43,7 +50,21 @@ export class ReadinessService {
 
   async check(): Promise<ReadinessResult> {
     try {
-      await this.dataSource.query('SELECT 1 AS ok');
+      const databaseName = await this.readDatabaseName();
+      if (databaseName !== EXPECTED_PRODUCTION_DATABASE) {
+        this.logger.error(
+          `Database target readiness failed; expected ${EXPECTED_PRODUCTION_DATABASE}`,
+        );
+        throw new ServiceUnavailableException({
+          status: 'not_ready',
+          checks: {
+            database: 'ok',
+            databaseTarget: 'failed',
+            signupSchema: 'unknown',
+          },
+        });
+      }
+
       const missingSchema = await this.findMissingSignupSchema();
 
       if (missingSchema.length > 0) {
@@ -54,14 +75,22 @@ export class ReadinessService {
         );
         throw new ServiceUnavailableException({
           status: 'not_ready',
-          checks: { database: 'ok', signupSchema: 'failed' },
+          checks: {
+            database: 'ok',
+            databaseTarget: 'ok',
+            signupSchema: 'failed',
+          },
         });
       }
 
       return {
         status: 'ready',
         revision: process.env.K_REVISION || 'local',
-        checks: { database: 'ok', signupSchema: 'ok' },
+        checks: {
+          database: 'ok',
+          databaseTarget: 'ok',
+          signupSchema: 'ok',
+        },
       };
     } catch (error) {
       if (error instanceof ServiceUnavailableException) {
@@ -72,9 +101,21 @@ export class ReadinessService {
       this.logger.error(`Database readiness failed${code ? ` (${code})` : ''}`);
       throw new ServiceUnavailableException({
         status: 'not_ready',
-        checks: { database: 'failed', signupSchema: 'unknown' },
+        checks: {
+          database: 'failed',
+          databaseTarget: 'unknown',
+          signupSchema: 'unknown',
+        },
       });
     }
+  }
+
+  private async readDatabaseName(): Promise<string | null> {
+    const rows = (await this.dataSource.query(
+      'SELECT DATABASE() AS databaseName',
+    )) as DatabaseNameRow[];
+    const databaseName = rows[0]?.databaseName;
+    return typeof databaseName === 'string' ? databaseName : null;
   }
 
   private async findMissingSignupSchema(): Promise<string[]> {

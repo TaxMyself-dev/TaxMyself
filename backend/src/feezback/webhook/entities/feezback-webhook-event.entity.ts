@@ -27,6 +27,9 @@ export class FeezbackWebhookEvent {
   @Column({ name: 'processed_at', type: 'timestamp', nullable: true })
   processedAt: Date | null;
 
+  @Column({ name: 'processing_started_at', type: 'datetime', precision: 3, nullable: true })
+  processingStartedAt: Date | null;
+
   @Column({ name: 'processing_error', type: 'text', nullable: true })
   processingError: string | null;
 }

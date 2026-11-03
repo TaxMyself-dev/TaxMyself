@@ -27,6 +27,8 @@ import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { BillingModule } from './billing/billing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { DocumentImportModule } from './document-import/document-import.module';
+import { WhatsappDevelopmentModule } from './whatsapp/whatsapp-development.module';
+import { LycheeModule } from './whatsapp/lychee.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
 import { InboundEmailAddress } from './inbound-email/inbound-email-address.entity';
 //Integrations entities
@@ -223,6 +225,8 @@ new Logger('Bootstrap').log(
       ReportWorkflow,
     ]),
     ScheduleModule.forRoot(devCompletionScheduleOptions()),
+    LycheeModule,
+    ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
   controllers: [AppController],
   providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],

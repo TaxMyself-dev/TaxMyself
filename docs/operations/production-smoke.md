@@ -33,8 +33,11 @@ values are tracked separately and do not block initial smoke delivery.
 1. Deploy the backend revision without promoting production traffic.
 2. Point `SMOKE_API_URL` at that exact candidate revision and run
    `npm run smoke:readiness` from `smoke-tests/`. Do not promote the backend if
-   `/ready` fails: the revision cannot reach the real production DB or its
-   signup-critical schema is incomplete.
+   `/ready` fails: the revision is not connected specifically to
+   `keepintax-prod`, cannot reach it, or its signup-critical schema is
+   incomplete. This authoritative check runs after the candidate build because
+   only the deployed revision has the real runtime connection, but still runs
+   at zero traffic before promotion.
 3. Promote backend traffic only after the candidate readiness check succeeds.
 4. Deploy the frontend.
 5. Set the production web/API URLs, job names, GCP project, and region
@@ -57,38 +60,55 @@ email address.
 
 ## Unified release script
 
-`scripts/Deploy-Production.ps1` coordinates the complete flow. Its default is
-read-only plan mode:
+`scripts\deploy` coordinates the complete flow and immediately starts a full
+guarded release by default:
 
 ```powershell
-./scripts/Deploy-Production.ps1 -Plan
+.\scripts\deploy
 ```
 
-The script never receives, stores, or bypasses an account password. The first
-`-Apply` stage explicitly launches both interactive login flows:
+To display all targets, options, and examples without starting a deployment:
+
+```powershell
+.\scripts\deploy -Help
+```
+
+The script never receives, stores, or bypasses an account password. Its first
+stage checks existing sessions for access to the target project. Only a failed check launches the corresponding interactive login directly in the terminal, without redirecting its input or output:
 
 ```powershell
 gcloud auth login
 firebase login --reauth
 ```
 
-Only after both logins succeed does the preflight stage perform read-only checks
+After any required login, project access is checked again. The preflight stage also performs read-only checks
 that the active sessions can access `taxmyself-prod`. An unauthorized session
-stops the release before any build or deployment. `-Plan` does not launch login
-windows; it validates the sessions that already exist. Git authentication is
-checked naturally by the required `git fetch origin`; Git Credential Manager
-may prompt if its own session has expired.
+stops the release before any build or deployment. Git authentication is checked
+naturally by the required `git fetch origin`; Git Credential Manager may prompt
+if its own session has expired.
 
-An authorized production operator applies the displayed plan with both gates:
+The default target is the complete backend-and-frontend release. A scoped
+release uses the same guarded flow:
 
 ```powershell
-$env:KEEPINTAX_PRODUCTION_DEPLOY = 'taxmyself-prod'
-./scripts/Deploy-Production.ps1 -Apply
+# Backend only: candidate, readiness, smoke jobs, traffic, and live smoke
+.\scripts\deploy backend
+
+# Frontend only: build, preview smoke, live backup/promotion, and live smoke
+.\scripts\deploy frontend
 ```
 
-`KEEPINTAX_PRODUCTION_DEPLOY` is checked before opening the login flows. It is
-an anti-accident confirmation, not a password or credential; possessing it
-grants no Google Cloud or Firebase permissions.
+For a faster release after the local suites have already passed on the exact
+commit, `-SkipLocalTests` skips only the backend Jest suite and the smoke
+configuration unit tests. It can be combined with any target:
+
+```powershell
+.\scripts\deploy -SkipLocalTests
+```
+
+There is intentionally no unverified direct-promotion mode. Dependency
+installation, production builds, candidate readiness, preview browser smoke,
+full production signup/login/cleanup smoke, and rollback remain mandatory.
 
 Release identifiers use local date/time plus a monotonically increasing
 sequence, for example `r20261026-191522-0042`. The sequence is derived from
@@ -113,6 +133,15 @@ window while a release is running:
 
 ```powershell
 Get-Content -LiteralPath '<printed-log-path>' -Wait
+```
+
+To open the most recent complete release log later:
+
+```powershell
+$latestReleaseLog = Get-ChildItem .\deployment-logs\production-release-*.log |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+Get-Content -LiteralPath $latestReleaseLog.FullName
 ```
 
 The frontend is first deployed to a one-day Firebase preview channel named for

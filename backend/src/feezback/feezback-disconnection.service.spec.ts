@@ -23,11 +23,63 @@ describe('Feezback disconnection', () => {
     sources = { find: jest.fn().mockResolvedValue([
       { id: 11, userId: 'owner', connectionRole: 'primary', sourceName: '1234567', sourceType: 'BANK_ACCOUNT', bill: { id: 99 } },
     ]) };
-    sync = { getSourceResults: jest.fn().mockResolvedValue([
+    sync = { getSyncState: jest.fn().mockResolvedValue(null), recordSourcesRefreshResult: jest.fn().mockResolvedValue(true),
+      getSourceResults: jest.fn().mockResolvedValue([
       { sourceRecordId: 11, sourceId: '1234567', resourceId: 'a1', consentId: 'c1', connectionRole: 'primary' },
     ]), clearConsentInitiated: jest.fn().mockResolvedValue(undefined), upsertSourceConsents: jest.fn().mockResolvedValue(undefined), clearConsentOnSources: jest.fn().mockResolvedValue(1) };
     cacheCleanup = { cleanup: jest.fn().mockResolvedValue({ deleted: 0, full: false }) };
     service = new FeezbackDisconnectionService(api, users, sources, sync, cacheCleanup);
+  });
+  it.each(['consent','all'] as const)('returns a correlated safe support issue for %s cancellation failures', async scope => {
+    const log=jest.spyOn((service as any).logger,'error').mockImplementation(()=>{});
+    api.terminateConsent.mockRejectedValue(new FeezbackHttpError({method:'DELETE',url:'https://provider.test/consents/c1',status:403,code:'DENIED',message:'secret account details'}));
+    const result=await service.disconnect('owner',scope==='all'?{scope}:{scope,consentId:'c1',connectionRole:'primary'});
+    expect(result.status).toBe('partial');expect(result.supportError).toMatchObject({code:'OB-05',errorId:expect.any(String)});
+    expect(result.results[0].supportError?.errorId).toBe(result.supportError?.errorId);
+    expect(log.mock.calls.some(([line])=>String(line).includes(result.supportError!.errorId))).toBe(true);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret account details');
+    expect(JSON.stringify(log.mock.calls)).toContain('consent_termination_request_failed');
+    expect(JSON.stringify(log.mock.calls)).toContain('403');
+    expect(api.terminateConsent).toHaveBeenCalledTimes(scope==='all'?2:1);log.mockRestore();
+  });
+  it('continues full disconnect after one consent fails and reports the verified successful subset', async()=>{
+    api.terminateConsent.mockImplementation(async(sub,id)=>{if(id==='c1')throw Error('failed before HTTP');permissions[sub]=[];});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('partial');expect(result.results.map(r=>r.status)).toEqual(['failed','terminated']);
+    expect(result.supportError?.code).toBe('OB-05');expect(result.remainingConsents.map(c=>c.consentId)).toEqual(['c1']);
+  });
+  it('reports unconfirmed asynchronous termination with a support ID even without a thrown exception',async()=>{
+    api.terminateConsent.mockResolvedValue(undefined);
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(result.results[0].status).toBe('pending');expect(result.supportError?.code).toBe('OB-05');
+  });
+  it('accepts authoritative terminal verification after a failed transport response',async()=>{
+    api.terminateConsent.mockImplementation(async(sub)=>{permissions[sub]=[];throw Error('timeout after completion');});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('success');expect(result.supportError).toBeUndefined();
+    expect(result.results.every(r=>r.status==='terminated'&&!r.supportError)).toBe(true);
+  });
+  it('full disconnect includes separate consents granted within the same primary identity',async()=>{
+    permissions.owner_sub.push({resourceId:'wife-consent',consentStatus:'valid'});
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(api.terminateConsent.mock.calls).toEqual(expect.arrayContaining([['owner_sub','c1'],['owner_sub','wife-consent'],['owner_sub_spouse','c2']]));
+    expect(result.status).toBe('success');expect(result.remainingConsents).toEqual([]);
+  });
+  it('returns an issue if an initial identity read failed even when the final list is empty',async()=>{
+    permissions.owner_sub=[];permissions.owner_sub_spouse=[];
+    api.getUserConsents.mockRejectedValueOnce(Error('initial read failed'));
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result.status).toBe('partial');expect(result.supportError?.code).toBe('OB-01');
+  });
+  it('keeps another primary consent outside a source-specific cancellation',async()=>{
+    permissions.owner_sub.push({resourceId:'wife-consent',consentStatus:'valid'});
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(api.terminateConsent.mock.calls).toEqual([['owner_sub','c1']]);
+    expect(result.status).toBe('success');expect(result.remainingConsents.some(c=>c.consentId==='wife-consent')).toBe(true);
+  });
+  it('protects the support ID when restored from stored failure state',async()=>{
+    sync.getSyncState.mockResolvedValue({sourcesRefreshFailureReason:'OB-05|12345678-1234-1234-1234-123456789012'});
+    expect((await service.storedTargets('owner')).supportError?.code).toBe('OB-05');
   });
   it('protects synthetic demo connections before provider or source access', async () => {
     user.email = DESIGNER_SANDBOX_PROFILE.email;
@@ -38,6 +90,27 @@ describe('Feezback disconnection', () => {
     expect(sources.find).not.toHaveBeenCalled();
     expect(users.update).not.toHaveBeenCalled();
     expect(user.hasOpenBanking).toBe(true);
+  });
+  it('returns a support error rather than full success if disconnect outcome persistence fails',async()=>{
+    sync.recordSourcesRefreshResult.mockRejectedValue(Object.assign(new Error('private database details'),{code:'ER_LOCK_DEADLOCK'}));
+    const result=await service.disconnect('owner',{scope:'all'});
+    expect(result).toMatchObject({status:'partial',supportError:{code:'OB-02',errorId:expect.any(String)}});
+    expect(JSON.stringify(result)).not.toContain('private database details');
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
+  });
+  it('records verification freshness without copying permission lists after disconnect',async()=>{
+    await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(sync.recordSourcesRefreshResult).toHaveBeenCalledWith('owner',expect.any(Date),
+      expect.objectContaining({complete:true,failureReason:undefined}));
+    const metadata=sync.recordSourcesRefreshResult.mock.calls[0][2];
+    expect(Object.keys(metadata).sort()).toEqual(['complete','connected','failureReason','sourcesRefreshed']);
+    expect(metadata.sourcesRefreshed).toBe(false);
+  });
+  it('does not report success when a newer refresh supersedes disconnect verification',async()=>{
+    sync.recordSourcesRefreshResult.mockResolvedValue(false);
+    const result=await service.disconnect('owner',{scope:'consent',consentId:'c1',connectionRole:'primary'});
+    expect(result.status).toBe('partial');
+    expect(result.supportError?.code).toBe('OB-02');
   });
   it('lists pending and unknown permissions and covers spouse, with preserved source IDs', async () => {
     permissions.owner_sub_spouse.push({ resourceId: 'c3', consentStatus: 'futureStatus' });
@@ -78,14 +151,14 @@ describe('Feezback disconnection', () => {
     expect(user.hasSpouseFeezbackIdentity).toBe(false);
     expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
   });
-  it('complete empty preview resets both connection flags and pending initiation without deleting permanent sources', async () => {
+  it('complete empty provider preview remains read-only', async () => {
     permissions.owner_sub = [];
     permissions.owner_sub_spouse = [{ resourceId: 'old', consentStatus: 'terminatedByTpp' }];
     const snapshot = JSON.stringify(await sources.find());
     const result = await service.targets('owner');
     expect(result).toMatchObject({ complete: true, hasOpenBanking: false, consents: [] });
-    expect(users.update).toHaveBeenCalledWith({ firebaseId: 'owner' }, { hasOpenBanking: false, hasSpouseFeezbackIdentity: false });
-    expect(sync.clearConsentInitiated).toHaveBeenCalledWith('owner');
+    expect(users.update).not.toHaveBeenCalled();
+    expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
     expect(JSON.stringify(await sources.find())).toBe(snapshot);
     expect(api.getUserConsents.mock.calls).toEqual([['owner_sub', true], ['owner_sub_spouse', true]]);
     expect(api.terminateConsent).not.toHaveBeenCalled();
@@ -146,14 +219,15 @@ describe('Feezback disconnection', () => {
   });
   it('does not report completion or reset spouse flags when cache cleanup fails', async () => {
     cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
-    await expect(service.disconnect('owner', { scope: 'all' })).rejects.toThrow('cache transaction failed');
+    await expect(service.disconnect('owner', { scope: 'all' })).resolves.toMatchObject({status:'partial',supportError:{code:'OB-02'}});
     expect(user.hasSpouseFeezbackIdentity).toBe(true);
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });
-  it('propagates GET cleanup failure before resetting connection flags', async () => {
+  it('never invokes cache cleanup from a provider preview', async () => {
     permissions.owner_sub = []; permissions.owner_sub_spouse = [];
     cacheCleanup.cleanup.mockRejectedValue(Error('cache transaction failed'));
-    await expect(service.targets('owner')).rejects.toThrow('cache transaction failed');
+    await expect(service.targets('owner')).resolves.toMatchObject({complete:true,consents:[]});
+    expect(cacheCleanup.cleanup).not.toHaveBeenCalled();
     expect(user).toMatchObject({ hasOpenBanking: true, hasSpouseFeezbackIdentity: true });
     expect(sync.clearConsentInitiated).not.toHaveBeenCalled();
   });
@@ -308,7 +382,7 @@ describe('Feezback disconnect actor authorization', () => {
   let controller: FeezbackController, users: any, disconnect: any;
   beforeEach(() => {
     users = { isAdmin: jest.fn().mockResolvedValue(false) };
-    disconnect = { targets: jest.fn().mockResolvedValue({ consents: [] }), disconnect: jest.fn().mockResolvedValue({ status: 'success' }) };
+    disconnect = { targets: jest.fn().mockResolvedValue({ consents: [] }), storedTargets: jest.fn().mockResolvedValue({ consents: [] }), disconnect: jest.fn().mockResolvedValue({ status: 'success' }) };
     controller = new FeezbackController({} as any, users, {} as any, {} as any, undefined, disconnect);
   });
   it('allows owner even without subscription metadata and uses Firebase guard only', async () => {
@@ -320,7 +394,7 @@ describe('Feezback disconnect actor authorization', () => {
     users.isAdmin.mockResolvedValue(true);
     await controller.disconnectionTargets({ user: { firebaseId: 'admin', actorFirebaseId: 'admin' } } as any, 'customer');
     expect(users.isAdmin).toHaveBeenCalledWith('admin');
-    expect(disconnect.targets).toHaveBeenCalledWith('customer');
+    expect(disconnect.storedTargets).toHaveBeenCalledWith('customer');
   });
   it('rejects accountant delegation and forged admin flags without trusting subject role', async () => {
     await expect(controller.disconnect({ user: { firebaseId: 'customer', actorFirebaseId: 'accountant' }, isAdminImpersonation: true, isDelegatedAccess: true } as any, { scope: 'all' })).rejects.toThrow('owner or an administrator');

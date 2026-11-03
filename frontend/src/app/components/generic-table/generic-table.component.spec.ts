@@ -33,6 +33,23 @@ describe('GenericTable unified row actions', () => {
     fixture.detectChanges();
   });
 
+  for (const mobileView of [false,true]) {
+    it(`keeps existing banking rows visible during running and failed refreshes (mobile=${mobileView})`, () => {
+      mobile.set(mobileView);
+      if (mobileView) fixture.componentRef.setInput('mobileCardConfig',{primaryFields:['name']});
+      fixture.componentRef.setInput('useSyncState',true);
+      fixture.componentRef.setInput('preserveRowsDuringSync',true);
+      fixture.componentRef.setInput('processStatus','running');
+      fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeFalse();
+      expect(fixture.nativeElement.textContent).toContain('מסמך');
+      expect(fixture.nativeElement.textContent).toContain('הנתונים הקיימים');
+      fixture.componentRef.setInput('processStatus','failed');fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('מסמך');
+      expect(fixture.nativeElement.querySelector('.sync-error-text')).toBeNull();
+    });
+  }
+
   function menu(): TableRowActionsMenuComponent {
     return fixture.debugElement.query(By.directive(TableRowActionsMenuComponent)).componentInstance;
   }

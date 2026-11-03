@@ -1,0 +1,763 @@
+{
+  "info": {
+    "name": "KeepInTax WhatsApp development checkpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8091"
+    },
+    {
+      "key": "devToken",
+      "value": "replace-with-your-local-token"
+    },
+    {
+      "key": "senderPhone",
+      "value": "0500000001"
+    },
+    {
+      "key": "businessNumber",
+      "value": "REPLACE_WITH_DEV_BUSINESS"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Routing (commit 1)",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"runId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Known sender",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown sender",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000009\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('UNKNOWN_SENDER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Multiple businesses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000002\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Choose business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000002\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('READY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/resolve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"972500000001\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Document intake (commit 2, sandbox)",
+      "item": [
+        {
+          "name": "01 Import PDF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-upload\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('IMPORTED'));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('runId')) pm.collectionVariables.set('runId', pm.variables.replaceIn('{{$guid}}'));",
+                  "function base64(s) { const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; let r = ''; for(let i=0;i<s.length;i+=3){ const x=s.charCodeAt(i), y=s.charCodeAt(i+1), z=s.charCodeAt(i+2); const n=(x<<16)|((y||0)<<8)|(z||0); r+=a[(n>>>18)&63]+a[(n>>>12)&63]+(i+1<s.length?a[(n>>>6)&63]:'=')+(i+2<s.length?a[n&63]:'='); } return r; }",
+                  "function pdf(tag) { let s='%PDF-1.4\\n% '+tag+'\\n'; const offsets=[0]; const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>','<< /Length 0 >>\\nstream\\n\\nendstream']; objects.forEach((o,i)=>{offsets.push(s.length);s+=(i+1)+' 0 obj\\n'+o+'\\nendobj\\n';}); const x=s.length; s+='xref\\n0 5\\n0000000000 65535 f \\n'; offsets.slice(1).forEach(o=>{s+=String(o).padStart(10,'0')+' 00000 n \\n';}); s+='trailer\\n<< /Root 1 0 R /Size 5 >>\\nstartxref\\n'+x+'\\n%%EOF\\n'; return base64(s); }",
+                  "pm.collectionVariables.set('contentBase64',pdf(pm.collectionVariables.get('runId')));",
+                  "pm.collectionVariables.set('retryContentBase64',pdf(pm.collectionVariables.get('runId')+'-retry'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 Same event again",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-upload\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('DUPLICATE_MESSAGE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 Same file new event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-same-file\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('ALREADY_IMPORTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 Unknown sender does not upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-unknown\",\n  \"from\": \"972500000009\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('UNKNOWN_SENDER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 Choose business before upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-multi\",\n  \"from\": \"972500000002\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 Reject other business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-wrong\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('BUSINESS_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 Reject unsupported type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-type\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"text/plain\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 Reject MIME header mismatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-mime\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"image/png\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 Reject event id reuse",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-upload\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{retryContentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 Arm next sandbox upload failure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/sandbox/fail-next-upload",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('FAILURE_ARMED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 Upload failure never reports success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-retry\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{retryContentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('IMPORT_FAILED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 Retry same failed event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-retry\",\n  \"from\": \"972500000001\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{retryContentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('IMPORTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 Selected second business",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-selected\",\n  \"from\": \"972500000002\",\n  \"filename\": \"receipt.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\",\n  \"businessNumber\": \"business-b\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('IMPORTED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Real development Drive (manual opt-in, change baseUrl and binding)",
+      "item": [
+        {
+          "name": "01 Real development Drive upload (writes a file)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-drive-upload\",\n  \"from\": \"{{senderPhone}}\",\n  \"businessNumber\": \"{{businessNumber}}\",\n  \"filename\": \"whatsapp-development-test.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('IMPORTED'));",
+                  "pm.test('Real file identity', () => pm.expect(pm.response.json().driveFileId.startsWith('sandbox-file-')).to.eql(false));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('runId')) pm.collectionVariables.set('runId', pm.variables.replaceIn('{{$guid}}'));",
+                  "function base64(s) { const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'; let r = ''; for(let i=0;i<s.length;i+=3){ const x=s.charCodeAt(i), y=s.charCodeAt(i+1), z=s.charCodeAt(i+2); const n=(x<<16)|((y||0)<<8)|(z||0); r+=a[(n>>>18)&63]+a[(n>>>12)&63]+(i+1<s.length?a[(n>>>6)&63]:'=')+(i+2<s.length?a[n&63]:'='); } return r; }",
+                  "function pdf(tag) { let s='%PDF-1.4\\n% '+tag+'\\n'; const offsets=[0]; const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R >>','<< /Length 0 >>\\nstream\\n\\nendstream']; objects.forEach((o,i)=>{offsets.push(s.length);s+=(i+1)+' 0 obj\\n'+o+'\\nendobj\\n';}); const x=s.length; s+='xref\\n0 5\\n0000000000 65535 f \\n'; offsets.slice(1).forEach(o=>{s+=String(o).padStart(10,'0')+' 00000 n \\n';}); s+='trailer\\n<< /Root 1 0 R /Size 5 >>\\nstartxref\\n'+x+'\\n%%EOF\\n'; return base64(s); }",
+                  "pm.collectionVariables.set('contentBase64',pdf(pm.collectionVariables.get('runId')));",
+                  "pm.collectionVariables.set('retryContentBase64',pdf(pm.collectionVariables.get('runId')+'-retry'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 Same file new message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-whatsapp-dev-token",
+                "value": "{{devToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/dev/whatsapp/documents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messageId\": \"{{runId}}-drive-duplicate\",\n  \"from\": \"{{senderPhone}}\",\n  \"businessNumber\": \"{{businessNumber}}\",\n  \"filename\": \"whatsapp-development-test.pdf\",\n  \"mimeType\": \"application/pdf\",\n  \"contentBase64\": \"{{contentBase64}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Expected status', () => pm.expect(pm.response.json().status).to.eql('ALREADY_IMPORTED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

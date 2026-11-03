@@ -8,24 +8,16 @@
   }
   @if (!canManage()) { <p>ניהול החיבור זמין לבעל החשבון. מנהל יכול לנהל אותו דרך לוח הלקוחות.</p> }
   @else {
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    @if (message()) { <p class="success" role="status">{{ message() }}</p> }
+    <app-open-banking-error [issue]="supportError()"></app-open-banking-error>
     @if (targets(); as state) {
-      @if (!state.complete) {
-        <div class="error" role="alert">
-          <p>בדיקת ההרשאות לא הושלמה. יש לרענן את הבדיקה לפני אישור ביטול או ניתוק.</p>
-          <ul>@for (diagnostic of diagnosticMessages(); track diagnostic) { <li>{{ diagnostic }}</li> }</ul>
-        </div>
-      } @else if (!state.hasOpenBanking && state.consents.length === 0) { <p role="status">בנקאות פתוחה מנותקת</p> }
+      @if (state.complete && !state.hasOpenBanking && state.consents.length === 0) { <p role="status">בנקאות פתוחה מנותקת</p> }
     }
     <div class="actions banking-footer">
-      <button class="danger" type="button" (click)="openFullDisconnect()"
-        [disabled]="busy() || loading() || externalBusy || synthetic() || (targets()?.complete && targets()?.consents?.length === 0)">
-        התנתקות מלאה מבנקאות פתוחה
-      </button>
-      <button type="button" (click)="load()" [disabled]="loading() || busy() || externalBusy">{{ loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות' }}</button>
+      <app-p-button    (onButtonClicked)="openFullDisconnect()"
+        [disabled]="busy() || loading() || externalBusy || synthetic()" buttonText="התנתקות מלאה מבנקאות פתוחה" [buttonSize]="small" [isLoading]="loading()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
+      <app-p-button   [buttonColor]="buttonColor.WHITE_BORDER" variant="outlined" (onButtonClicked)="refresh()" [disabled]="loading() || busy() || externalBusy" [buttonText]="loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות'" [buttonSize]="small" [isLoading]="loading()" />
       @if (!embedded && !firebaseId && !synthetic()) {
-        <button type="button" (click)="reconnect()" [disabled]="busy() || loading() || externalBusy">חיבור מחדש</button>
+        <app-p-button   (onButtonClicked)="reconnect()" [disabled]="busy() || loading() || externalBusy" buttonText="חיבור מחדש" [buttonSize]="small" [isLoading]="false" />
       }
     </div>
   }
@@ -42,7 +34,7 @@
           <ul>@for (source of consent.sources; track source.sourceRecordId ?? source.resourceId ?? $index) {
             <li>{{ sourceTypeLabel(source.sourceType) }} <bdi>{{ source.sourceName }}</bdi></li>
           } @empty { <li>אין אמצעי תשלום מזוהים להרשאה זו.</li> }</ul>
-          <button type="button" (click)="selectConsent(consent)" [disabled]="busy() || externalBusy">בחירת הרשאה זו</button>
+          <app-p-button   (onButtonClicked)="selectConsent(consent)" [disabled]="busy() || externalBusy" buttonText="בחירת הרשאה זו" [buttonSize]="small" [isLoading]="false" />
         </article>
       }
     } @else {
@@ -57,11 +49,9 @@
       <p>פרטי החשבונות והכרטיסים, הסיווגים, השיוכים וההוצאות שאושרו נשמרים. חזרה לשירות דורשת הרשאה מחדש. הפעולה אינה משנה את המנוי.</p>
     }
     <div class="actions">
-      <button type="button" (click)="closePreview()" [disabled]="busy()">חזרה</button>
+      <app-p-button   (onButtonClicked)="closePreview()" [disabled]="busy()" buttonText="חזרה" [buttonSize]="small" [isLoading]="false" />
       @if (!choices()) {
-        <button class="danger" type="button" (click)="confirm()" [disabled]="!canConfirm()">
-          {{ busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה') }}
-        </button>
+        <app-p-button    (onButtonClicked)="confirm()" [disabled]="!canConfirm()" [buttonText]="busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה')" [buttonSize]="small" [isLoading]="busy()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
       }
     </div>
   </div>

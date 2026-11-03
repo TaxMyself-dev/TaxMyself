@@ -18,6 +18,10 @@ registration. It is engineering evidence, not legal or accounting advice.
 - `shaam-integration-lessons.md` — current engineering and operational
   invariants learned from OAuth scopes, token lifecycle, allocation recovery,
   observability, and the separate Uniform File Daily Token integration.
+- `shaam-security-incident-runbook.md` — evidence-preserving incident response,
+  escalation roles and the 72-hour reporting deadline.
+- `shaam-security-monitoring.md` — safe application security events and the
+  manual Google Cloud alert/channel activation procedure.
 
 ## Main flow
 

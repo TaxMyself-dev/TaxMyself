@@ -11,10 +11,13 @@ describe('optional Feezback spouse identity', () => {
     users = { findOne: jest.fn().mockResolvedValue({ firebaseId: uid, hasOpenBanking: true, hasSpouseFeezbackIdentity: false }), update: jest.fn().mockResolvedValue({}) };
     api = { createConsentLink: jest.fn().mockResolvedValue({ link: 'https://example.test' }),
       getUserConsents: jest.fn().mockResolvedValue(valid),
-      getUserAccounts: jest.fn().mockResolvedValue({ accounts: [{ resourceId: 'account', consentId: 'consent' }] }),
+      getUserAccounts: jest.fn().mockResolvedValue({ accounts: [{ iban:'IL1234567', resourceId: 'account', consentId: 'consent' }] }),
       getUserCards: jest.fn().mockResolvedValue({ cards: [] }) };
-    state = { getSourceResults: jest.fn().mockResolvedValue([]), updateSourceResults: jest.fn().mockResolvedValue(undefined) };
-    source = { query: jest.fn().mockResolvedValue(undefined) };
+    state = { markSourcesRefreshed:jest.fn().mockResolvedValue(undefined), getSyncState: jest.fn().mockResolvedValue(null), recordSourcesRefreshResult: jest.fn(async (_uid,_observedAt,c) => {
+        if(c.connected || c.complete) await users.update({firebaseId:uid},{hasOpenBanking:c.connected}); return true;
+      }), reconcileSourceConsents:jest.fn().mockResolvedValue(undefined),
+      getSourceResults: jest.fn().mockResolvedValue([]), updateSourceResults: jest.fn().mockResolvedValue(undefined) };
+    source = { find:jest.fn().mockResolvedValue([]), query: jest.fn().mockResolvedValue(undefined) };
     service = new FeezbackService({} as any, { getTppId: () => 'tpp' } as any, api, {} as any,
       {} as any, state, users, source, {} as any, {} as any);
   });
@@ -94,7 +97,7 @@ describe('optional Feezback spouse identity', () => {
       if (sub.endsWith('_spouse')) throw Error('offline');
       return { connected: false, complete: true };
     });
-    await service.refreshUserSources(uid, 'test'); expect(users.update).not.toHaveBeenCalled();
+    await expect(service.refreshUserSources(uid, 'test')).rejects.toThrow('offline'); expect(users.update).not.toHaveBeenCalled();
   });
   it('routes a source retry to its own provider SUB', async () => {
     const impl: any = service;
@@ -139,10 +142,10 @@ describe('optional Feezback spouse identity', () => {
     const webhook: any = new FeezbackWebhookService({} as any, provider);
     const event = { payload: { user: feezbackSub(uid, true) + '@tpp' } };
     await webhook.handleUserDataIsAvailable(event);
-    expect(provider.refreshUserSources).not.toHaveBeenCalled();
+    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable',expect.objectContaining({sub:feezbackSub(uid,true)}));
     provider.verifySpouseWebhookConnection.mockResolvedValue(true);
     await webhook.handleUserDataIsAvailable(event);
-    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable');
+    expect(provider.refreshUserSources).toHaveBeenCalledWith(uid, 'UserDataIsAvailable',expect.objectContaining({sub:feezbackSub(uid,true)}));
   });
   it('marks only failed-identity sources retryable, preserving direct cards', async () => {
     const impl: any = service;

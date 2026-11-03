@@ -18,7 +18,8 @@ export function assertDevCompletionEnvironment(env: NodeJS.ProcessEnv = process.
 }
 
 export function devCompletionScheduleOptions() {
-  return isDevCompletionOnly() ? { cronJobs: false, intervals: false, timeouts: false } : {};
+  return isDevCompletionOnly() || process.env.DISABLE_SCHEDULED_TASKS === 'true'
+    ? { cronJobs: false, intervals: false, timeouts: false } : {};
 }
 
 export function assertCardcomNetworkAllowed(): void {
