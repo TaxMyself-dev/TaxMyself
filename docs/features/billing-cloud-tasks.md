@@ -79,7 +79,7 @@ mismatched actual database fail startup. For Cloud Run IAM, audience normally us
 the service's base URL; both Google IAM and the application must accept that exact
 audience. Target and audience cannot include credentials, query or fragment.
 
-Dev provisioning checklist (not executed by Codex):
+Dev provisioning checklist (template; actual dev provisioning is recorded below):
 
 1. Verify the explicit dev project, region, HTTPS backend and DB binding. Enable
    Cloud Tasks/Cloud Scheduler APIs there. Create the dedicated dev queue and worker

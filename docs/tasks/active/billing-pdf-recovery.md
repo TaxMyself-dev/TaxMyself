@@ -1,6 +1,6 @@
 # Billing PDF completion recovery
 
-- Status: `MANAGER_REVIEW`
+- Status: `LOCAL_MAIN_VERIFIED_AWAITING_MANUAL_TEST`
 - Task manager: current billing chat
 - Worker: none
 - Worktree: C:\Users\user\Keepintax\TaxMyself-admin-refunds
@@ -27,7 +27,8 @@ daily renewal batch, another charge or a replacement invoice.
   new admin UI/alert transport, renderer root cause, production access.
 - Required reading: billing AGENTS, coordination workflow/authority/quality gates,
   lessons and production policy.
-- Approval boundaries: local development only; no merge, push or deployment.
+- Approval boundaries: Elazar authorized review, combined checks and local main
+  integration on 2026-11-03; no push or deployment.
   Push requires Elazar's explicit manual test confirmation of current local main
   and explicit push approval under his personal instructions.
 
@@ -320,3 +321,38 @@ closed when their prerequisites differ. It is not a legacy data migration.
 Validation for this revision: backend build passed; native adapter guard tests
 2/2 passed; billing-related Jest suites 39/39 and tests 574/574 passed;
 git diff --check passed. Actual queue empty after normal worker restart.
+
+## Authorized local main integration (2026-11-03)
+
+- Elazar explicitly authorized review, combined checks and a local main merge;
+  push remains prohibited until he personally tests this current main revision
+  and explicitly approves it. No production access or deployment is authorized.
+- Fetched origin; local main and origin/main both resolved to
+  978ea5ca792105d0084da7e6ed13c6c48ecce9a2 before integration, with clean checkouts.
+- Reviewed all seven feature commits and the final scoped diff: canonical invoice
+  reuse, no provider resubmission during completion, post-commit enqueue, durable
+  leases/backoff, verified Google identity, real admin guard and local-only probes.
+  No blocking review findings, schema/accounting changes or secrets were found.
+- Integrated main into this existing feature worktree at e25fa17e. Resolved two
+  conflicts additively: retained both start commands; retained Lychee/WhatsApp
+  imports and the DISABLE_SCHEDULED_TASKS global switch alongside the isolated
+  completion profile. Added a regression covering the global switch with the
+  isolated profile disabled. The occupied codex/integration worktree was not touched.
+- Combined-tree validation, all exit 0:
+  - backend npm test -- --runInBand --silent --testPathPattern=billing:
+    39 suites / 575 tests passed (276.72s).
+  - node --test scripts/qa/billing-recovery-faults.test.cjs: 2 tests passed.
+  - backend npm run build: passed.
+  - frontend npm test -- --watch=false --browsers=ChromeHeadless
+    --ts-config=tsconfig.receipt-email.spec.json
+    --include=src/app/shared/admin-billing/pending-receipts/pending-receipts.component.spec.ts:
+    3 tests passed in real headless Chrome.
+  - frontend npm run build -- --configuration production: passed, with nonfatal
+    stylesheet/initial-bundle size and CommonJS optimization warnings.
+  - Every feature commit git show --check and final git diff --check: passed.
+- Prepared the validated descendant for fast-forward into the clean main checkout.
+  No remote push, production connection, live mail/payment or DB change occurred
+  during integration verification. Prior real dev queue recovery evidence remains
+  above; provider signing/storage/mail were local adapters in that acceptance run.
+- This is source integration only: ignored main env and existing running servers
+  are not replaced or restarted. Runtime startup is separate from Git integration.

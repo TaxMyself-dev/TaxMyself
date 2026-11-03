@@ -1,5 +1,19 @@
 # Primary manager state
 
+## Billing existing-invoice recovery — local main integration, 2026-11-03
+
+Elazar authorized local main integration after review and combined checks, with
+no push until his personal test and explicit approval. Integrated current main
+978ea5ca into the existing billing feature at e25fa17e, preserving global schedule
+disabling and the newer Lychee/WhatsApp modules. Retained both start commands and
+added schedule-switch regression coverage. Backend: 39 suites / 575 tests and
+2 native adapter tests passed; Nest build passed. Frontend: 3 real Chrome tests
+and production build passed, with nonfatal budget/CommonJS warnings. Review found
+no blocker; no schema, production, provider, ignored-env or runtime change was made.
+Validated descendant prepared for local main fast-forward; see
+[task evidence](../tasks/active/billing-pdf-recovery.md). Keep the feature worktree
+and all commits local until Elazar tests current main and approves pushing.
+
 ## KT-104 Uniform File branch completion — 2026-10-29
 
 Reconciled the long-lived Uniform File branch with current `main`, preserving
