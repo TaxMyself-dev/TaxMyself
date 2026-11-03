@@ -74,14 +74,14 @@ To display all targets, options, and examples without starting a deployment:
 ```
 
 The script never receives, stores, or bypasses an account password. Its first
-stage explicitly launches the interactive login flows required by the target:
+stage checks existing sessions for access to the target project. Only a failed check launches the corresponding interactive login directly in the terminal, without redirecting its input or output:
 
 ```powershell
 gcloud auth login
 firebase login --reauth
 ```
 
-Only after both logins succeed does the preflight stage perform read-only checks
+After any required login, project access is checked again. The preflight stage also performs read-only checks
 that the active sessions can access `taxmyself-prod`. An unauthorized session
 stops the release before any build or deployment. Git authentication is checked
 naturally by the required `git fetch origin`; Git Credential Manager may prompt

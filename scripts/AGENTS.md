@@ -51,8 +51,8 @@ and promotion, live compatibility smoke, and frontend rollback.
 - Do not run schema migrations, cutover SQL, or production-data maintenance.
 - Never print or persist production environment values or credentials.
 - Deployment authentication comes only from existing gcloud, Firebase CLI,
-  and Git Credential Manager sessions. Every release begins by refreshing the
-  sessions required by its target. Never accept passwords as script parameters
+  and Git Credential Manager sessions. Every release begins by checking the
+  sessions required by its target; open interactive login directly in the terminal only when a check fails, then verify project access again. Never accept passwords as script parameters
   or store credentials in the repository.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
 - A failed zero-traffic Cloud Run deployment queries only ERROR entries for the

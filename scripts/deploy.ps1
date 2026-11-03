@@ -19,8 +19,8 @@ remain mandatory.
 
 .NOTES
 Authentication:
-No password is accepted or stored by this script. The first stage opens
-interactive login for the deployment CLIs required by the selected target:
+No password is accepted or stored by this script. The first stage checks existing sessions and opens
+interactive login only when a required session cannot access the project:
 
   gcloud auth login
   firebase login --reauth
@@ -120,7 +120,7 @@ function Write-ReleaseStatus([string]$State, [string]$Message, [ConsoleColor]$Co
   }
 }
 
-function Invoke-Stage([string]$Name, [scriptblock]$Action) {
+function Invoke-Stage([string]$Name, [scriptblock]$Action, [switch]$InteractiveOutput) {
   $script:StageNumber++
   $script:CurrentStage = $Name
   $started = Get-Date
@@ -128,7 +128,12 @@ function Invoke-Stage([string]$Name, [scriptblock]$Action) {
   try {
     $script:QuietConsole = $true
     try {
-      & $Action | ForEach-Object { Write-ReleaseLog $_ }
+      if ($InteractiveOutput) {
+        # Login must inherit the terminal, without a pipeline or redirection.
+        & $Action
+      } else {
+        & $Action | ForEach-Object { Write-ReleaseLog $_ }
+      }
     } finally {
       $script:QuietConsole = $false
     }
@@ -198,6 +203,57 @@ function Invoke-NativeCapture([string]$Command, [string[]]$Arguments) {
   return ($stdout -join "`n")
 }
 
+function Invoke-NativeInteractive([string]$Command, [string[]]$Arguments) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments
+    $nativeExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($nativeExitCode -ne 0) {
+    throw "$Command failed with exit code $nativeExitCode"
+  }
+}
+
+function Test-DeploymentSession([string]$Provider) {
+  try {
+    if ($Provider -eq 'gcloud') {
+      $account = (Invoke-NativeCapture $script:GcloudCommand @(
+        'auth', 'list', '--filter=status:ACTIVE', '--format=value(account)'
+      )).Trim()
+      if (!$account) { return $false }
+      $resolved = (Invoke-NativeCapture $script:GcloudCommand @(
+        'projects', 'describe', $Project, '--format=value(projectId)'
+      )).Trim()
+      return ($resolved -eq $Project)
+    }
+    $json = Invoke-NativeCapture $script:FirebaseCommand @('projects:list', '--json', '--non-interactive')
+    $projects = $json | ConvertFrom-Json
+    return ($Project -in @($projects.result | ForEach-Object { $_.projectId }))
+  } catch {
+    Write-ReleaseLog "$Provider session check failed: $($_.Exception.Message)"
+    return $false
+  }
+}
+
+function Initialize-DeploymentSessions {
+  if (!(Test-DeploymentSession 'gcloud')) {
+    Write-Host 'Google Cloud session needs attention; opening interactive login.'
+    Invoke-NativeInteractive $script:GcloudCommand @('auth', 'login')
+    if (!(Test-DeploymentSession 'gcloud')) {
+      throw "Google Cloud login completed but project access could not be verified for $Project"
+    }
+  }
+  if ($deployFrontend -and !(Test-DeploymentSession 'firebase')) {
+    Write-Host 'Firebase session needs attention; opening interactive login.'
+    Invoke-NativeInteractive $script:FirebaseCommand @('login', '--reauth')
+    if (!(Test-DeploymentSession 'firebase')) {
+      throw "Firebase login completed but project access could not be verified for $Project"
+    }
+  }
+}
 function Get-CommandName([string]$Name) {
   $windowsName = "$Name.cmd"
   if ($env:OS -eq 'Windows_NT' -and (Get-Command $windowsName -ErrorAction SilentlyContinue)) {
@@ -381,23 +437,17 @@ Write-ReleaseLog "Project: $Project"
 Write-Host "Detailed log: $($script:LogPath)" -ForegroundColor DarkGray
 
 try {
-  # Authenticate interactively with the systems that perform the selected
+  # Reuse valid deployment sessions; interactively authenticate only when needed for the
   # deployment. The CLIs manage their own tokens; this script never receives
   # or stores a password. Fixture-backed regression tests skip cloud access.
   if (!$TestStatePath) {
-    Invoke-Stage 'Production authorization and interactive deployment login' {
+    Invoke-Stage 'Production authorization and interactive deployment login' -InteractiveOutput {
       $script:GcloudCommand = Get-CommandName 'gcloud'
       if ($deployFrontend) {
         $script:FirebaseCommand = Get-CommandName 'firebase'
       }
 
-      Write-ReleaseStatus 'INFO' 'Opening Google Cloud login for release operations' DarkGray
-      Invoke-Native $script:GcloudCommand @('auth', 'login')
-
-      if ($deployFrontend) {
-        Write-ReleaseStatus 'INFO' 'Opening Firebase login for the frontend deployment' DarkGray
-        Invoke-Native $script:FirebaseCommand @('login', '--reauth')
-      }
+      Initialize-DeploymentSessions
     }
   }
 

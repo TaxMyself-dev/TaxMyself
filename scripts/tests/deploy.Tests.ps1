@@ -214,6 +214,62 @@ foreach ($requiredText in @(
   }
 }
 
+# Exercise authentication decisions without cloud access or real login.
+$authAst = [System.Management.Automation.Language.Parser]::ParseFile($releaseScript, [ref]$null, [ref]$null)
+$authDefinitions = foreach ($name in @('Initialize-DeploymentSessions', 'Test-DeploymentSession', 'Invoke-NativeInteractive')) {
+  $authAst.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name }, $true).Extent.Text
+}
+& {
+  foreach ($definition in $authDefinitions) { . ([scriptblock]::Create($definition)) }
+  $Project = 'test-project'
+  $script:GcloudCommand = 'gcloud-stub'
+  $script:FirebaseCommand = 'firebase-stub'
+  function Write-ReleaseLog { param($Record) }
+  function Invoke-NativeCapture {
+    param($Command, $Arguments)
+    if ($Command -eq 'gcloud-stub') {
+      if ($Arguments[0] -eq 'auth') { return 'operator@example.test' }
+      return 'test-project'
+    }
+    return '{"result":[{"projectId":"test-project"}]}'
+  }
+  if (!(Test-DeploymentSession 'gcloud') -or !(Test-DeploymentSession 'firebase')) { throw 'Valid sessions were rejected' }
+  function Invoke-NativeCapture { throw 'Expired session' }
+  if ((Test-DeploymentSession 'gcloud') -or (Test-DeploymentSession 'firebase')) { throw 'Failed session checks were accepted' }
+  function Invoke-NativeCapture { return '{"result":[{"projectId":"other-project"}]}' }
+  if (Test-DeploymentSession 'firebase') { throw 'Firebase session without project access was accepted' }
+
+  foreach ($scenario in @('valid', 'expired', 'backend', 'denied', 'login-failed')) {
+    $script:checks = @{}
+    $script:logins = @()
+    $deployFrontend = $scenario -ne 'backend'
+    function Test-DeploymentSession {
+      param($Provider)
+      $script:checks[$Provider] = 1 + [int]$script:checks[$Provider]
+      if ($scenario -in @('valid', 'backend')) { return $true }
+      if ($scenario -eq 'denied') { return $false }
+      return $script:checks[$Provider] -gt 1
+    }
+    function Invoke-NativeInteractive {
+      param($Command, $Arguments)
+      $script:logins += $Command
+      if ($scenario -eq 'login-failed') { throw 'login failed' }
+    }
+    $failed = $false
+    try { Initialize-DeploymentSessions } catch { $failed = $true }
+    if ($failed -ne ($scenario -in @('denied', 'login-failed'))) { throw "Unexpected authentication outcome: $scenario" }
+    if ($scenario -eq 'valid' -and $script:logins.Count -ne 0) { throw 'Valid sessions prompted for login' }
+    if ($scenario -eq 'expired' -and ($script:logins.Count -ne 2 -or $script:checks['firebase'] -ne 2)) { throw 'Expired sessions were not refreshed and rechecked' }
+    if ($scenario -eq 'backend' -and $script:checks.ContainsKey('firebase')) { throw 'Backend deployment checked Firebase' }
+  }
+}
+$interactiveDefinition = $authDefinitions[2]
+if ($interactiveDefinition -match '2>&1|ForEach-Object|Out-Host|Invoke-NativeCapture') {
+  throw 'Interactive login must not redirect native terminal streams'
+}
+if ($source -notmatch "Invoke-Stage 'Production authorization and interactive deployment login' -InteractiveOutput") {
+  throw 'Authentication stage must bypass stage output capture'
+}
 $fixtureLines = [System.Collections.Generic.List[string]]::new()
 & $releaseScript -TestStatePath $validFixture *>&1 |
   ForEach-Object { $fixtureLines.Add("$_") }
