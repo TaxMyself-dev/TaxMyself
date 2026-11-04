@@ -24,9 +24,6 @@ import {
 @Entity()
 @Index('IDX_rule_user_bill_merchant', ['userId', 'billId', 'transactionName'])
 export class ClassifiedTransactions {
-  @Column({ type: 'int', nullable: true })
-  sourceRecordId: number | null;
-
 
   @PrimaryGeneratedColumn()
   id: number;

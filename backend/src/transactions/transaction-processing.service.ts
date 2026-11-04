@@ -838,7 +838,6 @@ export class TransactionProcessingService {
       userId,
       billId: cacheRow.billId,
       transactionName: cacheRow.merchantName,
-      sourceRecordId: cacheRow.sourceRecordId ?? null,
       startDate: dto.startDate ?? null,
       endDate: dto.endDate ?? null,
       minAbsSum: dto.minAbsSum ?? null,
@@ -1431,7 +1430,6 @@ export class TransactionProcessingService {
       });
     }
 
-    if (savedRule.sourceRecordId != null) qb.andWhere('c.sourceRecordId = :ruleSource', { ruleSource: savedRule.sourceRecordId });
     const candidates = await qb.getMany();
     if (candidates.length === 0) return 0;
 
@@ -1674,7 +1672,6 @@ export class TransactionProcessingService {
     // Step 1: full match filter.
     const matching = rules.filter((rule) => {
       if (rule.billId !== tx.billId) return false;
-      if (rule.sourceRecordId != null && rule.sourceRecordId !== tx.sourceRecordId) return false;
       if (rule.transactionName !== tx.merchantName) return false;
 
       // commentPattern: if rule defines it, transaction note must match.

@@ -94,3 +94,8 @@ preference on the server; the cashflow list can explicitly show excluded rows.
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and has not been executed here.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Classification rules retain their existing billId + merchant + optional-condition
+scope across all sources associated with that bill. No sourceRecordId column or
+source predicate is added to classified_transactions; durable source provenance
+on slim_transactions is used only for the bank-only cashflow exclusion policy.

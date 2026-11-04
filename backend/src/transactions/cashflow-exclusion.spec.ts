@@ -66,15 +66,43 @@ describe('Direct-card cashflow exclusion', () => {
     expect(db.prepare(`SELECT slim.id FROM slim_transactions slim WHERE NOT (${cashflowExcludedSql('slim')})`).all()).toHaveLength(1);
   });
 
-  it('preserves identity on both classified cache rebuild paths and source-scopes rules', () => {
+  it('preserves cache identity and matches the same rule across sources of one bill', () => {
     const service: any = Object.create(TransactionProcessingService.prototype);
     const tx: any = { billId: 5, sourceRecordId: 1, merchantName: 'כרטיס', amount: -350, transactionDate: new Date('2026-10-01') };
-    const rule: any = { billId: 5, sourceRecordId: 1, transactionName: 'כרטיס', subCategoryId: 10 };
+    const rule: any = { billId: 5, transactionName: 'כרטיס', subCategoryId: 10 };
     expect(service.buildCacheRowWithRule('owner', tx, rule).subCategoryId).toBe(10);
     expect(service.buildCacheRowWithSlim('owner', tx, { subCategoryId: 10 }).subCategoryId).toBe(10);
     expect(service.slimArchiveSnapshot({ ...tx }).sourceRecordId).toBe(1);
-    expect(service.matchRule({ ...tx, sourceRecordId: 2 }, [rule])).toBeNull();
+    expect(service.matchRule({ ...tx, sourceRecordId: 2 }, [rule])).toBe(rule);
     expect(service.matchRule(tx, [rule])).toBe(rule);
+    expect(service.matchRule({ ...tx, billId: 6 }, [rule])).toBeNull();
+    expect(service.matchRule({ ...tx, merchantName: 'אחר' }, [rule])).toBeNull();
+    expect(service.matchRule(tx, [{ ...rule, minAbsSum: 400 }])).toBeNull();
+  });
+});
+
+describe('Unchanged classification rule scope', () => {
+  it('looks up an existing rule using bill, merchant and conditions, without source identity', async () => {
+    const service: any = Object.create(TransactionProcessingService.prototype);
+    const findRule = jest.fn().mockResolvedValue({ id: 9 });
+    Object.assign(service, {
+      cacheRepo: { findOne: async () => ({ billId: 5, sourceRecordId: 2, merchantName: 'כרטיס' }) },
+      slimRepo: { findOne: async () => null }, rulesRepo: { findOne: findRule },
+    });
+    await expect(service.classifyWithRule('owner', { externalTransactionId: 'tx' })).resolves.toMatchObject({ status: 'confirm_rule_override' });
+    const scope = findRule.mock.calls[0][0].where;
+    expect(scope).toMatchObject({ userId: 'owner', billId: 5, transactionName: 'כרטיס', minAbsSum: null, commentPattern: null });
+    expect(scope).not.toHaveProperty('sourceRecordId');
+  });
+
+  it('backfills by bill and merchant without restricting candidates to the focus source', async () => {
+    const service: any = Object.create(TransactionProcessingService.prototype);
+    const qb: any = { where: jest.fn().mockReturnThis(), andWhere: jest.fn().mockReturnThis(), getMany: jest.fn().mockResolvedValue([]) };
+    Object.assign(service, { cacheRepo: { createQueryBuilder: () => qb }, getEffectiveBackfillStartDate: () => new Date('2026-01-01') });
+    await expect(service.applyRuleToExistingTransactions('owner', { billId: 5, sourceRecordId: 2, merchantName: 'כרטיס' }, { id: 9 }, { externalTransactionId: 'tx' })).resolves.toBe(0);
+    expect(qb.andWhere).toHaveBeenCalledWith('c.billId = :billId', { billId: 5 });
+    expect(qb.andWhere).toHaveBeenCalledWith('c.merchantName = :merchantName', { merchantName: 'כרטיס' });
+    expect(qb.andWhere.mock.calls.some(([clause]) => String(clause).includes('sourceRecordId'))).toBe(false);
   });
 });
 

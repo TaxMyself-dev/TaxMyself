@@ -2772,9 +2772,6 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='slim_transactions' AND COLUMN_NAME='sourceRecordId') THEN
     ALTER TABLE slim_transactions ADD COLUMN sourceRecordId int NULL;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='classified_transactions' AND COLUMN_NAME='sourceRecordId') THEN
-    ALTER TABLE classified_transactions ADD COLUMN sourceRecordId int NULL;
-  END IF;
 
   -- Do not silently repurpose an existing accounting/private classification.
   IF EXISTS (

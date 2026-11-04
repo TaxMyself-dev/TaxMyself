@@ -12,7 +12,7 @@
 - [x] Immutable SYSTEM subcategory with stable identity, available under an overridden parent.
 - [x] Owner-only server-persisted boolean preference, false by default; narrow update preserves concurrent connection state.
 - [x] Exclude classified owned BANK_ACCOUNT rows from lists, aggregates, pending archives/previews and direct approval endpoints.
-- [x] Keep classification/source provenance across cache rebuilds; scope new rules to the selected source.
+- [x] Keep classification/source provenance across cache rebuilds; preserve existing bill-wide rule matching, identity and backfill across sources.
 - [x] Inspect/reclassify excluded rows; opt-out restores visibility. Refresh cached lists/charts on saved preference changes.
 - [x] Sync failures stay independent; synthetic demo covers both states without provider calls.
 - [x] Prepare manual SQL, append it to cutover.sql and document rollout/limits.
@@ -30,7 +30,7 @@
 
 ## Impact and manual checks
 
-Schema: new preference, catalog systemKey/index, cache classification ID and slim/rule source provenance. Script: docs/features/direct-card-cashflow.sql; also appended to docs/redesign/cutover.sql. Existing rule/slim classification columns reused.
+Schema: new preference, catalog systemKey/index, cache classification ID and slim source provenance (four columns, one unique index). No classified_transactions.sourceRecordId. Script: docs/features/direct-card-cashflow.sql; also appended to docs/redesign/cutover.sql. Existing rule/slim classification columns reused.
 
 Security: Firebase and existing owner/represented-client boundary; selected category IDs validated in tenant catalog. No broader delegation permission.
 
@@ -39,3 +39,17 @@ Accounting: no historical Expense/journal mutation or account-code changes. New 
 Before release: rehearse SQL on non-production MySQL, test actual card coverage/refresh and classification, and review previously approved bank/card duplicates. Elazar must personally test the current local main revision and explicitly approve any GitHub push.
 
 Documentation: feature guide, standalone/cumulative SQL and nearest affected topic AGENTS files.
+
+## Rule-scope correction (2026-11-04)
+
+Elazar requested preserving ordinary classification rule behavior. Removed the
+source predicate from rule identity, matching and backfill, and removed
+classified_transactions.sourceRecordId from the entity and both SQL copies.
+Slim source provenance and the bank-only exclusion policy remain unchanged.
+
+Validation: five backend suites / 40 tests passed, including cross-source matches
+within the same bill, rejection of another bill/merchant/amount condition, source-free
+rule lookup/backfill, exclusion/approval and Direct import regressions. Nest build
+passed (exit 0). Standalone and cumulative SQL blocks match exactly and contain no
+classified_transactions ALTER. No frontend files changed, so UI tests/build were
+not repeated for this correction. No DB operations or GitHub push performed.

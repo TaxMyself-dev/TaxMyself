@@ -16,10 +16,10 @@ automatic bank/card matching, including for grouped bank debits.
   already exist. Classification now validates and carries selected IDs through
   manual/rule writes, backfill, rule edits and cache reconstruction.
 - `full_transactions_cache.sub_category_id` mirrors the selected identity.
-- `slim_transactions.sourceRecordId` retains source provenance after cache cleanup;
-  new rules also retain `classified_transactions.sourceRecordId` to limit matching
-  and backfill to their selected source. Legacy rules with no source keep their
-  existing bill-wide scope.
+- `slim_transactions.sourceRecordId` retains source provenance after cache cleanup.
+  Classification rules keep their existing bill-wide scope: billId, merchant name
+  and optional conditions. Rules do not store or filter by sourceRecordId; matching
+  and backfill can span multiple sources associated with the same bill.
 
 `cashflow-exclusion.ts` holds one correlated SQL predicate: opt-in preference AND
 owned BANK_ACCOUNT source AND the identified SYSTEM subcategory. Cache reads use
@@ -79,7 +79,7 @@ the preference. Its legacy action disables the preference and shows both feeds.
 Both source sync statuses are success; no Feezback call is made.
 
 Focused tests cover SQL policy against a local in-memory SQLite fixture (Node
-22.13+ or 24), source scope and cache rebuild, owner/boolean validation, Direct
+22.13+ or 24), unchanged bill-wide rule scope and cache rebuild, owner/boolean validation, Direct
 imports/retries and preservation of readiness checks, archive approval and catalog
 idempotency. SQLite checks do not substitute for MySQL deployment rehearsal.
 Frontend focused tests use `tsconfig.direct-card.spec.json` and
