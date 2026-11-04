@@ -35,6 +35,7 @@ param(
   [ValidateSet('Full', 'Backend', 'Frontend')]
   [string]$Target = 'Full',
   [switch]$SkipLocalTests,
+  [switch]$Rebuild,
   [Alias('h')]
   [switch]$Help,
   [string]$Project = 'taxmyself-prod',
@@ -52,7 +53,7 @@ if ($Help) {
 KeepInTax production deployment
 
 Usage:
-  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests]
+  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests] [-Rebuild]
   .\scripts\deploy -Help
 
 Target (optional; default: full):
@@ -63,6 +64,7 @@ Target (optional; default: full):
 Options:
   -SkipLocalTests  Skip local backend Jest and smoke configuration tests.
                    Builds and all production safety checks still run.
+  -Rebuild         Ignore recorded builds and rebuild locally and in the cloud.
   -Help, -h        Show this help without starting a deployment.
 
 Examples:
@@ -98,6 +100,11 @@ $script:PowerShellCommand = $null
 $script:QuietConsole = $false
 $script:LogWriter = $null
 $script:LogPath = $null
+$script:BuildCacheKey = $null
+$script:BuildCacheDirectory = $null
+$script:ReusableBackendImage = $null
+$script:FrontendBuildHash = $null
+. (Join-Path $PSScriptRoot 'deploy-build-cache.ps1')
 
 function Write-ReleaseLog([object]$Record) {
   if ($null -eq $script:LogWriter) { return }
@@ -635,7 +642,16 @@ try {
 
   # Install exactly the locked backend dependencies, run the full Jest suite,
   # and prove the Nest production bundle compiles before touching the cloud.
+  $script:BuildCacheDirectory = Join-Path $logDirectory 'build-cache'
+  $script:BuildCacheKey = Get-BuildInputKey
+
   if ($deployBackend) { Invoke-Stage 'Backend dependencies, tests, and production build' {
+    $output = Join-Path $backendDirectory 'dist'
+    if (Test-CachedBuild 'backend' $output) {
+      Write-Host 'REUSE: backend dependencies, tests and build already completed for these inputs.'
+      return
+    }
+    Clear-CachedBuild 'backend'
     Push-Location $backendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
@@ -645,12 +661,20 @@ try {
         Invoke-Native $script:NpmCommand @('test', '--', '--runInBand')
       }
       Invoke-Native $script:NpmCommand @('run', 'build')
+      Save-CompletedBuild 'backend' $output
     } finally { Pop-Location }
   } }
 
   # Build the Angular production output that will later be uploaded to a
   # preview channel and, only after browser verification, cloned to live.
   if ($deployFrontend) { Invoke-Stage 'Frontend dependencies and production build' {
+    $output = Join-Path $frontendDirectory 'dist/app'
+    if ((Test-Path -LiteralPath (Join-Path $output 'index.html')) -and (Test-CachedBuild 'frontend' $output)) {
+      $script:FrontendBuildHash = Get-BuildTreeHash $output
+      Write-Host 'REUSE: frontend production build already completed for these inputs.'
+      return
+    }
+    Clear-CachedBuild 'frontend'
     Push-Location $frontendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
@@ -658,6 +682,8 @@ try {
       if (!(Test-Path -LiteralPath (Join-Path $frontendDirectory 'dist/app/index.html'))) {
         throw 'Frontend production build did not create dist/app/index.html'
       }
+      Save-CompletedBuild 'frontend' $output
+      $script:FrontendBuildHash = Get-BuildTreeHash $output
     } finally { Pop-Location }
   } }
 
@@ -678,6 +704,12 @@ try {
   # Package backend source from the verified Git commit, never from mutable
   # working-tree files. Secrets, dependencies, and build output are excluded.
   if ($deployBackend) { Invoke-Stage 'Create clean backend source snapshot' {
+    Assert-BuildInputsUnchanged
+    $script:ReusableBackendImage = Get-ReusableBackendImage
+    if ($script:ReusableBackendImage) {
+      Write-Host 'REUSE: immutable backend image is available; source packaging and cloud build are unnecessary.'
+      return
+    }
     Set-Location $repositoryRoot
     $dirty = Invoke-NativeCapture $script:GitCommand @('status', '--porcelain')
     if ($dirty.Trim()) { throw 'Working tree changed during verification; refusing to deploy' }
@@ -698,12 +730,18 @@ try {
   # Build/deploy a new immutable Cloud Run revision with a direct tag URL but
   # keep all public production traffic on the previously serving revision.
   if ($deployBackend) { Invoke-Stage 'Deploy backend candidate with zero traffic' {
-    $source = Join-Path $script:ReleaseDirectory 'backend-source'
+    Assert-BuildInputsUnchanged
+    if ($script:ReusableBackendImage) {
+      $deploymentInput = "--image=$($script:ReusableBackendImage)"
+    } else {
+      $source = Join-Path $script:ReleaseDirectory 'backend-source'
+      $deploymentInput = "--source=$source"
+    }
     $expectedRevision = "$BackendService-$($script:ReleaseId)"
     try {
       Invoke-Native $script:GcloudCommand @(
         'run', 'deploy', $BackendService,
-        "--source=$source",
+        $deploymentInput,
         "--project=$Project",
         "--region=$Region",
         "--revision-suffix=$($script:ReleaseId)",
@@ -750,6 +788,10 @@ try {
       $script:BackendPromoted = $true
       throw 'The zero-traffic deployment unexpectedly changed production traffic'
     }
+    if ($script:ReusableBackendImage -and $script:CandidateImage -ne $script:ReusableBackendImage) {
+      throw 'Candidate image differs from the verified cached image'
+    }
+    Write-BuildCache 'image' @{ image = $script:CandidateImage }
     Write-ReleaseStatus 'INFO' "Candidate revision: $($script:CandidateRevision)" DarkGray
     Write-ReleaseStatus 'INFO' "Candidate URL: $($script:CandidateUrl)" DarkGray
   } }
@@ -804,6 +846,10 @@ try {
   # Upload the already-built frontend to an expiring preview channel. Live
   # users still receive the old Firebase Hosting version at this point.
   if ($deployFrontend) { Invoke-Stage 'Deploy Firebase frontend preview' {
+    Assert-BuildInputsUnchanged
+    if ((Get-BuildTreeHash (Join-Path $frontendDirectory 'dist/app')) -ne $script:FrontendBuildHash) {
+      throw 'Frontend build output changed after verification; refusing to deploy'
+    }
     Set-Location $repositoryRoot
     $previewOutput = Invoke-NativeCapture $script:FirebaseCommand @(
       'hosting:channel:deploy', $script:ReleaseId,

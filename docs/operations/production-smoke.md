@@ -158,3 +158,26 @@ The first apply is also the smoke bootstrap: the zero-traffic backend candidate
 already contains `/ready` and both job binaries, so the script checks readiness,
 creates the jobs from that exact immutable image, and only then promotes the
 backend. The script performs no schema migration or cutover SQL.
+
+### Reusing completed builds after a failed release
+
+Run `scripts\deploy` again normally. Completed backend verification/build and
+frontend production builds are recorded independently under the git-ignored
+`deployment-logs/build-cache/` directory. A failed build is never recorded as
+complete. Reuse requires the same Git commit, Node/npm versions, test policy,
+deployment settings and hashed local environment/configuration, plus identical
+output file hashes. Changing a tracked file/commit or test policy, modifying or
+removing output, or an unreadable cache causes a fresh build. No credentials or
+environment values are stored in these records. Existing builds from before
+this mechanism was installed cannot be adopted safely and will rebuild once.
+
+When a previous attempt also produced a verified immutable backend image, the
+retry checks its availability and deploys it to a new zero-traffic revision
+using `--image`, avoiding another Cloud Build. If the image is missing or cannot
+be verified, the script falls back to building from the clean source snapshot.
+Authentication, main/origin checks, smoke setup, candidate readiness, job setup,
+frontend preview/browser smoke, backups, live smoke and rollback still run.
+Each attempt gets a new release ID and its own three-day backup channel.
+
+Use `scripts\deploy -Rebuild` to force both local and cloud builds. Reuse prints
+`REUSE` messages in the terminal; it is not a jump to a previously failed stage.
