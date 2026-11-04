@@ -649,6 +649,16 @@ export class FeezbackService {
     return status === 'failed' || status === 'not_synced';
   }
 
+  private static hasStoredConsent(source: { consentId?: string | null }): boolean {
+    return typeof source.consentId === 'string' && source.consentId.trim().length > 0;
+  }
+
+  private withoutConsentResult(source: SourceResult): SourceResult {
+    // No provider call or outcome write: retained historical sources are not pending work.
+    return { type: source.type, sourceId: source.sourceId, sourceRecordId: source.sourceRecordId,
+      connectionRole: source.connectionRole, status: 'not_synced', transactionCount: 0 };
+  }
+
   /**
    * Upsert Source rows using the (userId, sourceName) unique index.
    * Race-safe and idempotent. Falsy sourceName entries are skipped.
@@ -2858,7 +2868,7 @@ export class FeezbackService {
       normalizedTransactions: [], accountsFailed: type === 'bank' ? 1 : 0,
       processingError: error instanceof BankingBatchError && error.issues[0].code === 'OB-04' ? error.message : undefined,
       cardErrors: type === 'card' ? [{ message: error?.message ?? 'identity_fetch_failed' }] : [],
-      __identityResults: rows.filter(row => row.type === type && subForSource(firebaseId, row.connectionRole) === sub)
+      __identityResults: rows.filter(row => FeezbackService.hasStoredConsent(row) && row.type === type && subForSource(firebaseId, row.connectionRole) === sub)
         .map(row => ({ ...row, status: row.status === 'skipped_direct' ? 'skipped_direct' : 'failed',
           transactionCount: 0, error: row.status === 'skipped_direct' ? undefined : (error?.message ?? 'identity_fetch_failed').slice(0, 255) })),
     };
@@ -2990,11 +3000,21 @@ export class FeezbackService {
       if (syncHasRun && triggeredBy === 'login') {
         const sourceRows = await this.userSyncStateService.getSourceResults(firebaseId);
         const pendingSources = sourceRows.filter(
-          s => FeezbackService.isRetryablePendingStatus(s.status) && !/\|(?:401|403|404)$/.test(s.error ?? '') && !/^OB-0[24]\|/.test(s.error ?? ''),
+          s => FeezbackService.hasStoredConsent(s) && FeezbackService.isRetryablePendingStatus(s.status) && !/\|(?:401|403|404)$/.test(s.error ?? '') && !/^OB-0[24]\|/.test(s.error ?? ''),
         );
         if (pendingSources.length > 0) {
           console.log(`🔁 [FullSync] Cache exists but ${pendingSources.length} source(s) pending (failed/not_synced) — retrying | firebaseId=${masked}`);
           await this.retryFailedSources(firebaseId, pendingSources, masked);
+          return;
+        }
+        // Repair only a proven historical false OB-03: this run failed exclusively on
+        // disconnected sources, and every currently linked source has a healthy outcome.
+        const activeSources = sourceRows.filter(source => FeezbackService.hasStoredConsent(source));
+        const oldRunSources = sourceRows.filter(source => !!syncState.fullRunId && source.resultRunId === syncState.fullRunId);
+        if (syncState.fullFailureReason?.startsWith('OB-03|') && oldRunSources.length > 0 &&
+          oldRunSources.every(source => source.status === 'failed' && !FeezbackService.hasStoredConsent(source)) && activeSources.length > 0 &&
+          activeSources.every(source => source.status === 'success' || source.status === 'skipped_direct')) {
+          await this.markConnectedSyncFinished(firebaseId, 'completed', 'success', 0, undefined, runId);
           return;
         }
         // Only truly skip when sync completed successfully
@@ -3129,13 +3149,13 @@ export class FeezbackService {
       const afterPass = await this.userSyncStateService
         .getSourceResults(firebaseId)
         .catch(() => [] as SourceResult[]);
-      const failedAfterPass = afterPass.filter(s => s.status === 'failed' && !/\|(?:401|403|404)$/.test(s.error ?? '') && !/^OB-0[24]\|/.test(s.error ?? ''));
+      const failedAfterPass = afterPass.filter(s => FeezbackService.hasStoredConsent(s) && s.status === 'failed' && !/\|(?:401|403|404)$/.test(s.error ?? '') && !/^OB-0[24]\|/.test(s.error ?? ''));
       if (failedAfterPass.length > 0) {
         await this.autoRetryFailedSources(firebaseId, failedAfterPass, masked);
         const afterRetry = await this.userSyncStateService
           .getSourceResults(firebaseId)
           .catch(() => afterPass);
-        const stillFailed = afterRetry.filter(s => s.status === 'failed');
+        const stillFailed = afterRetry.filter(s => FeezbackService.hasStoredConsent(s) && s.status === 'failed');
         if (!storageFailure && stillFailed.length === 0 && afterRetry.length > 0) {
           // Every previously-failed source recovered on retry.
           finalProcessStatus = 'completed';
@@ -3173,6 +3193,7 @@ export class FeezbackService {
    * The frontend poller sees running → completed with updated sourceResults.
    */
   private async retryFailedSources(firebaseId: string, failedSources: SourceResult[], masked: string): Promise<void> {
+    failedSources = failedSources.filter(source => FeezbackService.hasStoredConsent(source));
     // Mark as running first so frontend polling sees the state transition
     const inheritedRun = this.pullRunScope?.getStore();
     const acquired = inheritedRun ? {acquired:true,runId:inheritedRun} : await this.withConnectedUserLock<{acquired:boolean;runId?:string}>(firebaseId, () => this.userSyncStateService.markSyncRunning(firebaseId, 'manual'), async () => ({ acquired: false }))
@@ -3198,11 +3219,19 @@ export class FeezbackService {
     console.log(`  ✓ All retries done — ${((Date.now() - tStart) / 1000).toFixed(2)}s`);
     console.log(`════════════════════════════════════\n`);
 
-    const failed = retried.filter(result => !result || result.status === 'failed');
-    const stored = await this.userSyncStateService.getSourceResults(firebaseId);
+    const stored = (await this.userSyncStateService.getSourceResults(firebaseId)).filter(source => FeezbackService.hasStoredConsent(source));
+    // A consent can be revoked after selection but before a retry completes.
+    const relevantResults = retried.filter((_result, index) => stored.some(source => {
+      const selected = failedSources[index];
+      return source.sourceRecordId && selected.sourceRecordId
+        ? source.sourceRecordId === selected.sourceRecordId
+        : source.type === selected.type && source.sourceId === selected.sourceId &&
+          (source.connectionRole ?? 'primary') === (selected.connectionRole ?? 'primary');
+    }));
+    const failed = relevantResults.filter(result => !result || result.status === 'failed');
     const unresolved = stored.filter(source=>source.status==='failed' || (source.status==='not_synced' && !!source.consentId));
     const complete = !failed.length && !unresolved.length;
-    const hasData = retried.some(result=>result?.status==='success') || stored.some(source=>source.status==='success' || source.status==='skipped_direct');
+    const hasData = relevantResults.some(result=>result?.status==='success') || stored.some(source=>source.status==='success' || source.status==='skipped_direct');
     const previousIssue = failed.find(result=>result?.supportError)?.supportError ??
       issueFromReason(unresolved[0]?.error?.split('|').slice(0,2).join('|'));
     const stage = previousIssue?.code==='OB-02' ? 'connection_save' : previousIssue?.code==='OB-04' ? 'transaction_save' : 'transaction_fetch';
@@ -3232,7 +3261,7 @@ export class FeezbackService {
     const AUTO_RETRY_DELAY_MS = 5000; // 5s between attempts
     const totalAttempts = AUTO_RETRY_MAX + 1;
 
-    for (const source of failedSources) {
+    for (const source of failedSources.filter(source => FeezbackService.hasStoredConsent(source))) {
       const typeLabel = source.type === 'bank' ? 'Bank' : 'Card';
       const id = '***' + source.sourceId.replace(/\D/g,'').slice(-4);
       let current = source;
@@ -3254,7 +3283,7 @@ export class FeezbackService {
         console.log(
           `  ${current.status === 'success' ? '✓' : '✗'} [AutoRetry] ${typeLabel} ${id} attempt ${attempt}/${totalAttempts} → ${current.status}`,
         );
-        if (current.status === 'success' || /\|(?:401|403|404)$/.test(current.error ?? '')) break;
+        if (current.status === 'success' || current.status === 'not_synced' || /\|(?:401|403|404)$/.test(current.error ?? '')) break;
       }
     }
   }
@@ -3289,6 +3318,7 @@ export class FeezbackService {
 
   async pullOneSource(firebaseId: string, type: 'bank' | 'card', sourceId: string, sourceRecordId?: number): Promise<SourceResult> {
     const row = await this.findSyncSource(firebaseId, type, sourceId, sourceRecordId);
+    if (!FeezbackService.hasStoredConsent(row)) return this.withoutConsentResult(row);
     const sub = subForSource(firebaseId, row.connectionRole);
     const result = await this.identityScope.run(sub, () => this.pullOneSourceForIdentity(firebaseId, type, sourceId, sub));
     return { ...result, sourceRecordId: row.sourceRecordId, connectionRole: row.connectionRole };
@@ -3391,6 +3421,7 @@ export class FeezbackService {
    */
   async retrySource(firebaseId: string, type: 'bank' | 'card', sourceId: string, sourceRecordId?: number, runId?: string): Promise<SourceResult> {
     const row = await this.findSyncSource(firebaseId, type, sourceId, sourceRecordId);
+    if (!FeezbackService.hasStoredConsent(row)) return this.withoutConsentResult(row);
     const sub = subForSource(firebaseId, row.connectionRole);
     const result = await this.pullRunScope.run(runId ?? this.pullRunScope.getStore(),()=>this.identityScope.run(sub, () => this.retrySourceForIdentity(firebaseId, type, sourceId, sub)));
     const supportError = result.status === 'failed' ? issueFromReason(result.error?.split('|').slice(0,2).join('|'))

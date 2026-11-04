@@ -102,7 +102,7 @@ describe('optional Feezback spouse identity', () => {
   it('routes a source retry to its own provider SUB', async () => {
     const impl: any = service;
     const retry = jest.spyOn(impl, 'retrySourceForIdentity').mockResolvedValue({ status: 'success' });
-    state.getSourceResults.mockResolvedValue([{ type: 'card', sourceId: '1234', sourceRecordId: 22, connectionRole: 'spouse' }]);
+    state.getSourceResults.mockResolvedValue([{ type: 'card', sourceId: '1234', sourceRecordId: 22, connectionRole: 'spouse', consentId: 'active-spouse' }]);
     await service.retrySource(uid, 'card', '1234', 22);
     expect(retry).toHaveBeenCalledWith(uid, 'card', '1234', feezbackSub(uid, true));
   });
@@ -150,9 +150,9 @@ describe('optional Feezback spouse identity', () => {
   it('marks only failed-identity sources retryable, preserving direct cards', async () => {
     const impl: any = service;
     state.getSourceResults.mockResolvedValue([
-      { connectionRole: 'primary', sourceId: '1234', type: 'card', status: 'success' },
-      { connectionRole: 'spouse', sourceId: '1234', type: 'card', status: 'success' },
-      { connectionRole: 'spouse', sourceId: '5678', type: 'card', status: 'skipped_direct' },
+      { connectionRole: 'primary', sourceId: '1234', type: 'card', status: 'success', consentId: 'active' },
+      { connectionRole: 'spouse', sourceId: '1234', type: 'card', status: 'success', consentId: 'active' },
+      { connectionRole: 'spouse', sourceId: '5678', type: 'card', status: 'skipped_direct', consentId: 'active' },
     ]);
     const failed = await impl.failedIdentityPull(uid, feezbackSub(uid, true), 'card', new Error('offline'));
     expect(failed.__identityResults.map((r: any) => [r.sourceId, r.status])).toEqual([

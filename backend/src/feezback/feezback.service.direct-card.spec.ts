@@ -260,6 +260,7 @@ describe('FeezbackService — Direct/Debit card handling', () => {
     it('refuses via the stored isDirect flag — no Feezback call at all', async () => {
       const { service, feezbackApiService, consentApi, userSyncStateService, sourceRepository } = makeService();
       sourceRepository.findOne.mockResolvedValue({ sourceName: '3221', isDirect: true });
+      userSyncStateService.getSourceResults.mockResolvedValue([{sourceRecordId:11,connectionRole:'primary',sourceId:'3221',type:'card',consentId:'consent-1'}]);
 
       const result = await service.retrySource(USER, 'card', '3221');
 

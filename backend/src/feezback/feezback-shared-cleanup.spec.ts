@@ -167,7 +167,7 @@ describe('Verified shared permission cleanup and current-run summaries',()=>{
   });
   it('reuses the owned full-run identity for a retry batch instead of trying to acquire its own lock again',async()=>{
     jest.spyOn(console,'log').mockImplementation(()=>{});
-    const source:any={type:'card',sourceId:'7533',sourceRecordId:1,status:'success',transactionCount:1};
+    const source:any={type:'card',sourceId:'7533',sourceRecordId:1,consentId:'active-card',status:'success',transactionCount:1};
     const state:any={markSyncRunning:jest.fn().mockResolvedValue({acquired:false}),getSourceResults:jest.fn().mockResolvedValue([source])};
     const service=new FeezbackService({} as any,{getTppId:()=> 'tpp'} as any,{} as any,{} as any,{} as any,state,{} as any,{} as any,{} as any,{} as any);
     jest.spyOn(service,'retrySource').mockResolvedValue(source);

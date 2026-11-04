@@ -177,15 +177,15 @@ describe('Open banking reliability regression', () => {
   });
   it('does not upgrade the whole sync to success while another source still has an authorization failure', async () => {
     const sync={markSyncRunning:jest.fn().mockResolvedValue({acquired:true}),getSourceResults:jest.fn().mockResolvedValue([
-      {type:'bank',sourceId:'1111',status:'success'},
-      {type:'card',sourceId:'2222',status:'failed',error:'OB-03|12345678-1234-1234-1234-123456789012|403'},
+      {type:'bank',sourceId:'1111',consentId:'active-bank',status:'success'},
+      {type:'card',sourceId:'2222',consentId:'active-card',status:'failed',error:'OB-03|12345678-1234-1234-1234-123456789012|403'},
     ])};
     const service=new FeezbackService({} as any,{getTppId:()=> 'tpp'} as any,{} as any,{} as any,{} as any,sync as any,
       {} as any,{} as any,{} as any,{} as any);
     jest.spyOn(service as any,'withConnectedUserLock').mockImplementation(async(_user,action:any)=>action());
     jest.spyOn(service,'retrySource').mockResolvedValue({type:'bank',sourceId:'1111',status:'success',transactionCount:1});
     const finished=jest.spyOn(service as any,'markConnectedSyncFinished').mockResolvedValue(undefined);
-    await (service as any).retryFailedSources('owner',[{type:'bank',sourceId:'1111',status:'failed'}],'owner');
+    await (service as any).retryFailedSources('owner',[{type:'bank',sourceId:'1111',consentId:'active-bank',status:'failed'}],'owner');
     expect(finished).toHaveBeenCalledWith('owner','completed','partial_success',0,expect.stringMatching(/^OB-03\|/),undefined);
   });
   it('counts an existing-expense match as a cached row, not a second removed duplicate', async () => {

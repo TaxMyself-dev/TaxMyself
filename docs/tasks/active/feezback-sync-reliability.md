@@ -1,6 +1,6 @@
 # Feezback consent and ingestion reliability
 
-- Status: `INTEGRATED_LOCAL`
+- Status: `WORKER_COMPLETE`
 - Task manager / implementer: Codex, this task; no delegated workers.
 - Worktree: TaxMyself-feezback-sync-reliability
 - Branch: codex/feezback-sync-reliability
@@ -142,3 +142,10 @@ Production frontend build passed (existing budget/CommonJS warnings); no product
 - Integrated-tree verification: 363 backend tests / 31 suites, 88 frontend banking/settings/table/auth tests, Nest build and Angular production build all passed. Angular reports existing budget/CommonJS warnings. Temporary test tsconfig was removed. Whitespace check passed.
 - Temporary feature ports (3001/4202) are uncommitted in the feature worktree and were not integrated. No environment files, secrets, dependencies, build output or evidence were staged. Two trailing blank lines were removed during integration.
 - Schema SQL is included as previously approved; no database access or DDL was performed during integration. No provider calls, production operations, deployment or push. Manual verification of the resulting local main remains required before any push approval.
+
+## Disconnected source retry follow-up — 2026-11-04
+- User-reported dev error 8fe5afdc-7143-4290-b881-0f438107f23e matched a login run whose only failed outcomes were bank 1403 and card 9081 with null consent/resource pointers. Read-only dev evidence is stored outside Git; no live data changed.
+- Feature worktree fast-forwarded to current local main a2a70a68 before implementation, preserving uncommitted temporary frontend ports.
+- Excludes disconnected sources from login/automatic retry, per-source provider dispatch, failed-identity outcomes and retry quality. Retains real linked-source errors, missing-resource errors, source identity, cache, accounting and technical history. Correlated old false OB-03 can be cleared only under exact run evidence and healthy linked sources.
+- Covers a revocation during retry, no-consent banks/cards, cache reuse, active failure preservation and old-error recovery. Existing fixtures now explicitly include the valid consents required by their scenarios. No schema, frontend runtime, environment variable, production operation, provider call, main merge or push.
+- Final verification: 378 backend tests in 32 suites passed and Nest build passed. Re-review checked exact-run recovery, preserved OB-04/unattributed failures, retained active 403 and missing-resource errors, canceled in-flight retries, primary/spouse identity and Direct behavior. No frontend runtime change, so no frontend build was required for this follow-up. No remaining actionable finding in the scoped review.
