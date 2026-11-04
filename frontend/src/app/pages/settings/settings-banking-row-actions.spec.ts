@@ -1,6 +1,8 @@
 import { signal } from '@angular/core';
 import { SettingsPage } from './settings.page';
 import { IRowDataTable } from 'src/app/shared/interface';
+import { of } from 'rxjs';
+import { paymentIdentifierType } from 'src/app/shared/enums';
 
 // Same provider identifier can belong to both people: only the database source
 // record identifies the selected row safely.
@@ -27,6 +29,15 @@ describe('settings banking row action routing', () => {
     (page as any).bankingError = signal(null);
     page.onPullSource({ sourceName: '5678', sourceType: 'CREDIT_CARD' as any, hasConsent: false });
     expect(page.retryingSourceId()).toBeNull();
+  });
+  it('pulls a linked Direct card through the ordinary retry action', () => {
+    const page = setup();
+    (page as any).bankingError = signal(null);
+    (page as any).syncStatusService = { retrySource: jasmine.createSpy().and.returnValue(of({ status: 'success' })) };
+    (page as any).messageService = { add: jasmine.createSpy() };
+    spyOn(page as any, 'fetchAccountSources').and.stub();
+    page.onPullSource({ sourceRecordId: 21, sourceName: '1234', sourceType: paymentIdentifierType.CREDIT_CARD, isDirect: true, hasConsent: true });
+    expect((page as any).syncStatusService.retrySource).toHaveBeenCalledOnceWith('card', '1234', 21);
   });
   const row = (sourceRecordId: number) => ({ id: String(sourceRecordId), sourceRecordId }) as IRowDataTable;
 

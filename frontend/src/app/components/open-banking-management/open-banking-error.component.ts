@@ -4,7 +4,7 @@ import { BankingNotificationService } from './banking-notification.service';
 export interface BankingSupportError { code: string; errorId: string; message: string; partial?: boolean; }
 
 export function savedConsentLabel(hasConsent: boolean, isDirect?: boolean | null): string {
-  return !hasConsent ? '✗ ללא הרשאה' : isDirect ? 'נמשך דרך חשבון הבנק' : '✓ פעיל';
+  return !hasConsent ? '✗ ללא הרשאה' : '✓ פעיל';
 }
 
 export function bankingRequestError(error: any, code = 'OB-01'): BankingSupportError {

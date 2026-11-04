@@ -16,3 +16,11 @@ Standalone page showing cash-flow analytics (income vs. expenses over time, expe
 Backend: transactions
 Frontend pages: transactions (via `TransactionsService` for accounts/categories/sources)
 Frontend shared: none
+
+## Direct-card cashflow (2026-11-04)
+
+Server aggregates and merchant options exclude bank mirrors classified to the
+SYSTEM Direct-card subcategory only when the owner's persistent preference is
+enabled. Successful preference changes emit TransactionsService's shared
+cashflowPreferencesChanged$ event; valid cached charts refetch immediately.
+No provider sync is triggered and no sync error changes the saved preference.

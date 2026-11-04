@@ -4,6 +4,9 @@
     <app-open-banking-error [issue]="bankingError()"></app-open-banking-error>
 
     <p class="block-title">התזרים שלי</p>
+    @if (hasOpenBanking() !== false) {
+      <label dir="rtl"><input type="checkbox" [checked]="showExcluded()" (change)="toggleExcluded($any($event.target).checked)" /> הצג גם תנועות מוחרגות</label>
+    }
     @if (hasOpenBanking() === false) {
       <section class="banking-banner" dir="rtl">
         <div class="banking-banner__text">

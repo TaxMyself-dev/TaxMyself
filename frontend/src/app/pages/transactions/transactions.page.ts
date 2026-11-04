@@ -271,6 +271,12 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: ISubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
+  showExcluded = signal(false);
+  toggleExcluded(value: boolean): void {
+    this.showExcluded.set(value);
+    this.getTransactions(this.filterData());
+  }
+
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserData;
@@ -282,6 +288,9 @@ export class TransactionsPage implements OnInit {
   private messageService = inject(MessageService);
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
+    this.transactionService.cashflowPreferencesChanged$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.hasOpenBanking() !== false) this.getTransactions(this.filterData());
+    });
     this.clientPanel.selectedClientId$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.readConnectionState());
     this.authService.ownerProfileUpdates$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(profile => {
       if (profile && !this.isDelegatedClientView() && this.authService.getCurrentAuthUser()?.uid === profile.firebaseId)
@@ -618,9 +627,9 @@ export class TransactionsPage implements OnInit {
     categoriesName = categoriesName?.length ? categoriesName : null;
     sourcesName = sourcesName?.length ? sourcesName : null;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName, this.showExcluded());
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName, this.showExcluded());
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -649,7 +658,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null, this.showExcluded()).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }
@@ -701,6 +710,7 @@ export class TransactionsPage implements OnInit {
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
+        if ((row as any).excludedFromCashflow) data.name = String(data.name ?? '') + ' · מוחרג מהתזרים';
         data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";

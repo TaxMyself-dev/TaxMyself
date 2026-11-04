@@ -16,6 +16,9 @@ import { ClassificationType } from './enums/classification-type.enum';
 @Index('IDX_cache_billId', ['billId'])
 @Index('IDX_cache_transactionDate', ['transactionDate'])
 export class FullTransactionCache {
+  @Column({ name: 'sub_category_id', type: 'int', nullable: true })
+  subCategoryId: number | null;
+
 
   @PrimaryGeneratedColumn()
   id: number;

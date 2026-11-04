@@ -436,11 +436,22 @@ export class UsersService {
     delete processedUserData.hasSpouseFeezbackIdentity;
     delete processedUserData.profileImagePath;
     delete processedUserData.logoPath;
+    // Dedicated narrow preference write avoids replaying stale profile state.
+    delete processedUserData.excludeDirectCardBankTransactionsFromCashflow;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);
     return this.user_repo.save(user);
 
+  }
+
+  async setDirectCardCashflowPreference(userId: string, value: boolean): Promise<void> {
+    if (typeof value !== 'boolean') throw new BadRequestException('נדרש ערך בוליאני להגדרת התזרים');
+    const result = await this.user_repo.update(
+      { firebaseId: userId },
+      { excludeDirectCardBankTransactionsFromCashflow: value },
+    );
+    if (!result.affected) throw new NotFoundException('User not found');
   }
 
 

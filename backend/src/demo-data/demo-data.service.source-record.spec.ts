@@ -2,6 +2,9 @@ import { DemoDataService } from './demo-data.service';
 import { DESIGNER_SANDBOX_PROFILE } from './profiles/designer-sandbox.profile';
 import { Source } from 'src/transactions/source.entity';
 import { UserSourceSyncState } from 'src/transactions/user-source-sync-state.entity';
+import { DIRECT_CARD_DEMO_PROFILE } from './profiles/direct-card-demo.profile';
+import { FullTransactionCache } from 'src/transactions/full-transaction-cache.entity';
+import { User } from 'src/users/user.entity';
 
 const makeService = () =>
   new DemoDataService(
@@ -26,6 +29,30 @@ const makeManager = (sources = sourceRows) => ({
 });
 
 describe('DemoDataService permanent source identity', () => {
+  it('seeds Direct card detail, classified bank mirrors and a persistent opt-in together', async () => {
+    const profile = DIRECT_CARD_DEMO_PROFILE;
+    const cardName = profile.legacyDuplicateScenario!.cardSourceName;
+    const bankName = profile.bills[0].sources[0].sourceName;
+    const rows = profile.legacyDuplicateScenario!.duplicateMerchants.map((merchantName, i) => ({
+      userId: 'direct-user', externalTransactionId: `bank-${i}`, merchantName,
+      paymentIdentifier: bankName, sourceRecordId: 11, amount: -100,
+    }));
+    const manager = {
+      ...makeManager([{ id: 11, sourceName: bankName }, { id: 22, sourceName: cardName }]),
+      findOne: jest.fn().mockResolvedValue({ id: 77, name: 'כרטיס דיירקט', category: { name: 'שונות' } }),
+    };
+    await (makeService() as any).applyProfileSourceState(manager, 'direct-user', profile, rows);
+    expect(manager.insert).toHaveBeenCalledWith(FullTransactionCache, expect.arrayContaining([
+      expect.objectContaining({ paymentIdentifier: cardName, sourceRecordId: 22, subCategoryId: null }),
+    ]));
+    expect(manager.update).toHaveBeenCalledWith(User, { firebaseId: 'direct-user' }, { excludeDirectCardBankTransactionsFromCashflow: true });
+    expect(manager.insert).toHaveBeenCalledWith(UserSourceSyncState, expect.arrayContaining([
+      expect.objectContaining({ sourceRecordId: 22, type: 'card', status: 'success', transactionCount: 5 }),
+    ]));
+    expect(rows.filter(row => row.paymentIdentifier === bankName)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ subCategoryId: 77, merchantName: 'כרטיס דיירקט' }),
+    ]));
+  });
   it('writes sourceRecordId for normal profile seed/reset sync rows', async () => {
     const service = makeService();
     const manager = makeManager();

@@ -1,3 +1,4 @@
+import { cashflowExcludedSql } from './cashflow-exclusion';
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
@@ -843,7 +844,8 @@ export class TransactionsService {
       .andWhere('c.amount < 0')
       // slim.confirmed IS NULL  → no slim row yet → treat as unconfirmed
       // slim.confirmed = false  → explicitly not yet confirmed
-      .andWhere('(s.confirmed IS NULL OR s.confirmed = false)');
+      .andWhere('(s.confirmed IS NULL OR s.confirmed = false)')
+      .andWhere('NOT (' + cashflowExcludedSql('c') + ')');
 
     if (periodLabels.length > 0) {
       // Period-stamped (classified) rows → match by label. Unclassified rows
@@ -978,6 +980,11 @@ export class TransactionsService {
     if (!cacheRows || cacheRows.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
     }
+
+    const excluded = await this.cacheRepo.createQueryBuilder('c')
+      .where('c.userId = :userId', { userId }).andWhere('c.id IN (:...ids)', { ids: cacheIds })
+      .andWhere(cashflowExcludedSql('c')).getCount();
+    if (excluded > 0) throw new BadRequestException('לא ניתן לאשר חיובי בנק שהוחרגו מהתזרים');
 
     // Load existing slim rows so we can use the period label already stamped
     // at classification time. Confirm-trans no longer (re)computes the period;
@@ -1157,6 +1164,7 @@ export class TransactionsService {
       qb.andWhere('c.billId = :billId', { billId });
     }
 
+    qb.andWhere('NOT (' + cashflowExcludedSql('c') + ')');
     qb.orderBy('merchantName', 'ASC');
     const rows = await qb.getRawMany<{ merchantName: string }>();
     return rows.map(r => r.merchantName);

@@ -92,6 +92,8 @@ describe('pending classified transaction archive', () => {
       slimTransactionRepo: slimRepo,
       assertBusinessOwnership: (DocumentsService.prototype as any).assertBusinessOwnership,
     };
+    const slimQuery = { ...queryBuilder, getMany: slimRepo.find };
+    (slimRepo as any).createQueryBuilder = jest.fn().mockReturnValue(slimQuery);
 
     const result = await DocumentsService.prototype.getArchivedForUser.call(
       fakeThis as any,
@@ -100,15 +102,9 @@ describe('pending classified transaction archive', () => {
       false,
     );
 
-    expect(slimRepo.find).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        userId: 'owner-1',
-        businessNumber: '515151515',
-        isRecognized: true,
-        confirmed: false,
-        matchedDocumentId: IsNull(),
-      }),
-    }));
+    expect((slimRepo as any).createQueryBuilder).toHaveBeenCalledWith('slim');
+    expect(slimQuery.where).toHaveBeenCalledWith(expect.any(String), { uid: 'owner-1', bn: '515151515' });
+    expect(slimQuery.andWhere).toHaveBeenCalledWith(expect.stringContaining('DIRECT_CARD_BANK_PAYMENT'));
     expect(result).toEqual([
       expect.objectContaining({
         id: 71,
@@ -152,7 +148,12 @@ describe('pending classified transaction archive', () => {
       ilsAmountSnapshot: 452.25,
     };
     const fakeThis = {
-      slimRepo: { findOne: jest.fn().mockResolvedValue(slim) },
+      slimRepo: {
+        findOne: jest.fn().mockResolvedValue(slim),
+        createQueryBuilder: () => ({
+          where() { return this; }, andWhere() { return this; }, getCount: async () => 0,
+        }),
+      },
       cacheRepo: { findOne: jest.fn().mockResolvedValue(null) },
     };
 

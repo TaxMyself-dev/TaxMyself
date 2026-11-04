@@ -27,6 +27,7 @@ export interface SystemCategorySeed {
 }
 
 export interface SystemSubCategorySeed {
+  systemKey?: string;
   category: string;
   name: string;
   /** No card at all — never journaled (D5's D14-group-1 household bucket). */
@@ -56,6 +57,7 @@ export const SYSTEM_CATEGORIES: SystemCategorySeed[] = [
 ];
 
 export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
+  { category: 'שונות', name: 'כרטיס דיירקט', isPrivate: true, systemKey: 'DIRECT_CARD_BANK_PAYMENT' },
   { category: 'דיור והוצאות הבית', name: 'שכירות', accountCode: '60100' },
   { category: 'דיור והוצאות הבית', name: 'משכנתא', accountCode: '60100' },
   { category: 'דיור והוצאות הבית', name: 'ארנונה', accountCode: '60110' },

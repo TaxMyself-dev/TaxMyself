@@ -1,3 +1,4 @@
+import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -4092,16 +4093,11 @@ ${finalOwnerName}`;
     // Classified recognized transactions are durable pending-approval rows in
     // slim_transactions. Exclude matched rows because their document already
     // represents the same future expense above.
-    const pendingSlimTransactions = await this.slimTransactionRepo.find({
-      where: {
-        userId: firebaseId,
-        businessNumber,
-        isRecognized: true,
-        confirmed: false,
-        matchedDocumentId: IsNull(),
-      },
-      order: { transactionDateSnapshot: 'DESC', id: 'DESC' },
-    });
+    const pendingSlimTransactions = await this.slimTransactionRepo.createQueryBuilder('slim')
+      .where('slim.userId = :uid AND slim.businessNumber = :bn', { uid: firebaseId, bn: businessNumber })
+      .andWhere('slim.isRecognized = true AND slim.confirmed = false AND slim.matched_document_id IS NULL')
+      .andWhere('NOT (' + cashflowExcludedSql('slim') + ')')
+      .orderBy('slim.transactionDateSnapshot', 'DESC').addOrderBy('slim.id', 'DESC').getMany();
 
     const pendingTransactionItems: ArchivedItem[] = pendingSlimTransactions.map(s => {
       const currency = (s.currencySnapshot ?? 'ILS').toUpperCase();

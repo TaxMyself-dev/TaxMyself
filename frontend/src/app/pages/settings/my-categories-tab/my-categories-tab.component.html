@@ -1,6 +1,18 @@
 <p-confirmDialog></p-confirmDialog>
 <p-toast></p-toast>
 <div class="my-categories-tab">
+  <section class="cashflow-preference" dir="rtl">
+    <h3>חיובי כרטיס דיירקט</h3>
+    <label>
+      <input type="checkbox" [checked]="excludeDirect()" [disabled]="!cashflowLoaded() || savingCashflow() || authService.isViewingAsClient()"
+        (change)="saveCashflowPreference($any($event.target).checked)" />
+      החרג מהתזרים חיובי בנק שסווגו ככרטיס דיירקט
+    </label>
+    <p>סווגו את חיובי הדיירקט בבנק לתת־הקטגוריה ״כרטיס דיירקט״ תחת ״שונות״. סיווג קבוע יחול גם על תנועות תואמות בעתיד.</p>
+    <p>ההגדרה נשמרת לכל החשבון ומחריגה גם מהגרפים ומאישור כהוצאה נוספת. ודאו שכרטיס הדיירקט מחובר ושפירוט העסקאות שלו נמשך. כשל במשיכה אינו מבטל את ההגדרה.</p>
+    @if (cashflowError()) { <p role="alert">{{ cashflowError() }}</p> }
+    @if (!cashflowLoaded()) { <button type="button" (click)="loadCashflowPreference()">טען הגדרה מחדש</button> }
+  </section>
 
   <!-- Business selector -->
   <div class="biz-selector-row">

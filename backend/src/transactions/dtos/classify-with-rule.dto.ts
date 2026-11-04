@@ -22,6 +22,8 @@ import { ExpenseReportScope } from 'src/enum';
  * only supplies the externalTransactionId.
  */
 export class ClassifyWithRuleDto {
+  @IsOptional() @IsInt() @Min(1) subCategoryId?: number;
+
   @IsString()
   @IsNotEmpty()
   externalTransactionId: string;

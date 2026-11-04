@@ -1,4 +1,4 @@
-import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
+import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, Header, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
 import { TransactionProcessingService } from './transaction-processing.service';
@@ -106,6 +106,23 @@ export class TransactionsController {
    * Only a persisted running job reports 'running'. Consent onboarding is a
    * separate flow; an empty/missing job translates to 'completed'.
    */
+  @Get('cashflow-preferences')
+  @UseGuards(FirebaseAuthGuard)
+  @Header('Cache-Control', 'no-store')
+  async getCashflowPreferences(@Req() request: AuthenticatedRequest) {
+    const user = await this.usersService.findFireUser(request.user.firebaseId);
+    return { excludeDirectCardBankTransactionsFromCashflow: user?.excludeDirectCardBankTransactionsFromCashflow === true };
+  }
+
+  @Patch('cashflow-preferences')
+  @UseGuards(FirebaseAuthGuard)
+  async setCashflowPreferences(@Req() request: AuthenticatedRequest, @Body() body: { excludeDirectCardBankTransactionsFromCashflow: boolean }) {
+    if (request.user?.role === 'agent') throw new ForbiddenException('רק בעל החשבון יכול לשנות הגדרה זו');
+    if (!body || typeof body.excludeDirectCardBankTransactionsFromCashflow !== 'boolean') throw new BadRequestException('נדרש ערך בוליאני');
+    await this.usersService.setDirectCardCashflowPreference(request.user.firebaseId, body.excludeDirectCardBankTransactionsFromCashflow);
+    return this.getCashflowPreferences(request);
+  }
+
   @Get('sync-status')
   @UseGuards(FirebaseAuthGuard)
   async getSyncStatus(@Req() request: AuthenticatedRequest) {
@@ -693,7 +710,7 @@ export class TransactionsController {
     }
 
     const rows = await this.processingService.getIncomesFromCache(
-      userId, startDate, endDate, billIds, categories, sources,
+      userId, startDate, endDate, billIds, categories, sources, query.includeExcluded === 'true',
     );
     const canManageExpenses = await this.canManageExpenses(request);
     return rows.map((row) => ({ ...row, canManageExpenses }));
@@ -720,7 +737,7 @@ export class TransactionsController {
     }
 
     const rows = await this.processingService.getExpensesFromCache(
-      userId, startDate, endDate, billIds, categories, sources,
+      userId, startDate, endDate, billIds, categories, sources, query.includeExcluded === 'true',
     );
     const canManageExpenses = await this.canManageExpenses(request);
     return rows.map((row) => ({ ...row, canManageExpenses }));
@@ -774,6 +791,7 @@ export class TransactionsController {
         externalTransactionId,
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId,
         vatPercent: dto.vatPercent ?? 0,
         taxPercent: dto.taxPercent ?? 0,
         reductionPercent: dto.reductionPercent ?? 0,
@@ -792,6 +810,7 @@ export class TransactionsController {
       externalTransactionId,
       category: dto.category,
       subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId,
       vatPercent: dto.vatPercent ?? 0,
       taxPercent: dto.taxPercent ?? 0,
       reductionPercent: dto.reductionPercent ?? 0,

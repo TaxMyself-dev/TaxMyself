@@ -61,9 +61,10 @@ const DEMO_CARD_RESOURCE_ID = 'demo-resource-card-9012';
  */
 export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
   id: 'direct-card-demo',
+  syntheticOpenBanking: true,
   label: 'כרטיס דיירקט - עוסק יחיד',
   description:
-    'נועם ברק (עיצוב גרפי, עוסק מורשה) עם חשבון בנק וכרטיס דיירקט. כל התנועות מגיעות מחשבון הבנק בלבד; הכרטיס קיים כמקור עם סטטוס skipped_direct וללא תנועות — בדיוק כמו בייצור. לבדיקה ידנית של זרימת כרטיס הדיירקט ללא קריאה ל-Feezback.',
+    'נועם ברק עם דיירקט: פירוט עסקאות בכרטיס וחיובי בנק מסווגים ומוחרגים. ההגדרה ניתנת לביטול בהגדרות. ללא קריאה ל-Feezback.',
 
   email: 'demo+direct-card@taxmyself.local',
   password: 'test1234',
@@ -149,7 +150,7 @@ export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
       type: 'card',
       // TERMINAL and intentional — never 'failed'/'not_synced'. Nothing
       // (login retry, admin cache clear, consent revoke) walks it back.
-      status: 'skipped_direct',
+      status: 'success',
       resourceId: DEMO_CARD_RESOURCE_ID,
       consentId: DEMO_CONSENT_ID,
     },

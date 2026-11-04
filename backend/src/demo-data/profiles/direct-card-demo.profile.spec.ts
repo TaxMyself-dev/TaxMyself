@@ -59,7 +59,7 @@ describe('DIRECT_CARD_DEMO_PROFILE', () => {
     }
   });
 
-  it('marks the bank success and the Direct card skipped_direct', () => {
+  it('marks both bank and Direct card successful', () => {
     const states = profile.sourceSyncStates ?? [];
     const bankState = states.find((s) => s.sourceId === bank.sourceName)!;
     const cardState = states.find((s) => s.sourceId === card.sourceName)!;
@@ -70,7 +70,7 @@ describe('DIRECT_CARD_DEMO_PROFILE', () => {
     expect(bankState.transactionCount).toBeUndefined();
 
     expect(cardState.type).toBe('card');
-    expect(cardState.status).toBe('skipped_direct');
+    expect(cardState.status).toBe('success');
     expect(cardState.transactionCount).toBeUndefined();
   });
 });

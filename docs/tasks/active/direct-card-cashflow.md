@@ -1,0 +1,41 @@
+# Direct-card cashflow imports and opt-in exclusion
+
+- Status: WORKER_COMPLETE — local implementation; manual DB/UI validation pending.
+- Task manager and implementer: Codex, single isolated feature worktree.
+- Branch: codex/direct-card-cashflow
+- Base commit: 4570bede (origin/main fetched 2026-11-04).
+- No push, deployment, production access or main integration performed.
+
+## Acceptance criteria
+
+- [x] Import known Direct cards normally, including explicit retry; retain card-kind readiness and consent verification.
+- [x] Immutable SYSTEM subcategory with stable identity, available under an overridden parent.
+- [x] Owner-only server-persisted boolean preference, false by default; narrow update preserves concurrent connection state.
+- [x] Exclude classified owned BANK_ACCOUNT rows from lists, aggregates, pending archives/previews and direct approval endpoints.
+- [x] Keep classification/source provenance across cache rebuilds; scope new rules to the selected source.
+- [x] Inspect/reclassify excluded rows; opt-out restores visibility. Refresh cached lists/charts on saved preference changes.
+- [x] Sync failures stay independent; synthetic demo covers both states without provider calls.
+- [x] Prepare manual SQL, append it to cutover.sql and document rollout/limits.
+
+## Validation
+
+- Backend regression: 13 suites / 134 tests passed (permissions, source identity, report-review identity/focus, readiness and changed areas).
+- Final backend changed-area run: 9 suites / 126 tests passed (SQL predicate in memory, approval guards, catalog immutability/parent override, durable archive, Direct imports/retries and demo).
+- Backend Nest build: passed, exit 0.
+- Final frontend: 21 focused UI tests passed in ChromeHeadless (port 9889); Angular production build passed (exit 0), with bundle/CSS budget and CommonJS warnings.
+- Final Git whitespace check passed. Dependency trees were installed independently; environment files remain ignored and are not part of the change.
+- SQL tests use Node 24 in-memory SQLite and do not replace a MySQL rehearsal.
+- Jest uses --forceExit because imported dependencies retain handles. Provider error logs are mocked failure scenarios.
+- No live DB/provider calls, SQL execution or app boot against environment credentials.
+
+## Impact and manual checks
+
+Schema: new preference, catalog systemKey/index, cache classification ID and slim/rule source provenance. Script: docs/features/direct-card-cashflow.sql; also appended to docs/redesign/cutover.sql. Existing rule/slim classification columns reused.
+
+Security: Firebase and existing owner/represented-client boundary; selected category IDs validated in tenant catalog. No broader delegation permission.
+
+Accounting: no historical Expense/journal mutation or account-code changes. New label is operational/private without a booking account. Opt-in affects operational cashflow and pending approval; historical bank approvals are not transferred to card IDs.
+
+Before release: rehearse SQL on non-production MySQL, test actual card coverage/refresh and classification, and review previously approved bank/card duplicates. Elazar must personally test the current local main revision and explicitly approve any GitHub push.
+
+Documentation: feature guide, standalone/cumulative SQL and nearest affected topic AGENTS files.

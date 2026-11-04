@@ -18,6 +18,7 @@ import {
   TaxReportingType,
   UnitOfMeasure,
   UserRole,
+  OwnerType,
   VatOptions,
   VATReportingType,
 } from 'src/enum';
@@ -935,6 +936,7 @@ export class DemoDataService {
       bankRows = bank.length;
       cardRows = duplicates.length;
 
+      await m.update(User, { firebaseId }, { excludeDirectCardBankTransactionsFromCashflow: false });
       await this.rebuildTransactionCache(m, firebaseId, [...bank, ...duplicates]);
 
       // The card looks like any other credit card: undetected (isDirect NULL,
@@ -986,6 +988,7 @@ export class DemoDataService {
     const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
 
     let bankRows = 0;
+    let cardRows = 0;
     await this.dataSource.transaction(async (m) => {
       const bank = await this.buildCacheRowsFromProfile(m, firebaseId, profile);
       bankRows = bank.length;
@@ -1002,21 +1005,22 @@ export class DemoDataService {
         { isDirect: true },
       );
       await this.applyProfileSourceState(m, firebaseId, profile, bank);
+      cardRows = bank.filter(row => row.paymentIdentifier === scenario.cardSourceName).length;
       await this.markUserSyncCompleted(m, firebaseId, bank.length);
     });
 
     this.logger.log(
       `[demo-data][scenario] ${profile.id} → direct-card-fixed | ` +
-        `bankRows=${bankRows} cardRows=0 seededUser=${seededUser}`,
+        `bankRows=${bankRows} cardRows=${cardRows} seededUser=${seededUser}`,
     );
     return {
       state: 'direct-card-fixed',
       firebaseId,
       seededUser,
       bankRows,
-      cardRows: 0,
+      cardRows,
       cardIsDirect: true,
-      cardStatus: 'skipped_direct',
+      cardStatus: 'success',
     };
   }
 
@@ -1103,6 +1107,11 @@ export class DemoDataService {
     firebaseId: string,
     rows: Array<Partial<FullTransactionCache>>,
   ): Promise<void> {
+    if (rows.length > 0) {
+      const sourceIds = [...new Set(rows.map(row => row.paymentIdentifier).filter((name): name is string => !!name))];
+      const records = await this.resolveSourceRecordIds(m, firebaseId, sourceIds);
+      rows.forEach(row => { row.sourceRecordId = records.get(row.paymentIdentifier!) ?? null; });
+    }
     await m.delete(SlimTransaction, { userId: firebaseId });
     await m.delete(FullTransactionCache, { userId: firebaseId });
     if (rows.length > 0) {
@@ -1593,6 +1602,24 @@ export class DemoDataService {
     data: DemoSeedable,
     cacheRows: Array<Partial<FullTransactionCache>>,
   ): Promise<number> {
+    const scenario = (data as DemoProfile).legacyDuplicateScenario;
+    if (scenario) {
+      const sub = await m.findOne(SubCategory, { where: { systemKey: 'DIRECT_CARD_BANK_PAYMENT', ownerType: OwnerType.SYSTEM }, relations: ['category'] });
+      if (!sub) throw new Error('Apply direct-card-cashflow.sql before seeding the Direct-card demo');
+      const ids = await this.resolveSourceRecordIds(m, firebaseId, [scenario.cardSourceName]);
+      if (!cacheRows.some(row => row.paymentIdentifier === scenario.cardSourceName)) {
+        const cards = this.buildLegacyDuplicateRows(data as DemoProfile, scenario, cacheRows).map(row => ({ ...row, sourceRecordId: ids.get(scenario.cardSourceName), subCategoryId: null }));
+        if (cards.length) await m.insert(FullTransactionCache, cards);
+        cacheRows.push(...cards);
+      }
+      for (const row of cacheRows) {
+        if (row.paymentIdentifier === scenario.cardSourceName || !scenario.duplicateMerchants.includes(row.merchantName!)) continue;
+        Object.assign(row, { category: sub.category.name, subCategory: sub.name, subCategoryId: sub.id, merchantName: 'כרטיס דיירקט', isRecognized: false });
+        await m.update(FullTransactionCache, { userId: firebaseId, externalTransactionId: row.externalTransactionId }, { category: row.category, subCategory: row.subCategory, subCategoryId: sub.id, merchantName: row.merchantName, isRecognized: false });
+      }
+      await m.update(User, { firebaseId }, { excludeDirectCardBankTransactionsFromCashflow: true });
+      await m.update(UserSyncState, { userId: firebaseId }, { fullRowsWritten: cacheRows.length });
+    }
     const states = data.sourceSyncStates ?? [];
     if (states.length === 0) return 0;
 

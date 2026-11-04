@@ -135,7 +135,7 @@ export class DemoDataComponent implements OnInit {
     if (this.busyProfileId()) return;
     const ok = window.confirm(
       `להפעיל את תיקון כרטיס הדיירקט עבור "${profile.label}"?\n` +
-        'הכרטיס יסומן כדיירקט (skipped_direct), ומטמון התנועות ייבנה מחדש מפיד הבנק בלבד — ' +
+        'פירוט העסקאות יופיע בכרטיס הדיירקט וחיובי הבנק המקבילים יסווגו ויוחרגו מהתזרים — ' +
         'הכפילויות ייעלמו.\n' +
         'סיווגים קיימים של המשתמש יימחקו.',
     );

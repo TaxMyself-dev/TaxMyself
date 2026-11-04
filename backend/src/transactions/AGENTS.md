@@ -78,3 +78,19 @@ A successful single-source/cache-ready promotion preserves an existing aggregate
 ## Current-pull summaries and verified permission cleanup
 
 Permission refresh and permission/data-ready webhooks reconcile through UserSyncStateService.reconcileSourceConsents after complete provider proof. User/Source/consent locks and observation fences protect newer reconnections. Only temporary full_transactions_cache, cache freshness and per-source operational pointer/outcome fields are cleared. Sources/Bills, slim classifications, Expenses, rules, legacy accounting and technical history remain intact. Null-source orphan cache is cleared only after both identities prove full absence with no unresolved coverage. FullRunId/resultRunId identify job membership rather than copying permissions. Legacy nullable tags do not authorize a current-run success; cache reuse returns no current-run outcomes. One failed source outcome transaction does not roll back unrelated source successes.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list can explicitly show excluded rows.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and has not been executed here.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

@@ -36,3 +36,19 @@ Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Fir
 - accountant-tasks (`AccountantTask` entity, purged on reset)
 - report-workflow (`ReportWorkflow` entity, purged on reset)
 - annual-report (`AnnualReport`/`AnnualReportFile`, purged on reset)
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list can explicitly show excluded rows.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and has not been executed here.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

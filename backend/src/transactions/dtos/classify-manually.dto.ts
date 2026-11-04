@@ -9,6 +9,8 @@ import { ExpenseReportScope } from 'src/enum';
  * be classified (enforced in the service).
  */
 export class ClassifyManuallyDto {
+  @IsOptional() @IsInt() @Min(1) subCategoryId?: number;
+
   @IsString()
   @IsNotEmpty()
   externalTransactionId: string;

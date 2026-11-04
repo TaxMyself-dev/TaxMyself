@@ -12,6 +12,9 @@ import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatu
 @Entity()
 @Index('ux_user_referral_code', ['referralCode'], { unique: true })
 export class User {
+  @Column({ default: false })
+  excludeDirectCardBankTransactionsFromCashflow: boolean;
+
     @Column({ type: 'varchar', length: 255, nullable: true, default: null })
     profileImagePath: string | null;
 
