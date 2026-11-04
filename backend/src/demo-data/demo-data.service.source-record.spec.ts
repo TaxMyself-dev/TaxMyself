@@ -39,7 +39,7 @@ describe('DemoDataService permanent source identity', () => {
     }));
     const manager = {
       ...makeManager([{ id: 11, sourceName: bankName }, { id: 22, sourceName: cardName }]),
-      findOne: jest.fn().mockResolvedValue({ id: 77, name: 'כרטיס דיירקט', category: { name: 'שונות' } }),
+      findOne: jest.fn().mockResolvedValue({ id: 77, name: 'כרטיס דיירקט', category: { name: 'בנק, אשראי ותנועות' } }),
     };
     await (makeService() as any).applyProfileSourceState(manager, 'direct-user', profile, rows);
     expect(manager.insert).toHaveBeenCalledWith(FullTransactionCache, expect.arrayContaining([

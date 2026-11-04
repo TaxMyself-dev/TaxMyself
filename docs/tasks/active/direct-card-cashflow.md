@@ -53,3 +53,14 @@ rule lookup/backfill, exclusion/approval and Direct import regressions. Nest bui
 passed (exit 0). Standalone and cumulative SQL blocks match exactly and contain no
 classified_transactions ALTER. No frontend files changed, so UI tests/build were
 not repeated for this correction. No DB operations or GitHub push performed.
+
+## Direct label parent correction (2026-11-04)
+
+Elazar requested the SYSTEM Direct label under בנק, אשראי ותנועות. Seed and
+standalone/cumulative SQL now use that parent; reruns move the existing label
+without changing its stable ID. No classification rule scope change.
+
+Verified on keepintax-dev: label ID 109 is under בנק, אשראי ותנועות. Updated
+SQL ran twice successfully; user, transaction and rule counts were unchanged.
+Two focused backend suites / 18 tests passed; Git whitespace check passed.
+No production access or GitHub push performed.

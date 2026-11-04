@@ -57,7 +57,7 @@ export const SYSTEM_CATEGORIES: SystemCategorySeed[] = [
 ];
 
 export const SYSTEM_SUB_CATEGORIES: SystemSubCategorySeed[] = [
-  { category: 'שונות', name: 'כרטיס דיירקט', isPrivate: true, systemKey: 'DIRECT_CARD_BANK_PAYMENT' },
+  { category: 'בנק, אשראי ותנועות', name: 'כרטיס דיירקט', isPrivate: true, systemKey: 'DIRECT_CARD_BANK_PAYMENT' },
   { category: 'דיור והוצאות הבית', name: 'שכירות', accountCode: '60100' },
   { category: 'דיור והוצאות הבית', name: 'משכנתא', accountCode: '60100' },
   { category: 'דיור והוצאות הבית', name: 'ארנונה', accountCode: '60110' },

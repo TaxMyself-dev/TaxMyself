@@ -168,12 +168,12 @@ describe('Exclusion at service boundaries', () => {
     expect(readCache).not.toHaveBeenCalled();
   });
   it('keeps the system label selectable under an overridden parent and blocks mutations', async () => {
-    const special = { id: 10, chartOwnerKey: 'SYSTEM', name: 'כרטיס דיירקט', systemKey: 'DIRECT_CARD_BANK_PAYMENT', category: { name: 'שונות' } };
+    const special = { id: 10, chartOwnerKey: 'SYSTEM', name: 'כרטיס דיירקט', systemKey: 'DIRECT_CARD_BANK_PAYMENT', category: { name: 'בנק, אשראי ותנועות' } };
     const service: any = Object.create(CatalogService.prototype);
     const save = jest.fn();
     Object.assign(service, {
       subCategoryRepo: { find: async () => [], findOne: async () => special, save },
-      categoryRepo: { findOne: async () => ({ id: 99, name: 'שונות' }) },
+      categoryRepo: { findOne: async () => ({ id: 99, name: 'בנק, אשראי ותנועות' }) },
     });
     await expect(service.getMergedSubCategories({ userId: 'owner', businessNumber: '123' }, 99)).resolves.toEqual([special]);
     await expect(service.deleteSubCategory(special)).rejects.toThrow();

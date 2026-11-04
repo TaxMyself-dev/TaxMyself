@@ -25,22 +25,28 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM sub_category s INNER JOIN category c ON c.id=s.categoryId
     WHERE s.chartOwnerKey='SYSTEM' AND c.chartOwnerKey='SYSTEM'
-      AND c.name='שונות' AND s.name='כרטיס דיירקט'
+      AND c.name='בנק, אשראי ותנועות' AND s.name='כרטיס דיירקט'
       AND (s.systemKey IS NULL OR s.systemKey<>'DIRECT_CARD_BANK_PAYMENT')
   ) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Existing system Direct label needs manual catalog review';
   END IF;
 
   INSERT INTO category (name, type, ownerType, chartOwnerKey, visibilityScope, isDefault, isActive)
-  SELECT 'שונות', 'EXPENSE', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 1, 1
-  WHERE NOT EXISTS (SELECT 1 FROM category WHERE chartOwnerKey='SYSTEM' AND name='שונות' AND type='EXPENSE');
+  SELECT 'בנק, אשראי ותנועות', 'EXPENSE', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 1, 1
+  WHERE NOT EXISTS (SELECT 1 FROM category WHERE chartOwnerKey='SYSTEM' AND name='בנק, אשראי ותנועות' AND type='EXPENSE');
 
   INSERT INTO sub_category
     (categoryId, name, systemKey, isPrivate, accountId, necessity, ownerType, chartOwnerKey, visibilityScope, approvalStatus, isDefault, isActive)
   SELECT c.id, 'כרטיס דיירקט', 'DIRECT_CARD_BANK_PAYMENT', 1, NULL, 'IMPORTANT', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 'APPROVED', 1, 1
   FROM category c
-  WHERE c.chartOwnerKey='SYSTEM' AND c.name='שונות' AND c.type='EXPENSE'
+  WHERE c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
     AND NOT EXISTS (SELECT 1 FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT');
+
+  -- Preserve the stable sub-category ID when upgrading an already-applied version.
+  UPDATE sub_category s INNER JOIN category c
+    ON c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
+  SET s.categoryId=c.id
+  WHERE s.systemKey='DIRECT_CARD_BANK_PAYMENT' AND s.chartOwnerKey='SYSTEM';
 
   -- Copy only existing stable classification IDs/provenance; never guess by merchant name.
   UPDATE full_transactions_cache c INNER JOIN slim_transactions s

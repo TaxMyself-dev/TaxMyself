@@ -9,7 +9,7 @@ automatic bank/card matching, including for grouped bank debits.
 
 - `user.excludeDirectCardBankTransactionsFromCashflow`: boolean, false by default.
 - `sub_category.systemKey`: nullable unique catalog identity. The SYSTEM/private
-  `שונות / כרטיס דיירקט` row has `DIRECT_CARD_BANK_PAYMENT`. It has no accounting
+  `בנק, אשראי ותנועות / כרטיס דיירקט` row has `DIRECT_CARD_BANK_PAYMENT`. It has no accounting
   account and cannot be edited, removed, remapped or replaced by a client override.
   This operational label is for bank payment mirrors, not merchant expenses.
 - `slim_transactions.sub_category_id` and `classified_transactions.subCategoryId`
