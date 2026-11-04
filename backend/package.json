@@ -26,6 +26,7 @@
     "smoke:cleanup": "node dist/smoke/cleanup-smoke-user.js",
     "smoke:verify": "node dist/smoke/verify-smoke-user.js",
     "clear:dev": "ts-node scripts/clear-dev-data.ts",
+    "start:billing-completion-dev": "node scripts/start-billing-completion-dev.cjs",
     "start:whatsapp:sandbox": "node -r ts-node/register -r tsconfig-paths/register src/whatsapp/whatsapp-sandbox.main.ts"
   },
   "dependencies": {

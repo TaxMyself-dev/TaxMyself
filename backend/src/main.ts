@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { isAllowedDevCompletionRequest, isDevCompletionOnly } from './billing/domain/dev-completion-mode';
 import { pdfDiagnosticsMiddleware } from './documents/pdf/pdf-diagnostics';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -8,6 +9,9 @@ import { HttpExceptionFilter } from './filters/http-exception.filter';
 import { startupTiming } from './startup-timing';
 
 async function bootstrap() {
+  if (process.env.BILLING_DEV_RECOVERY_PROBE_CONFIG && !isDevCompletionOnly()) {
+    throw new Error('Recovery acceptance hooks require the isolated dev completion profile');
+  }
   startupTiming.mark('bootstrap.entry', 'milestone');
   console.log('🔥 NestJS bootstrap started');
   const app = await startupTiming.measureAsync(
@@ -18,6 +22,17 @@ async function bootstrap() {
         logger: ['warn', 'error', 'debug', 'verbose', 'fatal'],
       }),
   );
+  if (process.env.BILLING_DEV_RECOVERY_PROBE_CONFIG) {
+    // Local-only acceptance hook validates its own DB/project/profile scope.
+    require(require('path').join(__dirname, '../scripts/qa/billing-recovery-faults.cjs'))
+      .install(app, process.env.BILLING_DEV_RECOVERY_PROBE_CONFIG);
+  }
+  app.use((req: any, res: any, next: () => void) => {
+    if (!isAllowedDevCompletionRequest(req.method, req.path)) {
+      return res.status(503).json({ status: 'dev_completion_only', message: 'Only readiness and authenticated completion routes are enabled' });
+    }
+    next();
+  });
   app.use(pdfDiagnosticsMiddleware);
   // TypeORM establishes its connection while Nest builds the application
   // graph. This is a readiness milestone, not an isolated DB duration.

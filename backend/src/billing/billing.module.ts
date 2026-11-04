@@ -1,3 +1,5 @@
+import { BillingTaskController, BillingTaskGuard } from './billing-task.controller';
+import { BillingTasksService } from './services/billing-tasks.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -46,6 +48,7 @@ import { SubscriptionRenewalService } from './services/subscription-renewal.serv
 import { BillingAttemptOrchestrationService } from './services/billing-attempt-orchestration.service';
 import { BillingLifecycleService } from './services/billing-lifecycle.service';
 import { BillingHostedCompletionService } from './services/billing-hosted-completion.service';
+import { BillingCompletionRecoveryService } from './services/billing-completion-recovery.service';
 import { BillingReconciliationService } from './services/billing-reconciliation.service';
 import {
   BILLING_CARD_COM_EXECUTOR,
@@ -84,11 +87,14 @@ import { BusinessModule } from 'src/business/business.module';
     ]),
   ],
   controllers: [
+    BillingTaskController,
     BillingController,
     CardcomWebhookController,
     AdminBillingController,
   ],
   providers: [
+    BillingTasksService,
+    BillingTaskGuard,
     BillingRefundService,
     FirebaseAuthGuard,
     BillingService,
@@ -109,6 +115,7 @@ import { BusinessModule } from 'src/business/business.module';
     BillingAttemptOrchestrationService,
     BillingLifecycleService,
     BillingHostedCompletionService,
+    BillingCompletionRecoveryService,
     BillingReconciliationService,
     BillingProviderRuntimeService,
     BillingCardcomExecutorService,

@@ -1,3 +1,4 @@
+import { BillingTasksService } from './billing-tasks.service';
 import {
   BadRequestException,
   ConflictException,
@@ -42,6 +43,7 @@ import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
+import { Documents } from '../../documents/documents.entity';
 import { BillingEventType } from '../enums/billing.enums';
 import { ResolveBillingAttemptDto } from '../dtos/admin/resolve-billing-attempt.dto';
 import {
@@ -56,6 +58,16 @@ import {
 const DEFAULT_LEASE_MS = 30_000;
 /** Post-capture receipt/PDF/email work is slower than a provider call. */
 const FINALIZATION_LEASE_MS = 5 * 60_000;
+const COMPLETION_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000];
+
+// Completion retries have their own counter in the existing local failure tag;
+// provider reconciliation counters and provider response data remain untouched.
+function completionRunCount(category: string | null): number {
+  return Number(/^POST_CAPTURE:[A-Z_]+:(\d+)$/.exec(category ?? '')?.[1] ?? 0);
+}
+function completionDelay(run: number): number {
+  return COMPLETION_DELAYS_MS[Math.max(0, run - 1)] ?? 60 * 60_000;
+}
 const MAX_EXTERNAL_KEY_ATTEMPTS = 5;
 const RECONCILIATION_DELAYS_MS = [
   60_000,
@@ -215,7 +227,7 @@ export interface AttemptLeaseResult {
 export interface FinalizationLeaseResult {
   claimed: boolean;
   attempt: BillingAttempt;
-  reason?: 'ALREADY_COMPLETED' | 'NOT_CAPTURED' | 'ALREADY_CLAIMED';
+  reason?: 'ALREADY_COMPLETED' | 'NOT_CAPTURED' | 'ALREADY_CLAIMED' | 'NOT_DUE';
 }
 
 /** An attempt selected by a reconciliation sweep, with its owner context. */
@@ -266,9 +278,16 @@ export class BillingAttemptOrchestrationService {
     @Optional()
     @Inject(BILLING_EXTERNAL_KEY_FACTORY)
     externalKeyFactory?: () => string,
+    @Optional() private readonly tasks?: BillingTasksService,
   ) {
     this.externalKeyFactory =
       externalKeyFactory ?? (() => `b${randomBytes(16).toString('base64url')}`);
+  }
+
+  private async enqueueCompletion(attempt?: BillingAttempt): Promise<void> {
+    if (attempt?.operation !== 'CHARGE' || attempt.status !== BillingAttemptStatus.CAPTURED) return;
+    const due = attempt.nextActionAt ?? new Date((attempt.capturedAt?.getTime() ?? Date.now()) + 60000);
+    await this.tasks?.enqueue('CAPTURE', attempt.id, due, String(attempt.stateVersion)).catch(() => undefined);
   }
 
   assertOwnerMutation(context: BillingMutationActorContext): void {
@@ -341,7 +360,7 @@ export class BillingAttemptOrchestrationService {
   /** Called only behind the controller's real-caller admin gate. No provider I/O. */
   async prepareAdminResolution(subscriptionId: number, attemptId: number,
     actorFirebaseId: string, dto: ResolveBillingAttemptDto, now = new Date()): Promise<BillingAttempt> {
-    return this.inTransaction(async manager => {
+    const result: BillingAttempt = await this.inTransaction<BillingAttempt>(async manager => {
       const sub = await this.lockSubscriptionOfAttempt(manager, attemptId);
       if (!sub || sub.id !== subscriptionId) throw new ForbiddenException('Attempt does not belong to subscription');
       const attempt = await this.lockAttempt(manager, attemptId);
@@ -414,6 +433,8 @@ export class BillingAttemptOrchestrationService {
       }));
       return attempt;
     });
+    await this.enqueueCompletion(result);
+    return result;
   }
 
   async recordHostedCreationFailure(attemptId: number, definiteRejection: boolean): Promise<void> {
@@ -741,7 +762,7 @@ export class BillingAttemptOrchestrationService {
     now = new Date(),
     options: ApplyNormalizedOutcomeOptions = {},
   ): Promise<BillingAttempt> {
-    return this.inTransaction(async (manager) => {
+    const result: BillingAttempt = await this.inTransaction<BillingAttempt>(async (manager) => {
       await this.lockCollectionSubscription(manager, attemptId);
       // Lock order matches createOrGetAttempt (subscription first), so a
       // concurrent opener and a decline can never deadlock each other.
@@ -830,6 +851,8 @@ export class BillingAttemptOrchestrationService {
       attempt.stateVersion += 1;
       return manager.save(BillingAttempt, attempt);
     });
+    await this.enqueueCompletion(result);
+    return result;
   }
 
   /**
@@ -1158,8 +1181,9 @@ export class BillingAttemptOrchestrationService {
     subjectFirebaseId: string,
     now = new Date(),
     leaseMs = FINALIZATION_LEASE_MS,
+    scheduledOnly = false,
   ): Promise<FinalizationLeaseResult> {
-    return this.inTransaction(async (manager) => {
+    const result: FinalizationLeaseResult = await this.inTransaction<FinalizationLeaseResult>(async (manager) => {
       await this.lockCollectionSubscription(manager, attemptId);
       const attempt = await this.lockAttempt(manager, attemptId);
       const obligation = await this.lockObligation(
@@ -1174,29 +1198,42 @@ export class BillingAttemptOrchestrationService {
       if (attempt.status === BillingAttemptStatus.COMPLETED) {
         return { claimed: false, attempt, reason: 'ALREADY_COMPLETED' };
       }
-      if (attempt.status !== BillingAttemptStatus.CAPTURED) {
+      if (attempt.status !== BillingAttemptStatus.CAPTURED || attempt.operation === 'REFUND') {
         return { claimed: false, attempt, reason: 'NOT_CAPTURED' };
       }
       if (this.hasLiveLease(attempt, now)) {
         return { claimed: false, attempt, reason: 'ALREADY_CLAIMED' };
       }
+      // Recheck under the row lock: another instance may have failed and
+      // rescheduled this row after our read-only candidate scan.
+      if (scheduledOnly && attempt.nextActionAt && attempt.nextActionAt > now) {
+        return { claimed: false, attempt, reason: 'NOT_DUE' };
+      }
       this.assignLease(attempt, leaseOwner, now, leaseMs);
+      const run = completionRunCount(attempt.failureCategory) + 1;
+      attempt.failureCategory = `POST_CAPTURE:IN_PROGRESS:${run}`;
+      // Persist a wake-up before I/O, including process death without a catch.
+      attempt.nextActionAt = new Date(now.getTime() + leaseMs + completionDelay(run));
       await manager.save(BillingAttempt, attempt);
       return { claimed: true, attempt };
     });
+    if (result.claimed) await this.enqueueCompletion(result.attempt);
+    return result;
   }
 
   /**
    * Releases a finalization lease after a failed post-capture step so the next
-   * run can retry immediately. `expectedStateVersion` (the version returned by
-   * the claim) stops a stale run from releasing a newer holder's lease. The
+   * run can retry after the persisted backoff. `expectedStateVersion` (returned
+   * by the claim) stops a stale run from releasing a newer holder's lease. The
    * attempt stays CAPTURED.
    */
   async releaseFinalizationLease(
     attemptId: number,
     expectedStateVersion: number,
+    failureCategory = 'RECEIPT_STEP_FAILED',
+    now = new Date(),
   ): Promise<void> {
-    await this.inTransaction(async (manager) => {
+    const result = await this.inTransaction(async (manager) => {
       const attempt = await this.lockAttempt(manager, attemptId);
       if (
         attempt.status !== BillingAttemptStatus.CAPTURED ||
@@ -1205,7 +1242,45 @@ export class BillingAttemptOrchestrationService {
         return;
       }
       this.clearLease(attempt);
+      const run = Math.max(1, completionRunCount(attempt.failureCategory));
+      attempt.failureCategory = `POST_CAPTURE:${failureCategory}:${run}`;
+      attempt.nextActionAt = new Date(now.getTime() + completionDelay(run));
+      return manager.save(BillingAttempt, attempt);
+    });
+    await this.enqueueCompletion(result);
+  }
+
+  /** Link the already-created canonical document before slow PDF/signing I/O. */
+  async recordCapturedReceipt(attemptId: number, receiptDocId: number): Promise<void> {
+    await this.inTransaction(async manager => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      const document = await manager.findOne(Documents, {
+        where: { id: receiptDocId, billingAttemptId: attemptId },
+      });
+      if (!document || attempt.operation === 'REFUND' ||
+        ![BillingAttemptStatus.CAPTURED, BillingAttemptStatus.COMPLETED].includes(attempt.status) ||
+        (attempt.receiptDocId != null && attempt.receiptDocId !== receiptDocId)) {
+        throw new ConflictException('Canonical receipt provenance does not match the captured attempt');
+      }
+      attempt.receiptDocId = receiptDocId;
+      // Keep the claimed version: recording this pointer must not invalidate
+      // the holder's guarded lease release if PDF generation subsequently fails.
       await manager.save(BillingAttempt, attempt);
+    });
+  }
+
+  async findDueCapturedAttempts(now = new Date(), limit = 20) {
+    return this.inTransaction(async manager => {
+      const attempts = await manager.find(BillingAttempt, {
+        where: {
+          operation: 'CHARGE', status: BillingAttemptStatus.CAPTURED,
+          capturedAt: LessThanOrEqual(new Date(now.getTime() - 60_000)),
+          nextActionAt: Or(IsNull(), LessThanOrEqual(now)),
+          leaseExpiresAt: Or(IsNull(), LessThanOrEqual(now)),
+        },
+        order: { nextActionAt: 'ASC', capturedAt: 'ASC', id: 'ASC' }, take: limit,
+      });
+      return this.withOwners(manager, attempts);
     });
   }
 
@@ -1265,6 +1340,8 @@ export class BillingAttemptOrchestrationService {
       attempt.completedAt = now;
       attempt.stateVersion += 1;
       attempt.status = BillingAttemptStatus.COMPLETED;
+      attempt.nextActionAt = null;
+      attempt.failureCategory = null;
       this.clearLease(attempt);
       for (const debt of obligations) {
         debt.satisfiedAttemptId = attempt.id;

@@ -8,11 +8,11 @@
       [isLoading]="isLoading()"
       (onButtonClicked)="loadFailures()">
     </app-p-button>
-    <p class="table-title">קבלות חסרות</p>
+    <p class="table-title">חשבוניות ומיילים ממתינים</p>
   </div>
 
   @if (!isLoading() && failures().length === 0) {
-    <p class="empty-state">אין תשלומים עם קבלה חסרה כרגע.</p>
+    <p class="empty-state">אין חשבוניות או מיילים ממתינים כרגע.</p>
   }
 
   <app-generic-table

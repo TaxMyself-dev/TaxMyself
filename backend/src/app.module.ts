@@ -1,3 +1,4 @@
+import { assertDevCompletionEnvironment, devCompletionScheduleOptions } from './billing/domain/dev-completion-mode';
 import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -147,6 +148,7 @@ import { ShaamInvoiceAllocationAttempt } from './shaam/entities/shaam-invoice-al
 // npm's default script-shell doesn't support `VAR=value command` syntax —
 // run that line from Git Bash, or set the env var as a separate PowerShell
 // statement first: `$env:DISABLE_SYNCHRONIZE='false'`.)
+assertDevCompletionEnvironment();
 const isSynchronizeEnabled = process.env.NODE_ENV !== 'production' && process.env.DISABLE_SYNCHRONIZE !== 'true';
 if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
   throw new Error(
@@ -222,11 +224,7 @@ new Logger('Bootstrap').log(
       ImportedDocument,
       ReportWorkflow,
     ]),
-    ScheduleModule.forRoot({
-      cronJobs: process.env.DISABLE_SCHEDULED_TASKS !== 'true',
-      intervals: process.env.DISABLE_SCHEDULED_TASKS !== 'true',
-      timeouts: process.env.DISABLE_SCHEDULED_TASKS !== 'true',
-    }),
+    ScheduleModule.forRoot(devCompletionScheduleOptions()),
     LycheeModule,
     ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],

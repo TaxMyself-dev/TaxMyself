@@ -58,16 +58,18 @@ describe('BillingReceiptService — idempotent post-capture receipt', () => {
         .fn()
         .mockResolvedValue({ fName: 'A', lName: 'B', email: 'a@b.com' }),
     };
+    const orchestration = { recordCapturedReceipt: jest.fn().mockResolvedValue(undefined) };
     const service = new BillingReceiptService(
       documentsService as any,
       {} as any,
       billingEventService as any,
       userRepo as any,
+      orchestration as any,
     );
     const email = jest
       .spyOn(service, 'sendReceiptEmailForPaymentEvent')
       .mockResolvedValue({ sent: true });
-    return { service, documentsService, billingEventService, userRepo, email };
+    return { service, documentsService, billingEventService, userRepo, email, orchestration };
   }
 
   describe('createReceiptForPayment', () => {
@@ -166,6 +168,28 @@ describe('BillingReceiptService — idempotent post-capture receipt', () => {
   });
 
   describe('ensureReceiptForCapturedAttempt', () => {
+    it('links the existing document before a PDF timeout, then retries that document without creating another', async () => {
+      const { service, documentsService, billingEventService, orchestration, email } = build();
+      billingEventService.findSuccessEventForAttempt.mockResolvedValue({ id: 108, receiptDocId: 243 });
+      documentsService.finalizeBillingReceipt
+        .mockImplementationOnce(async () => {
+          expect(orchestration.recordCapturedReceipt).toHaveBeenCalledWith(21, 243);
+          throw new Error('PDF generation timed out');
+        })
+        .mockResolvedValue({});
+      await expect(service.ensureReceiptForCapturedAttempt(base)).rejects.toThrow('PDF generation timed out');
+      expect(email).not.toHaveBeenCalled();
+      await expect(service.ensureReceiptForCapturedAttempt(base)).resolves.toEqual({ receiptDocId: 243 });
+      expect(documentsService.createBillingSystemReceipt).not.toHaveBeenCalled();
+      expect(billingEventService.logEvent).not.toHaveBeenCalled();
+      expect(email).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps completion retryable when mail delivery reports an error', async () => {
+      const { service, email } = build();
+      email.mockResolvedValue({ sent: false, error: 'mail failed' });
+      await expect(service.ensureReceiptForCapturedAttempt(base)).rejects.toThrow('Receipt email delivery failed');
+    });
     it('first run: logs one attempt-keyed success event, creates the receipt, links it, finalizes PDFs and emails', async () => {
       const { service, billingEventService, documentsService, email } = build();
 

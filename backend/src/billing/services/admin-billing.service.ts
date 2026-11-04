@@ -7,6 +7,8 @@ import { PaymentMethod } from '../entities/payment-method.entity';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
+import { Documents } from 'src/documents/documents.entity';
+import { DocumentType } from 'src/enum';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { isDemoEmail } from 'src/demo-data/profiles';
@@ -95,6 +97,8 @@ export function classifyUnresolvedAttempt(
 }
 
 export interface PendingReceiptFailure {
+  receiptDocId: number | null;
+  receiptEmailSent: boolean;
   billingEventId: number;
   eventType: string;
   subscriptionId: number | null;
@@ -753,15 +757,16 @@ export class AdminBillingService {
 
   /**
    * Lists every successful charge (PAYMENT_SUCCESS / RENEWAL_SUCCESS) that
-   * still has no receiptDocId — i.e. receipt generation failed and was never
-   * resolved. A subscription with one of these is blocked from further
-   * payments (see BillingEventService.getUnresolvedReceiptFailure) until an
-   * admin generates the receipt via generateReceiptForEvent().
+   * has no receiptDocId or has an invoice email not marked sent. Only a missing
+   * receipt link participates in getUnresolvedReceiptFailure; email failures do
+   * not change subscription state or authorize another charge.
    */
   async findPendingReceiptFailures(): Promise<PendingReceiptFailure[]> {
     const raw: any[] = await this.dataSource
       .createQueryBuilder()
       .select('e.id', 'billingEventId')
+      .addSelect('e.receiptDocId', 'receiptDocId')
+      .addSelect('e.receiptEmailSent', 'receiptEmailSent')
       .addSelect('e.eventType', 'eventType')
       .addSelect('e.subscriptionId', 'subscriptionId')
       .addSelect('e.firebaseId', 'firebaseId')
@@ -776,7 +781,7 @@ export class AdminBillingService {
       .where('e.eventType IN (:...types)', {
         types: [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS],
       })
-      .andWhere('e.receiptDocId IS NULL')
+      .andWhere('(e.receiptDocId IS NULL OR e.receiptEmailSent = false)')
       .orderBy('e.createdAt', 'DESC')
       .getRawMany();
 
@@ -801,6 +806,8 @@ export class AdminBillingService {
       const user = userMap.get(r.firebaseId);
       return {
         billingEventId: Number(r.billingEventId),
+        receiptDocId: r.receiptDocId == null ? null : Number(r.receiptDocId),
+        receiptEmailSent: !!Number(r.receiptEmailSent),
         eventType: r.eventType,
         subscriptionId: r.subscriptionId != null ? Number(r.subscriptionId) : null,
         firebaseId: r.firebaseId,
@@ -813,6 +820,24 @@ export class AdminBillingService {
         createdAt: r.createdAt,
       };
     });
+  }
+
+  /** Email only: never enters receipt generation, activation or provider submission. */
+  async resendReceiptEmail(billingEventId: number, actor: string): Promise<{ sent: boolean; error?: string }> {
+    const event = await this.billingEventService.findPaymentEventById(billingEventId);
+    if (!event) throw new NotFoundException('אירוע חיוב לא נמצא');
+    if (![BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType)) {
+      throw new BadRequestException('ניתן לשלוח חשבונית רק עבור תשלום או חידוש מוצלח');
+    }
+    if (!event.receiptDocId) throw new BadRequestException('אין חשבונית קיימת לשליחה');
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    const doc = await this.dataSource.manager.findOne(Documents, { where: { id: event.receiptDocId } });
+    if (!doc || !doc.file?.trim() || doc.issuerBusinessNumber !== issuer.issuerBusinessNumber ||
+      doc.docType !== DocumentType.TAX_INVOICE_RECEIPT ||
+      (event.billingAttemptId != null && doc.billingAttemptId != null && doc.billingAttemptId !== event.billingAttemptId)) {
+      throw new BadRequestException('החשבונית המקושרת אינה זמינה או אינה מתאימה לאירוע');
+    }
+    return this.billingReceiptService.sendReceiptEmailForPaymentEvent(event.id, issuer.issuerName, { manual: true, actor });
   }
 
   /**

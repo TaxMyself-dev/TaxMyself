@@ -1,4 +1,33 @@
 ## Purpose
+Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
+PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)
+and validates explicit queue/project/HTTPS audience/service-account/database binding
+at startup. Official Google clients already in googleapis create tasks with ADC;
+no credentials are loaded or Google contacted while disabled. Capture/admin
+resolution, finalization claim/release and email claim/failure enqueue only AFTER
+their durable DB transactions commit. Failed enqueue leaves pending DB authority.
+The initial synchronous capture/activation/manual-send path is preserved.
+
+POST internal/billing/completion uses Google OIDC verification (exact audience,
+Google issuer, verified exact service-account email, subject and expiry). Cloud
+Tasks headers never authorize. Payload contains kind CAPTURE/MAIL and id only.
+The worker reloads state, reuses the existing completion/mail leases and retry
+dates, acknowledges terminal work and returns non-2xx for pending/transient errors.
+It never invokes chargeSubscription/provider submission, refund or replacement
+invoice creation. Existing invoice/journal uniqueness and provenance are retained.
+Mail delivery remains independent of attempt status, including completed/legacy
+charges, and uses the saved PDF. Duplicate/crashed mail can still be ambiguous.
+
+POST internal/billing/repair uses the same verified identity, intended for Cloud
+Scheduler daily at 04:00 Asia/Jerusalem. No application recovery timer is registered.
+Repair only enqueues due pending work (100/id-page, max 2000 per kind), with fresh
+daily task generations to survive queue tombstones/retention/exhaustion. Partial
+failures/caps log and return 503; capture scan failure cannot block mail repair.
+Daily repair is required for DB-commit/enqueue gaps and must be configured before
+activation. No new schema, production access or cloud resources were changed.
+See docs/features/billing-cloud-tasks.md for configuration, IAM, Scheduler and
+manual dev checks; earlier minute-sweep documentation is historical.
+
 Admin refund PDF access: GET subscriptions/:id/refunds/:attemptId/document is
 admin-only, validates source subscription/user and linked credit document attempt
 provenance, then streams the existing PDF with no-store. Never bypass ownership
@@ -650,3 +679,45 @@ connectionVerified under the existing enrollment rules.
 
 ## Signup transaction isolation
 UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).
+
+## Existing receipt email recovery (2026-11-01)
+
+POST /admin/billing/receipts/:billingEventId/resend-email uses the real admin
+guard and permits PAYMENT_SUCCESS / RENEWAL_SUCCESS only. It requires a linked,
+downloadable TAX_INVOICE_RECEIPT from the configured issuer and checks canonical
+attempt provenance when present. It sends the saved PDF, never generates/signs
+a document, activates a subscription or submits a payment. The actor is recorded
+in receiptEmail metadata. The pending list includes linked invoices with email
+not sent; its action is distinct from missing-document generation.
+
+All BillingReceiptService email callers share transactional event-row delivery
+claims. receiptEmail metadata persists leaseId/leaseUntil, attempts, nextAttemptAt,
+lastAttemptAt, sent, sanitized lastError and optional lastAdminActor. Five-minute
+leases serialize manual/automatic sends. Failure retries after 1/5/15/30 minutes
+then hourly; a crash wake-up is persisted before storage/mail I/O. Success sets
+both the column and metadata sent flags, clears error/schedule/lease. Missing
+recipient is explicitly skipped until a manual retry. Persistence failures throw.
+Cloud Tasks MAIL delivery and daily safety repair handle failed email events
+independently of billing_attempt status, including legacy/completed charges.
+They only download/send the existing PDF. The Cloud Tasks transport above supersedes
+the original minute recovery runner; no schema change is required. Brevo acceptance is not inbox
+delivery; ambiguous transport/crash failures can cause duplicate email on retry.
+
+## Opt-in local completion worker
+
+npm run start:billing-completion-dev starts the compiled feature backend on port
+3000 from its own ignored env. It forces BILLING_DEV_COMPLETION_ONLY=true,
+DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true, requires keepintax-dev DB/project
+binding and disables all Nest schedule decorators (cron/interval/timeout).
+All CardcomService network entry points fail before HTTP in this profile, including
+lookup/refund operations. HTTP is limited to health/readiness and the authenticated
+Cloud Tasks completion/repair endpoints; ordinary UI/API routes return 503.
+Normal runtime behavior is unchanged when the profile is absent/false. This is an
+isolated queue acceptance worker, not a replacement for the full UI backend.
+Actual dev DB binding, ADC quota project and queue/Scheduler delivery were verified
+on 2026-11-02 without billing-record writes; see the feature guide/task handoff.
+
+Controlled dev PDF/mail retry acceptance passed on existing invoice 30000 on
+2026-11-02. Optional BILLING_DEV_RECOVERY_PROBE_CONFIG installs strictly scoped
+local adapters only in the isolated dev profile; normal startup installs none.
+See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.

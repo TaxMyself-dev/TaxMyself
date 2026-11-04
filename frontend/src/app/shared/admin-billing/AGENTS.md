@@ -57,3 +57,13 @@ Isolated verification uses frontend/tsconfig.billing-resolution.spec.json.
 - Backend: billing (`AdminBillingService` → admin billing endpoints)
 - Frontend pages: admin-panel (embeds `<app-admin-billing>` as a tab)
 - Frontend shared: clients-dashboard (sibling admin-panel tab; reads subscription status via the same `AdminBillingService.getSubscriptions()`)
+
+## Pending invoice emails (2026-11-01)
+
+The “חשבוניות ומיילים ממתינים” tab includes successful initial/renewal payments
+with a missing invoice OR an unsent invoice email. A linked document gets the
+separate confirmed “שלח חשבונית קיימת במייל” action, using its billing-event id.
+It never calls generate; missing documents retain only the generation action.
+Only sent=true produces the success toast; failed/busy delivery shows a warning.
+Requests suppress overlapping clicks and refresh the pending list afterwards.
+Isolated checks: tsconfig.receipt-email.spec.json.
