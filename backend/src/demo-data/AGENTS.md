@@ -1,4 +1,10 @@
 ## Purpose
+
+Direct-card twins must omit the original cache row's generated primary key:
+TypeORM insert mutates bank-row objects with id before applyProfileSourceState
+clones them. buildLegacyDuplicateRows strips id while preserving stable external
+IDs, amounts and dates, so fresh seed/reset and scenario rebuilds cannot reuse a
+bank row's PRIMARY key. Regression fixture includes already-inserted bank IDs.
 Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Firebase + full DB graph across most modules) from static, version-controlled "profile" templates, for admin demos and in-app "אפס נתוני בדיקה" testing.
 
 ## Key entities/files

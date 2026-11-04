@@ -1088,9 +1088,11 @@ export class DemoDataService {
     const wanted = new Set(scenario.duplicateMerchants);
     return eligible
       .filter((r) => wanted.has(r.merchantName!))
-      .map((r) => ({
-        ...r,
-        externalTransactionId: `${r.externalTransactionId}-dup`,
+      .map(({ id: _bankRowId, ...row }) => ({
+        // TypeORM insert populates generated IDs on the original bank rows.
+        // Card twins are new records and must receive their own generated IDs.
+        ...row,
+        externalTransactionId: `${row.externalTransactionId}-dup`,
         paymentIdentifier: scenario.cardSourceName,
       }));
   }

@@ -90,3 +90,16 @@ and CommonJS warnings). Final Angular template compilation and the 30 frontend
 tests passed after wiring successful popup saves to dashboard refresh. SQL copies
 match exactly; Git whitespace check passed. Live UI/provider verification remains
 manual, and no local integration into main or GitHub push was performed.
+
+## Demo PRIMARY-key collision correction (2026-11-04)
+
+Elazar reported Duplicate entry 9706 for full_transactions_cache.PRIMARY while
+creating direct-card-demo. TypeORM's first bank-row insert assigns generated IDs
+back onto cacheRows; the subsequent card-twin spread incorrectly copied those
+IDs into a second insert. buildLegacyDuplicateRows now omits the bank primary key.
+The orchestration regression supplies already-inserted bank IDs and requires all
+card inserts to omit id while preserving the original bank IDs. No schema or
+existing database records changed by this correction.
+
+Validation: three Direct-demo backend suites / 29 tests and Nest build passed;
+Git whitespace check passed. No live seed/provider call or GitHub push performed.
