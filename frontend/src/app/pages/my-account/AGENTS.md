@@ -15,6 +15,8 @@ Main dashboard/home page shown after login: account sync status, transactions-to
   waits for banking sync/dialogs, follows Ionic entry/leave, and never appears in
   represented-client mode. Close/X/Later suppress for the current lastLoginAt in
   this browser; Never Show Again persists independently on the owner account.
+  It starts active on normal Angular initialization; do not rely exclusively on
+  ionViewWillEnter, since the app root uses Angular router-outlet.
 - `my-account.page.ts` — standalone component; the largest/most central page component in the app. Aggregates: bank/card sync status polling (`SyncStatusService`), transactions needing classification (`ExpenseDataService`/`TransactionsService`), Feezback consent/pull dialog flow (`FeezbackService`), payment-result banner + polling after checkout redirect (`BillingStateService`), feature-gated navigation to doc-create/transactions (`AccessService`/`AccessHandlerService`/`AppFeature`), modals for add-bill/add-category/classify-transaction/account-association/manual-expense.
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 

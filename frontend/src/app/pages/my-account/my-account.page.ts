@@ -70,7 +70,8 @@ import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice
   providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {
-  readonly directNoticeActive = signal(false);
+  // Root uses Angular router-outlet; Ionic entry hooks are not guaranteed.
+  readonly directNoticeActive = signal(true);
   readonly directNoticeRefresh = signal(0);
   readonly bankingError = signal<BankingSupportError | null>(null);
 

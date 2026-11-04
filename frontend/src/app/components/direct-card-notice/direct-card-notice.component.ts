@@ -51,7 +51,8 @@ export class DirectCardNoticeSession {
     .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }`],
 })
 export class DirectCardNoticeComponent {
-  active = input(false);
+  // Mounted on routed Angular pages, which do not emit Ionic entry hooks.
+  active = input(true);
   blocked = input(false);
   refresh = input(0);
   readonly preferenceSaved = output<void>();

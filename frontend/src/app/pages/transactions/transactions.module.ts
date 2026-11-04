@@ -1,4 +1,5 @@
 import { NgModule } from '@angular/core';
+import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice/direct-card-notice.component';
 import { OpenBankingErrorComponent } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -22,6 +23,7 @@ import { ButtonComponent } from "../../components/button/button.component";
 
 @NgModule({
   imports: [
+    DirectCardNoticeComponent,
     OpenBankingErrorComponent,
     CommonModule,
     FormsModule,

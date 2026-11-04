@@ -8,6 +8,11 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 - `transactions.module.ts` / `-routing.module.ts` — Angular module wiring; imports `TopNavComponent`, `ImageBunnerComponent`, `GenericTableComponent`, `AccountAssociationDialogComponent`, `AddBillComponent`, `ClassifyTranComponent`, `AddCategoryComponent`, `FilterPanelComponent`.
 
 ## Main flows
+
+- DirectCardNoticeComponent is also mounted on the cashflow page, active under
+  ordinary Angular routing (root uses router-outlet, not ion-router-outlet).
+  It waits for consent dialogs/running sync and is suppressed in view-as mode.
+  Its save uses the existing cashflowPreferencesChanged$ refresh subscription.
 - A verified disconnected effective profile shows the same yellow banking
   banner above the income/expense tables. Owner CTA repeats the feature gate,
   requires explicit consent, then uses `/billing/open-banking`; represented

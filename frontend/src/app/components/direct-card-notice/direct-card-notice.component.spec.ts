@@ -33,6 +33,13 @@ describe('Direct card notice', () => {
     return { fixture, component: fixture.componentInstance };
   }
 
+  it('opens on normal Angular initialization without an Ionic entry event', () => {
+    const fixture = TestBed.createComponent(DirectCardNoticeComponent);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.visible()).toBeTrue();
+    expect(api.getCashflowPreferences).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the notice only to detected Direct-card owners who have not enabled or dismissed it', () => {
     const { fixture, component } = open();
     expect(component.visible()).toBeTrue();

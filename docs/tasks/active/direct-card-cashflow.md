@@ -129,3 +129,20 @@ LoginPage form with the demo credentials, ordinary aliases/long suffixes and
 malformed/empty addresses. No DB or backend build/start operations required.
 Validation: nine login-form regressions passed in ChromeHeadless and Git whitespace
 check passed. Saved locally only; no GitHub push.
+
+## Popup routing activation correction (2026-11-04)
+
+Elazar still saw no popup on the transactions page. Root template uses a normal
+Angular router-outlet; relying on ionViewWillEnter left dashboard notice active
+false. Dashboard and component now start active on normal Angular initialization;
+the same notice is mounted on Transactions with existing owner/consent/sync guards.
+Shared per-login suppression prevents repeated prompts after closing either page.
+
+Verified current dev demo flags read-only: exclusion=false, dismissal=false.
+Fourteen focused UI tests passed, including normal Angular initialization without
+Ionic lifecycle events. In the user's existing localhost browser session, navigated
+to transactions and reloaded: popup visibly appeared with unchecked enabled checkbox,
+X, Close, Remind Later and Never Show Again. Left popup open without changing any
+preferences. No backend build/restart or DB mutation was needed for this correction.
+Frontend production build passed with existing CSS/bundle budget and CommonJS
+warnings. No integration into main or GitHub push performed.
