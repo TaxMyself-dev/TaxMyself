@@ -1004,7 +1004,7 @@ export class DemoDataService {
         { userId: firebaseId, sourceName: scenario.cardSourceName },
         { isDirect: true },
       );
-      await this.applyProfileSourceState(m, firebaseId, profile, bank);
+      await this.applyProfileSourceState(m, firebaseId, profile, bank, true);
       cardRows = bank.filter(row => row.paymentIdentifier === scenario.cardSourceName).length;
       await this.markUserSyncCompleted(m, firebaseId, bank.length);
     });
@@ -1603,6 +1603,7 @@ export class DemoDataService {
     firebaseId: string,
     data: DemoSeedable,
     cacheRows: Array<Partial<FullTransactionCache>>,
+    enableDirectExclusion = false,
   ): Promise<number> {
     const scenario = (data as DemoProfile).legacyDuplicateScenario;
     if (scenario) {
@@ -1619,7 +1620,9 @@ export class DemoDataService {
         Object.assign(row, { category: sub.category.name, subCategory: sub.name, subCategoryId: sub.id, merchantName: 'כרטיס דיירקט', isRecognized: false });
         await m.update(FullTransactionCache, { userId: firebaseId, externalTransactionId: row.externalTransactionId }, { category: row.category, subCategory: row.subCategory, subCategoryId: sub.id, merchantName: row.merchantName, isRecognized: false });
       }
-      await m.update(User, { firebaseId }, { excludeDirectCardBankTransactionsFromCashflow: true });
+      // Fresh seed/reset lets the owner discover and enable the preference.
+      // Only the explicit admin "apply fix" action starts with exclusion on.
+      await m.update(User, { firebaseId }, { excludeDirectCardBankTransactionsFromCashflow: enableDirectExclusion });
       await m.update(UserSyncState, { userId: firebaseId }, { fullRowsWritten: cacheRows.length });
     }
     const states = data.sourceSyncStates ?? [];

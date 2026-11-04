@@ -64,7 +64,7 @@ export const DIRECT_CARD_DEMO_PROFILE: DemoProfile = {
   syntheticOpenBanking: true,
   label: 'כרטיס דיירקט - עוסק יחיד',
   description:
-    'נועם ברק עם דיירקט: פירוט עסקאות בכרטיס וחיובי בנק מסווגים ומוחרגים. ההגדרה ניתנת לביטול בהגדרות. ללא קריאה ל-Feezback.',
+    'נועם ברק עם דיירקט: פירוט עסקאות בכרטיס וחיובי בנק מסווגים. ההחרגה כבויה כדי להציג את הפופאפ ולאפשר הפעלה ידנית. ללא קריאה ל-Feezback.',
 
   email: 'demo+direct-card@taxmyself.local',
   password: 'test1234',

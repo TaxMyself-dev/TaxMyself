@@ -91,10 +91,14 @@ data with schema synchronize or boot seeding enabled.
 
 ## Demo and verification
 
-The Direct-card demo is synthetic-only. Normal seed/reset and the fixed-state
-action create card detail, classify bank mirrors into the system label and enable
+The Direct-card demo is synthetic-only. Normal seed/reset creates card detail and
+classifies bank mirrors into the system label, with exclusion off so a direct
+owner login can test the popup and opt in. The explicit fixed-state action enables
 the preference. Its legacy action disables the preference and shows both feeds.
 Both source sync statuses are success; no Feezback call is made.
+The admin panel's "login as user" opens represented-client/view-only mode: the
+setting is disabled and the popup is suppressed. Test the owner flow by signing
+in directly with the demo credentials, not through that view-as shortcut.
 
 Focused tests cover SQL policy against a local in-memory SQLite fixture (Node
 22.13+ or 24), unchanged bill-wide rule scope and cache rebuild, owner/boolean validation, Direct

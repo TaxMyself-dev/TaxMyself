@@ -103,3 +103,18 @@ existing database records changed by this correction.
 
 Validation: three Direct-demo backend suites / 29 tests and Nest build passed;
 Git whitespace check passed. No live seed/provider call or GitHub push performed.
+
+## Demo popup discoverability (2026-11-04)
+
+Elazar reported no popup and a checked/disabled control. The seed had exclusion
+enabled, suppressing the popup; the admin demo-entry shortcut uses view-as, which
+intentionally disables owner writes and suppresses the popup. Fresh/reset demo
+now starts with exclusion off, while the explicit apply-fix action enables it.
+Settings explains view-only state and directs testers to a real demo-owner login.
+The existing synthetic Direct-demo user in keepintax-dev was updated from exclusion
+on to off after verifying its unique demo email and synthetic Direct-card source;
+its permanent notice dismissal remained false. No other users or transactions
+were changed, and no authorization exceptions were introduced.
+
+Validation: three backend demo suites / 30 tests and Nest build passed. Frontend
+change is explanatory text using the existing view-as predicate. No GitHub push.

@@ -29,7 +29,7 @@ const makeManager = (sources = sourceRows) => ({
 });
 
 describe('DemoDataService permanent source identity', () => {
-  it('seeds Direct card detail, classified bank mirrors and a persistent opt-in together', async () => {
+  it.each([undefined, true])('seeds Direct card detail and bank mirrors with exclusion=%s', async (enabled) => {
     const profile = DIRECT_CARD_DEMO_PROFILE;
     const cardName = profile.legacyDuplicateScenario!.cardSourceName;
     const bankName = profile.bills[0].sources[0].sourceName;
@@ -43,7 +43,7 @@ describe('DemoDataService permanent source identity', () => {
       ...makeManager([{ id: 11, sourceName: bankName }, { id: 22, sourceName: cardName }]),
       findOne: jest.fn().mockResolvedValue({ id: 77, name: 'כרטיס דיירקט', category: { name: 'בנק, אשראי ותנועות' } }),
     };
-    await (makeService() as any).applyProfileSourceState(manager, 'direct-user', profile, rows);
+    await (makeService() as any).applyProfileSourceState(manager, 'direct-user', profile, rows, enabled);
     expect(manager.insert).toHaveBeenCalledWith(FullTransactionCache, expect.arrayContaining([
       expect.objectContaining({ paymentIdentifier: cardName, sourceRecordId: 22, subCategoryId: null }),
     ]));
@@ -51,7 +51,7 @@ describe('DemoDataService permanent source identity', () => {
     expect(cardInsert).toHaveLength(profile.legacyDuplicateScenario!.duplicateMerchants.length);
     for (const row of cardInsert) expect(row).not.toHaveProperty('id');
     expect(rows.find(row => row.paymentIdentifier === bankName)?.id).toBe(9706);
-    expect(manager.update).toHaveBeenCalledWith(User, { firebaseId: 'direct-user' }, { excludeDirectCardBankTransactionsFromCashflow: true });
+    expect(manager.update).toHaveBeenCalledWith(User, { firebaseId: 'direct-user' }, { excludeDirectCardBankTransactionsFromCashflow: enabled ?? false });
     expect(manager.insert).toHaveBeenCalledWith(UserSourceSyncState, expect.arrayContaining([
       expect.objectContaining({ sourceRecordId: 22, type: 'card', status: 'success', transactionCount: 5 }),
     ]));

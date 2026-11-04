@@ -1,5 +1,9 @@
 ## Purpose
 
+Direct-demo seed/reset starts with exclusion off to exercise the opt-in popup on
+a real owner login. Only applyDirectCardFix passes enableDirectExclusion=true.
+Admin demo-entry is view-as, so owner-only preferences remain read-only there.
+
 Direct-card twins must omit the original cache row's generated primary key:
 TypeORM insert mutates bank-row objects with id before applyProfileSourceState
 clones them. buildLegacyDuplicateRows strips id while preserving stable external
