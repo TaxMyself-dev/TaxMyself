@@ -46,8 +46,9 @@ FAILED. SQL stores generic error codes only. Operators must monitor FAILED and
 WAITING_FOR_BUSINESS; there is currently no admin queue UI or automatic alert.
 Queue tests use mocks; MySQL concurrency/DDL still require an authorized dev test.
 
-User.phone from signup is the approved mapping for this adapter; it does not
-assert independent phone verification. Local Israeli format and international
+User.phone or the saved User.spousePhone is the approved mapping for this adapter;
+both resolve the same account and full business list. This does not assert
+independent phone verification. Local Israeli format and international
 format normalize to the same number. Unknown or ambiguous users are rejected.
 Only numbered businesses owned by that user qualify; no accountant delegation or
 primary-business fallback. This policy must be revisited before broader rollout

@@ -8,6 +8,7 @@ import { DocumentImportService } from '../document-import/document-import.servic
 import { DocumentImportSource } from '../document-import/enums/document-import.enums';
 import { isImportBlockCode } from '../document-import/document-import-blocked.error';
 import { lycheeSender } from './lychee-sender';
+import { lycheeAccountsForPhone } from './lychee-account-lookup';
 import { buildBusinessQuestion } from './lychee-business-question';
 import { LycheeEventStore, LycheeJob } from './lychee-event.store';
 import { LycheeClient } from './lychee-client.service';
@@ -187,20 +188,12 @@ export class LycheeIntakeService {
       await this.store.complete(job, 'REJECTED_SENDER');
       return;
     }
-    // Signup phone is the approved account mapping. Reject shared/missing phones.
+    // Either saved profile phone maps to the same account. Reject cross-account collisions.
     const users = await lycheeStep(
       e.event_id,
       'user.lookup',
       'איתור חשבון לפי מספר השולח המנורמל',
-      () =>
-        this.users
-          .createQueryBuilder('u')
-          .where(
-            "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') IN (:...phones)",
-            { phones: [normalized, '0' + normalized.slice(3)] },
-          )
-          .take(2)
-          .getMany(),
+      () => lycheeAccountsForPhone(this.users, normalized),
     );
     if (users.length !== 1) {
       lycheeLog(

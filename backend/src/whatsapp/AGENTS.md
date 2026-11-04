@@ -2,8 +2,14 @@
 
 ## Lychee adapter (2026-10-25)
 
-Approved owner mapping for this adapter is the signup phone (normalized), with
-ambiguous or unknown accounts rejected. This overrides the simulator-only rule
+Approved owner mapping for this adapter is either User.phone or the existing
+User.spousePhone (normalized), with ambiguous or unknown accounts rejected.
+Both map to the same account and all its businesses; no filtering by spouse
+business role. One business imports directly, multiple businesses always ask.
+Intake, question preflight and result delivery share this lookup. Cross-account
+collisions across either field reject; matching both fields on one row is one
+account. Replies go to the original sender; quote ownership stays phone-scoped.
+This overrides the simulator-only rule
 below for Lychee. Every import requires an explicit currently owned business.
 POST /webhooks/lychee validates raw HMAC and channel before durable enqueue.
 Provider sender_phone may be null, missing or blank: use normalized contact_phone

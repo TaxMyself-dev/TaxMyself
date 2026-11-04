@@ -4,7 +4,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
-import { lycheeSender } from './lychee-sender';
+import {
+  lycheeAccountsForPhone,
+  lycheeAccountHasPhone,
+} from './lychee-account-lookup';
 import { LycheeEventStore } from './lychee-event.store';
 import {
   LycheePromptStore,
@@ -99,15 +102,13 @@ export class LycheePromptService {
         await this.link(job);
         return;
       }
-      const user = await timePromptStage(
+      const matches = await timePromptStage(
         job.payload.documentEventId,
         'business.prompt.db.user',
         'בדיקת חשבון המשתמש במסד',
-        () =>
-          this.users.findOne({
-            where: { firebaseId: job.firebase_id },
-          }),
+        () => lycheeAccountsForPhone(this.users, job!.sender_phone),
       );
+      const user = matches.length === 1 ? matches[0] : null;
       const owned = await timePromptStage(
         job.payload.documentEventId,
         'business.prompt.db.businesses',
@@ -120,8 +121,9 @@ export class LycheePromptService {
       const request = job.payload.request;
       if (
         !user ||
+        user.firebaseId !== job.firebase_id ||
         parent.status !== 'WAITING_FOR_BUSINESS' ||
-        lycheeSender({ contact_phone: user.phone }) !== job.sender_phone ||
+        !lycheeAccountHasPhone(user, job.sender_phone) ||
         parent.sender_phone !== job.sender_phone ||
         request.phone !== job.sender_phone ||
         request.channel_id !== job.channel_id ||

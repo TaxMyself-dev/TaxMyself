@@ -617,6 +617,57 @@ describe('Lychee document workflow without sending', () => {
     );
     expect(notifications.wake).toHaveBeenCalledTimes(2);
   });
+  it.each([
+    ['0501234567', 1],
+    ['0547654321', 1],
+    ['0501234567', 2],
+    ['0547654321', 2],
+  ])(
+    'uses the same account businesses for %s with %s businesses',
+    async (phone, count) => {
+      users
+        .createQueryBuilder()
+        .getMany.mockResolvedValue([
+          {
+            firebaseId: 'owner',
+            phone: '0501234567',
+            spousePhone: '0547654321',
+          },
+        ]);
+      businesses.find.mockResolvedValue(
+        [{ businessNumber: '123' }, { businessNumber: '456' }].slice(
+          0,
+          Number(count),
+        ),
+      );
+      const incoming = {
+        ...job,
+        payload: { ...event, sender_phone: null, contact_phone: phone },
+      };
+      await service.process(incoming);
+      expect(businesses.find).toHaveBeenCalledWith({
+        where: { firebaseId: 'owner' },
+      });
+      if (count === 1) {
+        expect(importer.importDocument).toHaveBeenCalledWith(
+          expect.objectContaining({
+            firebaseId: 'owner',
+            businessNumber: '123',
+          }),
+        );
+        expect(store.waitForBusiness).not.toHaveBeenCalled();
+      } else {
+        expect(store.waitForBusiness).toHaveBeenCalledWith(
+          incoming,
+          'owner',
+          expect.any(Array),
+          undefined,
+        );
+        expect(importer.importDocument).not.toHaveBeenCalled();
+        expect(prompts.wake).toHaveBeenCalled();
+      }
+    },
+  );
   it('rechecks selected business ownership before importing retained content', async () => {
     store.prepared.mockResolvedValue({
       business_number: 'other',

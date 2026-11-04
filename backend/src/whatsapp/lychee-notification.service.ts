@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
+import { lycheeAccountsForPhone } from './lychee-account-lookup';
 import { LycheePromptTransport } from './lychee-prompt.transport';
 import { LycheeImmediateQueue } from './lychee-immediate-queue';
 import { lycheeLog, safeLycheeError } from './lychee-log';
@@ -112,20 +113,7 @@ export class LycheeNotificationService {
             draft.documentEventId,
             'notification.db.user',
             'אימות שהנמען עדיין משויך לחשבון יחיד',
-            () =>
-              this.users
-                .createQueryBuilder('u')
-                .where(
-                  "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(u.phone, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') IN (:...phones)",
-                  {
-                    phones: [
-                      job!.sender_phone,
-                      '0' + job!.sender_phone.slice(3),
-                    ],
-                  },
-                )
-                .take(2)
-                .getMany(),
+            () => lycheeAccountsForPhone(this.users, job!.sender_phone),
           );
       if (
         !phoneOnlyFailure &&

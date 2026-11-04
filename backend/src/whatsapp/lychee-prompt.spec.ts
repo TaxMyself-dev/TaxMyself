@@ -303,6 +303,15 @@ describe('Durable business question delivery — fake database and fake transpor
         .fn()
         .mockResolvedValue({ firebaseId: 'owner', phone: '0501234567' }),
     };
+    const qb = {
+      where: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn(async () => {
+        const user = await users.findOne();
+        return user ? [user] : [];
+      }),
+    };
+    users.createQueryBuilder = jest.fn(() => qb);
     businesses = {
       find: jest
         .fn()
@@ -348,6 +357,29 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(journal().status).toBe('PROMPT_SENT');
     await makeService().tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a spouse question to the original sender and cancels cross-account collisions', async () => {
+    users.findOne.mockResolvedValue({
+      firebaseId: 'owner',
+      phone: '0549999999',
+      spousePhone: '0501234567',
+    });
+    await stage();
+    await makeService().tick();
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    expect(transport.send.mock.calls[0][0].phone).toBe('972501234567');
+  });
+
+  it('never sends a question if the spouse phone also belongs to another account', async () => {
+    await stage();
+    users.createQueryBuilder().getMany.mockResolvedValue([
+      { firebaseId: 'owner', phone: '0549999999', spousePhone: '0501234567' },
+      { firebaseId: 'other', phone: '0501234567' },
+    ]);
+    await makeService().tick();
+    expect(transport.send).not.toHaveBeenCalled();
+    expect(journal().status).toBe('PROMPT_CANCELLED');
   });
   it.each(['development', 'production'] as const)(
     'delivers a question end-to-end with %s settings and mocked HTTP/SQL',

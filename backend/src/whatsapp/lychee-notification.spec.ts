@@ -348,6 +348,22 @@ describe('document result notifications (all boundaries mocked)', () => {
     );
   });
   afterEach(() => service.onModuleDestroy());
+  it('delivers a spouse result to the original sending phone for the same owner', async () => {
+    users
+      .createQueryBuilder()
+      .getMany.mockResolvedValue([
+        {
+          firebaseId: 'test-owner',
+          phone: '0549999999',
+          spousePhone: '0501234567',
+        },
+      ]);
+    await succeed();
+    await service.tick();
+    expect(transport.send).toHaveBeenCalledTimes(1);
+    expect(transport.send.mock.calls[0][0].phone).toBe('972501234567');
+    expect(notice().status).toBe('NOTICE_SENT');
+  });
   it.each(Object.keys(intakeRejections))(
     'persists and sends one safe %s explanation without selecting an account',
     async (status) => {

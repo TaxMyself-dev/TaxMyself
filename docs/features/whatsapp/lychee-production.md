@@ -6,6 +6,14 @@ configuration, executing DDL, sending messages or deploying. Verification is moc
 
 ## Delivery identity and isolation
 
+Both saved profile fields User.phone and User.spousePhone can identify the same
+intake account. The existing spouse phone is edited in account spouse settings;
+no new schema/env is needed. Both phones access the same owned business list.
+Multiple businesses always require a new document-specific selection. Questions
+and results go to the original sender. Cross-account phone collisions are
+rejected, including primary/spouse collisions. Removing a phone blocks later
+account-scoped delivery to it; quoting another phone's question is not allowed.
+
 Both LycheePromptTransport and LycheeNotificationTransport bind to
 ConfiguredLycheeTransport. It requires all three database identities to agree:
 DB_DATABASE from the environment, DataSource.options.database and the actual
