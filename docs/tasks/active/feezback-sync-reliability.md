@@ -1,6 +1,6 @@
 # Feezback consent and ingestion reliability
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED_LOCAL`
 - Task manager / implementer: Codex, this task; no delegated workers.
 - Worktree: TaxMyself-feezback-sync-reliability
 - Branch: codex/feezback-sync-reliability
@@ -149,3 +149,8 @@ Production frontend build passed (existing budget/CommonJS warnings); no product
 - Excludes disconnected sources from login/automatic retry, per-source provider dispatch, failed-identity outcomes and retry quality. Retains real linked-source errors, missing-resource errors, source identity, cache, accounting and technical history. Correlated old false OB-03 can be cleared only under exact run evidence and healthy linked sources.
 - Covers a revocation during retry, no-consent banks/cards, cache reuse, active failure preservation and old-error recovery. Existing fixtures now explicitly include the valid consents required by their scenarios. No schema, frontend runtime, environment variable, production operation, provider call, main merge or push.
 - Final verification: 378 backend tests in 32 suites passed and Nest build passed. Re-review checked exact-run recovery, preserved OB-04/unattributed failures, retained active 403 and missing-resource errors, canceled in-flight retries, primary/spouse identity and Direct behavior. No frontend runtime change, so no frontend build was required for this follow-up. No remaining actionable finding in the scoped review.
+
+### Local main integration of disconnected-source fix — 2026-11-04
+- User authorized local integration only. Fetched origin: no incoming changes; local main a2a70a68 was four commits ahead. Fast-forwarded main to runtime fix 4cfabe12 without conflicts.
+- Post-merge verification on main: 385 backend tests in 33 suites passed, including source-outcome consent-race regressions; Nest build passed. No frontend runtime or schema changes in this fix. Temporary frontend port edits stayed in the feature worktree.
+- Main is ready for the user's manual verification. No push, production access, database operation or deployment occurred.
