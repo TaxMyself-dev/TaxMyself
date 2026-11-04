@@ -89,7 +89,7 @@ $script:CandidateImage = $null
 $script:PreviewUrl = $null
 $script:ReleaseDirectory = $null
 $script:ReleaseId = $null
-$script:BackupChannel = 'production-rollback'
+$script:BackupChannel = $null
 $script:GitCommand = $null
 $script:GcloudCommand = $null
 $script:FirebaseCommand = $null
@@ -254,6 +254,25 @@ function Initialize-DeploymentSessions {
     }
   }
 }
+function New-FrontendBackup {
+  # Create before cloning: reusing a stale channel can fail with "channel expired".
+  # Keep this channel after success or rollback; Firebase expires it after 3 days.
+  Invoke-Native $script:FirebaseCommand @(
+    'hosting:channel:create', $script:BackupChannel,
+    '--site', $HostingSite,
+    '--expires', '3d',
+    "--project=$Project",
+    '--non-interactive'
+  )
+  Invoke-Native $script:FirebaseCommand @(
+    'hosting:clone', "${HostingSite}:live", "${HostingSite}:$($script:BackupChannel)",
+    "--project=$Project",
+    '--non-interactive'
+  )
+  $script:FrontendBackupCreated = $true
+  Write-ReleaseLog "Frontend backup channel: $($script:BackupChannel) (expires in 3 days)"
+}
+
 function Get-CommandName([string]$Name) {
   $windowsName = "$Name.cmd"
   if ($env:OS -eq 'Windows_NT' -and (Get-Command $windowsName -ErrorAction SilentlyContinue)) {
@@ -572,6 +591,7 @@ try {
     $sequence = [int](Get-NextReleaseSequence $revisionNames)
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $script:ReleaseId = "r$timestamp-$($sequence.ToString('D4'))"
+    $script:BackupChannel = "rollback-$($script:ReleaseId)"
 
     $activeTraffic = @($serviceState.status.traffic | Where-Object { (Get-TrafficPercent $_) -gt 0 })
     if ($activeTraffic.Count -ne 1 -or
@@ -601,7 +621,7 @@ try {
     $plannedStages.Add('Install smoke dependencies and run the selected local verification')
     if ($deployFrontend) {
       $plannedStages.Add('Deploy the frontend to a Firebase preview channel and run read-only browser smoke')
-      $plannedStages.Add('Clone the current Firebase live release to the production-rollback channel')
+      $plannedStages.Add('Clone the current Firebase live release to a per-release rollback channel retained for 3 days')
       $plannedStages.Add('Promote the exact tested preview version to Firebase live')
     }
     $plannedStages.Add('Run the full production signup/login/cleanup smoke suite')
@@ -609,6 +629,7 @@ try {
     Write-ReleaseLog "Target: $Target"
     Write-ReleaseLog "Local tests: $(if ($SkipLocalTests) { 'skipped; builds and production gates remain required' } else { 'required' })"
     Write-ReleaseLog "Fixture release: $($script:ReleaseId)"
+    Write-ReleaseLog "Fixture backup channel: $($script:BackupChannel) (expires in 3 days)"
     return
   }
 
@@ -821,15 +842,10 @@ try {
     }
   } }
 
-  # Preserve the exact currently-live Hosting version in a fixed rollback
+  # Preserve the exact currently-live Hosting version in a per-release rollback
   # channel immediately before changing the live frontend.
   if ($deployFrontend) { Invoke-Stage 'Back up current Firebase live release' {
-    Invoke-Native $script:FirebaseCommand @(
-      'hosting:clone', "${HostingSite}:live", "${HostingSite}:$($script:BackupChannel)",
-      "--project=$Project",
-      '--non-interactive'
-    )
-    $script:FrontendBackupCreated = $true
+    New-FrontendBackup
   } }
 
   # Promote by cloning the exact preview version that passed browser smoke;

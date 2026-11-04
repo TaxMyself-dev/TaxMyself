@@ -147,8 +147,12 @@ Get-Content -LiteralPath $latestReleaseLog.FullName
 The frontend is first deployed to a one-day Firebase preview channel named for
 the release. A read-only browser smoke runs against that preview and the newly
 promoted canonical backend. Only the exact tested preview version is then
-cloned to the live channel; the prior live version is retained in the fixed
-`production-rollback` channel.
+cloned to the live channel. Before promotion, the prior live version is cloned
+into a newly created `rollback-<release-id>` channel with an explicit three-day
+expiration. The channel name is recorded in the release log and used by that
+run's frontend rollback. It is retained after success or rollback until expiry;
+Firebase schedules expired channels for deletion within 24 hours. Backend-only
+releases do not create Hosting backup channels.
 
 The first apply is also the smoke bootstrap: the zero-traffic backend candidate
 already contains `/ready` and both job binaries, so the script checks readiness,

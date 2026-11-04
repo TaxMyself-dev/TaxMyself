@@ -194,7 +194,8 @@ foreach ($marker in $orderedMarkers) {
 }
 foreach ($requiredText in @(
   '--no-traffic',
-  'production-rollback',
+  'rollback-',
+  'hosting:channel:create',
   'Assert-BackendTraffic',
   'Production authorization and interactive deployment login',
   "@('auth', 'login')",
@@ -270,6 +271,47 @@ if ($interactiveDefinition -match '2>&1|ForEach-Object|Out-Host|Invoke-NativeCap
 if ($source -notmatch "Invoke-Stage 'Production authorization and interactive deployment login' -InteractiveOutput") {
   throw 'Authentication stage must bypass stage output capture'
 }
+# Verify backup creation/retention and fail-closed behavior without cloud writes.
+$backupTokens = $null
+$backupErrors = $null
+$backupAst = [System.Management.Automation.Language.Parser]::ParseFile($releaseScript, [ref]$backupTokens, [ref]$backupErrors)
+$backupDefinition = $backupAst.Find({ param($n)
+  $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'New-FrontendBackup'
+}, $true).Extent.Text
+& {
+  . ([scriptblock]::Create($backupDefinition))
+  $Project = 'test-project'
+  $HostingSite = 'test-site'
+  $script:FirebaseCommand = 'firebase-stub'
+  function Write-ReleaseLog { param($Record) }
+  foreach ($failureAt in @(0, 1, 2)) {
+    $script:BackupChannel = 'rollback-r20261104-120000-0012'
+    $script:FrontendBackupCreated = $false
+    $script:backupCalls = [System.Collections.Generic.List[object]]::new()
+    function Invoke-Native {
+      param($Command, $Arguments)
+      if ($Command -ne 'firebase-stub') { throw 'Unexpected backup command' }
+      $script:backupCalls.Add(@($Arguments))
+      if ($failureAt -eq $script:backupCalls.Count) { throw 'Simulated Firebase failure' }
+    }
+    $failed = $false
+    try { New-FrontendBackup } catch { $failed = $true }
+    $expectedCreate = @('hosting:channel:create', $script:BackupChannel, '--site', 'test-site', '--expires', '3d', '--project=test-project', '--non-interactive')
+    if (($script:backupCalls[0] -join '|') -ne ($expectedCreate -join '|')) { throw 'Backup channel must be created on the correct site with 3-day expiry' }
+    if ($failureAt -eq 1 -and $script:backupCalls.Count -ne 1) { throw 'Clone ran after channel creation failed' }
+    if ($failureAt -ne 1) {
+      $expectedClone = @('hosting:clone', 'test-site:live', "test-site:$($script:BackupChannel)", '--project=test-project', '--non-interactive')
+      if (($script:backupCalls[1] -join '|') -ne ($expectedClone -join '|')) { throw 'Live backup did not use the current release channel' }
+    }
+    if ($failed -ne ($failureAt -ne 0) -or $script:FrontendBackupCreated -ne ($failureAt -eq 0)) {
+      throw 'Backup success must only be recorded after both Firebase commands succeed'
+    }
+  }
+}
+if (!$source.Contains('''hosting:clone'', "${HostingSite}:$($script:BackupChannel)", "${HostingSite}:live"')) {
+  throw 'Rollback must restore the per-release backup channel'
+}
+
 $fixtureLines = [System.Collections.Generic.List[string]]::new()
 & $releaseScript -TestStatePath $validFixture *>&1 |
   ForEach-Object { $fixtureLines.Add("$_") }
@@ -305,6 +347,9 @@ if ($fixtureLog -notmatch 'Using local test-state fixture' -or
     $fixtureLog -notmatch 'Install pinned backend dependencies' -or
     $fixtureLog -notmatch 'r\d{8}-\d{6}-0042') {
   throw 'Fixture detailed log is missing stage or target details'
+}
+if ($fixtureLog -notmatch 'Fixture backup channel: rollback-r\d{8}-\d{6}-0042 \(expires in 3 days\)') {
+  throw 'Backup channel must be named for the allocated release and retained for 3 days'
 }
 Remove-Item -LiteralPath $fixtureLogPath -Force
 

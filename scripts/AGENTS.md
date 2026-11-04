@@ -54,6 +54,10 @@ and promotion, live compatibility smoke, and frontend rollback.
   and Git Credential Manager sessions. Every release begins by checking the
   sessions required by its target; open interactive login directly in the terminal only when a check fails, then verify project access again. Never accept passwords as script parameters
   or store credentials in the repository.
+- Each frontend release creates its own `rollback-<release-id>` Hosting channel
+  with `--expires 3d` before cloning live into it. Record backup success only
+  after cloning succeeds; rollback must use that same channel. Retain it after
+  success or rollback until automatic expiry. Backend-only runs create none.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
 - A failed zero-traffic Cloud Run deployment queries only ERROR entries for the
   exact expected revision whose message prefix is explicitly allowlisted. The
