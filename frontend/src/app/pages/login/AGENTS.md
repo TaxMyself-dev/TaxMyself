@@ -14,6 +14,11 @@ email-verification flows.
 - `login.module.ts` / `login-routing.module.ts` — module wiring, routed at `/login`.
 
 ## Main flows
+
+- Login and password-reset email controls use required + Angular Validators.email.
+  Plus aliases and longer suffixes (including the synthetic demo .local address)
+  are accepted; do not restore the former 2–3-character-suffix regex. Firebase
+  remains responsible for authentication and account existence.
 - Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data in the current tab's UID-bound session cache → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
 - Email/password and Google login never write authenticated profile/business
   state to shared `localStorage`; this permits different identities in separate

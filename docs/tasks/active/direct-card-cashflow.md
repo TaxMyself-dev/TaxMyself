@@ -118,3 +118,14 @@ were changed, and no authorization exceptions were introduced.
 
 Validation: three backend demo suites / 30 tests and Nest build passed. Frontend
 change is explanatory text using the existing view-as predicate. No GitHub push.
+
+## Demo email login validation (2026-11-04)
+
+The login/password-reset regex rejected both + aliases and suffixes longer than
+three characters, making demo+direct-card@taxmyself.local impossible to submit.
+Both controls now use required + Angular Validators.email. Existing demo identity
+and Firebase authentication remain unchanged. Regression exercises the actual
+LoginPage form with the demo credentials, ordinary aliases/long suffixes and
+malformed/empty addresses. No DB or backend build/start operations required.
+Validation: nine login-form regressions passed in ChromeHeadless and Git whitespace
+check passed. Saved locally only; no GitHub push.

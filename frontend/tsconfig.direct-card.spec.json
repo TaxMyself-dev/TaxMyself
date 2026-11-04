@@ -2,6 +2,7 @@
   "extends": "./tsconfig.spec.json",
   "compilerOptions": { "types": ["jasmine", "node"] },
   "include": [
+    "src/app/pages/login/login-email-validation.spec.ts",
     "src/app/components/direct-card-notice/direct-card-notice.component.spec.ts",
     "src/app/pages/settings/my-categories-tab/direct-card-preference.spec.ts",
     "src/app/components/open-banking-management/open-banking-error.component.spec.ts",

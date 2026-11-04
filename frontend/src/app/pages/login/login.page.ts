@@ -82,7 +82,7 @@ export class LoginPage implements OnInit {
 
     this.loginForm = this.formBuilder.group({
       userName: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+        '', [Validators.required, Validators.email]
       ),
       password: new FormControl(
         '', [Validators.required, Validators.pattern(/^(?=.*[a-zA-Z].*[a-zA-Z])(?=.*\d).{8,}$/)]
@@ -91,7 +91,7 @@ export class LoginPage implements OnInit {
 
     this.resetForm = this.formBuilder.group({
       userName: new FormControl(
-        '', [Validators.required, Validators.pattern(/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/)]
+        '', [Validators.required, Validators.email]
       )
     });
 
