@@ -111,7 +111,12 @@ export class TransactionsController {
   @Header('Cache-Control', 'no-store')
   async getCashflowPreferences(@Req() request: AuthenticatedRequest) {
     const user = await this.usersService.findFireUser(request.user.firebaseId);
-    return { excludeDirectCardBankTransactionsFromCashflow: user?.excludeDirectCardBankTransactionsFromCashflow === true };
+    return {
+      excludeDirectCardBankTransactionsFromCashflow: user?.excludeDirectCardBankTransactionsFromCashflow === true,
+      hasDirectCard: await this.transactionsService.hasDetectedDirectCard(request.user.firebaseId),
+      directCardNoticeDismissed: user?.directCardNoticeDismissed === true,
+      lastLoginAt: user?.lastLoginAt ?? null,
+    };
   }
 
   @Patch('cashflow-preferences')
@@ -121,6 +126,15 @@ export class TransactionsController {
     if (!body || typeof body.excludeDirectCardBankTransactionsFromCashflow !== 'boolean') throw new BadRequestException('נדרש ערך בוליאני');
     await this.usersService.setDirectCardCashflowPreference(request.user.firebaseId, body.excludeDirectCardBankTransactionsFromCashflow);
     return this.getCashflowPreferences(request);
+  }
+
+  @Patch('direct-card-notice')
+  @UseGuards(FirebaseAuthGuard)
+  async dismissDirectCardNotice(@Req() request: AuthenticatedRequest, @Body() body: { dismissed: boolean }) {
+    if (request.user?.role === 'agent') throw new ForbiddenException('רק בעל החשבון יכול לשנות הגדרה זו');
+    if (body?.dismissed !== true) throw new BadRequestException('נדרש אישור ביטול התזכורת');
+    await this.usersService.dismissDirectCardNotice(request.user.firebaseId);
+    return { dismissed: true };
   }
 
   @Get('sync-status')

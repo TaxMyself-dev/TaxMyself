@@ -97,6 +97,7 @@ export class MyCategoriesTabComponent {
   rulesTableData = signal<IRowDataTable[]>([]);
   categoriesTableData = signal<IRowDataTable[]>([]);
   excludeDirect = signal(false);
+  hasDirectCard = signal(false);
   savingCashflow = signal(false);
   cashflowLoaded = signal(false);
   cashflowError = signal('');
@@ -104,7 +105,7 @@ export class MyCategoriesTabComponent {
   loadCashflowPreference(): void {
     this.cashflowLoaded.set(false);
     this.transactionsService.getCashflowPreferences().subscribe({
-      next: value => { this.excludeDirect.set(value.excludeDirectCardBankTransactionsFromCashflow); this.cashflowLoaded.set(true); this.cashflowError.set(''); },
+      next: value => { this.hasDirectCard.set(value.hasDirectCard === true); this.excludeDirect.set(value.excludeDirectCardBankTransactionsFromCashflow); this.cashflowLoaded.set(true); this.cashflowError.set(''); },
       error: () => this.cashflowError.set('לא ניתן לטעון את הגדרת התזרים. נסו שוב.'),
     });
   }

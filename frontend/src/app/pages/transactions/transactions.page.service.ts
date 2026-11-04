@@ -7,6 +7,13 @@ import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
 import { paymentIdentifierType } from 'src/app/shared/enums';
 
+export interface CashflowPreferences {
+  excludeDirectCardBankTransactionsFromCashflow: boolean;
+  hasDirectCard: boolean;
+  directCardNoticeDismissed: boolean;
+  lastLoginAt: string | null;
+}
+
 
 // Appends each value as a repeated query param so values containing ',' survive
 // transit. The literal 'null' is sent when the list is empty so the backend's
@@ -24,13 +31,17 @@ export class TransactionsService implements OnInit {
   private readonly cashflowPreferenceChanges = new Subject<void>();
   readonly cashflowPreferencesChanged$ = this.cashflowPreferenceChanges.asObservable();
 
-  getCashflowPreferences(): Observable<{ excludeDirectCardBankTransactionsFromCashflow: boolean }> {
-    return this.http.get<{ excludeDirectCardBankTransactionsFromCashflow: boolean }>(`${environment.apiUrl}transactions/cashflow-preferences`);
+  getCashflowPreferences(): Observable<CashflowPreferences> {
+    return this.http.get<CashflowPreferences>(`${environment.apiUrl}transactions/cashflow-preferences`);
   }
 
-  setCashflowPreferences(value: boolean): Observable<{ excludeDirectCardBankTransactionsFromCashflow: boolean }> {
-    return this.http.patch<{ excludeDirectCardBankTransactionsFromCashflow: boolean }>(`${environment.apiUrl}transactions/cashflow-preferences`, { excludeDirectCardBankTransactionsFromCashflow: value })
+  setCashflowPreferences(value: boolean): Observable<CashflowPreferences> {
+    return this.http.patch<CashflowPreferences>(`${environment.apiUrl}transactions/cashflow-preferences`, { excludeDirectCardBankTransactionsFromCashflow: value })
       .pipe(tap(() => this.cashflowPreferenceChanges.next()));
+  }
+
+  dismissDirectCardNotice(): Observable<{ dismissed: boolean }> {
+    return this.http.patch<{ dismissed: boolean }>(`${environment.apiUrl}transactions/direct-card-notice`, { dismissed: true });
   }
 
   accountsList = signal<ISelectItem[]>([]);

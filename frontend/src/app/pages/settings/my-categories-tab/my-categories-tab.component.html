@@ -1,6 +1,7 @@
 <p-confirmDialog></p-confirmDialog>
 <p-toast></p-toast>
 <div class="my-categories-tab">
+  @if (hasDirectCard()) {
   <section class="cashflow-preference" dir="rtl">
     <h3>חיובי כרטיס דיירקט</h3>
     <label>
@@ -13,6 +14,7 @@
     @if (cashflowError()) { <p role="alert">{{ cashflowError() }}</p> }
     @if (!cashflowLoaded()) { <button type="button" (click)="loadCashflowPreference()">טען הגדרה מחדש</button> }
   </section>
+  }
 
   <!-- Business selector -->
   <div class="biz-selector-row">

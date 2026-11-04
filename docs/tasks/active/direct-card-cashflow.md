@@ -30,7 +30,7 @@
 
 ## Impact and manual checks
 
-Schema: new preference, catalog systemKey/index, cache classification ID and slim source provenance (four columns, one unique index). No classified_transactions.sourceRecordId. Script: docs/features/direct-card-cashflow.sql; also appended to docs/redesign/cutover.sql. Existing rule/slim classification columns reused.
+Schema: new preference, permanent notice-dismissal flag, catalog systemKey/index, cache classification ID and slim source provenance (five columns, one unique index). No classified_transactions.sourceRecordId. Script: docs/features/direct-card-cashflow.sql; also appended to docs/redesign/cutover.sql. Existing rule/slim classification columns reused.
 
 Security: Firebase and existing owner/represented-client boundary; selected category IDs validated in tenant catalog. No broader delegation permission.
 
@@ -64,3 +64,29 @@ Verified on keepintax-dev: label ID 109 is under בנק, אשראי ותנועו
 SQL ran twice successfully; user, transaction and rule counts were unchanged.
 Two focused backend suites / 18 tests passed; Git whitespace check passed.
 No production access or GitHub push performed.
+
+## Direct-card discovery and reminder follow-up (2026-11-04)
+
+Settings now offers the exclusion control only when the owner has a source
+with sourceType=CREDIT_CARD and isDirect=true. Unknown card type and bank
+descriptions do not imply eligibility. Existing exclusion preferences are retained.
+
+Implemented dashboard popup with the same checkbox, X/Close, remind next login
+(Elazar's selected timing), and persistent never-show-again. Elazar approved only
+the directCardNoticeDismissed user column and requested reusing lastLoginAt for
+reminders. Temporary suppression is a per-UID browser marker of that login;
+permanent suppression is server-backed and independent of cashflow exclusion.
+Owner-only dismissal endpoint and generic-profile write protection added.
+
+Approved SQL applied twice to keepintax-dev: directCardNoticeDismissed defaults to
+0, label remains ID 109 under בנק, אשראי ותנועות, and user/transaction/rule counts
+remain unchanged. No production operations or GitHub push.
+
+Validation: backend two focused suites / 20 tests passed; frontend four focused
+suites / 30 tests passed in ChromeHeadless, including next-login semantics,
+failed saves, identity changes and represented-client restrictions.
+Backend build and frontend production build passed (existing CSS/bundle budget
+and CommonJS warnings). Final Angular template compilation and the 30 frontend
+tests passed after wiring successful popup saves to dashboard refresh. SQL copies
+match exactly; Git whitespace check passed. Live UI/provider verification remains
+manual, and no local integration into main or GitHub push was performed.

@@ -8,6 +8,8 @@ automatic bank/card matching, including for grouped bank debits.
 ## Stored data and policy
 
 - `user.excludeDirectCardBankTransactionsFromCashflow`: boolean, false by default.
+- `user.directCardNoticeDismissed`: boolean, false by default; suppresses only the
+  explanatory popup, independently of the cashflow exclusion preference.
 - `sub_category.systemKey`: nullable unique catalog identity. The SYSTEM/private
   `בנק, אשראי ותנועות / כרטיס דיירקט` row has `DIRECT_CARD_BANK_PAYMENT`. It has no accounting
   account and cannot be edited, removed, remapped or replaced by a client override.
@@ -40,6 +42,21 @@ selected business. Owner writes use `/transactions/cashflow-preferences` (GET/PA
 Firebase authentication); represented-client writes are forbidden. The checkbox
 rolls back on failed persistence and prevents overlapping saves.
 
+The setting is offered only when the server has an owned CREDIT_CARD source with
+isDirect=true; unknown card types and merchant descriptions do not qualify.
+The dashboard offers an explanatory popup when this detection is present, the
+exclusion preference is off and the permanent notice-dismissal flag is false.
+The popup saves the same checkbox through the same preference endpoint. It waits
+for banking sync/dialogs to finish and is disabled in represented-client mode.
+X, Close and Remind Later defer until the next real login: a per-UID browser marker
+records the existing server lastLoginAt, so page reload/navigation does not count
+as a new login. Browser-storage restrictions fall back to in-memory suppression.
+Never Show Again calls the owner-only PATCH /transactions/direct-card-notice,
+which persists only directCardNoticeDismissed=true. Settings remains available.
+There is no new reminder-date column. The server's lastLoginAt records real logins,
+not navigation. Temporary suppression is local to the browser; permanent suppression
+applies across devices.
+
 Users classify a bank row into the SYSTEM label and create a permanent rule using
 their bank's description. The cashflow page can show excluded rows, marked in the
 name column, for inspection and reclassification. Known Direct cards offer normal
@@ -66,9 +83,10 @@ resets legacy `skipped_direct` card outcomes to `not_synced`. It never opts exis
 users in or deletes financial records. The script is rerunnable and refuses an
 unmarked pre-existing same-name SYSTEM label instead of repurposing it.
 
-No database script, provider request or production operation was executed during
-implementation. MySQL migration rehearsal and live UI/provider verification remain
-manual checks before release. Do not run the whole Nest app against production-copy
+The approved SQL was applied twice successfully to keepintax-dev, including the
+notice flag and corrected parent category, with unchanged user/transaction/rule
+counts. No provider request or production operation was executed. Live UI/provider
+verification remains a manual check before release. Do not run the whole Nest app against production-copy
 data with schema synchronize or boot seeding enabled.
 
 ## Demo and verification

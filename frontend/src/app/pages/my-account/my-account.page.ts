@@ -43,13 +43,14 @@ import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice/direct-card-notice.component';
 
 @Component({
   selector: 'app-my-account',
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [AccountImageComponent, OpenBankingErrorComponent,
+  imports: [AccountImageComponent, OpenBankingErrorComponent, DirectCardNoticeComponent,
     CommonModule,
     FormsModule,
     IonicModule,
@@ -69,6 +70,8 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
   providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {
+  readonly directNoticeActive = signal(false);
+  readonly directNoticeRefresh = signal(0);
   readonly bankingError = signal<BankingSupportError | null>(null);
 
   transactionService = inject(TransactionsService);
@@ -519,10 +522,16 @@ export class MyAccountPage implements OnInit {
   }
 
   ionViewWillEnter(): void {
+    this.directNoticeActive.set(true);
+    this.directNoticeRefresh.update(value => value + 1);
     // Ionic may retain this page while Settings updates the owner's profile.
     const profile = this.authService.getUserDataFromLocalStorage();
     if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
     if (this.transToClassify) this.getTransToClassify();
+  }
+
+  ionViewWillLeave(): void {
+    this.directNoticeActive.set(false);
   }
 
   ngOnInit() {

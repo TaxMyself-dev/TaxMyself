@@ -107,15 +107,24 @@ describe('Unchanged classification rule scope', () => {
 });
 
 describe('Cashflow preference ownership and validation', () => {
+  it('checks only verified Direct card sources belonging to the owner', async () => {
+    const service: any = Object.create(TransactionsService.prototype);
+    const existsBy = jest.fn().mockResolvedValue(false);
+    service.sourceRepo = { existsBy };
+    await expect(service.hasDetectedDirectCard('owner')).resolves.toBe(false);
+    expect(existsBy).toHaveBeenCalledWith({ userId: 'owner', sourceType: 'CREDIT_CARD', isDirect: true });
+    existsBy.mockResolvedValue(true);
+    await expect(service.hasDetectedDirectCard('owner')).resolves.toBe(true);
+  });
   const request = (role?: string) => ({ user: { firebaseId: 'owner', role } } as any);
   const make = () => {
-    const users = { setDirectCardCashflowPreference: jest.fn(), findFireUser: jest.fn().mockResolvedValue({ excludeDirectCardBankTransactionsFromCashflow: true }) };
-    const controller = new TransactionsController(null, null, null, null, users as any, null, null, null);
+    const users = { dismissDirectCardNotice: jest.fn(), setDirectCardCashflowPreference: jest.fn(), findFireUser: jest.fn().mockResolvedValue({ excludeDirectCardBankTransactionsFromCashflow: true }) };
+    const controller = new TransactionsController({ hasDetectedDirectCard: jest.fn().mockResolvedValue(true) } as any, null, null, null, users as any, null, null, null);
     return { controller, users };
   };
   it('stores only a boolean on the effective owner and returns the stored value', async () => {
     const { controller, users } = make();
-    await expect(controller.setCashflowPreferences(request(), { excludeDirectCardBankTransactionsFromCashflow: true })).resolves.toEqual({ excludeDirectCardBankTransactionsFromCashflow: true });
+    await expect(controller.setCashflowPreferences(request(), { excludeDirectCardBankTransactionsFromCashflow: true })).resolves.toEqual({ excludeDirectCardBankTransactionsFromCashflow: true, hasDirectCard: true, directCardNoticeDismissed: false, lastLoginAt: null });
     expect(users.setDirectCardCashflowPreference).toHaveBeenCalledWith('owner', true);
   });
   it('rejects represented writes and string booleans before persistence', async () => {
@@ -123,6 +132,26 @@ describe('Cashflow preference ownership and validation', () => {
     await expect(controller.setCashflowPreferences(request('agent'), { excludeDirectCardBankTransactionsFromCashflow: true })).rejects.toThrow();
     await expect(controller.setCashflowPreferences(request(), { excludeDirectCardBankTransactionsFromCashflow: 'false' } as any)).rejects.toThrow();
     expect(users.setDirectCardCashflowPreference).not.toHaveBeenCalled();
+  });
+  it('keeps permanent notice dismissal separate from the cashflow preference', async () => {
+    const { controller, users } = make();
+    await expect(controller.dismissDirectCardNotice(request(), { dismissed: true })).resolves.toEqual({ dismissed: true });
+    expect(users.dismissDirectCardNotice).toHaveBeenCalledWith('owner');
+    expect(users.setDirectCardCashflowPreference).not.toHaveBeenCalled();
+    users.dismissDirectCardNotice.mockClear();
+    await expect(controller.dismissDirectCardNotice(request('agent'), { dismissed: true })).rejects.toThrow();
+    await expect(controller.dismissDirectCardNotice(request(), { dismissed: 'true' } as any)).rejects.toThrow();
+    await expect(controller.dismissDirectCardNotice(request(), { dismissed: false })).rejects.toThrow();
+    expect(users.dismissDirectCardNotice).not.toHaveBeenCalled();
+  });
+  it('persists only the dismissal flag on the authenticated owner', async () => {
+    const service: any = Object.create(UsersService.prototype);
+    const update = jest.fn().mockResolvedValue({ affected: 1 });
+    service.user_repo = { update };
+    await service.dismissDirectCardNotice('owner');
+    expect(update).toHaveBeenCalledWith({ firebaseId: 'owner' }, { directCardNoticeDismissed: true });
+    update.mockResolvedValue({ affected: 0 });
+    await expect(service.dismissDirectCardNotice('missing')).rejects.toThrow();
   });
   it('updates only the preference column without saving a stale user profile', async () => {
     const update = jest.fn().mockResolvedValue({ affected: 1 });

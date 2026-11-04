@@ -32,6 +32,10 @@ import { log } from 'console';
 
 @Injectable()
 export class TransactionsService {
+  async hasDetectedDirectCard(userId: string): Promise<boolean> {
+    return this.sourceRepo.existsBy({ userId, sourceType: SourceType.CREDIT_CARD, isDirect: true });
+  }
+
   constructor(
     private readonly sharedService: SharedService,
     private readonly expenseService: ExpensesService,
@@ -527,9 +531,9 @@ export class TransactionsService {
    * billName is joined from `source` (sourceName == sourceId); no Bill link →
    * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
    * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
-   * isDirect is joined from `source` — true marks a Direct/Debit card whose
-   * transactions are intentionally received via the bank feed (the frontend
-   * hides the per-source pull button and shows a "כרטיס דיירקט" note).
+   * isDirect is joined from `source` — true marks a detected Direct/Debit card.
+   * Card transactions are imported normally; owners can exclude classified bank
+   * mirrors through the independent cashflow preference.
    */
   async getSourcesWithTypes(userId: string): Promise<{ sourceRecordId: number; sourceName: string; sourceType: SourceType; connectionRole: 'primary' | 'spouse'; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
     const [syncStates, sourceRows] = await Promise.all([

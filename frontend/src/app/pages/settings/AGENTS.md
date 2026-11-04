@@ -9,6 +9,11 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 
 ## Main flows
 
+- The Direct-card cashflow setting appears only when cashflow-preferences returns
+  hasDirectCard=true from an owned CREDIT_CARD source with isDirect=true. Hiding
+  the control does not reset a saved exclusion preference. The dashboard popup
+  uses the same save endpoint; its permanent dismissal does not hide Settings.
+
 - User payment history has view and download document actions for charge and
   refund rows. Preview reserves a tab during the click, fetches the existing
   owner-authorized receipt Blob, and passes it to FilesService.previewFile3.

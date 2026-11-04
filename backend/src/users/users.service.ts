@@ -438,6 +438,7 @@ export class UsersService {
     delete processedUserData.logoPath;
     // Dedicated narrow preference write avoids replaying stale profile state.
     delete processedUserData.excludeDirectCardBankTransactionsFromCashflow;
+    delete processedUserData.directCardNoticeDismissed;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);
@@ -451,6 +452,11 @@ export class UsersService {
       { firebaseId: userId },
       { excludeDirectCardBankTransactionsFromCashflow: value },
     );
+    if (!result.affected) throw new NotFoundException('User not found');
+  }
+
+  async dismissDirectCardNotice(userId: string): Promise<void> {
+    const result = await this.user_repo.update({ firebaseId: userId }, { directCardNoticeDismissed: true });
     if (!result.affected) throw new NotFoundException('User not found');
   }
 

@@ -1,4 +1,9 @@
 ## Purpose
+
+Direct-card notice eligibility comes from owned CREDIT_CARD sources with
+isDirect=true via cashflow-preferences (also returns lastLoginAt and permanent
+notice-dismissal state). Owner-only PATCH direct-card-notice persists only
+user.directCardNoticeDismissed=true; it never changes the cashflow preference.
 Owns bank/card transaction ingestion, classification (rule-based and manual), and the slim/cache dual-table model that powers flow analysis, expense confirmation, and report-period locking.
 
 ## Key entities/files

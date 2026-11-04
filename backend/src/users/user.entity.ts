@@ -15,6 +15,9 @@ export class User {
   @Column({ default: false })
   excludeDirectCardBankTransactionsFromCashflow: boolean;
 
+  @Column({ default: false })
+  directCardNoticeDismissed: boolean;
+
     @Column({ type: 'varchar', length: 255, nullable: true, default: null })
     profileImagePath: string | null;
 

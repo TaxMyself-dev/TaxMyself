@@ -2760,6 +2760,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='excludeDirectCardBankTransactionsFromCashflow') THEN
     ALTER TABLE `user` ADD COLUMN excludeDirectCardBankTransactionsFromCashflow tinyint NOT NULL DEFAULT 0;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='directCardNoticeDismissed') THEN
+    ALTER TABLE `user` ADD COLUMN directCardNoticeDismissed tinyint NOT NULL DEFAULT 0;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sub_category' AND COLUMN_NAME='systemKey') THEN
     ALTER TABLE sub_category ADD COLUMN systemKey varchar(64) NULL;
   END IF;

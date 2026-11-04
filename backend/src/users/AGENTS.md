@@ -1,4 +1,9 @@
 ## Purpose
+
+Direct-card notice: directCardNoticeDismissed defaults false and is written only
+by the owner-only transactions/direct-card-notice endpoint. Generic profile updates
+strip this field and the cashflow preference. The existing lastLoginAt supplies
+the real-login token for browser-local temporary notice suppression.
 Owns the user account entity/lifecycle (signup, signin, profile update, children), Firebase-auth integration, and per-user Google Drive folder provisioning.
 
 ## Key entities/files

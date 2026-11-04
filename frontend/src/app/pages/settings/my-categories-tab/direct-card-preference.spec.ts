@@ -30,6 +30,18 @@ describe('Persistent Direct-card preference', () => {
     expect(service.getCashflowPreferences).toHaveBeenCalledTimes(1);
   });
 
+  it('offers the setting only when the server has detected a Direct card', () => {
+    const component = TestBed.createComponent(MyCategoriesTabComponent).componentInstance;
+    expect(component.hasDirectCard()).toBeFalse();
+    service.getCashflowPreferences.and.returnValue(of({ hasDirectCard: true, excludeDirectCardBankTransactionsFromCashflow: false }));
+    component.loadCashflowPreference();
+    expect(component.hasDirectCard()).toBeTrue();
+    service.getCashflowPreferences.and.returnValue(of({ hasDirectCard: false, excludeDirectCardBankTransactionsFromCashflow: true }));
+    component.loadCashflowPreference();
+    expect(component.hasDirectCard()).toBeFalse();
+    expect(component.excludeDirect()).toBeTrue();
+  });
+
   it('saves once, blocks concurrent writes and restores the checkbox on failure', () => {
     const pending = new Subject<any>();
     service.setCashflowPreferences.and.returnValue(pending);
