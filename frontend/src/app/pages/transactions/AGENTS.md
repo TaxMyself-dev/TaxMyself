@@ -40,3 +40,7 @@ confirmed state independently.
 - Backend: transactions (all core endpoints), expenses (confirm-to-expense flow), bookkeeping (category/subcategory data feeding classify dialogs).
 - Frontend pages: pnl-report-journal, vat-report-journal, settings — all inject `TransactionsService` from this directory for confirm/classify/account-source operations.
 - Frontend shared: add-bill, add-transaction, trans-management, category-management-adjacent dialogs (add-category, classify-tran), account-association-dialog.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.

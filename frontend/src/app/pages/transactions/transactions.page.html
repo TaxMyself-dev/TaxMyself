@@ -1,7 +1,7 @@
 <p-toast position="bottom-right" key="br"></p-toast>
 <div class="transaction-screen">
   <div class="content-wrapper">
-    <app-open-banking-error [issue]="bankingError()"></app-open-banking-error>
+    <app-open-banking-error [issue]="bankingError()" [fullSyncRetry]="bankingFullSyncRetry"></app-open-banking-error>
 
     <p class="block-title">התזרים שלי</p>
     @if (hasOpenBanking() === false) {

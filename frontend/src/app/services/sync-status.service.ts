@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, map, Observable, of, switchMap, exhaustMap, timeout, takeWhile, tap, throwError, timer } from 'rxjs';
+import { catchError, map, Observable, EMPTY, of, switchMap, exhaustMap, timeout, takeWhile, tap, throwError, timer } from 'rxjs';
 import { BankingSupportError, bankingRequestError } from '../components/open-banking-management/open-banking-error.component';
 import { environment } from 'src/environments/environment';
 
@@ -93,6 +93,16 @@ export class SyncStatusService {
         throw err;
       }),
     );
+  }
+
+  /** Capture the preceding run so an old cached error cannot finish this new retry. */
+  triggerFreshFullSync(canStart:()=>boolean): Observable<{ previousRunId: string | null | undefined }> {
+    return this.getSyncResponse().pipe(switchMap(previous => {
+      if(!canStart())return EMPTY;
+      if(!previous)return throwError(()=>new Error('Could not read the preceding sync state'));
+      return this.triggerSync().pipe(map(result=>({previousRunId:
+        result.status==='started' ? previous.fullSync.runId ?? null : undefined})));
+    }));
   }
 
   /**

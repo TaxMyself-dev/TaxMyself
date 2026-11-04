@@ -1,7 +1,13 @@
-import { Component, Input, OnChanges, inject } from '@angular/core';
+import { Component, Input, OnChanges, OnDestroy, inject } from '@angular/core';
 import { BankingNotificationService } from './banking-notification.service';
 
 export interface BankingSupportError { code: string; errorId: string; message: string; partial?: boolean; }
+
+export interface BankingFullSyncRetry {
+  run: () => void;
+  enabled: () => boolean;
+  busy: () => boolean;
+}
 
 export function savedConsentLabel(hasConsent: boolean, isDirect?: boolean | null): string {
   return !hasConsent ? '✗ ללא הרשאה' : isDirect ? 'נמשך דרך חשבון הבנק' : '✓ פעיל';
@@ -16,9 +22,22 @@ export function bankingRequestError(error: any, code = 'OB-01'): BankingSupportE
 }
 
 @Component({selector:'app-open-banking-error',standalone:true,template:''})
-export class OpenBankingErrorComponent implements OnChanges {
+export class OpenBankingErrorComponent implements OnChanges, OnDestroy {
  @Input() issue:BankingSupportError|null|undefined;
+ @Input() fullSyncRetry:BankingFullSyncRetry|undefined;
+ private destroyed=false;
  private readonly notifications=inject(BankingNotificationService);private previousId:string|undefined;
- ngOnChanges():void{if(!this.issue){this.previousId=undefined;return;}
-  if(this.issue.errorId!==this.previousId){this.previousId=this.issue.errorId;this.notifications.support(this.issue);}}
+ ngOnChanges():void {
+  if(!this.issue){this.notifications.clearSupport(this.previousId);this.previousId=undefined;return;}
+  if(this.issue.errorId===this.previousId)return;
+  this.previousId=this.issue.errorId;
+  const errorId=this.issue.errorId;
+  const retry=this.fullSyncRetry && ['OB-03','OB-04'].includes(this.issue.code) ? {
+    enabled:()=>!this.destroyed && this.issue?.errorId===errorId && !!this.fullSyncRetry?.enabled(),
+    busy:()=>!!this.fullSyncRetry?.busy(),
+    run:()=>{if(!this.destroyed && this.issue?.errorId===errorId && this.fullSyncRetry?.enabled() && !this.fullSyncRetry.busy())this.fullSyncRetry.run();},
+  } : undefined;
+  this.notifications.support(this.issue,retry);
+ }
+ ngOnDestroy():void{this.destroyed=true;this.notifications.clearSupport(this.previousId);}
 }
