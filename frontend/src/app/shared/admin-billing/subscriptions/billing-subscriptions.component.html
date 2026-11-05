@@ -307,6 +307,7 @@
               @if (context.current) { <span>מקור: {{ priceSourceLabels[context.current.source] }}</span> }
               <span>מחיר חודשי לפי ההגדרות לחיוב הבא: {{ formatAmount(context.next?.amountBeforeVatAgorot) }} לפני מע״מ
                 ({{ formatAmount(context.next?.amountIncludingVatAgorot) }} כולל מע״מ)</span>
+              @if (context.next) { <span>מקור החיוב הבא: {{ priceSourceLabels[context.next.source] }}</span> }
               <small>מועד חיוב: {{ formatDate(context.nextBillingDate) }}. חובות קיימים נשארים בסכום המקורי.</small>
             </div>
             <label for="subscriptionPricePolicy">בעת שינוי מחיר התוכנית</label>

@@ -239,7 +239,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     { name: 'createdAt',          value: 'תאריך רישום',     type: FormTypes.DATE },
     { name: 'trialEnd',           value: 'תאריך סיום ניסיון', type: FormTypes.DATE },
     { name: 'nextBillingDate',    value: 'תאריך חיוב הבא',  type: FormTypes.DATE },
-    { name: 'nextBillingAmount',  value: 'אומדן חודשי הבא לפני מע״מ',   type: FormTypes.TEXT },
+    { name: 'nextBillingAmount',  value: 'אומדן לתקופה חדשה לפני מע״מ',   type: FormTypes.TEXT },
     { name: 'discountPercentDisplay', value: 'אחוז הנחה',   type: FormTypes.TEXT },
     { name: 'discountAmountDisplay',  value: 'סכום הנחה',   type: FormTypes.TEXT },
     { name: 'currentPeriodEnd',   value: 'תום תקופה',       type: FormTypes.DATE },
