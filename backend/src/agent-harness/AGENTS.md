@@ -22,7 +22,8 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
   `businessnumber` header only when it is one of the data owner's numbered
   businesses (403 `AGENT_BUSINESS_FORBIDDEN`); `assertAccessStillHolds`
   re-checks the ACTIVE delegation (or the admin role) on every tool call;
-  `queryExpenses` reads through `ExpensesService` (semantics in
+  `queryExpenses` reads through `ExpensesService`, for one business or
+  several of the owner's with a combined total in agorot (semantics in
   `backend/agent/GUIDE.md`, "queryExpenses").
 
 ## Invariants
@@ -30,8 +31,9 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
 - `main.ts` leaves `/api/agent/` bodies unparsed: the agent reads its body as
   a stream with its own size limit.
 - Using the agent counts as DOCUMENTS_READ in delegation terms: it writes only
-  its own tables, owned by the pair (actor, data owner), each conversation in
-  its verified business. Domain tools that act on KeepInTax data keep the
+  its own tables, owned by the pair (actor, data owner); a conversation may
+  cover any of that owner's businesses, the verified active one being the
+  tools' default. Domain tools that act on KeepInTax data keep the
   backend's own guards and services, and never pass a business without a
   number to a service (the expenses service then reads every business).
 - `agent-harness.access.spec.ts` runs the real `FirebaseAuthGuard`: a revoked

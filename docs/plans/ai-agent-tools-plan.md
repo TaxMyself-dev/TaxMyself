@@ -1,6 +1,6 @@
 # KeepInTax AI agent: tools and delivery plan
 
-Status: **PROPOSED, not approved.** Implemented so far (2026-11-05): the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), with the dev test page (A7). Everything else is not built.
+Status: **PROPOSED, not approved.** Implemented so far (2026-11-05): the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7). Everything else is not built.
 Date: 2026-11-03; updated 2026-11-05.
 Inputs:
 - the capability spec, `backend/src/AI.features.md`;
@@ -73,7 +73,7 @@ The template's tracking-task worker (`dist/task-worker.mjs`, a separate process)
 - The gateway's row filters become (actor = me **and** owner = the request's data owner). A regular user's actor and owner are the same person, so nothing changes for them.
 - Accountant scope: the accountant's own cross-client chats use `owner = actor` and reach clients only through the accountant tools. Those tools list clients from `delegation.getUsersForAgent` and check the scope on each call.
 
-**As built (2026-11-05, `2026-11-05_agent_actor_owner_scope.sql`):** instead of an owner column on each table, `agent_users` itself is keyed by (actor, data owner), so every agent table (conversations, messages, stream, steers, documents, memory, settings, usage, tasks, notifications) is scoped to the pair with no change of its own. `agent_chat_conversations.business_number` binds a conversation to the business it started in; the gateway reaches a conversation and its content only from that business, while memory stays with the pair. Legacy rows keep a NULL owner and are never served. Details: `backend/agent/GUIDE.md`, "Isolation".
+**As built (2026-11-05, `2026-11-05_agent_actor_owner_scope.sql`):** instead of an owner column on each table, `agent_users` itself is keyed by (actor, data owner), so every agent table (conversations, messages, stream, steers, documents, memory, settings, usage, tasks, notifications) is scoped to the pair with no change of its own. `agent_chat_conversations.business_number` records the business a conversation started in. **Revised 2026-11-05 (product decision):** a conversation may cover one, several or all of the same data owner's businesses; switching business keeps it, switching client does not. The active business is the tools' default, and `queryExpenses` takes `businessNumbers` / `allBusinesses` for a combined total computed in agorot (none when a business fails). Legacy rows keep a NULL owner and are never served. Details: `backend/agent/GUIDE.md`, "Isolation".
 
 ### 2.4 The business profile (A6)
 

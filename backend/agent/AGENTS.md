@@ -18,8 +18,8 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 
 - Template files stay the template's: change them only to port a template change, or where GUIDE.md lists a KeepInTax change. Domain parts are `EXAMPLE` until the agent spec replaces them.
 - Every user query goes through the gateway's user scope; only the task monitor uses the service client.
-- The agent's data belongs to the pair (actor `actorFirebaseId`, data owner `firebaseId`), and each conversation to the verified business it started in (GUIDE.md "Isolation"). A conversation id never authorizes anything by itself. Domain tools keep the backend's own authorization (EXPENSES_APPROVE for accounting decisions) and re-check the delegation on each call.
-- Development traces go only to a local Langfuse (`langfuse-tracing.server.ts`).
+- The agent's data belongs to the pair (actor `actorFirebaseId`, data owner `firebaseId`); one conversation covers any of that owner's businesses, the verified active business being the tools' default (GUIDE.md "Isolation"). A conversation id never authorizes anything by itself. Domain tools keep the backend's own authorization (EXPENSES_APPROVE for accounting decisions) and re-check the delegation on each call.
+- Development traces go only to a local Langfuse, on port 3100 here (`langfuse-tracing.server.ts`, GUIDE.md "Langfuse").
 - Schema changes: a new SQL script under `backend/scripts/migrations/` and the gateway's table registry (`mysql-agent-tables.ts`); never `synchronize`.
 - Checks: `npm run typecheck`, `npm run check`, `npm test` (with `AGENT_TEST_DATABASE_URL` for the MySQL integration tests), `npm run build`.
 

@@ -9,8 +9,8 @@ What is not here yet: the chat UI (its spec is pending; the template's React UI 
 | Layer | State |
 | --- | --- |
 | **Ported from the template** (infrastructure) | The whole harness and chat runtime listed above, the MySQL gateway standing in for Supabase, the eval runner, harnessing and trace mining. Unit and MySQL integration tests pass (see "Checks"). |
-| **KeepInTax isolation** | The agent's user is the pair (actor, data owner); each conversation belongs to the business it started in; revoked access stops even an answer already running (see "Isolation"). |
-| **Working business capability** | One read tool, `queryExpenses`, through the Nest `ExpensesService` (see "queryExpenses"). Verified against `keepintax-dev` data; the real-model chat and the five evals wait for an `OPENAI_API_KEY`. |
+| **KeepInTax isolation** | The agent's user is the pair (actor, data owner): conversations and memory never cross to another client. One conversation covers any of that owner's businesses; the active business is the tools' default. Revoked access stops even an answer already running (see "Isolation"). |
+| **Working business capability** | One read tool, `queryExpenses`, through the Nest `ExpensesService`, for one business or several of the same owner with a combined total (see "queryExpenses"). Verified against `keepintax-dev` data at the service level; the real-model chat, the evals and the local Langfuse traces wait for an `OPENAI_API_KEY` and Docker (see the KT-089 task file). |
 | **Not built** | Every other tool of `docs/plans/ai-agent-tools-plan.md`, the product chat UI, the background jobs, the business profile. The template's example tools (`searchWeb`, `sendEmail`, tracking tasks) are still wired with no real sources. |
 
 **For a coding agent:** treat every file under `src/agent`, `src/lib`, `src/server` (except the files named under "What KeepInTax changed"), `backend/monitor`, `backend/shared` (except `mysql/` and `supabase/`) and `tests` as the template's reviewed code. Read the comment at the top of each file before changing it. When the template changes, port its change file for file.
@@ -18,7 +18,7 @@ What is not here yet: the chat UI (its spec is pending; the template's React UI 
 ## Quick start
 
 1. In `backend/agent`: `npm install` (Node 24; it also runs the DeepEval patch and compiles the messages).
-2. Apply, in order, `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql` (new tables) and `2026-11-05_agent_actor_owner_scope.sql` (the (actor, data owner) and business scope) to the database the backend uses, development first. Both are applied on `keepintax-dev` (2026-11-05). Never apply them to production without the team's go-ahead.
+2. Apply, in order, `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql` (new tables) and `2026-11-05_agent_actor_owner_scope.sql` (the (actor, data owner) key; the business a conversation started in) to the database the backend uses, development first. Both are applied on `keepintax-dev` (2026-11-05). Never apply them to production without the team's go-ahead.
 3. Put the agent's keys in `backend/.env` beside the backend's own (see `.env.example`): `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `AGENT_APP_ORIGINS`, and the Langfuse keys with `LANGFUSE_BASE_URL=http://localhost:3000` (see "Langfuse": in development a cloud URL turns tracing off).
 4. `npm run build`: the bundle the Nest backend loads (`dist/agent-http.mjs`) and the worker (`dist/task-worker.mjs`).
 5. Start the backend as usual; the agent answers under `/api/agent/*`. Run the task worker beside it: `npm run worker:tasks` (or `node dist/task-worker.mjs`).
@@ -72,7 +72,7 @@ The server functions are the template's own (`*-persistence.ts`): the session (`
 | The eval-skills toolkit's `report.mjs` beside the runs (not shipped) | `eval-run-report.ts` writes one HTML report of every run to `.eval/agent/report/index.html` after each `npm run eval`, and on `npm run eval:report`; a missing `case-sources.json` is created with every case hand-written | `tests/evals/runner` |
 | `@opentelemetry/api` as Bun resolves it | pinned to 1.10.0 (`overrides`), which Langfuse's exporters need under npm | `package.json` |
 | The agent's user is the Supabase account | The pair (actor, data owner): `agent_users.data_owner_firebase_id`, resolved per request (`resolveAgentUserId`); every agent table follows | `mysql-agent-clients.ts`, `supabase-client.ts`, migration `2026-11-05_agent_actor_owner_scope.sql` |
-| Row level security by user | Also by business: a conversation and its content (`AgentTable.business`) are reached only from the business they started in; list, search and the claim functions take it too | `mysql-agent-scope.ts`, `mysql-agent-tables.ts`, `mysql-postgrest-query.ts` (`userScopeConditions`), `mysql-postgrest-fetch.ts`, `mysql-agent-functions.ts` |
+| Row level security by user | The agent's user is the pair (actor, data owner); a conversation records the business it started in (`business_number`, `AgentTable.recordsBusiness`), written by the gateway only and never changed — a record, not an access boundary | `mysql-agent-scope.ts`, `mysql-agent-tables.ts`, `mysql-postgrest-fetch.ts`, `mysql-agent-functions.ts` |
 | Langfuse traces wherever its keys point | A remote Langfuse only from `LANGFUSE_TRACING_ENVIRONMENT=production` or with `LANGFUSE_ALLOW_REMOTE=true`; otherwise tracing is off with a `LANGFUSE_NOT_LOCAL` warning | `langfuse-tracing.server.ts` |
 | LF files (macOS) | `.gitattributes` keeps LF in this package's working tree on Windows (`core.autocrlf=true` checked it out as CRLF, which oxfmt reported as 280 unformatted files) | `.gitattributes` |
 | Template tests | 11 stale template tests brought in line with the template's current code (renamed playbooks, optional `areas`, `sendEmail` deferred, the chat's `locale`, the page's locale); no assertion weakened | `tests/` |
@@ -88,7 +88,7 @@ Not ported, with reason:
 
 - The Docker image uses Node 18 and does not build the agent; the agent needs Node 22+, `npm ci --omit=dev` in `backend/agent` and `npm run build` (with dev dependencies) in the build stage.
 - Legacy agent data: rows from before 2026-11-05 (`agent_users.data_owner_firebase_id IS NULL`) are kept and never served. `keepintax-dev` had none when the migration ran; production has no agent tables yet. Deleting such rows is a separate, explicit decision (the statement is in the migration's header).
-- Install Docker (or another way to run Langfuse's compose file) for the local Langfuse; until then development traces nothing.
+- Install WSL and Docker Desktop on this machine for the local Langfuse (`C:\Users\user\langfuse-local`, port 3100); until it runs, development traces fail to export and nothing reaches any Langfuse.
 - `agent_users` is not linked to KeepInTax's users: deleting an account does not delete its agent data yet.
 - Behind a TLS proxy, set Express's `trust proxy` or rely on `AGENT_APP_ORIGINS` for the origin check.
 
@@ -105,16 +105,21 @@ Who reaches what, and where it is enforced:
 | The client an accountant (or an admin) acts for comes from the verified Firebase token and an ACTIVE delegation (or the actor's ADMIN role), never from a header alone | `FirebaseAuthGuard` (unchanged), before any agent code |
 | The business must be one of the data owner's numbered businesses; without a header, the owner's only one, else none (the tools then ask) | `AgentDomainService.requestBusiness`, in `AgentHarnessController` (403 `AGENT_BUSINESS_FORBIDDEN`) |
 | The agent's user is the pair (actor, data owner): conversations, messages, stream, steers, follow-ups, documents, memory, earlier results, settings, usage, tasks and notifications all belong to it | `resolveAgentUserId` and the gateway's user scope |
-| A conversation and its content belong to the business it started in: list, search, read, chat (claim), stream, stop, steer and follow-ups treat one from another business as missing; no write moves it | `userScopeConditions`, `assertOwnedConversations`, `assertNoTakeover`, the claim/list/search functions |
-| Memory belongs to the pair, across the owner's businesses (a person's preferences, not a business's data) | the registry: `agent_memories` has no business scope |
-| A conversation id authorizes nothing: another scope's id reads as missing (stream 204, steer 409, chat 404, rename/delete no-op) | the gateway's scope on every statement |
-| Switching client or business: the page's earlier agent user is refused (401 `USER_STATE_OWNER_CHANGED`), the dev page locks the chat and starts a new one | `createOwnedSupabaseClient`, `/dev/agent` |
-| Revoked access: new requests are refused by the guard (403); an answer already running fails its next tool call with `ACCESS_REVOKED`, whose next step tells the model to use nothing read earlier | `AgentDomainService.assertAccessStillHolds` |
+| One conversation covers any of the data owner's businesses: switching the active business keeps the conversation, its history, search, stream, stop, steer, follow-ups, earlier results and memory. The business it started in is recorded, never changed | the gateway (no business filter), `claim_agent_chat_answer` |
+| Memory belongs to the pair, across the owner's businesses (a person's preferences, not a business's data) | `agent_memories`, scoped by user only |
+| A conversation id authorizes nothing: another pair's id reads as missing (stream 204, steer 409, chat 404, rename/delete no-op) | the gateway's scope on every statement |
+| Switching client: a different pair, so the page's earlier agent user is refused (401 `USER_STATE_OWNER_CHANGED`) and the conversation id reads as missing; `/dev/agent` locks the chat and starts a new one. Switching business within the client keeps the chat | `createOwnedSupabaseClient`, `/dev/agent` |
+| Revoked access: new requests are refused by the guard (403). An answer already running is checked again before every tool call and before each business of a multi-business query: its next read fails with `ACCESS_REVOKED`, a multi-business query returns nothing of what it read, and the next step tells the model to use nothing read earlier. Text the model already streamed before the revocation is not withdrawn | `AgentDomainService.assertAccessStillHolds` |
 | Legacy rows (no data owner) are kept, never matched, never reassigned | `resolveAgentUserId` reads `data_owner_firebase_id = ?` |
 
 ## queryExpenses
 
-Reads through `ExpensesService.getExpensesByUserID` as the data owner, in one business, for a range of expense dates (inclusive, at most 10 years). The result separates:
+Reads through `ExpensesService.getExpensesByUserID` as the data owner, for a range of expense dates (inclusive, at most 10 years), in:
+
+- **one business** (`scope: "business"`): `businessNumber` when given, else the request's active business (the verified header), else the owner's only one; with several and none active it fails with `BUSINESS_REQUIRED`, listing them, and the model asks (or offers all);
+- **several businesses** (`scope: "businesses"`): `businessNumbers` (2–20) or `allBusinesses: true`. Every number must be one of the owner's numbered businesses, or nothing is read (`BUSINESS_NOT_FOUND`). The same range and filters run in each business, and `combined` adds the subtotals (counted, pending, outside the books, excluded) in integer agorot. A business that fails is listed in `failed` with its code; then `complete` is false and `combined` is `null`, so a partial sum is never presented as the total. Example (keepintax-dev, fuel, Q1 2026): 111111118 ₪900 + 222222226 ₪1,200 = ₪2,100.
+
+Each business's result separates:
 
 - `totals`: APPROVED expenses booked to an account (`accountIdSnapshot` set), what the reports count (master plan D5/D6);
 - `pending` (and `pendingByStatus`): PENDING, MISSING_ACCOUNTING_MAPPING, or no status;
@@ -134,13 +139,13 @@ Amounts are ₪ with VAT included, summed in agorot, so groups (the 40 largest, 
 | Bundle | `npm run build` |
 | Nest edge | in `backend`: `npx jest src/agent-harness`, `npx nest build` |
 | Dev page | in `frontend`: `npx ng build` |
-| Evals (paid) | `npm run eval -- --variant <name> --reps 1 -t "query expenses"`, then `.eval/agent/report/index.html` |
+| Evals (paid) | `npm run eval -- --variant <name> --reps 1 -t "query expenses"` (8 cases: `tests/evals/agent/books/query-expenses.eval.ts` and `query-expenses-businesses.eval.ts`), then `.eval/agent/report/index.html` |
 
 The integration tests need a throwaway MySQL 8 with both migrations applied, named by `AGENT_TEST_DATABASE_URL`; without it they are skipped. Never point it at a shared or production database. A local one, without Docker: unzip MySQL 8.0's Windows archive, `mysqld --initialize-insecure` into a scratch folder, run it on port 3307 with a small buffer pool, create `agent_test` and apply the two scripts.
 
 ## Langfuse
 
-- **Development:** a self-hosted Langfuse on your machine. Run Langfuse's official compose file (`git clone https://github.com/langfuse/langfuse.git`, then `docker compose up` in it), open http://localhost:3000, create a project and put its keys in `backend/.env` with `LANGFUSE_BASE_URL=http://localhost:3000`. Evals trace only to a local Langfuse (`vitest.config.ts` samples 0 elsewhere). The server enforces the same: outside production, a non-local `LANGFUSE_BASE_URL` (including the default, the cloud) turns tracing off and logs `LANGFUSE_NOT_LOCAL`; `LANGFUSE_ALLOW_REMOTE=true` sends traces there on purpose.
+- **Development:** a self-hosted Langfuse on your machine. Run Langfuse's official compose file (`git clone https://github.com/langfuse/langfuse.git`, then `docker compose up` in it), open http://localhost:3000, create a project and put its keys in `backend/.env` with `LANGFUSE_BASE_URL=http://localhost:3100`. KeepInTax runs it on host port **3100** (3000 is the backend): `C:\Users\user\langfuse-local` holds the official compose file, an override publishing the web UI on 3100, and a git-ignored `.env` whose headless setup (`LANGFUSE_INIT_*`) creates the project `keepintax-agent-dev` and its keys on first start (`docker compose up -d` there; see its README). `backend/.env` then has `LANGFUSE_BASE_URL=http://localhost:3100`, `LANGFUSE_TRACING_ENVIRONMENT=development`, `LANGFUSE_SAMPLE_RATE=1` and the local keys. Evals trace only to a local Langfuse (`vitest.config.ts` samples 0 elsewhere). The server enforces the same: outside production, a non-local `LANGFUSE_BASE_URL` (including the default, the cloud) turns tracing off and logs `LANGFUSE_NOT_LOCAL`; `LANGFUSE_ALLOW_REMOTE=true` sends traces there on purpose.
 - **Production:** Langfuse Cloud: the cloud project's keys, `LANGFUSE_BASE_URL=https://cloud.langfuse.com` and `LANGFUSE_TRACING_ENVIRONMENT=production` (required: without it nothing is traced).
 
 ## Adapting it to KeepInTax

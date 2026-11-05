@@ -150,12 +150,18 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
     Q1 2026 in each of an owner's two businesses, no results, grouping,
     month boundaries, no business chosen, foreign business by header and by
     number, an accountant's active client, a revoked delegation).
-  - Full backend Jest (`--runInBand`): stopped by memory pressure after
-    142 of ~170 suites: 136 passed, 6 failed, none of which imports the
-    agent module (documents/document-kind, bookkeeping/catalog-context,
-    demo-data/direct-card-demo profile, reports/report-review-focus,
-    users/auth.service, users/users.controller); the backend diff is
-    confined to `src/agent-harness`. Not rerun on the base.
+  - Full backend Jest (`--runInBand`): **completed** (corrected: the
+    earlier handoff read the log mid-run and wrongly said it stopped
+    early). 170 suites, 1,631 tests: 1,621 passed, 10 failed in 9 suites,
+    none in or importing `src/agent-harness`: documents/document-kind (2),
+    bookkeeping/catalog-context.service (3), demo-data/direct-card-demo
+    profile (1), reports/report-review-focus (1), reports.controller (1),
+    reports.service (1), users.service (1); two more suites
+    (users/auth.service, users/users.controller) failed to run without a
+    failed assertion. The backend diff is confined to `src/agent-harness`,
+    so these run the base's code; the earlier session also recorded 10
+    failures on `main`. Log: the session scratchpad `jest-full.log` /
+    `jest-full.json`.
 - Blocked, not verified: browser test of `/dev/agent` with real Firebase
   login and the real model (no `OPENAI_API_KEY` in `backend/.env`; no
   browser tool in this session), the five expense evals (same key, paid),
@@ -164,6 +170,42 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
 - Dev data limit: every expense in `keepintax-dev` is APPROVED and
   booked, so pending/private/rejected buckets are covered by unit tests
   only.
+
+## Follow-up 2026-11-05 (2): several businesses, local Langfuse, evals
+
+- Status: **incomplete.** Code, tests and service-level E2E are done; the
+  evals, the real-model browser test and local Langfuse traces are
+  blocked (no `OPENAI_API_KEY` anywhere on this machine; no Docker or WSL).
+- Product decision applied: a conversation covers one, several or all of
+  the same data owner's businesses; switching business keeps it; switching
+  client never carries it over. Conversations and memory are scoped by
+  (actor, data owner); the active business is the tools' default.
+- Commit: `16174160` (and the documentation commit after it). No new
+  migration: the 2026-11-05 columns are kept; `business_number` now records
+  where a conversation started and is no access boundary.
+- queryExpenses: `businessNumbers` / `allBusinesses` run the same query in
+  each business; every number is validated first (a foreign one refuses the
+  whole query); the combined totals are added in agorot; a failing
+  business is listed and leaves `combined` null; a revocation midway ends
+  the query with nothing returned.
+- Results:
+  - agent typecheck 0, check 0, build 0; vitest with the disposable MySQL:
+    59 files, 301/301 passed, none skipped.
+  - Nest `jest src/agent-harness`: 42/42 (9 new multi-business cases);
+    `nest build` 0; Angular production build 0.
+  - Domain E2E against keepintax-dev (read-only, compared with SQL): 15/15,
+    including fuel Q1 2026: 111111118 ₪900 + 222222226 ₪1,200 = ₪2,100.
+  - Evals: 8 cases collected by `-t "query expenses"` (5 existing, 3 new
+    multi-business); **not run** (no OpenAI key).
+- Local Langfuse prepared, not running: `C:\Users\user\langfuse-local`
+  (official compose file, override to host port 3100, generated secrets
+  and headless project `keepintax-agent-dev` in a git-ignored `.env`).
+  `backend/.env` points the agent at `http://localhost:3100` with the
+  local keys (the cloud keys kept as comments). All needed host ports were
+  free.
+- To unblock: add `OPENAI_API_KEY` to `backend/.env`; install WSL and
+  Docker Desktop, then `docker compose up -d` in
+  `C:\Users\user\langfuse-local`.
 
 ## Integration
 
