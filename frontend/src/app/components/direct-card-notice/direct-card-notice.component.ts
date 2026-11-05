@@ -30,13 +30,12 @@ export class DirectCardNoticeSession {
       [modal]="true" [closable]="!saving()" [closeOnEscape]="!saving()" [dismissableMask]="false"
       [style]="{ width: '36rem', maxWidth: '94vw' }" [draggable]="false" [resizable]="false">
       <div dir="rtl">
-        <p>זיהינו שיש לך כרטיס דיירקט. אפשר להחריג מהתזרים את חיובי הבנק המקבילים, כדי שההוצאה תופיע דרך העסקאות המפורטות של הכרטיס.</p>
+        <p>זיהינו שיש לך כרטיס דיירקט.<br> אפשר להחריג מהתזרים את חיובי הבנק המקבילים, כדי למנוע כפילויות של תנועות.</p>
         <p>סווגו את חיובי הדיירקט בבנק לתת־הקטגוריה ״כרטיס דיירקט״ תחת ״בנק, אשראי ותנועות״. סיווג קבוע יחול גם על תנועות תואמות בעתיד.</p>
         <label class="preference">
           <input type="checkbox" [checked]="excluded()" [disabled]="saving()" (change)="savePreference($any($event.target).checked)" />
           החרג מהתזרים חיובי בנק שסווגו ככרטיס דיירקט
         </label>
-        <p>ההגדרה חלה גם על הגרפים ועל אישור כהוצאה נוספת. ודאו שכרטיס הדיירקט מחובר ושפירוט העסקאות שלו נמשך. כשל במשיכה אינו מבטל את ההגדרה.</p>
         <p>אפשר לשנות את ההגדרה בכל עת בהגדרות ← הקטגוריות שלי.</p>
         @if (error()) { <p role="alert">{{ error() }}</p> }
         <div class="actions">
