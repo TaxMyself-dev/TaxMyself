@@ -61,3 +61,7 @@ preference on the server; the cashflow list can explicitly show excluded rows.
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and has not been executed here.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.

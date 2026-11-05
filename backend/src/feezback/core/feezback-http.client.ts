@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { FeezbackAuthService } from './feezback-auth.service';
 import { FeezbackHttpError, toFeezbackHttpError } from './feezback-errors';
 import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
+import { feezbackDiagnosticContext } from './feezback-diagnostic-context';
 import {
   FEEZBACK_RETRY,
   calcBackoffMs,
@@ -120,13 +121,14 @@ export class FeezbackHttpClient {
         traceEntry.durationMs = failedAt - sentAt;
         traceEntry.status = mapped.status;
 
-        // Record each failed transaction or card-list attempt, including failures recovered by retry.
-        if (method === 'DELETE' || (method === 'GET' && /\/(transactions|cards)\/?$/.test(new URL(url).pathname))) {
+        // Record failed discovery and transaction attempts, including failures recovered by retry.
+        if (method === 'DELETE' || (method === 'GET' && /\/(transactions|cards|accounts|consents)\/?$/.test(new URL(url).pathname))) {
           const credentials = Object.entries(headers)
             .filter(([name]) => /authorization|token|api[-_]?key|cookie/i.test(name))
             .flatMap(([, value]) => [value, value.replace(/^Bearer\s+/i, '')]);
           this.logger.error('[FeezbackResponse] ' + feeZbackErrorDiagnostic(mapped,
             [...credentials, options.sub ?? ''], {
+              ...feezbackDiagnosticContext.getStore(),
               attempt: attempt + 1, maxAttempts: maxRetries + 1, durationMs: failedAt - sentAt,
             }));
         }

@@ -74,6 +74,30 @@ export class MyAccountPage implements OnInit {
   readonly directNoticeActive = signal(true);
   readonly directNoticeRefresh = signal(0);
   readonly bankingError = signal<BankingSupportError | null>(null);
+  private readonly fullSyncRetryStarting=signal(false);
+  readonly bankingFullSyncRetry={
+    enabled:()=>this.hasOpenBanking()===true && !this.isDelegatedClientView(),
+    busy:()=>this.fullSyncRetryStarting() || this.syncProcessStatus()==='running',
+    run:()=>this.retryBankingSync(),
+  };
+
+  retryBankingSync():void {
+    if(!this.bankingFullSyncRetry.enabled() || this.bankingFullSyncRetry.busy())return;
+    this.fullSyncRetryStarting.set(true);
+    this.syncProcessStatus.set('running');
+    this.restartPolling$.next();
+    this.syncStatusService.triggerFreshFullSync(()=>this.bankingFullSyncRetry.enabled()).pipe(
+      take(1),takeUntilDestroyed(this.destroyRef),
+      finalize(()=>{this.fullSyncRetryStarting.set(false);if(!this.bankingFullSyncRetry.enabled())this.syncProcessStatus.set(null);}),
+    ).subscribe({
+      next:({previousRunId})=>{if(this.bankingFullSyncRetry.enabled())this.startSyncStatusPolling(true,0,previousRunId);},
+      error:error=>{
+        if(!this.bankingFullSyncRetry.enabled())return;
+        this.syncProcessStatus.set('failed');
+        this.bankingError.set(bankingRequestError(error,'OB-03'));
+      },
+    });
+  }
 
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);

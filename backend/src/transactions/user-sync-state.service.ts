@@ -124,7 +124,7 @@ export class UserSyncStateService {
       : { userId, sourceName: src.sourceId, sourceType: src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD,
           connectionRole: src.connectionRole ?? 'primary' as ConnectionRole };
     const source = await repository.findOne({ where });
-    if (!source || source.userId !== userId || (src.connectionRole && src.connectionRole !== source.connectionRole) || source.sourceName !== src.sourceId || source.sourceType !== (src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD)) {
+    if (!source || source.userId !== userId || (src.connectionRole && src.connectionRole !== source.connectionRole) || (!src.sourceRecordId && source.sourceName !== src.sourceId) || source.sourceType !== (src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD)) {
       throw new BadRequestException('Source record not found for this user and payment source');
     }
     return source;
@@ -166,7 +166,7 @@ export class UserSyncStateService {
       } else {
         await this.sourceRepo.save(this.sourceRepo.create({
           userId,
-          sourceId: src.sourceId,
+          sourceId: source.sourceName,
           sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? null,
@@ -446,7 +446,7 @@ export class UserSyncStateService {
       try {
         await sourceRepo.insert({
           userId,
-          sourceId: src.sourceId,
+          sourceId: source.sourceName,
           sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? null,

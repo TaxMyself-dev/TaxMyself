@@ -54,6 +54,20 @@ and promotion, live compatibility smoke, and frontend rollback.
   and Git Credential Manager sessions. Every release begins by checking the
   sessions required by its target; open interactive login directly in the terminal only when a check fails, then verify project access again. Never accept passwords as script parameters
   or store credentials in the repository.
+- Each frontend release creates its own `rollback-<release-id>` Hosting channel
+  with `--expires 3d` before cloning live into it. Record backup success only
+  after cloning succeeds; rollback must use that same channel. Retain it after
+  success or rollback until automatic expiry. Backend-only runs create none.
+- Completed local builds and backend image digests may be reused only with
+  matching commit, runtime, test policy, deployment context and hashed local
+  environment/configuration. Verify local output hashes and remote image
+  availability; missing, corrupt or mismatched records rebuild. `-Rebuild`
+  bypasses all reuse. Never infer completion from old logs or adopt unrecorded
+  artifacts. Keep cache records under ignored `deployment-logs/build-cache/`.
+- Every retry rechecks clean main and cloud access, deploys a fresh zero-traffic
+  revision (using `--image` for a verified cached digest), and reruns readiness,
+  private-job setup, browser/live smoke and rollback protection. Never resume
+  promotion from a remembered stage number or skip production checks.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
 - A failed zero-traffic Cloud Run deployment queries only ERROR entries for the
   exact expected revision whose message prefix is explicitly allowlisted. The

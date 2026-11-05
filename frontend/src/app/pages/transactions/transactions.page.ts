@@ -18,8 +18,8 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-import { SyncStatusService } from 'src/app/services/sync-status.service';
-import { BankingSupportError } from 'src/app/components/open-banking-management/open-banking-error.component';
+import { SyncStatusService, isPreviousPullResult } from 'src/app/services/sync-status.service';
+import { BankingSupportError, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
@@ -33,6 +33,30 @@ import { AppFeature } from 'src/app/shared/access-control';
 
 export class TransactionsPage implements OnInit {
   readonly bankingError = signal<BankingSupportError | null>(null);
+  private readonly fullSyncRetryStarting=signal(false);
+  readonly bankingFullSyncRetry={
+    enabled:()=>this.hasOpenBanking()===true && !this.isDelegatedClientView(),
+    busy:()=>this.fullSyncRetryStarting() || this.syncProcessStatus()==='running',
+    run:()=>this.retryBankingSync(),
+  };
+
+  retryBankingSync():void {
+    if(!this.bankingFullSyncRetry.enabled() || this.bankingFullSyncRetry.busy())return;
+    this.fullSyncRetryStarting.set(true);
+    this.syncProcessStatus.set('running');
+    this.restartPolling$.next();
+    this.syncStatusService.triggerFreshFullSync(()=>this.bankingFullSyncRetry.enabled()).pipe(
+      take(1),takeUntilDestroyed(this.destroyRef),takeUntil(this.disconnectedReads$),
+      finalize(()=>{this.fullSyncRetryStarting.set(false);if(!this.bankingFullSyncRetry.enabled())this.syncProcessStatus.set(null);}),
+    ).subscribe({
+      next:({previousRunId})=>{if(this.bankingFullSyncRetry.enabled())this.startSyncStatusPolling(0,previousRunId);},
+      error:error=>{
+        if(!this.bankingFullSyncRetry.enabled())return;
+        this.syncProcessStatus.set('failed');
+        this.bankingError.set(bankingRequestError(error,'OB-03'));
+      },
+    });
+  }
   readonly hasOpenBanking = signal<boolean | null>(null);
   readonly consentDialogVisible = signal(false);
   readonly consentChecked = signal(false);
@@ -400,7 +424,7 @@ export class TransactionsPage implements OnInit {
    * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
    * the stream completes.
    */
-  private startSyncStatusPolling(timeoutRetryCount = 0): void {
+  private startSyncStatusPolling(timeoutRetryCount = 0, previousRunId?:string|null): void {
     // Cancels any previous polling session before starting a new one.
     // takeUntil(restartPolling$) in the pipe completes the old stream on this signal.
     this.restartPolling$.next();
@@ -415,7 +439,7 @@ export class TransactionsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          ({ stageState }) => !stageState || stageState.processStatus === 'running',
+          ({ stageState }) => !stageState || stageState.processStatus === 'running' || isPreviousPullResult(stageState,previousRunId),
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -427,7 +451,7 @@ export class TransactionsPage implements OnInit {
           if (timeoutRetryCount === 0) {
             console.warn('[Transactions] Sync status poll timed out — retrying once before giving up', err);
             this.syncProcessStatus.set('running');
-            setTimeout(() => this.startSyncStatusPolling(timeoutRetryCount + 1), 3000);
+            setTimeout(() => this.startSyncStatusPolling(timeoutRetryCount + 1,previousRunId), 3000);
           } else {
             console.warn('[Transactions] Sync status poll timed out again — giving up without clearing data', err);
             this.messageService.add({
@@ -442,6 +466,7 @@ export class TransactionsPage implements OnInit {
         }),
       )
       .subscribe(({ stageState }) => {
+        if(isPreviousPullResult(stageState,previousRunId))return;
         if (!stageState) {
           // null = transient HTTP error during polling — keep current state, don't fail
           return;

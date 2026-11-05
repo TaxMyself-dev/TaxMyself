@@ -2,7 +2,7 @@
     <app-direct-card-notice [active]="directNoticeActive() && !isDelegatedClientView()"
       [blocked]="feezbackDialogVisible() || syncProcessStatus() === 'running'" [refresh]="directNoticeRefresh()"
       (preferenceSaved)="getTransToClassify()"></app-direct-card-notice>
-    <app-open-banking-error [issue]="bankingError()"></app-open-banking-error>
+    <app-open-banking-error [issue]="bankingError()" [fullSyncRetry]="bankingFullSyncRetry"></app-open-banking-error>
     @if (feezbackDialogVisible()) {
       <div class="feezback-dialog-backdrop" (click)="closeFeezbackDialog()">
         <div class="feezback-dialog" (click)="$event.stopPropagation()">

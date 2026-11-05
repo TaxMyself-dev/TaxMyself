@@ -62,3 +62,7 @@ The terminal banking dialog prioritizes the aggregate support error over per-sou
 ## Pull-result isolation and permission changes
 
 The post-consent pull reads its baseline run ID before triggering a new pull. It ignores that previous run even if it finished recently, while allowing a response that joins an already-running job. The comparison survives poll retries and never suppresses transport errors. Both API and polling service return source outcomes only for the current fullRunId; discovery-only skipped_direct and historical successes are excluded. Owner-profile updates and retained-page entry refetch existing displayed cache, so verified cleanup is reflected without a new transaction pull. Nullable run tags require docs/features/feezback-pull-run.sql before this backend is started.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.

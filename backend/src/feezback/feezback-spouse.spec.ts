@@ -104,7 +104,7 @@ describe('optional Feezback spouse identity', () => {
     const retry = jest.spyOn(impl, 'retrySourceForIdentity').mockResolvedValue({ status: 'success' });
     state.getSourceResults.mockResolvedValue([{ type: 'card', sourceId: '1234', sourceRecordId: 22, connectionRole: 'spouse', consentId: 'active-spouse' }]);
     await service.retrySource(uid, 'card', '1234', 22);
-    expect(retry).toHaveBeenCalledWith(uid, 'card', '1234', feezbackSub(uid, true));
+    expect(retry).toHaveBeenCalledWith(uid, 'card', '1234', feezbackSub(uid, true), 22);
   });
   it('rejects an ambiguous account number and never calls the provider', async () => {
     state.getSourceResults.mockResolvedValue([

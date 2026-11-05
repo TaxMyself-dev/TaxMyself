@@ -110,3 +110,7 @@ Classification rules retain their existing billId + merchant + optional-conditio
 scope across all sources associated with that bill. No sourceRecordId column or
 source predicate is added to classified_transactions; durable source provenance
 on slim_transactions is used only for the bank-only cashflow exclusion policy.
+
+## Stable source outcome identity (2026-11-04)
+
+After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.
