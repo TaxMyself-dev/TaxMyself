@@ -271,11 +271,6 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: ISubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
-  showExcluded = signal(false);
-  toggleExcluded(value: boolean): void {
-    this.showExcluded.set(value);
-    this.getTransactions(this.filterData());
-  }
 
   filterByExpense: string = "";
   filterByIncome: string = "";
@@ -627,9 +622,9 @@ export class TransactionsPage implements OnInit {
     categoriesName = categoriesName?.length ? categoriesName : null;
     sourcesName = sourcesName?.length ? sourcesName : null;
 
-    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName, this.showExcluded());
+    const incomeData$ = this.transactionService.getIncomeTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
-    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName, this.showExcluded());
+    const expensesData$ = this.transactionService.getExpenseTransactionsData(startDate, endDate, accountsNames, categoriesName, sourcesName);
 
     zip(incomeData$, expensesData$)
       .pipe(
@@ -658,7 +653,7 @@ export class TransactionsPage implements OnInit {
     this.dateForUpdate.startDate = startDate;
     this.dateForUpdate.endDate = endDate;
 
-    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null, this.showExcluded()).subscribe((res) => {
+    this.transactionService.getExpenseTransactionsData(startDate, endDate, formData.accounts, null, null).subscribe((res) => {
       this.expensesData$.next(this.handleTableData(res));
     });
   }

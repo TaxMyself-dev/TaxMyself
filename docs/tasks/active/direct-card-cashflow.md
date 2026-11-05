@@ -165,3 +165,10 @@ generation for classification/document columns and cache refresh column names.
 Backend TypeScript noEmit check passed without touching dist. Retention regression
 now permits the existing provenance-only archive healing while asserting no
 classification mutation. Git whitespace check passed; no GitHub push performed.
+
+## Remove cashflow show-excluded control (2026-11-05)
+
+At Elazar's request removed the show-excluded checkbox from cashflow and its local
+toggle state/handler. Income/expense reads use the existing default exclusion
+policy. Permanent exclusion settings and the explanatory opt-in popup are unchanged.
+Existing uncommitted copy edits are preserved separately. No backend or DB changes.

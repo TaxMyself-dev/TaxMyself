@@ -58,8 +58,8 @@ not navigation. Temporary suppression is local to the browser; permanent suppres
 applies across devices.
 
 Users classify a bank row into the SYSTEM label and create a permanent rule using
-their bank's description. The cashflow page can show excluded rows, marked in the
-name column, for inspection and reclassification. Known Direct cards offer normal
+their bank's description. The cashflow page follows the saved exclusion preference
+and offers no show-excluded checkbox. Known Direct cards offer normal
 manual pulls. Consent state is rendered independently of card kind.
 
 Successful preference writes emit a shared invalidation event. Cached cashflow
