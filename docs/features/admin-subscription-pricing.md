@@ -49,8 +49,9 @@ an approved banking enrollment. Repeated or stale renewal calls are no-ops.
 
 ## Schema and operation
 
-No live database, provider, cloud resource or production operation was run for
-this feature. Before running the app against a database, manually inspect
+On 2026-11-05, Elazar requested the development database update. The migration was applied only to keepintax-dev after preflight and a local schema/data backup. Verification confirmed six new columns, four enforced CHECK constraints, zero invalid terms, and all 38 existing subscription rows unchanged (comparing every original column). All existing users received LIVE with null overrides. No provider, cloud or production operation was performed. Do not rerun the apply SQL on this development database.
+
+For another explicitly authorized database, manually inspect
 `backend/scripts/migrations/2026-11-05_subscription_pricing_preflight.sql`, take
 a backup, run the adjacent `_apply.sql` once (or only the dated 2026-11-05 section
 in `docs/redesign/cutover.sql`, never both) against the explicitly selected

@@ -60,10 +60,10 @@ No outstanding blocking finding. Diff whitespace checks passed.
 ## Scope and operation
 
 - Six additive subscription price columns/checks; default LIVE preserves existing behavior.
-- Preflight/apply/verify SQL and the matching dated cutover section are prepared, not executed.
+- Development migration applied to keepintax-dev on 2026-11-05 at Elazar's explicit request, after read-only preflight and a local schema/data backup. Six columns and four enforced CHECK constraints verified; 38 original subscription rows unchanged by SHA-256 comparison over every original column; zero invalid terms. Existing users default to LIVE with null overrides.
 - Apply the standalone migration OR the dated new section, never both or the entire historical cutover file.
-- Manual schema application is required before starting this app version against a database.
-- No live database, CardCom/provider, production or cloud operation was performed.
+- keepintax-dev is ready for this version; do not reapply its SQL. Other databases still require separately authorized schema application.
+- No CardCom/provider, production or cloud operation was performed. Only the explicitly requested development schema was changed.
 - No tax/VAT rules or financial accounting calculations changed; zero service periods are not payment captures.
 - Existing Firebase/admin gates are retained for all new routes.
 - Local main integration requires Elazar's separate explicit approval.
