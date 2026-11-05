@@ -122,6 +122,49 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
 - Documentation updated: `backend/agent/GUIDE.md`, `backend/agent/AGENTS.md`,
   `backend/src/agent-harness/AGENTS.md`, root `AGENTS.md`, this file.
 
+## Follow-up 2026-11-05: isolation, queryExpenses, tests
+
+- Status: `WORKER_COMPLETE` for the code; end-to-end chat with the real
+  model, the five evals and local Langfuse are **blocked** (below).
+- Commits: `5cc6beb4` (LF working tree, current template tests),
+  `1044b854` (isolation by actor/owner/business, queryExpenses semantics),
+  `887eb9b0` (dev page context binding, local-only dev tracing), and the
+  documentation commit after it.
+- Schema: `backend/scripts/migrations/2026-11-05_agent_actor_owner_scope.sql`
+  (new; the 2026-10-22 script unchanged). Applied to a disposable MySQL
+  8.0.40 (also over legacy rows) and to `keepintax-dev`, whose agent tables
+  were empty (no legacy data). Not applied to production.
+- Legacy data policy: rows without a data owner are kept and never served
+  or reassigned; deleting them is a separate decision.
+- Results:
+  - agent `npm run typecheck` 0; `npm run check` 0 (was: 280 format
+    issues, from CRLF, and 1 lint error); `npm run build` 0.
+  - agent vitest with `AGENT_TEST_DATABASE_URL` (disposable MySQL):
+    58 files, 294/294 passed, 0 skipped (was 259 passed, 11 failed, 11
+    skipped). Without the database: 3 integration files skipped.
+  - Nest `npx jest src/agent-harness`: 3 suites, 33/33; `nest build` 0.
+  - Frontend `ng build` (production) 0; warnings only pre-existing budgets
+    and CommonJS notices.
+  - Domain E2E against `keepintax-dev` (compiled service in a Nest
+    context, read-only): 13/13 checks equal to independent SQL (fuel over
+    Q1 2026 in each of an owner's two businesses, no results, grouping,
+    month boundaries, no business chosen, foreign business by header and by
+    number, an accountant's active client, a revoked delegation).
+  - Full backend Jest (`--runInBand`): stopped by memory pressure after
+    142 of ~170 suites: 136 passed, 6 failed, none of which imports the
+    agent module (documents/document-kind, bookkeeping/catalog-context,
+    demo-data/direct-card-demo profile, reports/report-review-focus,
+    users/auth.service, users/users.controller); the backend diff is
+    confined to `src/agent-harness`. Not rerun on the base.
+- Blocked, not verified: browser test of `/dev/agent` with real Firebase
+  login and the real model (no `OPENAI_API_KEY` in `backend/.env`; no
+  browser tool in this session), the five expense evals (same key, paid),
+  local Langfuse (Docker is not installed). `backend/.env` points at
+  Langfuse Cloud: the server now refuses it outside production.
+- Dev data limit: every expense in `keepintax-dev` is APPROVED and
+  booked, so pending/private/rejected buckets are covered by unit tests
+  only.
+
 ## Integration
 
 - Reviewed by:

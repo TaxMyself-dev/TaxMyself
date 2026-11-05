@@ -6,7 +6,7 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 
 ## Key entities
 
-- The template's tables in MySQL: `agent_users` (Firebase uid → agent id), `user_settings`, `agent_chat_*` (conversations, messages, documents, stream chunks, steers), `agent_memories`, `agent_usage`, and the example tracking tasks (`tracking_tasks`, `task_*`, `user_notifications`). Schema: `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql`.
+- The template's tables in MySQL: `agent_users` ((actor, data owner) Firebase uids → agent id), `user_settings`, `agent_chat_*` (conversations, messages, documents, stream chunks, steers), `agent_memories`, `agent_usage`, and the example tracking tasks (`tracking_tasks`, `task_*`, `user_notifications`). Schema: `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql`, then `2026-11-05_agent_actor_owner_scope.sql`.
 - `backend/shared/mysql/`: the gateway that answers supabase-js's PostgREST requests from MySQL, with the template's row level security and grants as code and its Postgres functions as transactions.
 
 ## Main flows
@@ -18,7 +18,8 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 
 - Template files stay the template's: change them only to port a template change, or where GUIDE.md lists a KeepInTax change. Domain parts are `EXAMPLE` until the agent spec replaces them.
 - Every user query goes through the gateway's user scope; only the task monitor uses the service client.
-- The agent's data belongs to the actor (`actorFirebaseId`); the data owner and delegation scopes travel with the request for domain tools, which must keep the backend's own authorization (EXPENSES_APPROVE for accounting decisions).
+- The agent's data belongs to the pair (actor `actorFirebaseId`, data owner `firebaseId`), and each conversation to the verified business it started in (GUIDE.md "Isolation"). A conversation id never authorizes anything by itself. Domain tools keep the backend's own authorization (EXPENSES_APPROVE for accounting decisions) and re-check the delegation on each call.
+- Development traces go only to a local Langfuse (`langfuse-tracing.server.ts`).
 - Schema changes: a new SQL script under `backend/scripts/migrations/` and the gateway's table registry (`mysql-agent-tables.ts`); never `synchronize`.
 - Checks: `npm run typecheck`, `npm run check`, `npm test` (with `AGENT_TEST_DATABASE_URL` for the MySQL integration tests), `npm run build`.
 
