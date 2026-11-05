@@ -4,7 +4,7 @@
       <h1>AI agent — dev test</h1>
       <div class="meta">
         <span>agent user: <code>{{ agentUserId() ?? '…' }}</code></span>
-        <span>business: <code>{{ businessNumber ?? 'none' }}</code></span>
+        <span>active business: <code>{{ businessNumber ?? 'none' }}</code></span>
         @if (clientId) {
           <span>acting for client: <code>{{ clientId }}</code></span>
         }
@@ -24,10 +24,9 @@
 
   @if (contextChanged) {
     <div class="setup-error context-changed">
-      The app switched client or business since this chat started. This chat stays with
-      <code>{{ clientId ?? 'your own account' }}</code> / <code>{{ businessNumber ?? 'no business' }}</code>
-      and cannot continue under the new one.
-      <button type="button" (click)="startSession()">Start a chat for the current client and business</button>
+      The app switched client since this chat started. This chat stays with
+      <code>{{ clientId ?? 'your own account' }}</code> and cannot continue under the new client.
+      <button type="button" (click)="startSession()">Start a chat for the current client</button>
     </div>
   }
 

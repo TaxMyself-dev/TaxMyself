@@ -54,8 +54,8 @@ const userIdOf = (scope: AgentGatewayScope, fnName: string) => {
   return scope.userId;
 };
 
-// The business a user's function works in (AgentGatewayScope): a
-// conversation is reached only from the business it started in.
+// The business a user's request acts in (AgentGatewayScope), which a new
+// conversation records; not an access boundary.
 const businessOf = (scope: AgentGatewayScope) =>
   scope.role === "user" ? scope.businessNumber : null;
 
@@ -192,9 +192,8 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
   }
 
   return await database.transaction(async (executor) => {
-    // A new conversation starts in the request's business; an existing
-    // one, the user's in another business or anyone else's, is untouched
-    // and reads as missing below.
+    // A new conversation records the request's business; an existing one
+    // is untouched (another user's reads as missing below).
     await executor.query(
       `INSERT INTO agent_chat_conversations (id, user_id, name, pinned, business_number)
        VALUES (?, ?, ?, ?, ?)
@@ -211,14 +210,14 @@ const claimAgentChatAnswer: AgentDatabaseFunction = async (
     const claimed = await executor.query(
       `UPDATE agent_chat_conversations
        SET answering_until = NOW(6) + INTERVAL ? SECOND, active_stream_id = ?
-       WHERE id = ? AND user_id = ? AND business_number <=> ?
+       WHERE id = ? AND user_id = ?
          AND (answering_until IS NULL OR answering_until < NOW(6))`,
-      [leaseSeconds, streamId, chatId, userId, business]
+      [leaseSeconds, streamId, chatId, userId]
     );
 
     const { rows } = await executor.query(
-      "SELECT answering_until FROM agent_chat_conversations WHERE id = ? AND user_id = ? AND business_number <=> ?",
-      [chatId, userId, business]
+      "SELECT answering_until FROM agent_chat_conversations WHERE id = ? AND user_id = ?",
+      [chatId, userId]
     );
 
     const [conversation] = rows;
@@ -270,10 +269,10 @@ const listAgentChatConversations: AgentDatabaseFunction = async ({
          SELECT 1 FROM agent_chat_messages m WHERE m.conversation_id = c.id
        ) AS has_messages
      FROM agent_chat_conversations c
-     WHERE c.user_id = ? AND c.business_number <=> ?
+     WHERE c.user_id = ?
      ORDER BY c.created_at DESC
      LIMIT 200`,
-    [userId, businessOf(scope)]
+    [userId]
   );
 
   return rows.map((row) => ({
@@ -307,14 +306,10 @@ const searchAgentChatConversations: AgentDatabaseFunction = async (
          text LONGTEXT PATH '$.text'
        )) AS part
      WHERE m.user_id = ?
-       AND m.conversation_id IN (
-         SELECT c.id FROM agent_chat_conversations c
-         WHERE c.user_id = ? AND c.business_number <=> ?
-       )
        AND part.type = 'text'
        AND LOWER(part.text) LIKE LOWER(?)
      LIMIT 200`,
-    [userId, userId, businessOf(scope), `%${words}%`]
+    [userId, `%${words}%`]
   );
 
   return rows.map((row) => ({ conversation_id: row.conversation_id ?? null }));

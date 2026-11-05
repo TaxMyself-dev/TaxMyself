@@ -14,6 +14,10 @@ import { agentToolContextSchema } from "../../core/tool-runtime/agent-tool-conte
 // what the expenses page reads, as the data owner the request acts for, and
 // changes nothing.
 
+const businessNumberSchema = Schema.String.check(
+  Schema.isPattern(/^\d{5,12}$/u)
+);
+
 const isoDate = Schema.String.check(
   Schema.isPattern(/^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$/u)
 );
@@ -25,7 +29,7 @@ const filterText = (description: string) =>
 
 export const queryExpensesTool = tool({
   description:
-    "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
+    "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses (the active one unless another is named) or, with businessNumbers or allBusinesses, in several, each with its subtotal and a combined total computed for you: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       from: isoDate.annotate({
@@ -58,9 +62,23 @@ export const queryExpensesTool = tool({
         })
       ),
       businessNumber: Schema.optionalKey(
-        Schema.String.check(Schema.isPattern(/^\d{5,12}$/u)).annotate({
+        businessNumberSchema.annotate({
           description:
-            "Another of the user's businesses (from otherBusinesses in an earlier result); left out, their current one",
+            "Another of the user's businesses (from otherBusinesses in an earlier result); left out, their active one",
+        })
+      ),
+      businessNumbers: Schema.optionalKey(
+        Schema.Array(businessNumberSchema)
+          .check(Schema.isMinLength(2), Schema.isMaxLength(20))
+          .annotate({
+            description:
+              "Several of the user's businesses (numbers from business and otherBusinesses), for a question about them together: the same query in each, with their combined total",
+          })
+      ),
+      allBusinesses: Schema.optionalKey(
+        Schema.Boolean.annotate({
+          description:
+            'true for every one of the user\'s businesses ("in all my businesses", "both businesses"): the same query in each, with their combined total',
         })
       ),
     })

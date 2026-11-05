@@ -24,7 +24,12 @@ export interface ExpenseQuery {
   supplier?: string;
   groupBy?: ExpenseGrouping;
   includeRows?: boolean;
+  // One of the owner's businesses; left out, the request's active one.
   businessNumber?: string;
+  // Several of the owner's businesses, or all of them: the same query in
+  // each, with a combined total (ExpensesAcrossBusinessesResult).
+  businessNumbers?: string[];
+  allBusinesses?: boolean;
 }
 
 /** Amounts in ₪ (VAT included), summed in agorot so parts add up exactly. */
@@ -48,6 +53,7 @@ export interface ExpenseRow {
 }
 
 export interface ExpenseQueryResult {
+  scope: 'business';
   business: { number: string; name: string };
   otherBusinesses: { number: string; name: string }[];
   from: string;
@@ -86,7 +92,38 @@ export interface ExpenseQueryResult {
   categoriesInRange: string[];
 }
 
+/** What several businesses' results add up to, summed in agorot. */
+export interface ExpenseCombinedTotals {
+  totals: ExpenseTotals;
+  pending: ExpenseTotals;
+  approvedOutsideBooks: ExpenseTotals;
+  excluded: { count: number };
+}
+
+/**
+ * The same query in several of the owner's businesses: each business's
+ * result, and their combined totals only when every business answered.
+ */
+export interface ExpensesAcrossBusinessesResult {
+  scope: 'businesses';
+  // What was asked: 'all' the owner's businesses, or the numbers given.
+  requested: 'all' | string[];
+  from: string;
+  to: string;
+  filters: ExpenseQueryResult['filters'];
+  // One result per business that answered, in the owner's order.
+  businesses: ExpenseQueryResult[];
+  // The businesses that did not answer, with why. A combined total without
+  // them would be partial, so there is none.
+  failed: { business: { number: string; name: string }; code: string; message: string }[];
+  complete: boolean;
+  // The sum of every business's subtotal; null unless complete.
+  combined: ExpenseCombinedTotals | null;
+}
+
+export type ExpenseQueryAnswer = ExpenseQueryResult | ExpensesAcrossBusinessesResult;
+
 /** The domain one agent request may use, bound to its verified user. */
 export interface AgentDomain {
-  queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryResult>;
+  queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryAnswer>;
 }

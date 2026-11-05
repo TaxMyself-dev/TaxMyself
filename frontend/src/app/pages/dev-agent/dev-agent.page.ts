@@ -75,8 +75,9 @@ export class DevAgentPage implements OnInit, OnDestroy {
   readonly apiUrl = devAgentApiUrl(new URLSearchParams(location.search).get('api'));
 
   chat = signal<Chat<UIMessage> | null>(null);
-  // The context the chat belongs to (agent user, business, client), read
-  // once per session: a chat never moves to another client or business.
+  // The context the chat belongs to (agent user, client), read once per
+  // session: a chat never moves to another client. The active business may
+  // change within the chat.
   context = signal<DevAgentChatContext | null>(null);
   setupError = signal<string | null>(null);
   locale = signal<'he' | 'en'>('he');
@@ -92,41 +93,38 @@ export class DevAgentPage implements OnInit, OnDestroy {
     return this.context()?.agentUserId ?? null;
   }
 
-  // The business and client the chat belongs to.
+  // The active business, the tools' default for the next request.
   get businessNumber() {
-    return this.context()?.businessNumber ?? null;
+    return this.auth.businessNumber();
   }
 
   get clientId() {
     return this.context()?.clientId ?? null;
   }
 
-  // Whether the app switched client or business since the chat's context
-  // was read: the chat is then locked, and a new one starts in the new
-  // context (startSession), so nothing from the previous client or business
-  // is used under the new one.
+  // Whether the app switched client since the chat's context was read: the
+  // chat is then locked, and a new one starts for the new client
+  // (startSession), so nothing from the previous client is used under the
+  // new one. Switching business within the same client keeps the chat.
   get contextChanged() {
     const context = this.context();
 
-    return (
-      context !== null &&
-      (context.businessNumber !== this.auth.businessNumber() || context.clientId !== this.auth.clientId())
-    );
+    return context !== null && context.clientId !== this.auth.clientId();
   }
 
   async ngOnInit() {
     await this.startSession();
   }
 
-  // Reads the agent's user for the app's current client and business, and
-  // starts a chat in that context.
+  // Reads the agent's user for the app's current client, and starts a chat
+  // for it.
   async startSession() {
     void this.chat()?.stop();
     this.chat.set(null);
     this.context.set(null);
     this.setupError.set(null);
 
-    const live = { businessNumber: this.auth.businessNumber(), clientId: this.auth.clientId() };
+    const live = { clientId: this.auth.clientId() };
 
     try {
       const response = await fetch(`${this.apiUrl}api/agent/fn/readAgentSession`, {

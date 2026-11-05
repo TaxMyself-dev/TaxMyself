@@ -44,9 +44,9 @@ import type {
 // user's rows, every new row is written as theirs, a row that names a
 // conversation must name one of theirs, an upsert never takes over another
 // user's row, and each table allows only what the template granted
-// (mysql-agent-tables.ts). KeepInTax adds the business: a conversation and
-// its content are reached only from the business it started in
-// (userScopeConditions, AgentTable.business). The service scope (the task monitor, the
+// (mysql-agent-tables.ts). KeepInTax's user is the pair (actor, data
+// owner); a conversation records the business it started in, written here
+// only (AgentTable.recordsBusiness). The service scope (the task monitor, the
 // template's service role) reaches every user's rows.
 
 /**
@@ -273,7 +273,7 @@ const readRowsByKey = async (
 };
 
 // The conversations rows name must all be the user's (the template's
-// "with check" on the chat's tables), and in the request's business.
+// "with check" on the chat's tables).
 const assertOwnedConversations = async (
   executor: AgentSqlExecutor,
   name: string,
@@ -293,8 +293,8 @@ const assertOwnedConversations = async (
   }
 
   const { rows } = await executor.query(
-    `SELECT id FROM agent_chat_conversations WHERE user_id = ? AND business_number <=> ? AND id IN (${ids.map(() => "?").join(", ")})`,
-    [scope.userId, scope.businessNumber, ...ids]
+    `SELECT id FROM agent_chat_conversations WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
+    [scope.userId, ...ids]
   );
 
   if (rows.length !== ids.length) {
@@ -608,8 +608,9 @@ const rowsToInsert = (
 
       row[table.owner] = scope.userId;
 
-      // A row about one business is written in the request's business.
-      if (table.business === "column") {
+      // The business a row records is the request's, never the caller's
+      // say.
+      if (table.recordsBusiness === true) {
         const business = row.business_number;
 
         if (business !== undefined && business !== scope.businessNumber) {
@@ -767,17 +768,9 @@ const assertNoTakeover = async (
 
   const existing = uniqueKeyCondition(table, rows);
 
-  // Another user's row, or the user's own in another business.
-  const business = table.business === "column";
-  const otherBusiness = business ? " OR NOT (`business_number` <=> ?)" : "";
-
   const { rows: taken } = await executor.query(
-    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${existing.sql}) AND (${quoteIdentifier(table.owner)} <> ?${otherBusiness}) LIMIT 1 FOR UPDATE`,
-    [
-      ...existing.params,
-      scope.userId,
-      ...(business ? [scope.businessNumber] : []),
-    ]
+    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${existing.sql}) AND ${quoteIdentifier(table.owner)} <> ? LIMIT 1 FOR UPDATE`,
+    [...existing.params, scope.userId]
   );
 
   if (taken.length > 0) {
@@ -896,12 +889,11 @@ const updateRows = async (
     throw rowLevelSecurityError(name);
   }
 
-  // No change moves a row to another business.
+  // The business a row records is never changed.
   if (
     scope.role === "user" &&
-    table.business === "column" &&
-    body.business_number !== undefined &&
-    body.business_number !== scope.businessNumber
+    table.recordsBusiness === true &&
+    body.business_number !== undefined
   ) {
     throw rowLevelSecurityError(name);
   }

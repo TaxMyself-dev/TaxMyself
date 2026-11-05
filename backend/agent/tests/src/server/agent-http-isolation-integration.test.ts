@@ -21,12 +21,13 @@ import type { AgentSqlDatabase } from "../../../backend/shared/mysql/mysql-agent
 // KeepInTax's isolation of the agent's data, through the HTTP entry the Nest
 // backend calls, against a real MySQL with both agent migrations
 // (2026-10-22_agent_harness_schema.sql, 2026-11-05_agent_actor_owner_scope.sql):
-// the agent's user is the pair (actor, data owner), and a conversation is
-// reached only from the business it started in. One accountant's running
-// answer about client A in business A1 is attacked, by its ids, from every
-// other scope: the same accountant acting for client B, for client A in
-// business A2, for themselves, and client A acting alone. A conversation id
-// alone authorizes nothing. Needs AGENT_TEST_DATABASE_URL; skipped without it.
+// the agent's user is the pair (actor, data owner), and a conversation
+// covers any of that owner's businesses. One accountant's running answer
+// about client A, started in business A1, continues from A's business A2,
+// and is attacked, by its ids, from every other pair: the same accountant
+// acting for client B and for themselves, and client A acting alone. A
+// conversation id alone authorizes nothing. Needs AGENT_TEST_DATABASE_URL;
+// skipped without it.
 
 const databaseUrl = process.env.AGENT_TEST_DATABASE_URL;
 const apiOrigin = "http://api.keepintax.test";
@@ -72,11 +73,10 @@ const forClientB = scope(accountant, clientB, "500000003");
 const forThemselves = scope(accountant, accountant, null);
 const clientAAlone = scope(clientA, clientA, "500000001");
 
-// Every other scope, each of which must reach none of the conversation.
-// Only the same pair (forClientAInA2) shares the pair's memory.
+// Every other pair, each of which must reach none of the conversation or
+// the pair's memory.
 const others: [string, AgentRequestUser][] = [
   ["the accountant acting for client B", forClientB],
-  ["the accountant acting for client A in another business", forClientAInA2],
   ["the accountant acting for themselves", forThemselves],
   ["client A acting alone, in the same business", clientAAlone],
 ];
@@ -289,14 +289,14 @@ describe.skipIf(databaseUrl === undefined)(
 
         // The page's agent user from before a switch is refused: switching
         // client means reading the session again.
-        if (userId !== ownerId) {
-          const stale = await read(user, "listAgentChatConversations", {
-            userId: ownerId,
-          });
+        assert.notStrictEqual(userId, ownerId);
 
-          assert.strictEqual(stale.status, 401);
-          await stale.text();
-        }
+        const stale = await read(user, "listAgentChatConversations", {
+          userId: ownerId,
+        });
+
+        assert.strictEqual(stale.status, 401);
+        await stale.text();
 
         const list = await readText(user, "listAgentChatConversations", {
           userId,
@@ -393,31 +393,71 @@ describe.skipIf(databaseUrl === undefined)(
         const afterChanges = await conversationRow();
         assert.strictEqual(afterChanges?.name, "Client A fuel");
 
-        // Memory belongs to the pair: the same accountant for the same
-        // client keeps it in any business; no one else sees it, and no one
-        // else can forget it.
+        // Memory belongs to the pair: no one else sees it, and no one else
+        // can forget it.
         const memories = await readText(user, "readAgentMemories", { userId });
+        assert.notInclude(memories, memoryId);
 
-        if (userId === ownerId) {
-          assert.include(memories, memoryId);
-        } else {
-          assert.notInclude(memories, memoryId);
+        const forget = await post(user, "deleteAgentMemory", {
+          userId,
+          memoryId,
+        });
 
-          const forget = await post(user, "deleteAgentMemory", {
-            userId,
-            memoryId,
-          });
+        await forget.text();
 
-          await forget.text();
+        const kept = await readText(forClientAInA1, "readAgentMemories", {
+          userId: ownerId,
+        });
 
-          const kept = await readText(forClientAInA1, "readAgentMemories", {
-            userId: ownerId,
-          });
-
-          assert.include(kept, memoryId);
-        }
+        assert.include(kept, memoryId);
       }
     );
+
+    it("the same accountant for client A in another business continues the conversation", async () => {
+      // Switching the active business keeps the agent user, the history,
+      // the memory and the running answer.
+      const userId = await session(forClientAInA2);
+      assert.strictEqual(userId, ownerId);
+
+      const list = await readText(
+        forClientAInA2,
+        "listAgentChatConversations",
+        {
+          userId,
+        }
+      );
+
+      assert.include(list, conversationId);
+
+      const messages = await readText(
+        forClientAInA2,
+        "readAgentChatConversationMessages",
+        { userId, conversationId }
+      );
+
+      assert.include(messages, secret);
+
+      const memories = await readText(forClientAInA2, "readAgentMemories", {
+        userId,
+      });
+
+      assert.include(memories, memoryId);
+
+      const steer = await call(
+        forClientAInA2,
+        `/api/agent/chats/${conversationId}/steer`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: crypto.randomUUID(),
+            text: "and in the second business?",
+          }),
+        }
+      );
+
+      assert.strictEqual(steer.status, 204);
+    });
 
     it("never serves agent data from before the pairing (its owner is unknown)", async () => {
       // A legacy agent user, as 2026-10-22's schema stored it: the

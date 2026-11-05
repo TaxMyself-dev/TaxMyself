@@ -33,6 +33,10 @@ export interface ExpenseQuery {
   readonly includeRows?: boolean;
   // One of the owner's businesses; their only or current one when left out.
   readonly businessNumber?: string;
+  // Several of the owner's businesses, or all of them: the same query in
+  // each, with a combined total (ExpensesAcrossBusinessesResult).
+  readonly businessNumbers?: readonly string[];
+  readonly allBusinesses?: boolean;
 }
 
 /** Totals of a set of expenses, in ILS, summed in agorot (exact). */
@@ -59,8 +63,9 @@ export interface ExpenseRow {
   readonly note: string | null;
 }
 
-/** What queryExpenses answers. */
+/** What queryExpenses answers for one business. */
 export interface ExpenseQueryResult {
+  readonly scope: "business";
   readonly business: { readonly number: string; readonly name: string };
   // The other businesses the owner has, to query when asked about them.
   readonly otherBusinesses: readonly {
@@ -108,6 +113,44 @@ export interface ExpenseQueryResult {
   readonly categoriesInRange: readonly string[];
 }
 
+/** What several businesses' results add up to, summed in agorot. */
+export interface ExpenseCombinedTotals {
+  readonly totals: ExpenseTotals;
+  readonly pending: ExpenseTotals;
+  readonly approvedOutsideBooks: ExpenseTotals;
+  readonly excluded: { readonly count: number };
+}
+
+/**
+ * The same query in several of the owner's businesses: each business's
+ * result, and their combined totals only when every business answered.
+ */
+export interface ExpensesAcrossBusinessesResult {
+  readonly scope: "businesses";
+  // What was asked: "all" the owner's businesses, or the numbers given.
+  readonly requested: "all" | readonly string[];
+  readonly from: string;
+  readonly to: string;
+  readonly filters: ExpenseQueryResult["filters"];
+  // One result per business that answered.
+  readonly businesses: readonly ExpenseQueryResult[];
+  // The businesses that did not answer, and why.
+  readonly failed: readonly {
+    readonly business: { readonly number: string; readonly name: string };
+    readonly code: string;
+    readonly message: string;
+  }[];
+  readonly complete: boolean;
+  // Every business's subtotal added up; null unless complete, so a partial
+  // sum is never read as the whole.
+  readonly combined: ExpenseCombinedTotals | null;
+}
+
+/** What queryExpenses answers: one business, or several. */
+export type ExpenseQueryAnswer =
+  | ExpenseQueryResult
+  | ExpensesAcrossBusinessesResult;
+
 /**
  * The user's books: expenses so far (more queries come with the next
  * tools).
@@ -115,5 +158,5 @@ export interface ExpenseQueryResult {
 export interface KeepInTaxBooks {
   queryExpenses: (
     query: ExpenseQuery
-  ) => Effect.Effect<ExpenseQueryResult, Error>;
+  ) => Effect.Effect<ExpenseQueryAnswer, Error>;
 }

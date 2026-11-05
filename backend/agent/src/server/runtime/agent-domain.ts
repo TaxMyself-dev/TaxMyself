@@ -1,6 +1,6 @@
 import type {
   ExpenseQuery,
-  ExpenseQueryResult,
+  ExpenseQueryAnswer,
 } from "@/agent/core/ports/keepintax-ports";
 
 /**
@@ -12,5 +12,5 @@ import type {
  * A failure is an Error whose message starts with its CODE:.
  */
 export interface AgentDomain {
-  queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryResult>;
+  queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryAnswer>;
 }

@@ -36,7 +36,11 @@ const agentToolErrorNextSteps = new Map([
   ],
   [
     "BUSINESS_REQUIRED",
-    "The user has several businesses and none is current. Ask which one they mean (askUserQuestion, with otherBusinesses' names when you have them), then query it.",
+    "The user has several businesses and none is active. Ask which one they mean, or whether all of them (askUserQuestion, with the businesses' names from this error), then query it, or all with allBusinesses.",
+  ],
+  [
+    "EXPENSE_SCOPE_INVALID",
+    "Name the businesses one way only: businessNumber for one, businessNumbers for several, or allBusinesses for every one. Query again.",
   ],
   [
     "EXPENSE_RANGE_INVALID",

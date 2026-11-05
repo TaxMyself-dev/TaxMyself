@@ -55,7 +55,7 @@ const streamId = "44444444-4444-4444-8444-444444444444";
 const businessNumber = "514000001";
 
 describe("mysql postgrest gateway", () => {
-  it("scopes a user's read to their rows in the request's business and translates filters, order and paging", async () => {
+  it("scopes a user's read to their rows, whatever the business, and translates filters, order and paging", async () => {
     const { database, statements } = fakeDatabase(() => ({
       rows: [
         {
@@ -90,17 +90,14 @@ describe("mysql postgrest gateway", () => {
     const [read] = statements;
     assert.strictEqual(
       read?.sql,
-      "SELECT `id` AS `id`, `name` AS `name`, `pinned` AS `pinned`, `created_at` AS `created_at` FROM `agent_chat_conversations` WHERE (`user_id` = ?) AND (`business_number` <=> ?) AND (`name` IN (?, ?)) AND (`answering_until` IS NULL) ORDER BY (`created_at` IS NULL) DESC, `created_at` DESC LIMIT 10 OFFSET 10"
+      "SELECT `id` AS `id`, `name` AS `name`, `pinned` AS `pinned`, `created_at` AS `created_at` FROM `agent_chat_conversations` WHERE (`user_id` = ?) AND (`name` IN (?, ?)) AND (`answering_until` IS NULL) ORDER BY (`created_at` IS NULL) DESC, `created_at` DESC LIMIT 10 OFFSET 10"
     );
-    assert.deepStrictEqual(read?.params, [
-      userId,
-      businessNumber,
-      "Plumbers",
-      "b,c",
-    ]);
+    // The request's business is not a filter: a conversation covers any
+    // of the data owner's businesses.
+    assert.deepStrictEqual(read?.params, [userId, "Plumbers", "b,c"]);
   });
 
-  it("reaches a conversation's content only through a conversation in the request's business", async () => {
+  it("reaches a conversation's content and memory as the pair's, whatever the business", async () => {
     const { database, statements } = fakeDatabase(() => ({ rows: [] }));
 
     const supabase = createUserDatabaseClient(database, userId, businessNumber);
@@ -112,14 +109,9 @@ describe("mysql postgrest gateway", () => {
 
     assert.strictEqual(
       statements[0]?.sql,
-      "SELECT `id` AS `id` FROM `agent_chat_messages` WHERE (`user_id` = ?) AND (`conversation_id` IN (SELECT `id` FROM `agent_chat_conversations` WHERE `user_id` = ? AND `business_number` <=> ?)) AND (`conversation_id` = ?)"
+      "SELECT `id` AS `id` FROM `agent_chat_messages` WHERE (`user_id` = ?) AND (`conversation_id` = ?)"
     );
-    assert.deepStrictEqual(statements[0]?.params, [
-      userId,
-      userId,
-      businessNumber,
-      chatId,
-    ]);
+    assert.deepStrictEqual(statements[0]?.params, [userId, chatId]);
 
     // Memory belongs to the pair (actor, data owner), whatever the business.
     await supabase.from("agent_memories").select("id");
@@ -129,7 +121,7 @@ describe("mysql postgrest gateway", () => {
     );
   });
 
-  it("writes a new conversation in the request's business and never moves one to another", async () => {
+  it("records the request's business on a new conversation, written by the server only and never changed", async () => {
     const { database, statements } = fakeDatabase();
 
     const supabase = createUserDatabaseClient(database, userId, businessNumber);

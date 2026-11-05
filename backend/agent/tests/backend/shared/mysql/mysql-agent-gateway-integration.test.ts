@@ -508,10 +508,10 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
     assert.strictEqual(forged.error?.code, "42501");
   });
 
-  // KeepInTax: a conversation and its content belong to the business it
-  // started in (AgentTable.business); memory belongs to the (actor, data
-  // owner) pair, whatever the business.
-  describe("a conversation in one of the owner's businesses", () => {
+  // KeepInTax: the agent's user is the pair (actor, data owner); a
+  // conversation covers any of the owner's businesses and records the one
+  // it started in (AgentTable.recordsBusiness), which nothing changes.
+  describe("a conversation across the owner's businesses", () => {
     let agentUserId: string;
     let inFirst: ReturnType<typeof createUserDatabaseClient>;
     const conversationId = crypto.randomUUID();
@@ -522,7 +522,7 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
       agentUserId = await resolveAgentUserId(database, uid, uid);
       inFirst = createUserDatabaseClient(database, agentUserId, "510000001");
 
-      await run(
+      const lease = await run(
         claimAgentChatAnswer(inFirst, {
           conversationId,
           name: null,
@@ -530,40 +530,103 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
           streamId: crypto.randomUUID(),
         })
       );
+
+      if (lease === "busy" || lease === "missing") {
+        throw new TypeError("the lease was not claimed");
+      }
+
       await run(
         writeStoredAgentChatMessages(inFirst, conversationId, [
           message(crypto.randomUUID(), "user", "fuel for the first business"),
         ])
       );
+
       memoryId = await run(
         insertStoredAgentMemory(inFirst, "Answers in shekels", conversationId)
       );
+
+      await run(releaseAgentChatAnswer(inFirst, lease));
     });
 
     it.each([
       ["another of the owner's businesses", "510000002"],
       ["no business chosen", null],
-    ])("is out of reach from %s", async (_from, businessNumber) => {
+    ])(
+      "continues from %s: history, search, memory and the next answer",
+      async (_from, businessNumber) => {
+        const other = createUserDatabaseClient(
+          database,
+          agentUserId,
+          businessNumber
+        );
+
+        const messages = await run(
+          readStoredAgentChatMessages(other, conversationId)
+        );
+
+        assert.strictEqual(messages.length, 1);
+
+        const chats = await run(readStoredAgentChatConversations(other));
+        assert.isTrue(chats.some((chat) => chat.id === conversationId));
+
+        const found = await run(
+          searchStoredAgentChatConversations(other, "fuel")
+        );
+
+        assert.include(found, conversationId);
+
+        const memories = await run(readStoredAgentMemories(other));
+        assert.isTrue(memories.some((memory) => memory.id === memoryId));
+
+        const lease = await run(
+          claimAgentChatAnswer(other, {
+            conversationId,
+            name: null,
+            pinned: false,
+            streamId: crypto.randomUUID(),
+          })
+        );
+
+        if (lease === "busy" || lease === "missing") {
+          throw new TypeError(`the conversation was ${lease}`);
+        }
+
+        await run(releaseAgentChatAnswer(other, lease));
+      }
+    );
+
+    it("keeps the business it started in, which no request changes", async () => {
       const other = createUserDatabaseClient(
         database,
         agentUserId,
-        businessNumber
+        "510000002"
       );
+
+      const moved = await other
+        .from("agent_chat_conversations")
+        .update({ business_number: "510000002" })
+        .eq("id", conversationId);
+
+      assert.strictEqual(moved.error?.code, "42501");
+
+      const { rows } = await database.query(
+        "SELECT business_number FROM agent_chat_conversations WHERE id = ?",
+        [conversationId]
+      );
+
+      assert.strictEqual(rows[0]?.business_number, "510000001");
+    });
+
+    it("stays out of reach of another data owner, whatever the business", async () => {
+      const stranger = `stranger-${crypto.randomUUID()}`;
+      const strangerId = await resolveAgentUserId(database, stranger, stranger);
+      const other = createUserDatabaseClient(database, strangerId, "510000001");
 
       const messages = await run(
         readStoredAgentChatMessages(other, conversationId)
       );
 
       assert.strictEqual(messages.length, 0);
-
-      const chats = await run(readStoredAgentChatConversations(other));
-      assert.isFalse(chats.some((chat) => chat.id === conversationId));
-
-      const found = await run(
-        searchStoredAgentChatConversations(other, "fuel")
-      );
-
-      assert.notInclude(found, conversationId);
 
       const claim = await run(
         claimAgentChatAnswer(other, {
@@ -575,55 +638,6 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
       );
 
       assert.strictEqual(claim, "missing");
-
-      const steer = await Effect.runPromiseExit(
-        addAgentChatUserSteer(other, conversationId, {
-          id: crypto.randomUUID(),
-          text: "switch",
-        })
-      );
-
-      assert.isTrue(
-        steer._tag === "Failure" ||
-          (steer._tag === "Success" && steer.value === "not-answering")
-      );
-
-      // Neither an upsert by its id nor a message naming it moves it.
-      const takeover = await other
-        .from("agent_chat_conversations")
-        .upsert({ id: conversationId, name: "taken" });
-
-      assert.strictEqual(takeover.error?.code, "42501");
-
-      const planted = await Effect.runPromiseExit(
-        writeStoredAgentChatMessages(other, conversationId, [
-          message(crypto.randomUUID(), "user", "planted"),
-        ])
-      );
-
-      assert.strictEqual(planted._tag, "Failure");
-
-      // The pair's memory, whatever the business.
-      const memories = await run(readStoredAgentMemories(other));
-      assert.isTrue(memories.some((memory) => memory.id === memoryId));
-    });
-
-    it("stays whole in its own business", async () => {
-      const messages = await run(
-        readStoredAgentChatMessages(inFirst, conversationId)
-      );
-
-      assert.strictEqual(messages.length, 1);
-
-      const { rows } = await database.query(
-        "SELECT business_number, name FROM agent_chat_conversations WHERE id = ?",
-        [conversationId]
-      );
-
-      assert.deepStrictEqual(
-        { business: rows[0]?.business_number, name: rows[0]?.name },
-        { business: "510000001", name: null }
-      );
     });
   });
 });

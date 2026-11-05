@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Business } from 'src/business/business.entity';
 import { BusinessService } from 'src/business/business.service';
 import { Delegation, DelegationStatus } from 'src/delegation/delegation.entity';
 import { ExpenseApprovalStatus, UserRole } from 'src/enum';
@@ -10,6 +11,8 @@ import { User } from 'src/users/user.entity';
 import type { AgentHarnessUser } from './agent-harness.service';
 import {
   AgentDomain,
+  ExpenseQueryAnswer,
+  ExpensesAcrossBusinessesResult,
   ExpenseGrouping,
   ExpenseQuery,
   ExpenseQueryResult,
@@ -183,6 +186,49 @@ const pendingStatusOf = (expense: Expense) =>
       ? 'PENDING'
       : 'NO_STATUS';
 
+// A range of whole days, inclusive, at most ten years.
+const validRange = (query: ExpenseQuery) => {
+  const from = utcDay(query.from, 'from');
+  const to = utcDay(query.to, 'to');
+
+  if (from > to) {
+    throw new AgentDomainError('EXPENSE_RANGE_INVALID', `from (${query.from}) is after to (${query.to})`);
+  }
+
+  const latest = new Date(from);
+  latest.setUTCFullYear(latest.getUTCFullYear() + maxRangeYears);
+  if (to > latest) {
+    throw new AgentDomainError('EXPENSE_RANGE_INVALID', `the range is longer than ${maxRangeYears} years`);
+  }
+
+  return { from, to };
+};
+
+const filtersOf = (query: ExpenseQuery) => ({
+  search: query.search ?? null,
+  category: query.category ?? null,
+  subCategory: query.subCategory ?? null,
+  supplier: query.supplier ?? null,
+});
+
+// Totals added in agorot: each part is already a whole number of agorot, so
+// the sum is exact.
+const addTotals = (parts: readonly ExpenseTotals[]): ExpenseTotals => {
+  let count = 0;
+  let sum = 0;
+  let vat = 0;
+  let tax = 0;
+
+  for (const part of parts) {
+    count += part.count;
+    sum += Math.round(part.sum * 100);
+    vat += Math.round(part.vatRecognized * 100);
+    tax += Math.round(part.taxRecognized * 100);
+  }
+
+  return { count, sum: shekels(sum), vatRecognized: shekels(vat), taxRecognized: shekels(tax) };
+};
+
 const classificationOf = (expense: Expense) =>
   [expense.category, expense.subCategory].filter(Boolean).join(' / ') || '—';
 
@@ -267,24 +313,120 @@ export class AgentDomainService {
     }
   }
 
-  async queryExpenses(user: AgentHarnessUser, query: ExpenseQuery): Promise<ExpenseQueryResult> {
-    const from = utcDay(query.from, 'from');
-    const to = utcDay(query.to, 'to');
+  /**
+   * The user's expenses for a range: in one business (the one asked for,
+   * else the request's active one, else the owner's only one), or — with
+   * businessNumbers or allBusinesses — the same query in each of several of
+   * the owner's businesses, with their combined total.
+   */
+  async queryExpenses(user: AgentHarnessUser, query: ExpenseQuery): Promise<ExpenseQueryAnswer> {
+    const range = validRange(query);
+    const several = query.allBusinesses === true || query.businessNumbers !== undefined;
 
-    if (from > to) {
-      throw new AgentDomainError('EXPENSE_RANGE_INVALID', `from (${query.from}) is after to (${query.to})`);
+    if (several && query.businessNumber !== undefined) {
+      throw new AgentDomainError(
+        'EXPENSE_SCOPE_INVALID',
+        'give businessNumber for one business, or businessNumbers/allBusinesses for several, not both',
+      );
     }
-
-    const latest = new Date(from);
-    latest.setUTCFullYear(latest.getUTCFullYear() + maxRangeYears);
-    if (to > latest) {
-      throw new AgentDomainError('EXPENSE_RANGE_INVALID', `the range is longer than ${maxRangeYears} years`);
+    if (query.allBusinesses === true && query.businessNumbers !== undefined) {
+      throw new AgentDomainError('EXPENSE_SCOPE_INVALID', 'give businessNumbers or allBusinesses, not both');
     }
 
     await this.assertAccessStillHolds(user);
 
     const businesses = numberedBusinesses(await this.businessService.getUserBusinesses(user.firebaseId));
+
+    if (several) {
+      return await this.queryAcrossBusinesses(user, query, range, businesses);
+    }
+
     const business = this.chooseBusiness(user, businesses, query.businessNumber);
+    return await this.queryOneBusiness(user, query, range, business, businesses);
+  }
+
+  // The same query in each requested business, one after another. Every
+  // number must be one of the owner's, or nothing is read (a foreign number
+  // is refused, never reported as a failed part). A business that fails is
+  // listed in failed, and then there is no combined total: a sum of the
+  // others would read as complete. A revoked access ends the whole query.
+  private async queryAcrossBusinesses(
+    user: AgentHarnessUser,
+    query: ExpenseQuery,
+    range: { from: Date; to: Date },
+    businesses: (Business & { businessNumber: string })[],
+  ): Promise<ExpensesAcrossBusinessesResult> {
+    const requested = query.allBusinesses === true ? 'all' : [...new Set(query.businessNumbers ?? [])];
+
+    if (requested !== 'all') {
+      if (requested.length === 0) {
+        throw new AgentDomainError('EXPENSE_SCOPE_INVALID', 'businessNumbers is empty');
+      }
+      const foreign = requested.filter((number) => !businesses.some((business) => business.businessNumber === number));
+      if (foreign.length > 0) {
+        throw new AgentDomainError(
+          'BUSINESS_NOT_FOUND',
+          `not the user's businesses: ${foreign.join(', ')}`,
+        );
+      }
+    }
+    if (businesses.length === 0) {
+      throw new AgentDomainError('BUSINESS_NOT_FOUND', 'the user has no business with a number yet');
+    }
+
+    const targets =
+      requested === 'all'
+        ? businesses
+        : businesses.filter((business) => requested.includes(business.businessNumber));
+
+    const answered: ExpenseQueryResult[] = [];
+    const failed: ExpensesAcrossBusinessesResult['failed'] = [];
+
+    for (const business of targets) {
+      try {
+        // Checked again before each business: an answer may run long.
+        await this.assertAccessStillHolds(user);
+        answered.push(await this.queryOneBusiness(user, query, range, business, businesses));
+      } catch (error) {
+        if (error instanceof AgentDomainError && error.code === 'ACCESS_REVOKED') {
+          throw error;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const code = error instanceof AgentDomainError ? error.code : 'BOOKS_UNAVAILABLE';
+        failed.push({ business: businessView(business), code, message: message.replace(/^[A-Z_]+: /, '') });
+      }
+    }
+
+    const complete = failed.length === 0;
+    const sumOf = (pick: (result: ExpenseQueryResult) => ExpenseTotals) => addTotals(answered.map(pick));
+
+    return {
+      scope: 'businesses',
+      requested,
+      from: query.from,
+      to: query.to,
+      filters: filtersOf(query),
+      businesses: answered,
+      failed,
+      complete,
+      combined: complete
+        ? {
+            totals: sumOf((result) => result.totals),
+            pending: sumOf((result) => result.pending),
+            approvedOutsideBooks: sumOf((result) => result.approvedOutsideBooks),
+            excluded: { count: answered.reduce((count, result) => count + result.excluded.count, 0) },
+          }
+        : null,
+    };
+  }
+
+  private async queryOneBusiness(
+    user: AgentHarnessUser,
+    query: ExpenseQuery,
+    { from, to }: { from: Date; to: Date },
+    business: Business & { businessNumber: string },
+    businesses: (Business & { businessNumber: string })[],
+  ): Promise<ExpenseQueryResult> {
     const lastMoment = new Date(to.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const expenses = await this.expensesService.getExpensesByUserID(
@@ -330,18 +472,14 @@ export class AgentDomainService {
         : [];
 
     return {
+      scope: 'business',
       business: businessView(business),
       otherBusinesses: businesses
         .filter((other) => other.businessNumber !== business.businessNumber)
         .map(businessView),
       from: query.from,
       to: query.to,
-      filters: {
-        search: query.search ?? null,
-        category: query.category ?? null,
-        subCategory: query.subCategory ?? null,
-        supplier: query.supplier ?? null,
-      },
+      filters: filtersOf(query),
       totals: totalsOf(counted),
       groups,
       groupsOmitted,

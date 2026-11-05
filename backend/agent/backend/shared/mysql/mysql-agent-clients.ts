@@ -39,15 +39,15 @@ const createGatewayClient = (
 export type AgentDatabaseClient = ReturnType<typeof createGatewayClient>;
 
 /**
- * The signed-in user's client: every query reaches only their rows (in the
- * request's business, for a conversation), and auth.getClaims() answers
- * with them.
+ * The signed-in user's client: every query reaches only their rows, and
+ * auth.getClaims() answers with them.
  *
  * @param database - The agent's MySQL database.
  * @param userId - The agent's id for the user (agent_users): the pair
  *   (actor, data owner), resolveAgentUserId.
  * @param businessNumber - The business the request acts in, verified by the
- *   Nest backend as the data owner's; null when none is chosen.
+ *   Nest backend as the data owner's (null when none is chosen); a new
+ *   conversation records it.
  * @returns The client.
  */
 export const createUserDatabaseClient = (

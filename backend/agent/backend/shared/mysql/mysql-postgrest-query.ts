@@ -402,9 +402,8 @@ const reservedParameters = new Set([
 
 /**
  * The rows of a table a user's request reaches (the template's row level
- * security, as conditions): the user's own and, on a table about one
- * business (AgentTable.business), the request's business's — its own
- * business_number, or its conversation's. None for the service scope.
+ * security, as conditions): the user's own — the agent's user being the
+ * pair (actor, data owner). None for the service scope.
  *
  * @param table - The table.
  * @param scope - Whose rows the request reaches.
@@ -418,25 +417,9 @@ export const userScopeConditions = (
     return [];
   }
 
-  const conditions: SqlCondition[] = [
+  return [
     { sql: `${quoteIdentifier(table.owner)} = ?`, params: [scope.userId] },
   ];
-
-  if (table.business === "column") {
-    conditions.push({
-      sql: "`business_number` <=> ?",
-      params: [scope.businessNumber],
-    });
-  }
-
-  if (table.business === "conversation") {
-    conditions.push({
-      sql: "`conversation_id` IN (SELECT `id` FROM `agent_chat_conversations` WHERE `user_id` = ? AND `business_number` <=> ?)",
-      params: [scope.userId, scope.businessNumber],
-    });
-  }
-
-  return conditions;
 };
 
 /**

@@ -8,8 +8,9 @@
  * agent user from their data about another, or about themselves
  * (resolveAgentUserId). businessNumber is the business the request acts in,
  * verified by the Nest backend as one of the data owner's (null when the
- * owner has several and none is chosen): a conversation belongs to the
- * business it started in, and is reached only from that business.
+ * owner has several and none is chosen): a new conversation records it. It
+ * is not an access boundary — a conversation may cover any of the data
+ * owner's businesses.
  */
 export type AgentGatewayScope =
   | {
