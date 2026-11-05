@@ -1609,7 +1609,20 @@ export class DemoDataService {
     if (scenario) {
       const sub = await m.findOne(SubCategory, { where: { systemKey: 'DIRECT_CARD_BANK_PAYMENT', ownerType: OwnerType.SYSTEM }, relations: ['category'] });
       if (!sub) throw new Error('Apply direct-card-cashflow.sql before seeding the Direct-card demo');
-      const ids = await this.resolveSourceRecordIds(m, firebaseId, [scenario.cardSourceName]);
+      const sourceNames = [...new Set([
+        scenario.cardSourceName,
+        ...cacheRows.map(row => row.paymentIdentifier).filter((name): name is string => !!name),
+      ])];
+      const ids = await this.resolveSourceRecordIds(m, firebaseId, sourceNames);
+      // Initial seed/reset inserts bank rows before reaching this helper.
+      // Exclusion requires permanent bank provenance, just like real imports.
+      for (const row of cacheRows) {
+        if (row.sourceRecordId != null || !row.paymentIdentifier) continue;
+        row.sourceRecordId = ids.get(row.paymentIdentifier)!;
+        await m.update(FullTransactionCache,
+          { userId: firebaseId, externalTransactionId: row.externalTransactionId },
+          { sourceRecordId: row.sourceRecordId });
+      }
       if (!cacheRows.some(row => row.paymentIdentifier === scenario.cardSourceName)) {
         const cards = this.buildLegacyDuplicateRows(data as DemoProfile, scenario, cacheRows).map(row => ({ ...row, sourceRecordId: ids.get(scenario.cardSourceName), subCategoryId: null }));
         if (cards.length) await m.insert(FullTransactionCache, cards);

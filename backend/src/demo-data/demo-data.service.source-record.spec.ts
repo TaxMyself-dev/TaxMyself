@@ -37,7 +37,7 @@ describe('DemoDataService permanent source identity', () => {
       // Initial cache insert has already assigned primary keys before this step.
       id: 9706 + i,
       userId: 'direct-user', externalTransactionId: `bank-${i}`, merchantName,
-      paymentIdentifier: bankName, sourceRecordId: 11, amount: -100,
+      paymentIdentifier: bankName, sourceRecordId: null, amount: -100,
     }));
     const manager = {
       ...makeManager([{ id: 11, sourceName: bankName }, { id: 22, sourceName: cardName }]),
@@ -51,6 +51,9 @@ describe('DemoDataService permanent source identity', () => {
     expect(cardInsert).toHaveLength(profile.legacyDuplicateScenario!.duplicateMerchants.length);
     for (const row of cardInsert) expect(row).not.toHaveProperty('id');
     expect(rows.find(row => row.paymentIdentifier === bankName)?.id).toBe(9706);
+    expect(rows.filter(row => row.paymentIdentifier === bankName).every(row => row.sourceRecordId === 11)).toBe(true);
+    expect(manager.update).toHaveBeenCalledWith(FullTransactionCache,
+      { userId: 'direct-user', externalTransactionId: 'bank-0' }, { sourceRecordId: 11 });
     expect(manager.update).toHaveBeenCalledWith(User, { firebaseId: 'direct-user' }, { excludeDirectCardBankTransactionsFromCashflow: enabled ?? false });
     expect(manager.insert).toHaveBeenCalledWith(UserSourceSyncState, expect.arrayContaining([
       expect.objectContaining({ sourceRecordId: 22, type: 'card', status: 'success', transactionCount: 5 }),

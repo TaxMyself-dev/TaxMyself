@@ -1,5 +1,10 @@
 ## Purpose
 
+Direct-demo initial seed/testReset also resolves every cache payment identifier to
+the unique owned Source and persists missing sourceRecordId before creating card
+twins. Bank provenance is required for cashflow exclusion; it must not be inferred
+from merchant labels. Existing scenario rebuild already supplies these source IDs.
+
 Direct-demo seed/reset starts with exclusion off to exercise the opt-in popup on
 a real owner login. Only applyDirectCardFix passes enableDirectExclusion=true.
 Admin demo-entry is view-as, so owner-only preferences remain read-only there.

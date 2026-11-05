@@ -172,3 +172,20 @@ At Elazar's request removed the show-excluded checkbox from cashflow and its loc
 toggle state/handler. Income/expense reads use the existing default exclusion
 policy. Permanent exclusion settings and the explanatory opt-in popup are unchanged.
 Existing uncommitted copy edits are preserved separately. No backend or DB changes.
+
+## Demo bank provenance and exclusion repair (2026-11-05)
+
+Elazar classified bank Direct payments and enabled exclusion, but they remained
+visible. Read-only dev inspection confirmed preference=true and stable category
+109 on both slim/cache, while initial-seeded bank cache rows lacked sourceRecordId.
+The bank-only guard correctly kept unknown-provenance rows visible. Direct demo
+source-state setup now resolves all fixture payment identifiers and persists missing
+bank-source IDs before cloning card twins. Regression starts with null bank source
+IDs and checks that bank IDs are persisted and card twins keep their own source.
+
+Repaired only the existing synthetic Direct-demo user's missing links in keepintax-dev:
+13 cache rows and five classified slim rows linked to its unique owned synthetic
+bank Source. No amounts/classifications/preferences were changed. The actual shared
+cashflow SQL predicate now excludes exactly five of its 18 cache rows. No schema
+change or production data access. Three suites / 33 tests and backend noEmit type
+check passed; existing UI copy edits remain separate. No GitHub push.
