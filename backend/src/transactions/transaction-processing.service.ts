@@ -134,9 +134,10 @@ export class TransactionProcessingService {
     rows: Partial<SlimTransaction>[],
   ): Promise<void> {
     if (rows.length === 0) return;
-    const updateColumns = Object.keys(rows[0] as object).filter(
-      (k) => k !== 'userId' && k !== 'externalTransactionId',
-    );
+    // values() maps entity properties, but orUpdate() expects database names.
+    const updateColumns = Object.keys(rows[0] as object)
+      .filter((k) => k !== 'userId' && k !== 'externalTransactionId')
+      .map((k) => this.slimRepo.metadata.findColumnWithPropertyName(k)?.databaseName ?? k);
     await this.slimRepo
       .createQueryBuilder()
       .insert()
@@ -595,9 +596,9 @@ export class TransactionProcessingService {
       // SELECT them back after the MySQL INSERT — but needs entity.id to do so,
       // which is absent in a Partial<> upsert payload.  Using the query builder
       // with .updateEntity(false) skips that re-select entirely.
-      const upsertUpdateColumns = Object.keys(cacheUpserts[0]).filter(
-        (k) => k !== 'userId' && k !== 'externalTransactionId',
-      );
+      const upsertUpdateColumns = Object.keys(cacheUpserts[0])
+        .filter((k) => k !== 'userId' && k !== 'externalTransactionId')
+        .map((k) => this.cacheRepo.metadata.findColumnWithPropertyName(k)?.databaseName ?? k);
       await this.cacheRepo
         .createQueryBuilder()
         .insert()

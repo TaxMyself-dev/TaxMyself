@@ -146,3 +146,22 @@ X, Close, Remind Later and Never Show Again. Left popup open without changing an
 preferences. No backend build/restart or DB mutation was needed for this correction.
 Frontend production build passed with existing CSS/bundle budget and CommonJS
 warnings. No integration into main or GitHub push performed.
+
+## Classification upsert physical-column correction (2026-11-05)
+
+Elazar reported Unknown column subCategoryId in field list during classification.
+Read-only metadata inspection verified the expected dev schema: slim/cache use
+sub_category_id, while rules use subCategoryId. QueryBuilder.values() mapped the
+property names correctly, but dynamically generated orUpdate() lists incorrectly
+passed property names as physical columns. Both slim classification writes and
+cache rebuild upserts now map update columns through repository metadata.
+No schema/data mutation or backend dist build/restart was needed. Existing
+uncommitted popup/settings copy edits by Elazar are preserved and excluded from
+this correction's commit. The cashflow show-excluded checkbox is unchanged; it is
+a temporary inspection filter, independent of the permanent exclusion preference.
+
+Validation: five backend suites / 28 tests passed, including real MySQL SQL
+generation for classification/document columns and cache refresh column names.
+Backend TypeScript noEmit check passed without touching dist. Retention regression
+now permits the existing provenance-only archive healing while asserting no
+classification mutation. Git whitespace check passed; no GitHub push performed.

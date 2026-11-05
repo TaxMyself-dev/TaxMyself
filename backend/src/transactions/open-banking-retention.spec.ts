@@ -25,7 +25,10 @@ describe('disconnected open banking keeps durable classifications', () => {
     const before = { ...slim };
     const query = builder();
     const slimRepo: any = { find: jest.fn().mockResolvedValue([slim]), update: jest.fn(), createQueryBuilder: jest.fn() };
-    const cache: any = { find: jest.fn().mockResolvedValue([]), createQueryBuilder: jest.fn().mockReturnValue(query) };
+    const cache: any = {
+      metadata: { findColumnWithPropertyName: (key: string) => ({ databaseName: key === 'subCategoryId' ? 'sub_category_id' : key }) },
+      find: jest.fn().mockResolvedValue([]), createQueryBuilder: jest.fn().mockReturnValue(query),
+    };
     const rules: any = { find: jest.fn().mockResolvedValue([{ id: 5, merchantName: 'Merchant', category: 'Must not overwrite' }]) };
     const sourceRepo: any = { find: jest.fn().mockResolvedValue([
       { id: 7, sourceName: '1234', bill: { id: 10, billName: 'Preserved account', businessNumber: 'default-business' } },
@@ -39,13 +42,20 @@ describe('disconnected open banking keeps durable classifications', () => {
       merchantName: 'Merchant', amount: -100, currency: 'ILS', transactionDate: new Date('2026-10-01'),
       paymentDate: new Date('2026-10-01'), billId: null, billName: null, businessNumber: null } as any]);
     const cacheRows = query.values.mock.calls[0][0];
+    expect(query.orUpdate.mock.calls[0][0]).toContain('sub_category_id');
+    expect(query.orUpdate.mock.calls[0][0]).not.toContain('subCategoryId');
     expect(cacheRows).toEqual([expect.objectContaining({ sourceRecordId: 7, billId: 10, billName: 'Preserved account',
       category: slim.category, subCategory: slim.subCategory, vatPercent: 66, taxPercent: 45, confirmed,
       vatReportingDate: slim.vatReportingDate, businessNumber: 'business-override', classificationType: ClassificationType.ONE_TIME })]);
     expect(slim).toEqual(before);
     expect(matchRule).not.toHaveBeenCalled();
     expect(slimRepo.createQueryBuilder).not.toHaveBeenCalled();
-    expect(slimRepo.update).not.toHaveBeenCalled();
+    // The durable archive may heal missing provenance; classification is untouched.
+    expect(slimRepo.update).toHaveBeenCalledWith({ id: 9 }, {
+      sourceRecordId: 7, merchantNameSnapshot: 'Merchant',
+      transactionDateSnapshot: new Date('2026-10-01'), amountSnapshot: -100,
+      currencySnapshot: 'ILS', ilsAmountSnapshot: null,
+    });
     expect(expenseRepo.delete).not.toHaveBeenCalled();
     expect(expenseRepo.update).not.toHaveBeenCalled();
     expect(result.savedToSlim).toBe(0);

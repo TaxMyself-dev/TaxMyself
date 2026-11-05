@@ -1,5 +1,11 @@
 ## Purpose
 
+MySQL upserts: QueryBuilder.values() accepts entity properties, while orUpdate()
+requires physical column names. Map slim/cache update keys through repository
+metadata; subCategoryId maps to sub_category_id and matchedDocumentId to
+matched_document_id on slim. Do not add duplicate camelCase DB columns to work
+around an upsert error. Regression generates real MySQL SQL without a connection.
+
 Direct-card notice eligibility comes from owned CREDIT_CARD sources with
 isDirect=true via cashflow-preferences (also returns lastLoginAt and permanent
 notice-dismissal state). Owner-only PATCH direct-card-notice persists only
