@@ -159,3 +159,29 @@ Login and automatic retry select only sources with a non-empty stored consentId.
 ## Stable source outcome identity (2026-11-04)
 
 After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.
+
+## Consent-aware transaction outcomes (2026-11-05)
+
+Full sync selects only stored nonblank consent links per sourceRecordId, type and
+connectionRole. A type/identity with no linked sources issues no provider request
+and contributes no transaction-fetch error. Discovery and permission-table behavior
+are unchanged; browser return does not discover/pull a pending new connection.
+Data-ready webhook discovery remains the owner of new source registration.
+
+Every expected source must receive a fetch outcome. Missing provider entries or
+stored resource IDs fail the source even if the provider list is empty. Zero
+transactions on a successfully fetched source are normal. Selection is rechecked
+after the call: revoked/replaced consent or resource snapshots cannot publish stale
+outcomes. No HTTP error automatically clears a permission or asks users to reconnect.
+Persistence failures remain OB-02/OB-04 and independently successful data is kept.
+
+Direct compatibility follows existing isRetryablePendingStatus('skipped_direct'):
+while Direct imports are disabled, known Direct sources are successful skips.
+The direct-card-cashflow feature enables ordinary retry/import of these rows, so
+they then participate in ordinary success/failure reporting without a new flag.
+Cashflow display/exclusion preferences never determine sync success.
+
+Failed account/consent-list requests now emit [FeezbackResponse] like card/transaction
+failures. Provider code and a redacted, bounded body are retained, with attempt
+timing and async-local run/source/role context when available. Success bodies and
+Axios request/config objects are not logged. No raw provider body is sent to users.
