@@ -39,18 +39,27 @@ const createGatewayClient = (
 export type AgentDatabaseClient = ReturnType<typeof createGatewayClient>;
 
 /**
- * The signed-in user's client: every query reaches only their rows, and
- * auth.getClaims() answers with them.
+ * The signed-in user's client: every query reaches only their rows (in the
+ * request's business, for a conversation), and auth.getClaims() answers
+ * with them.
  *
  * @param database - The agent's MySQL database.
- * @param userId - The agent's id for the user (agent_users).
+ * @param userId - The agent's id for the user (agent_users): the pair
+ *   (actor, data owner), resolveAgentUserId.
+ * @param businessNumber - The business the request acts in, verified by the
+ *   Nest backend as the data owner's; null when none is chosen.
  * @returns The client.
  */
 export const createUserDatabaseClient = (
   database: AgentSqlDatabase,
-  userId: string
+  userId: string,
+  businessNumber: string | null
 ): AgentDatabaseClient => {
-  const client = createGatewayClient(database, { role: "user", userId });
+  const client = createGatewayClient(database, {
+    role: "user",
+    userId,
+    businessNumber,
+  });
 
   Object.assign(client.auth, {
     getClaims: async () =>
@@ -75,23 +84,36 @@ export const createServiceDatabaseClient = (database: AgentSqlDatabase) =>
   createGatewayClient(database, { role: "service" });
 
 /**
- * The agent's id for a Firebase user (agent_users), created on their first
- * request together with their settings row, as the template's signup
- * trigger creates it (create_user_settings_on_signup), so reading settings
- * never writes.
+ * The agent's id for the pair (actor, data owner) (agent_users), created on
+ * its first request together with its settings row, as the template's
+ * signup trigger creates it (create_user_settings_on_signup), so reading
+ * settings never writes.
+ *
+ * KeepInTax: the agent's user is the person acting together with the data
+ * owner they act on — themselves, or the client an accountant (or an admin)
+ * represents. Each pair has its own conversations, memory, settings and
+ * tasks, so what the agent learned about one client never reaches another.
+ * Rows from before this pairing (data_owner_firebase_id NULL) are never
+ * matched: their owner is unknown, so they are kept but not served
+ * (2026-11-05_agent_actor_owner_scope.sql).
  *
  * @param database - The agent's MySQL database.
- * @param firebaseId - The verified Firebase uid.
+ * @param actorFirebaseId - The verified Firebase uid of the person acting.
+ * @param dataOwnerFirebaseId - The Firebase uid whose data the request
+ *   acts on, as the Nest backend authorized it.
  * @returns The agent's user id.
  */
 export const resolveAgentUserId = async (
   database: AgentSqlDatabase,
-  firebaseId: string
+  actorFirebaseId: string,
+  dataOwnerFirebaseId: string
 ) => {
+  const pair = [actorFirebaseId, dataOwnerFirebaseId];
+
   const read = async () => {
     const { rows } = await database.query(
-      "SELECT id FROM agent_users WHERE firebase_id = ?",
-      [firebaseId]
+      "SELECT id FROM agent_users WHERE firebase_id = ? AND data_owner_firebase_id = ?",
+      pair
     );
 
     return rows[0]?.id;
@@ -105,14 +127,14 @@ export const resolveAgentUserId = async (
 
   await database.transaction(async (executor) => {
     await executor.query(
-      "INSERT INTO agent_users (id, firebase_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE id = id",
-      [crypto.randomUUID(), firebaseId]
+      "INSERT INTO agent_users (id, firebase_id, data_owner_firebase_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE id = id",
+      [crypto.randomUUID(), ...pair]
     );
     await executor.query(
       `INSERT INTO user_settings (user_id)
-       SELECT id FROM agent_users WHERE firebase_id = ?
+       SELECT id FROM agent_users WHERE firebase_id = ? AND data_owner_firebase_id = ?
        ON DUPLICATE KEY UPDATE user_id = user_settings.user_id`,
-      [firebaseId]
+      pair
     );
   });
 
@@ -120,7 +142,7 @@ export const resolveAgentUserId = async (
 
   if (!Predicate.isString(created)) {
     throw new TypeError(
-      `AGENT_USER_UNRESOLVED: no agent user for ${firebaseId}`
+      `AGENT_USER_UNRESOLVED: no agent user for ${actorFirebaseId} acting on ${dataOwnerFirebaseId}`
     );
   }
 

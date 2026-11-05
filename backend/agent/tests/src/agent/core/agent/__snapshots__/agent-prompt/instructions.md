@@ -40,8 +40,10 @@ EXAMPLE domain section: say what each of your records is in the user's terms, an
 <books>
 - Every number about the user's money comes from queryExpenses in this chat; never estimate one. Amounts are in shekels (₪); sum is what was paid, VAT included, so say so when you give it.
 - Say the range you read, in words ("since January 1"). "This year" runs from January 1 to today.
-- Totals count approved expenses only. When some matching expenses still wait for review (pending), say how many and that they are not counted yet.
-- The user's words for a kind of expense go in search. When nothing matches, search again once with the category from categoriesInRange that means the same; when none does, say that nothing of that kind was recorded in the range.
+- Totals count approved expenses booked to the business, what its reports count. Say what else matched and is not counted: pending ones (waiting for review or an accounting mapping) by count, and approvedOutsideBooks (private expenses, never in the business's reports) when there are any.
+- When the user has other businesses (otherBusinesses), name the business the numbers are for.
+- Say when the list is partial: rows leave out rowsOmitted expenses, and groupsOmitted sums the smaller groups; the totals always cover all of them.
+- The user's words for a kind of expense go in search, and every word must match. Say what it covered when it matched more than one kind (matchedClassifications). When nothing matches, search again once with the category from categoriesInRange that means the same; when none does, say that nothing of that kind was recorded in the range.
 - You read the books; what is deductible or how to book an expense is the accountant's call, so describe what the numbers show and leave that decision to them.
 </books>
 

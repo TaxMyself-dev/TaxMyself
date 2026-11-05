@@ -64,6 +64,15 @@ export interface AgentTable {
   // A conversation_id a user's row names must be one of theirs (the
   // template's "with check" on the chat's tables).
   readonly ownedConversation: boolean;
+  // KeepInTax: how the request's business (AgentGatewayScope) reaches the
+  // table's rows, for the tables whose rows are about one business.
+  // - "column": the row's business_number is the request's; a new row gets
+  //   it, and no change moves a row to another business.
+  // - "conversation": the row belongs to a conversation in the request's
+  //   business (its content: messages, documents, stream, steers).
+  // Without it, the rows are the user's whatever the business (memory,
+  // settings, usage, tasks).
+  readonly business?: "column" | "conversation";
   // Columns the gateway fills when a row leaves them out: a new uuid.
   readonly generatedUuid: readonly string[];
   readonly user: AgentTableUserAccess;
@@ -132,10 +141,12 @@ export const agentTables = {
       updated_at: "timestamp",
       answering_until: "timestamp",
       active_stream_id: "uuid",
+      business_number: "text",
     },
     primaryKey: ["id"],
     owner: "user_id",
     ownedConversation: false,
+    business: "column",
     generatedUuid: ["id"],
     user: fullUserAccess,
   },
@@ -152,6 +163,7 @@ export const agentTables = {
     primaryKey: ["id"],
     owner: "user_id",
     ownedConversation: true,
+    business: "conversation",
     generatedUuid: ["id"],
     user: fullUserAccess,
   },
@@ -167,6 +179,7 @@ export const agentTables = {
     primaryKey: ["id"],
     owner: "user_id",
     ownedConversation: true,
+    business: "conversation",
     generatedUuid: ["id"],
     user: { select: true, insert: true, delete: false, update: false },
   },
@@ -182,6 +195,7 @@ export const agentTables = {
     primaryKey: ["stream_id", "seq"],
     owner: "user_id",
     ownedConversation: true,
+    business: "conversation",
     generatedUuid: [],
     user: { select: true, insert: true, delete: true, update: false },
   },
@@ -197,6 +211,7 @@ export const agentTables = {
     primaryKey: ["id"],
     owner: "user_id",
     ownedConversation: true,
+    business: "conversation",
     generatedUuid: [],
     user: { select: true, insert: true, delete: true, update: false },
   },

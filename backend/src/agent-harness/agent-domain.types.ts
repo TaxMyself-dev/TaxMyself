@@ -27,6 +27,7 @@ export interface ExpenseQuery {
   businessNumber?: string;
 }
 
+/** Amounts in ₪ (VAT included), summed in agorot so parts add up exactly. */
 export interface ExpenseTotals {
   count: number;
   sum: number;
@@ -51,10 +52,37 @@ export interface ExpenseQueryResult {
   otherBusinesses: { number: string; name: string }[];
   from: string;
   to: string;
+  // The filters the totals answer, as given (none: every expense).
+  filters: {
+    search: string | null;
+    category: string | null;
+    subCategory: string | null;
+    supplier: string | null;
+  };
+  // Approved expenses booked to the business's accounts: what its reports
+  // count.
   totals: ExpenseTotals;
+  // The totals by groupBy, largest first (months in order); with
+  // groupsOmitted, they add up to totals exactly.
   groups: ({ key: string } & ExpenseTotals)[];
+  // The smaller groups past the list's limit, together.
+  groupsOmitted: ({ groups: number } & ExpenseTotals) | null;
+  // Up to 50 of the counted expenses, newest first, when asked for.
   rows: ExpenseRow[];
+  // How many counted expenses the rows leave out.
+  rowsOmitted: number;
+  // "category / sub-category" of every match, so the answer can say what
+  // the search covered.
+  matchedClassifications: string[];
+  // Not counted yet: waiting for review or for an accounting mapping.
   pending: ExpenseTotals;
+  pendingByStatus: Record<'PENDING' | 'MISSING_ACCOUNTING_MAPPING' | 'NO_STATUS', number>;
+  // Approved, but booked to no account (a private expense, D5): never in
+  // the business's reports.
+  approvedOutsideBooks: ExpenseTotals;
+  // Rejected, or filed as not an expense: never counted.
+  excluded: { count: number };
+  // When nothing matched: the range's categories and sub-categories.
   categoriesInRange: string[];
 }
 

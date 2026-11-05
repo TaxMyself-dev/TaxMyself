@@ -22,7 +22,7 @@ export interface ExpenseQuery {
   readonly from: string;
   readonly to: string;
   // Matches the category, the sub-category, the supplier or the note
-  // ("דלק", "פלאפון"), case-insensitive, any word of it.
+  // ("דלק", "פלאפון"), case-insensitive: every word of it must appear.
   readonly search?: string;
   readonly category?: string;
   readonly subCategory?: string;
@@ -35,7 +35,7 @@ export interface ExpenseQuery {
   readonly businessNumber?: string;
 }
 
-/** Totals of a set of expenses, in ILS. */
+/** Totals of a set of expenses, in ILS, summed in agorot (exact). */
 export interface ExpenseTotals {
   readonly count: number;
   // What was paid, VAT included.
@@ -69,13 +69,40 @@ export interface ExpenseQueryResult {
   }[];
   readonly from: string;
   readonly to: string;
-  // Approved expenses that match: what the reports count.
+  // The filters the totals answer, as given; null when not given.
+  readonly filters: {
+    readonly search: string | null;
+    readonly category: string | null;
+    readonly subCategory: string | null;
+    readonly supplier: string | null;
+  };
+  // Approved expenses that match and are booked to the business's
+  // accounts: what its reports count.
   readonly totals: ExpenseTotals;
+  // The totals by groupBy: the 40 largest (months in order); with
+  // groupsOmitted they add up to totals exactly.
   readonly groups: readonly ({ readonly key: string } & ExpenseTotals)[];
+  // The smaller groups past the list, summed together; null when none.
+  readonly groupsOmitted: ({ readonly groups: number } & ExpenseTotals) | null;
   readonly rows: readonly ExpenseRow[];
-  // Matching expenses not approved yet (waiting for review): not in the
-  // totals.
+  // How many counted expenses the rows leave out (the totals still count
+  // them).
+  readonly rowsOmitted: number;
+  // "category / sub-category" of every match: what the search covered.
+  readonly matchedClassifications: readonly string[];
+  // Matching expenses not approved yet (waiting for review, or for an
+  // accounting mapping): not in the totals.
   readonly pending: ExpenseTotals;
+  readonly pendingByStatus: {
+    readonly PENDING: number;
+    readonly MISSING_ACCOUNTING_MAPPING: number;
+    readonly NO_STATUS: number;
+  };
+  // Approved, but booked to no account (private expenses): never in the
+  // business's reports, so not in the totals.
+  readonly approvedOutsideBooks: ExpenseTotals;
+  // Rejected, or filed as not an expense: never counted.
+  readonly excluded: { readonly count: number };
   // When nothing matched the filters: the categories and sub-categories the
   // range has, to try again with the user's words mapped to one of them.
   readonly categoriesInRange: readonly string[];

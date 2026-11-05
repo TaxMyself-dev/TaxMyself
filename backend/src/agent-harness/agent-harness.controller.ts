@@ -14,6 +14,7 @@ import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
 import { RequiredDelegationScope } from 'src/decorators/required-delegation-scope.decorator';
 import { DelegationScope } from 'src/delegation/delegation.entity';
 import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.interface';
+import { AgentDomainError, AgentDomainService } from './agent-domain.service';
 import { AgentHarnessService, AgentHarnessUser } from './agent-harness.service';
 
 // The chat reads its own body with its own limit (a message with up to five
@@ -29,9 +30,12 @@ const agentBodyLimitBytes = 1024 * 1024;
  * Request — its body as the raw stream (main.ts leaves /api/agent unparsed)
  * — and the agent's Response comes back as it is, streamed.
  *
- * The agent's conversations, memory and settings belong to the person acting
- * (actorFirebaseId); the data owner and delegation context travel with the
- * request for the agent's domain tools. Using the agent is a read of the
+ * The agent's conversations, memory and settings belong to the pair (the
+ * person acting, actorFirebaseId; the data owner, firebaseId) and each
+ * conversation to the verified business it started in: an accountant's data
+ * about one client never reaches another, or the accountant's own. A revoked
+ * delegation is refused here by the guard, and by the domain tools on every
+ * call of an answer already running. Using the agent is a read of the
  * client's data in delegation terms (DOCUMENTS_READ): it writes only its own
  * tables, owned by the actor, and every future domain action keeps its own
  * guard.
@@ -41,7 +45,10 @@ const agentBodyLimitBytes = 1024 * 1024;
 export class AgentHarnessController {
   private readonly logger = new Logger(AgentHarnessController.name);
 
-  constructor(private readonly agentHarnessService: AgentHarnessService) {}
+  constructor(
+    private readonly agentHarnessService: AgentHarnessService,
+    private readonly agentDomain: AgentDomainService,
+  ) {}
 
   @All('*')
   @RequiredDelegationScope(DelegationScope.DOCUMENTS_READ)
@@ -61,10 +68,34 @@ export class AgentHarnessController {
       return;
     }
 
+    // The business comes from the app's header, which the guard passes on
+    // unchecked: it must be one of the data owner's. The agent keys a
+    // conversation to it, so a chat started in one business is never
+    // continued, listed or read from another.
+    let businessNumber: string | null;
+
+    try {
+      businessNumber = await this.agentDomain.requestBusiness(
+        req.user.firebaseId,
+        req.user.businessNumber,
+      );
+    } catch (error) {
+      if (error instanceof AgentDomainError && error.code === 'AGENT_BUSINESS_FORBIDDEN') {
+        res.status(403).json({
+          error: {
+            code: 'AGENT_BUSINESS_FORBIDDEN',
+            message: 'The business is not one of the account\'s businesses.',
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+
     const user: AgentHarnessUser = {
       actorFirebaseId: req.user.actorFirebaseId ?? req.user.firebaseId,
       firebaseId: req.user.firebaseId,
-      businessNumber: req.user.businessNumber ?? null,
+      businessNumber,
       delegationScopes: req.user.delegationScopes ?? [],
       isDelegatedAccess: req.isDelegatedAccess === true,
       isAdminImpersonation: req.isAdminImpersonation === true,

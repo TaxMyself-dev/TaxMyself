@@ -10,8 +10,10 @@ import type {
 // KeepInTax's books in memory for the evals (KeepInTaxBooks): a business's
 // expenses, answered as the Nest backend answers them
 // (backend/src/agent-harness/agent-domain.service.ts): approved ones counted,
-// pending ones apart, the user's words matched in the category, sub-category,
-// supplier and note, and the range's categories when nothing matched.
+// pending ones apart, amounts summed in agorot, every one of the user's
+// words matched in the category, sub-category, supplier and note, the 40
+// largest groups with the rest summed together, at most 50 rows with the
+// count left out, and the range's categories when nothing matched.
 
 /** One expense in the evals' books. */
 export type AgentEvalExpense = ExpenseRow & {
@@ -21,19 +23,30 @@ export type AgentEvalExpense = ExpenseRow & {
 };
 
 const evalBusiness = { number: "514789632", name: "סטודיו נועה" };
+const maxRows = 50;
+const maxGroups = 40;
 
 const rounded = (amount: number) => Math.round(amount * 100) / 100;
+const agorot = (amount: number) => Math.round(amount * 100);
 
-const totalsOf = (expenses: readonly AgentEvalExpense[]): ExpenseTotals => ({
-  count: expenses.length,
-  sum: rounded(expenses.reduce((total, expense) => total + expense.sum, 0)),
-  vatRecognized: rounded(
-    expenses.reduce((total, expense) => total + expense.vatRecognized, 0)
-  ),
-  taxRecognized: rounded(
-    expenses.reduce((total, expense) => total + expense.taxRecognized, 0)
-  ),
-});
+const totalsOf = (expenses: readonly AgentEvalExpense[]): ExpenseTotals => {
+  let sum = 0;
+  let vat = 0;
+  let tax = 0;
+
+  for (const expense of expenses) {
+    sum += agorot(expense.sum);
+    vat += agorot(expense.vatRecognized);
+    tax += agorot(expense.taxRecognized);
+  }
+
+  return {
+    count: expenses.length,
+    sum: sum / 100,
+    vatRecognized: vat / 100,
+    taxRecognized: tax / 100,
+  };
+};
 
 const lower = (text: string | null) => (text ?? "").trim().toLowerCase();
 
@@ -41,9 +54,9 @@ const lower = (text: string | null) => (text ?? "").trim().toLowerCase();
 const matchesSearch = (haystack: string, search: string | undefined) =>
   search === undefined ||
   lower(search)
-    .split(/s+/u)
+    .split(/\s+/u)
     .filter(Boolean)
-    .some((word) => haystack.includes(word));
+    .every((word) => haystack.includes(word));
 
 const matchesExactly = (value: string, wanted: string | undefined) =>
   wanted === undefined || lower(value) === lower(wanted);
@@ -75,7 +88,7 @@ const groupKey = (
   groupBy: NonNullable<ExpenseQuery["groupBy"]>
 ) => (groupBy === "month" ? expense.date.slice(0, 7) : expense[groupBy]);
 
-// Totals per group: largest first, or months in order.
+// Totals per group: the largest first (months in order), the rest summed.
 const groupTotals = (
   expenses: readonly AgentEvalExpense[],
   groupBy: NonNullable<ExpenseQuery["groupBy"]>
@@ -88,11 +101,30 @@ const groupTotals = (
     byKey.set(key, [...(byKey.get(key) ?? []), expense]);
   }
 
-  return [...byKey.entries()]
-    .map(([key, grouped]) => ({ key, ...totalsOf(grouped) }))
-    .toSorted((a, b) =>
-      groupBy === "month" ? a.key.localeCompare(b.key) : b.sum - a.sum
+  const largestFirst = [...byKey.entries()]
+    .map(([key, grouped]) => ({ key, grouped, totals: totalsOf(grouped) }))
+    .toSorted(
+      (a, b) => b.totals.sum - a.totals.sum || a.key.localeCompare(b.key)
     );
+
+  const listed = largestFirst.slice(0, maxGroups);
+  const omitted = largestFirst.slice(maxGroups);
+
+  const ordered =
+    groupBy === "month"
+      ? listed.toSorted((a, b) => a.key.localeCompare(b.key))
+      : listed;
+
+  return {
+    groups: ordered.map(({ key, totals }) => ({ key, ...totals })),
+    groupsOmitted:
+      omitted.length === 0
+        ? null
+        : {
+            groups: omitted.length,
+            ...totalsOf(omitted.flatMap(({ grouped }) => grouped)),
+          },
+  };
 };
 
 // An expense as the books show it, without the evals' own fields.
@@ -128,27 +160,53 @@ export const evalBooks = (expenses: readonly AgentEvalExpense[]) => {
 
         const matching = inRange.filter((expense) => matches(expense, query));
         const approved = matching.filter((expense) => expense.approved);
+        const pending = matching.filter((expense) => !expense.approved);
 
-        const groups =
+        const { groups, groupsOmitted } =
           query.groupBy === undefined
-            ? []
+            ? { groups: [], groupsOmitted: null }
             : groupTotals(approved, query.groupBy);
+
+        const rows =
+          query.includeRows === true
+            ? approved
+                .toSorted((a, b) => b.date.localeCompare(a.date))
+                .slice(0, maxRows)
+                .map(expenseRow)
+            : [];
 
         return {
           business: evalBusiness,
           otherBusinesses: [],
           from: query.from,
           to: query.to,
+          filters: {
+            search: query.search ?? null,
+            category: query.category ?? null,
+            subCategory: query.subCategory ?? null,
+            supplier: query.supplier ?? null,
+          },
           totals: totalsOf(approved),
           groups,
-          rows:
-            query.includeRows === true
-              ? approved
-                  .toSorted((a, b) => b.date.localeCompare(a.date))
-                  .slice(0, 50)
-                  .map(expenseRow)
-              : [],
-          pending: totalsOf(matching.filter((expense) => !expense.approved)),
+          groupsOmitted,
+          rows,
+          rowsOmitted:
+            query.includeRows === true ? approved.length - rows.length : 0,
+          matchedClassifications: [
+            ...new Set(
+              matching.map(
+                (expense) => `${expense.category} / ${expense.subCategory}`
+              )
+            ),
+          ].toSorted(),
+          pending: totalsOf(pending),
+          pendingByStatus: {
+            PENDING: pending.length,
+            MISSING_ACCOUNTING_MAPPING: 0,
+            NO_STATUS: 0,
+          },
+          approvedOutsideBooks: totalsOf([]),
+          excluded: { count: 0 },
           categoriesInRange:
             matching.length === 0
               ? [

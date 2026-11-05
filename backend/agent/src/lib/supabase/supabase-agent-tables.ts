@@ -10,6 +10,9 @@ export interface SupabaseAgentTables {
     {
       active_stream_id: string | null;
       answering_until: string | null;
+      // KeepInTax: the business it started in, written by the gateway
+      // (2026-11-05_agent_actor_owner_scope.sql).
+      business_number: string | null;
       created_at: string;
       id: string;
       name: string | null;
@@ -20,6 +23,7 @@ export interface SupabaseAgentTables {
     {
       active_stream_id?: string | null;
       answering_until?: string | null;
+      business_number?: string | null;
       created_at?: string;
       id?: string;
       name?: string | null;

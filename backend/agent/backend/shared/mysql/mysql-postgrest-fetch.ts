@@ -24,6 +24,7 @@ import {
   parseSelectWithEmbeds,
   parseWhere,
   quoteIdentifier,
+  userScopeConditions,
 } from "./mysql-postgrest-query";
 import type {
   SelectedColumn,
@@ -43,7 +44,9 @@ import type {
 // user's rows, every new row is written as theirs, a row that names a
 // conversation must name one of theirs, an upsert never takes over another
 // user's row, and each table allows only what the template granted
-// (mysql-agent-tables.ts). The service scope (the task monitor, the
+// (mysql-agent-tables.ts). KeepInTax adds the business: a conversation and
+// its content are reached only from the business it started in
+// (userScopeConditions, AgentTable.business). The service scope (the task monitor, the
 // template's service role) reaches every user's rows.
 
 /**
@@ -214,9 +217,6 @@ const keyOfRow = (table: AgentTable, row: JsonRow | AgentSqlRow) =>
     mysqlParameter(columnKindOf(table, column), row[column])
   );
 
-const ownerIdOf = (scope: AgentGatewayScope) =>
-  scope.role === "user" ? scope.userId : null;
-
 // Whether the user's grant covers every changed column.
 const updateAllowed =
   (changed: readonly string[]) => (access: AgentTable["user"]) => {
@@ -261,28 +261,23 @@ const readRowsByKey = async (
   const condition = primaryKeyCondition(table, keys);
 
   // A user's change returns only their rows, as Postgres' policies would.
-  const owned = scope.role === "user" && table.owner !== null;
-
-  const ownerSql = owned
-    ? ` AND ${quoteIdentifier(table.owner ?? "")} = ?`
-    : "";
-
-  const ownerParams = owned ? [ownerIdOf(scope)] : [];
+  const scoped = userScopeConditions(table, scope);
+  const scopedSql = scoped.map((item) => ` AND (${item.sql})`).join("");
 
   const { rows } = await executor.query(
-    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(name)} WHERE ${condition.sql}${ownerSql}`,
-    [...condition.params, ...ownerParams]
+    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(name)} WHERE ${condition.sql}${scopedSql}`,
+    [...condition.params, ...scoped.flatMap((item) => item.params)]
   );
 
   return rows.map((row) => postgrestRow(table, columns, row));
 };
 
 // The conversations rows name must all be the user's (the template's
-// "with check" on the chat's tables).
+// "with check" on the chat's tables), and in the request's business.
 const assertOwnedConversations = async (
   executor: AgentSqlExecutor,
   name: string,
-  userId: string,
+  scope: Extract<AgentGatewayScope, { role: "user" }>,
   conversationIds: readonly (AgentSqlValue | undefined)[]
 ) => {
   const ids = [
@@ -298,8 +293,8 @@ const assertOwnedConversations = async (
   }
 
   const { rows } = await executor.query(
-    `SELECT id FROM agent_chat_conversations WHERE user_id = ? AND id IN (${ids.map(() => "?").join(", ")})`,
-    [userId, ...ids]
+    `SELECT id FROM agent_chat_conversations WHERE user_id = ? AND business_number <=> ? AND id IN (${ids.map(() => "?").join(", ")})`,
+    [scope.userId, scope.businessNumber, ...ids]
   );
 
   if (rows.length !== ids.length) {
@@ -406,20 +401,16 @@ const readRelatedRows = async (
     return found;
   }
 
-  const ownerId = ownerIdOf(request.scope);
-  const scoped = ownerId !== null && related.owner !== null;
-
-  const ownerSql = scoped
-    ? ` AND ${quoteIdentifier(related.owner ?? "")} = ?`
-    : "";
+  const scoped = userScopeConditions(related, request.scope);
+  const scopedSql = scoped.map((item) => ` AND (${item.sql})`).join("");
 
   const tuple = `(${relation.references.map(() => "?").join(", ")})`;
   const referenced = relation.references.map(quoteIdentifier).join(", ");
   const list = [...tuples.values()].map(() => tuple).join(", ");
 
   const { rows: relatedRows } = await database.query(
-    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(relation.table)} WHERE (${referenced}) IN (${list})${ownerSql}`,
-    [...[...tuples.values()].flat(), ...(scoped ? [ownerId] : [])]
+    `SELECT ${selectList(columns)} FROM ${quoteIdentifier(relation.table)} WHERE (${referenced}) IN (${list})${scopedSql}`,
+    [...[...tuples.values()].flat(), ...scoped.flatMap((item) => item.params)]
   );
 
   for (const relatedRow of relatedRows) {
@@ -549,7 +540,14 @@ const readTable = async (
     .map((column) => ({ column, as: `__join_${column}` }));
 
   const columns = [...shown, ...joinColumns];
-  const where = parseWhere(name, table, url, ownerIdOf(request.scope));
+
+  const where = parseWhere(
+    name,
+    table,
+    url,
+    userScopeConditions(table, request.scope)
+  );
+
   const order = parseOrder(name, table, url.searchParams.get("order"));
   const limit = numberParameter(url, "limit");
   const offset = numberParameter(url, "offset") ?? 0;
@@ -609,6 +607,17 @@ const rowsToInsert = (
       }
 
       row[table.owner] = scope.userId;
+
+      // A row about one business is written in the request's business.
+      if (table.business === "column") {
+        const business = row.business_number;
+
+        if (business !== undefined && business !== scope.businessNumber) {
+          throw rowLevelSecurityError(name);
+        }
+
+        row.business_number = scope.businessNumber;
+      }
     }
 
     for (const column of table.generatedUuid) {
@@ -758,9 +767,17 @@ const assertNoTakeover = async (
 
   const existing = uniqueKeyCondition(table, rows);
 
+  // Another user's row, or the user's own in another business.
+  const business = table.business === "column";
+  const otherBusiness = business ? " OR NOT (`business_number` <=> ?)" : "";
+
   const { rows: taken } = await executor.query(
-    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${existing.sql}) AND ${quoteIdentifier(table.owner)} <> ? LIMIT 1 FOR UPDATE`,
-    [...existing.params, scope.userId]
+    `SELECT 1 FROM ${quoteIdentifier(name)} WHERE (${existing.sql}) AND (${quoteIdentifier(table.owner)} <> ?${otherBusiness}) LIMIT 1 FOR UPDATE`,
+    [
+      ...existing.params,
+      scope.userId,
+      ...(business ? [scope.businessNumber] : []),
+    ]
   );
 
   if (taken.length > 0) {
@@ -822,7 +839,7 @@ const insertRows = async (
       await assertOwnedConversations(
         executor,
         name,
-        scope.userId,
+        scope,
         rows.map((row) => row.conversation_id)
       );
     }
@@ -879,11 +896,21 @@ const updateRows = async (
     throw rowLevelSecurityError(name);
   }
 
-  const where = parseWhere(name, table, url, ownerIdOf(scope));
+  // No change moves a row to another business.
+  if (
+    scope.role === "user" &&
+    table.business === "column" &&
+    body.business_number !== undefined &&
+    body.business_number !== scope.businessNumber
+  ) {
+    throw rowLevelSecurityError(name);
+  }
+
+  const where = parseWhere(name, table, url, userScopeConditions(table, scope));
 
   const returned = await database.transaction(async (executor) => {
     if (scope.role === "user" && table.ownedConversation) {
-      await assertOwnedConversations(executor, name, scope.userId, [
+      await assertOwnedConversations(executor, name, scope, [
         body.conversation_id,
       ]);
     }
@@ -929,7 +956,7 @@ const deleteRows = async (
 ) => {
   assertUserAccess(request, (access) => access.delete);
   const { name, table, url, headers, scope } = request;
-  const where = parseWhere(name, table, url, ownerIdOf(scope));
+  const where = parseWhere(name, table, url, userScopeConditions(table, scope));
 
   const returned = await database.transaction(async (executor) => {
     const keys = await lockMatchingKeys(executor, name, table, where);

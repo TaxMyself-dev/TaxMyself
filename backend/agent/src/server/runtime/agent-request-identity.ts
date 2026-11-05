@@ -13,6 +13,9 @@ export interface AgentRequestUser {
   // The data owner the request acts on (FirebaseAuthGuard's firebaseId):
   // the actor's own uid, or their client's when they act for one.
   readonly firebaseId: string;
+  // The business the request acts in: the Nest backend checked it is one
+  // of the data owner's (the app's businessNumber header, or the owner's
+  // only business); null when the owner has several and none is chosen.
   readonly businessNumber: string | null;
   readonly delegationScopes: readonly string[];
   readonly isDelegatedAccess: boolean;

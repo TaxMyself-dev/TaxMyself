@@ -2,15 +2,37 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
+import { AgentDomainService } from './agent-domain.service';
 import { AgentHarnessController } from './agent-harness.controller';
 import { AgentHarnessService, AgentHarnessUser } from './agent-harness.service';
 
 // The agent harness's Nest edge: what the agent package receives (the
 // verified user, the request as a web Request with its raw body) and that
 // its Response streams back as it is. The guard is replaced by one that
-// signs in a fixed caller, and the agent package by a fake.
+// signs in a given caller, and the agent package by a fake; the business
+// check is the real AgentDomainService over a fake list of businesses.
+// agent-harness.access.spec.ts runs the real FirebaseAuthGuard.
 describe('AgentHarnessController', () => {
   let app: INestApplication;
+  // What the stand-in guard verified for the next request.
+  let signedIn: {
+    firebaseId: string;
+    actorFirebaseId: string;
+    businessNumber?: string;
+  };
+  const businessesOf: Record<
+    string,
+    { businessNumber: string | null; businessName: string | null }[]
+  > = {
+    'client-uid': [
+      { businessNumber: '515151515', businessName: 'Client studio' },
+      { businessNumber: null, businessName: 'Draft business' },
+    ],
+    'two-businesses-uid': [
+      { businessNumber: '100000001', businessName: 'First' },
+      { businessNumber: '100000002', businessName: 'Second' },
+    ],
+  };
   const calls: { request: Request; user: AgentHarnessUser; body: string }[] =
     [];
   let respond: (request: Request) => Response = () =>
@@ -20,6 +42,18 @@ describe('AgentHarnessController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AgentHarnessController],
       providers: [
+        {
+          provide: AgentDomainService,
+          useValue: new AgentDomainService(
+            {} as never,
+            {
+              getUserBusinesses: async (owner: string) =>
+                businessesOf[owner] ?? [],
+            } as never,
+            {} as never,
+            {} as never,
+          ),
+        },
         {
           provide: AgentHarnessService,
           useValue: {
@@ -38,13 +72,14 @@ describe('AgentHarnessController', () => {
         canActivate: (context) => {
           const req = context.switchToHttp().getRequest();
           req.user = {
-            firebaseId: 'client-uid',
+            firebaseId: signedIn.firebaseId,
             role: 'agent',
-            businessNumber: '515151515',
-            actorFirebaseId: 'accountant-uid',
+            businessNumber: signedIn.businessNumber,
+            actorFirebaseId: signedIn.actorFirebaseId,
             delegationScopes: ['DOCUMENTS_READ'],
           };
-          req.isDelegatedAccess = true;
+          req.isDelegatedAccess =
+            signedIn.actorFirebaseId !== signedIn.firebaseId;
           return true;
         },
       })
@@ -60,6 +95,11 @@ describe('AgentHarnessController', () => {
 
   beforeEach(() => {
     calls.length = 0;
+    signedIn = {
+      firebaseId: 'client-uid',
+      actorFirebaseId: 'accountant-uid',
+      businessNumber: '515151515',
+    };
   });
 
   it('hands the agent the verified actor and owner, the URL and the raw body', async () => {
@@ -93,6 +133,36 @@ describe('AgentHarnessController', () => {
       isDelegatedAccess: true,
       isAdminImpersonation: false,
     });
+  });
+
+  it("refuses a business that is not the data owner's, before the agent sees the request", async () => {
+    // Another client's business number (or the accountant's own), sent
+    // while acting for client-uid.
+    signedIn.businessNumber = '100000001';
+
+    const response = await request(app.getHttpServer()).get(
+      '/api/agent/fn/listAgentChatConversations',
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('AGENT_BUSINESS_FORBIDDEN');
+    expect(calls).toHaveLength(0);
+  });
+
+  it("uses the owner's only numbered business without a header, and none when they have several", async () => {
+    respond = () => new Response(null, { status: 204 });
+    delete signedIn.businessNumber;
+
+    await request(app.getHttpServer()).get('/api/agent/fn/readAgentSession');
+    expect(calls[0].user.businessNumber).toBe('515151515');
+
+    signedIn = {
+      firebaseId: 'two-businesses-uid',
+      actorFirebaseId: 'two-businesses-uid',
+    };
+    await request(app.getHttpServer()).get('/api/agent/fn/readAgentSession');
+    expect(calls[1].user.businessNumber).toBeNull();
+    expect(calls[1].user.isDelegatedAccess).toBe(false);
   });
 
   it('streams the agent response through as it comes', async () => {

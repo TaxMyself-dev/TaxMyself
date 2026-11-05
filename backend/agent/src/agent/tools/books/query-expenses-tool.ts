@@ -25,7 +25,7 @@ const filterText = (description: string) =>
 
 export const queryExpensesTool = tool({
   description:
-    "Read the user's expenses in KeepInTax for a date range: approved totals (paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and what still waits for review. Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
+    "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       from: isoDate.annotate({
@@ -37,7 +37,7 @@ export const queryExpensesTool = tool({
       }),
       search: Schema.optionalKey(
         filterText(
-          'Words to find in the category, sub-category, supplier or note, as the user said them ("דלק")'
+          'Words to find in the category, sub-category, supplier or note, as the user said them ("דלק"); every word must match'
         )
       ),
       category: Schema.optionalKey(filterText("An exact category name")),

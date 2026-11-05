@@ -61,7 +61,8 @@ import { SupabaseServiceDatabase } from "../../../../backend/shared/supabase/sup
 // settings, tasks and opportunities, the monitor's claims and scan records,
 // and the row level security the gateway keeps between two users. It needs
 // a database with the agent's tables
-// (backend/scripts/migrations/2026-10-22_agent_harness_schema.sql), named by
+// (backend/scripts/migrations/2026-10-22_agent_harness_schema.sql, then
+// 2026-11-05_agent_actor_owner_scope.sql), named by
 // AGENT_TEST_DATABASE_URL (mysql://root@127.0.0.1:3307/agent_test); without
 // it the suite is skipped. Every run uses new users, so runs never collide.
 
@@ -96,27 +97,39 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
       database: url.pathname.slice(1),
     });
     database = mysqlAgentSqlDatabase(pool);
-    aliceId = await resolveAgentUserId(
-      database,
-      `alice-${crypto.randomUUID()}`
-    );
-    bobId = await resolveAgentUserId(database, `bob-${crypto.randomUUID()}`);
-    alice = createUserDatabaseClient(database, aliceId);
-    bob = createUserDatabaseClient(database, bobId);
+    // Two people, each acting on their own data (actor = data owner).
+    const aliceUid = `alice-${crypto.randomUUID()}`;
+    const bobUid = `bob-${crypto.randomUUID()}`;
+    aliceId = await resolveAgentUserId(database, aliceUid, aliceUid);
+    bobId = await resolveAgentUserId(database, bobUid, bobUid);
+    alice = createUserDatabaseClient(database, aliceId, null);
+    bob = createUserDatabaseClient(database, bobId, null);
   });
 
   afterAll(async () => {
     await pool?.end();
   });
 
-  it("maps a Firebase uid to one agent user, with settings from the start", async () => {
+  it("maps an (actor, data owner) pair to one agent user, with settings from the start", async () => {
     const firebaseId = `uid-${crypto.randomUUID()}`;
-    const first = await resolveAgentUserId(database, firebaseId);
-    const again = await resolveAgentUserId(database, firebaseId);
+    const client = `client-${crypto.randomUUID()}`;
+    const first = await resolveAgentUserId(database, firebaseId, firebaseId);
+    const again = await resolveAgentUserId(database, firebaseId, firebaseId);
     assert.strictEqual(first, again);
 
+    // Acting for a client is another agent user, also stable.
+    const forClient = await resolveAgentUserId(database, firebaseId, client);
+    assert.notStrictEqual(forClient, first);
+    assert.strictEqual(
+      await resolveAgentUserId(database, firebaseId, client),
+      forClient
+    );
+
     const settings = await run(
-      readStoredUserSettings(createUserDatabaseClient(database, first), first)
+      readStoredUserSettings(
+        createUserDatabaseClient(database, first, null),
+        first
+      )
     );
 
     assert.strictEqual(settings.profile.kind, "individual");
@@ -493,5 +506,124 @@ describe.skipIf(databaseUrl === undefined)("agent MySQL gateway", () => {
       .insert({ content: "planted", user_id: bobId });
 
     assert.strictEqual(forged.error?.code, "42501");
+  });
+
+  // KeepInTax: a conversation and its content belong to the business it
+  // started in (AgentTable.business); memory belongs to the (actor, data
+  // owner) pair, whatever the business.
+  describe("a conversation in one of the owner's businesses", () => {
+    let agentUserId: string;
+    let inFirst: ReturnType<typeof createUserDatabaseClient>;
+    const conversationId = crypto.randomUUID();
+    let memoryId: string;
+
+    beforeAll(async () => {
+      const uid = `owner-${crypto.randomUUID()}`;
+      agentUserId = await resolveAgentUserId(database, uid, uid);
+      inFirst = createUserDatabaseClient(database, agentUserId, "510000001");
+
+      await run(
+        claimAgentChatAnswer(inFirst, {
+          conversationId,
+          name: null,
+          pinned: false,
+          streamId: crypto.randomUUID(),
+        })
+      );
+      await run(
+        writeStoredAgentChatMessages(inFirst, conversationId, [
+          message(crypto.randomUUID(), "user", "fuel for the first business"),
+        ])
+      );
+      memoryId = await run(
+        insertStoredAgentMemory(inFirst, "Answers in shekels", conversationId)
+      );
+    });
+
+    it.each([
+      ["another of the owner's businesses", "510000002"],
+      ["no business chosen", null],
+    ])("is out of reach from %s", async (_from, businessNumber) => {
+      const other = createUserDatabaseClient(
+        database,
+        agentUserId,
+        businessNumber
+      );
+
+      const messages = await run(
+        readStoredAgentChatMessages(other, conversationId)
+      );
+
+      assert.strictEqual(messages.length, 0);
+
+      const chats = await run(readStoredAgentChatConversations(other));
+      assert.isFalse(chats.some((chat) => chat.id === conversationId));
+
+      const found = await run(
+        searchStoredAgentChatConversations(other, "fuel")
+      );
+
+      assert.notInclude(found, conversationId);
+
+      const claim = await run(
+        claimAgentChatAnswer(other, {
+          conversationId,
+          name: null,
+          pinned: false,
+          streamId: crypto.randomUUID(),
+        })
+      );
+
+      assert.strictEqual(claim, "missing");
+
+      const steer = await Effect.runPromiseExit(
+        addAgentChatUserSteer(other, conversationId, {
+          id: crypto.randomUUID(),
+          text: "switch",
+        })
+      );
+
+      assert.isTrue(
+        steer._tag === "Failure" ||
+          (steer._tag === "Success" && steer.value === "not-answering")
+      );
+
+      // Neither an upsert by its id nor a message naming it moves it.
+      const takeover = await other
+        .from("agent_chat_conversations")
+        .upsert({ id: conversationId, name: "taken" });
+
+      assert.strictEqual(takeover.error?.code, "42501");
+
+      const planted = await Effect.runPromiseExit(
+        writeStoredAgentChatMessages(other, conversationId, [
+          message(crypto.randomUUID(), "user", "planted"),
+        ])
+      );
+
+      assert.strictEqual(planted._tag, "Failure");
+
+      // The pair's memory, whatever the business.
+      const memories = await run(readStoredAgentMemories(other));
+      assert.isTrue(memories.some((memory) => memory.id === memoryId));
+    });
+
+    it("stays whole in its own business", async () => {
+      const messages = await run(
+        readStoredAgentChatMessages(inFirst, conversationId)
+      );
+
+      assert.strictEqual(messages.length, 1);
+
+      const { rows } = await database.query(
+        "SELECT business_number, name FROM agent_chat_conversations WHERE id = ?",
+        [conversationId]
+      );
+
+      assert.deepStrictEqual(
+        { business: rows[0]?.business_number, name: rows[0]?.name },
+        { business: "510000001", name: null }
+      );
+    });
   });
 });

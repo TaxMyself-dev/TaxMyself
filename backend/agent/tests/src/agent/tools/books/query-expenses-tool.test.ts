@@ -110,7 +110,31 @@ describe("queryExpenses", () => {
       assert.strictEqual(result.totals.sum, 1662);
       assert.strictEqual(result.totals.count, 4);
       assert.strictEqual(result.pending.count, 1);
+      assert.deepStrictEqual(result.matchedClassifications, ["רכב / דלק"]);
+      assert.strictEqual(result.rowsOmitted, 0);
     })
+  );
+
+  it.effect(
+    "a revoked delegation mid-answer reaches the model with its code and a next step to stop",
+    () =>
+      Effect.gen(function* revokedMidAnswer() {
+        const exit = yield* queryInRequest(
+          failingDomain(
+            new Error(
+              "ACCESS_REVOKED: the access to this client's data was revoked"
+            )
+          ),
+          thisYear
+        );
+
+        assert.isTrue(Exit.isFailure(exit));
+        assert.include(String(exit), "ACCESS_REVOKED: ");
+        assert.include(
+          agentSourceErrorText("ACCESS_REVOKED: revoked"),
+          "use nothing this chat read before"
+        );
+      })
   );
 
   it.effect("reads the domain the Nest backend gave the request", () =>
@@ -173,6 +197,7 @@ describe("queryExpenses", () => {
 
   it("gives the model a next step for each failure code", () => {
     for (const code of [
+      "ACCESS_REVOKED",
       "BOOKS_UNAVAILABLE",
       "BUSINESS_NOT_FOUND",
       "BUSINESS_REQUIRED",

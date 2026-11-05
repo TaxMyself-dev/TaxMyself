@@ -1,5 +1,6 @@
 import type { AgentSqlParameter } from "./mysql-agent-database";
 import { PostgrestGatewayError } from "./mysql-agent-errors";
+import type { AgentGatewayScope } from "./mysql-agent-scope";
 import type { AgentColumnKind, AgentTable } from "./mysql-agent-tables";
 import { mysqlFilterParameter } from "./mysql-agent-values";
 
@@ -400,30 +401,61 @@ const reservedParameters = new Set([
 ]);
 
 /**
- * Every filter of a request's URL as one WHERE condition (AND), with the
- * owner's condition first when the request is a user's.
+ * The rows of a table a user's request reaches (the template's row level
+ * security, as conditions): the user's own and, on a table about one
+ * business (AgentTable.business), the request's business's — its own
+ * business_number, or its conversation's. None for the service scope.
+ *
+ * @param table - The table.
+ * @param scope - Whose rows the request reaches.
+ * @returns The conditions, to AND together.
+ */
+export const userScopeConditions = (
+  table: AgentTable,
+  scope: AgentGatewayScope
+): SqlCondition[] => {
+  if (scope.role !== "user" || table.owner === null) {
+    return [];
+  }
+
+  const conditions: SqlCondition[] = [
+    { sql: `${quoteIdentifier(table.owner)} = ?`, params: [scope.userId] },
+  ];
+
+  if (table.business === "column") {
+    conditions.push({
+      sql: "`business_number` <=> ?",
+      params: [scope.businessNumber],
+    });
+  }
+
+  if (table.business === "conversation") {
+    conditions.push({
+      sql: "`conversation_id` IN (SELECT `id` FROM `agent_chat_conversations` WHERE `user_id` = ? AND `business_number` <=> ?)",
+      params: [scope.userId, scope.businessNumber],
+    });
+  }
+
+  return conditions;
+};
+
+/**
+ * Every filter of a request's URL as one WHERE condition (AND), after the
+ * conditions of whose rows the request reaches (userScopeConditions).
  *
  * @param tableName - The table's name.
  * @param table - The table.
  * @param url - The request's URL.
- * @param ownerId - The signed-in user the rows must belong to, or null for
- *   the service scope.
+ * @param scoped - The user's scope conditions; none for the service scope.
  * @returns The condition.
  */
 export const parseWhere = (
   tableName: string,
   table: AgentTable,
   url: URL,
-  ownerId: string | null
+  scoped: readonly SqlCondition[]
 ): SqlCondition => {
-  const conditions: SqlCondition[] = [];
-
-  if (ownerId !== null && table.owner !== null) {
-    conditions.push({
-      sql: `${quoteIdentifier(table.owner)} = ?`,
-      params: [ownerId],
-    });
-  }
+  const conditions: SqlCondition[] = [...scoped];
 
   for (const [column, filter] of url.searchParams) {
     if (!reservedParameters.has(column)) {

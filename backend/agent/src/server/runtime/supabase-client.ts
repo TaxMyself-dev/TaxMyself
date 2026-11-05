@@ -13,7 +13,8 @@ import { AgentRequestIdentity } from "./agent-request-identity";
 // read the user from the request's Supabase cookies; in KeepInTax the Nest
 // backend verifies the request's Firebase token (FirebaseAuthGuard) and
 // hands the agent the verified user (AgentRequestIdentity), and the agent
-// maps the Firebase uid to its own user id (agent_users).
+// maps the pair (actor, data owner) to its own user id (agent_users), in
+// the business the backend verified (a conversation stays in its business).
 
 /**
  * The signed-in user's client, for modules that receive it as a parameter.
@@ -43,12 +44,22 @@ export class SupabaseRequestClient extends Context.Service<
         Effect.gen(function* createRequestClient() {
           const connected = yield* Effect.orDie(database);
 
+          // The agent's user is the pair (actor, data owner): an accountant's
+          // conversations and memory about one client are never another's.
           const userId = yield* Effect.promise(
             async () =>
-              await resolveAgentUserId(connected, identity.actorFirebaseId)
+              await resolveAgentUserId(
+                connected,
+                identity.actorFirebaseId,
+                identity.firebaseId
+              )
           );
 
-          return createUserDatabaseClient(connected, userId);
+          return createUserDatabaseClient(
+            connected,
+            userId,
+            identity.businessNumber
+          );
         })
       );
 

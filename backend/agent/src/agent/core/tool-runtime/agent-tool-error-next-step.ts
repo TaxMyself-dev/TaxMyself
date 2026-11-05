@@ -23,6 +23,10 @@ const agentToolErrorNextSteps = new Map([
     "The email may have been sent. Tell the user so, and do not send it again.",
   ],
   [
+    "ACCESS_REVOKED",
+    "The user's access to this data ended while you were answering (a revoked delegation). Read nothing more, and use nothing this chat read before: tell the user, in one line, that you can no longer read this account's books.",
+  ],
+  [
     "BOOKS_UNAVAILABLE",
     "KeepInTax's books did not answer. Try once more; if it fails again, tell the user the numbers cannot be read right now, without guessing any.",
   ],
