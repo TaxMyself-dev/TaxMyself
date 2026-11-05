@@ -21,6 +21,8 @@ The legacy null-module fallback is preserved. Saving the same plan/policy does
 not reset a frozen price. An actual plan transition captures the new plan base
 atomically; returning to an earlier plan does not resurrect its old frozen price.
 
+Authenticated plan cards resolve the same personal/frozen base price; raw catalog prices remain available. Existing discounts retain their separate display.
+
 An active personal monthly price takes priority, including zero, and survives
 plan changes. It is the final amount before VAT; legacy discounts are suppressed
 while it applies. Start/end dates are inclusive Asia/Jerusalem calendar dates;

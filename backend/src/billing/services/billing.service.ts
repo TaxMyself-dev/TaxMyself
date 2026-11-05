@@ -148,7 +148,7 @@ export class BillingService {
       priceMonthlyAgorot: p.priceMonthlyAgorot,
       licensedDealerPriceMonthlyAgorot: p.licensedDealerPriceMonthlyAgorot,
       effectivePriceMonthlyAgorot:
-        this.pricingService.resolveEffectivePlanPrice(p, billingBusinessType),
+        this.pricingService.resolveMonthlyPrice(p, subscription, billingBusinessType).baseAmountAgorot,
       effectiveBillingBusinessType: billingBusinessType,
       notes: p.notes,
       badge: p.badge,
