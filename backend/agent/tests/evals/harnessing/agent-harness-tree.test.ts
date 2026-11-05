@@ -109,9 +109,9 @@ describe("agent harness tree", () => {
     assert.include(
       await invalidReason({
         ...baseAgentHarnessTree(),
-        "tools/sendEmail.md": "sends email",
+        "tools/deleteAllData.md": "deletes everything",
       }),
-      "`tools/sendEmail.md` names no tool the agent has"
+      "`tools/deleteAllData.md` names no tool the agent has"
     );
   });
 
@@ -146,10 +146,11 @@ describe("agent harness tree", () => {
   });
 
   it("a long description of a deferred tool spends no up-front budget", async () => {
+    // sendEmail loads through tool search (the email namespace).
     assert.strictEqual(
       await invalidReason({
         ...baseAgentHarnessTree(),
-        "tools/searchWeb.md": "a".repeat(20_000),
+        "tools/sendEmail.md": "a".repeat(20_000),
       }),
       ""
     );
@@ -168,12 +169,12 @@ describe("agent harness tree", () => {
   it("every problem is listed in one error", async () => {
     const reason = await invalidReason({
       "instructions.md": "",
-      "tools/sendEmail.md": "sends email",
+      "tools/deleteAllData.md": "deletes everything",
     });
 
     assert.include(reason, "AGENT_HARNESS_INVALID");
     assert.include(reason, "`instructions.md` is missing or empty");
-    assert.include(reason, "`tools/sendEmail.md` names no tool");
+    assert.include(reason, "`tools/deleteAllData.md` names no tool");
   });
 
   it("changes name the added, removed and modified files", () => {

@@ -1,6 +1,8 @@
 import { assert, it, describe } from "@effect/vitest";
 import { APICallError, RetryError } from "ai";
 
+import { getLocale, overwriteGetLocale } from "#/paraglide/runtime";
+
 import {
   agentChatErrorMessage,
   agentChatRequestFailure,
@@ -51,16 +53,27 @@ describe("agent chat errors", () => {
   });
 
   it("an unsafe regeneration explains recovery and offers no replay button", () => {
-    const failure = agentChatRequestFailure(
-      new Error(
-        JSON.stringify({
-          error: {
-            code: "AGENT_CHAT_RETRY_UNSAFE",
-            message: "send a new message",
-          },
-        })
-      )
-    );
+    // The page's failure, in the page's language (paraglide's getLocale):
+    // a Hebrew page here, since nothing outside a page sets it.
+    const pageLocale = getLocale;
+    overwriteGetLocale(() => "he");
+
+    const failure = (() => {
+      try {
+        return agentChatRequestFailure(
+          new Error(
+            JSON.stringify({
+              error: {
+                code: "AGENT_CHAT_RETRY_UNSAFE",
+                message: "send a new message",
+              },
+            })
+          )
+        );
+      } finally {
+        overwriteGetLocale(pageLocale);
+      }
+    })();
 
     assert.strictEqual(failure.retry, false);
     assert.match(failure.message, /הודעה חדשה/u);

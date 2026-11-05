@@ -56,8 +56,8 @@ const evalDomain = (): AgentDomain => {
 };
 
 // A domain whose every query fails with the error.
-const failingDomain = (error: Error): AgentDomain => ({
-  queryExpenses: async () => await Promise.reject(error),
+const failingDomain = (failure: Error): AgentDomain => ({
+  queryExpenses: async () => await Promise.reject(failure),
 });
 
 // A query through createKeepInTaxBooks, inside a request given the domain.

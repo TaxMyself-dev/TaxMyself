@@ -7,11 +7,13 @@ import {
   prepareAgentReasoningStep,
 } from "../../../../../src/agent/core/model/agent-reasoning";
 
-const adCreationSkill = "ad-creation";
+// The playbook that ends in a write-up (agentHighEffortSkills); the other
+// playbooks reason at medium.
+const researchBriefSkill = "research-brief";
 
 // Each turn starts at low effort and rises with the work: attachments and
 // detailed requests, multi-step jobs, tool failures and playbooks, and xhigh
-// when the user asks for depth or an ad playbook writes up its evidence.
+// when the user asks for depth or a writing playbook writes up its evidence.
 
 const ask = (text: string): ModelMessage => ({
   role: "user",
@@ -63,11 +65,11 @@ describe("agent reasoning", () => {
       "medium"
     );
     assert.strictEqual(
-      agentTurnReasoningEffort(question, [loaded("task-diagnosis")]),
+      agentTurnReasoningEffort(question, [loaded("new-user-setup")]),
       "medium"
     );
     assert.strictEqual(
-      agentTurnReasoningEffort(question, [loaded(adCreationSkill)]),
+      agentTurnReasoningEffort(question, [loaded(researchBriefSkill)]),
       "high"
     );
   });
@@ -80,10 +82,10 @@ describe("agent reasoning", () => {
       undefined
     );
 
-    // After the ad-creation playbook loads, the next step reasons at high.
+    // After the research-brief playbook loads, the next step reasons at high.
     const raised = prepareAgentReasoningStep({
       messages,
-      steps: [loaded(adCreationSkill)],
+      steps: [loaded(researchBriefSkill)],
     });
 
     assert.ok(raised);
@@ -96,7 +98,7 @@ describe("agent reasoning", () => {
     assert.strictEqual(
       prepareAgentReasoningStep({
         messages: raised.messages,
-        steps: [loaded(adCreationSkill), listed],
+        steps: [loaded(researchBriefSkill), listed],
       }),
       undefined
     );
@@ -117,9 +119,9 @@ describe("agent reasoning", () => {
     });
   });
 
-  it("an ad playbook moves to xhigh once it has gathered its evidence", () => {
+  it("a writing playbook moves to xhigh once it has gathered its evidence", () => {
     const question = ask("תכתוב לי מודעות לעסק");
-    const gathering = [loaded(adCreationSkill), listed, listed];
+    const gathering = [loaded(researchBriefSkill), listed, listed];
     assert.strictEqual(agentTurnReasoningEffort(question, gathering), "high");
     assert.strictEqual(
       agentTurnReasoningEffort(question, [

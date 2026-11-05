@@ -12,7 +12,7 @@ import type { AgentChatMessage } from "../../../../src/lib/agent-chat/conversati
 // (short-term-memory.server.ts). The budget is 48,000 tokens at 4 bytes a
 // token (192,000 bytes), left out in steps of 16,000 tokens (64,000 bytes).
 
-const taskDiagnosisSkill = "research-brief";
+const researchBriefSkill = "research-brief";
 
 // Messages of exactly `bytes` bytes each as the model reads them (the part's
 // JSON, {"type":"text","text":""} being 25 of them), so the token counts
@@ -154,19 +154,19 @@ describe("short term memory", () => {
 
   it("a playbook loaded in the older part reaches the model whole after the list", () => {
     const messages = longChat();
-    messages.splice(1, 1, loadedPlaybook(taskDiagnosisSkill));
+    messages.splice(1, 1, loadedPlaybook(researchBriefSkill));
     const text = historyText(agentShortTermHistory(messages).slice(0, 1));
     assert.include(text, "<loaded_playbooks>");
-    assert.include(text, "# Task diagnosis");
+    assert.include(text, "# Research brief");
   });
 
   it("a playbook loaded again among the newest messages is not repeated in the list", () => {
     const messages = [
       ...longChat(),
-      { ...loadedPlaybook(taskDiagnosisSkill), id: "reload" },
+      { ...loadedPlaybook(researchBriefSkill), id: "reload" },
     ];
 
-    messages.splice(1, 1, loadedPlaybook(taskDiagnosisSkill));
+    messages.splice(1, 1, loadedPlaybook(researchBriefSkill));
     const text = historyText(agentShortTermHistory(messages).slice(0, 1));
     assert.notInclude(text, "<loaded_playbooks>");
   });

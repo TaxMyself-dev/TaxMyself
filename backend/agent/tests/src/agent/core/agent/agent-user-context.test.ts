@@ -20,17 +20,22 @@ describe("agent profile gaps", () => {
     assert.deepStrictEqual(agentProfileGaps(exampleEvalSettings), []);
   });
 
-  it("a business lists its missing name, offer, customers and areas", () => {
+  it("a business lists its missing name, offer and customers", () => {
+    // Areas are optional (user-settings-schema.ts): they apply only when a
+    // task leaves its location empty, so they are never a gap.
     const gaps = agentProfileGaps({
       ...emptyEvalSettings,
       profile: { ...emptyEvalSettings.profile, kind: "business" },
     });
 
-    assert.strictEqual(gaps.length, 4);
+    assert.deepStrictEqual(
+      gaps.map((gap) => /\((?<field>\w+)\)/u.exec(gap)?.groups?.field),
+      ["name", "offer", "seeking"]
+    );
     assert.match(gaps[0] ?? "", /business's name/u);
   });
 
-  it("a private person lists only what they look for and where", () => {
+  it("a private person lists only what they look for", () => {
     const gaps = agentProfileGaps({
       ...emptyEvalSettings,
       profile: { ...emptyEvalSettings.profile, kind: "individual" },
@@ -38,7 +43,7 @@ describe("agent profile gaps", () => {
 
     assert.deepStrictEqual(
       gaps.map((gap) => /\((?<field>\w+)\)/u.exec(gap)?.groups?.field),
-      ["seeking", "areas"]
+      ["seeking"]
     );
   });
 });

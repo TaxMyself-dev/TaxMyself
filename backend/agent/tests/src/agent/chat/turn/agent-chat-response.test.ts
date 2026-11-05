@@ -179,6 +179,9 @@ const answerThroughEndpoint = (
             parts: [{ type: "text", text: "מה המשימות שלי?" }],
           },
           conversation: { name: null, pinned: false },
+          // The page sends its language with each chat request; without it
+          // the answer runs in English (agent-chat-answer-run.server.ts).
+          locale: "he",
         }),
       })
     ).pipe(
