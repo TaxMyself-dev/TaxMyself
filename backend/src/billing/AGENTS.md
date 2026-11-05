@@ -1,3 +1,26 @@
+## Admin plan and personal pricing (2026-11-05)
+
+Subscription supports LIVE/FROZEN base policy plus permanent/dated final personal
+net price. PricingService resolves CUSTOM > same-plan FROZEN > catalog, then applies
+legacy discounts only without CUSTOM. Jerusalem DATE boundaries apply. Plan modules
+always stay live (explicit [] grants none). Actual plan transitions atomically
+reset frozen base via frozenPricePlanPatch; debt recovery preserves current plan
+and frozen terms. Fresh reservations validate pricingFingerprint under the subscription
+lock; original obligations, attempts and banking agreements never reprice.
+
+Admin /pricing context/mutations and catalog impact/delete remain behind the real
+admin gate. Price/catalog mutations persist actor/before/after events transactionally.
+Inactive plans stop new admission only, preserving saved commitments and members.
+Soft-delete rejects all current/pending references; historical reads use withDeleted.
+Zero-price periods advance locally without provider/receipt/accounting, with durable
+ZERO_PRICE_PERIOD_V1 evidence for subsequent upgrades. Approved zero banking first
+periods validate their ACTIVATE event rather than current catalog pricing.
+
+Apply the prepared subscription_pricing SQL manually before app startup; no live
+DB or provider work was performed. Full rules/migration/manual checks:
+`docs/features/admin-subscription-pricing.md`. Main integration and any GitHub push
+remain subject to the user approval boundaries recorded in the task.
+
 ## Purpose
 Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
 PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)

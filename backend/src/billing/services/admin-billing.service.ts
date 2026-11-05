@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { UpdateSubscriptionPricingDto } from '../dtos/admin/update-subscription-pricing.dto';
+import { dateOnly, frozenPricePlanPatch, jerusalemDate } from '../domain/subscription-pricing';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
@@ -8,7 +10,7 @@ import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { Documents } from 'src/documents/documents.entity';
-import { DocumentType } from 'src/enum';
+import { BusinessType, DocumentType } from 'src/enum';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { isDemoEmail } from 'src/demo-data/profiles';
@@ -128,6 +130,13 @@ export interface AdminSubscriptionResponse extends AdminUnresolvedAttemptIndicat
   planName: string | null;
   planSlug: string | null;
   planPriceAgorot: number | null;
+  pricePolicy?: 'LIVE' | 'FROZEN';
+  frozenMonthlyPriceAgorot?: number | null;
+  customMonthlyPriceAgorot?: number | null;
+  customPriceStartDate?: string | null;
+  customPriceEndDate?: string | null;
+  priceSource?: string;
+  effectiveMonthlyPriceBeforeVatAgorot?: number | null;
   /**
    * Approximation of the amount the next renewal will charge: planPriceAgorot
    * with the subscription's discount applied as of nextBillingDate. Does NOT
@@ -201,6 +210,147 @@ export class AdminBillingService {
     private readonly pricingService: PricingService,
   ) {}
 
+  private async audit(manager: EntityManager, actor: string, action: string, before: unknown, after: unknown, sub?: Subscription) {
+    await manager.save(BillingEvent, manager.create(BillingEvent, {
+      firebaseId: sub?.firebaseId ?? actor, subscriptionId: sub?.id ?? null,
+      eventType: BillingEventType.PLAN_CHANGED,
+      metadata: { policy: 'ADMIN_PRICING_V1', action, actorFirebaseId: actor, before, after },
+    }));
+  }
+
+  private async assertPricingMutable(manager: EntityManager, sub: Subscription) {
+    const pending = await manager.findOne(BillingAttempt, { where: { obligation: { subscriptionId: sub.id },
+      status: In(UNRESOLVED_ATTEMPT_STATUSES) } });
+    if (pending) throw new ConflictException('קיים תהליך חיוב שטרם הסתיים. יש להשלים אותו לפני שינוי תנאי המחיר.');
+    const events = await manager.find(BillingEvent, { where: { subscriptionId: sub.id,
+      eventType: BillingEventType.PLAN_CHANGE_REQUESTED }, order: { id: 'DESC' } });
+    const enrollment = events.find(e => e.metadata?.policy === 'OPEN_BANKING_TRIAL_V1');
+    if (['PREPARE', 'READY'].includes(enrollment?.metadata?.command)) {
+      throw new ConflictException('יש לבטל את ההצטרפות העתידית לבנקאות פתוחה לפני שינוי תנאי המחיר.');
+    }
+  }
+
+  private pricingSettings(sub: Subscription) {
+    return { pricePolicy: sub.pricePolicy ?? 'LIVE', frozenPlanId: sub.frozenPlanId ?? null,
+      frozenMonthlyPriceAgorot: sub.frozenMonthlyPriceAgorot ?? null,
+      customMonthlyPriceAgorot: sub.customMonthlyPriceAgorot ?? null,
+      customPriceStartDate: sub.customPriceStartDate ?? null, customPriceEndDate: sub.customPriceEndDate ?? null };
+  }
+
+  private async pricingContext(manager: EntityManager, sub: Subscription) {
+    const plan = sub.planId ? await manager.findOne(SubscriptionPlan, { where: { id: sub.planId } }) : null;
+    const licensed = plan ? await manager.findOne(Business, { where: { firebaseId: sub.firebaseId, businessType: BusinessType.LICENSED } }) : null;
+    const quote = (at: Date) => plan ? this.pricingService.resolveMonthlyPrice(plan, sub, licensed ? 'LICENSED' : 'EXEMPT', at) : null;
+    let next: any = sub.nextBillingDate ? quote(new Date(sub.nextBillingDate)) : null;
+    if (sub.nextBillingDate) {
+      const debts = await manager.find(BillingObligation, { where: { subscriptionId: sub.id, status: 'OPEN' as any }, order: { periodStart: 'ASC' } });
+      const debt = debts.find(d => d.kind !== 'CHECKOUT');
+      if (debt) next = { source: 'DEBT', baseAmountAgorot: debt.amountBeforeVatAgorot,
+        amountBeforeVatAgorot: debt.amountBeforeVatAgorot, amountIncludingVatAgorot: debt.amountAgorot,
+        vatAmountAgorot: debt.vatAmountAgorot,
+        vatRate: debt.amountBeforeVatAgorot ? Math.round(debt.vatAmountAgorot * 100 / debt.amountBeforeVatAgorot) : 0 };
+      else if (!sub.currentPeriodStart) {
+        const events = await manager.find(BillingEvent, { where: { subscriptionId: sub.id, eventType: BillingEventType.PLAN_CHANGE_REQUESTED }, order: { id: 'DESC' } });
+        const agreed = events.find(e => e.metadata?.policy === 'OPEN_BANKING_TRIAL_V1');
+        if (['READY', 'ACTIVATE'].includes(agreed?.metadata?.command) && agreed?.metadata?.planId === sub.planId) {
+          const data = agreed!.metadata!;
+          next = { source: 'AGREED', baseAmountAgorot: data.amountBeforeVatAgorot,
+            amountBeforeVatAgorot: data.amountBeforeVatAgorot, amountIncludingVatAgorot: data.amountAgorot,
+            vatAmountAgorot: data.vatAmountAgorot,
+            vatRate: data.amountBeforeVatAgorot ? Math.round(data.vatAmountAgorot * 100 / data.amountBeforeVatAgorot) : 0 };
+        }
+      }
+    }
+    return { subscriptionId: sub.id, planId: sub.planId, ...this.pricingSettings(sub),
+      current: quote(new Date()), next, nextBillingDate: sub.nextBillingDate };
+  }
+
+  async getSubscriptionPricing(id: number) {
+    const sub = await this.subscriptionRepo.findOneBy({ id });
+    if (!sub) throw new NotFoundException('המנוי לא נמצא');
+    return this.pricingContext(this.dataSource.manager, sub);
+  }
+
+  async updateSubscriptionPricing(id: number, dto: UpdateSubscriptionPricingDto, actor: string) {
+    return this.dataSource.transaction(async manager => {
+      const sub = await manager.findOne(Subscription, { where: { id }, lock: { mode: 'pessimistic_write' } });
+      if (!sub) throw new NotFoundException('המנוי לא נמצא');
+      await this.assertPricingMutable(manager, sub);
+      const validDate = (value: string | null | undefined) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        Number.isFinite(new Date(value).getTime()) && new Date(value).toISOString().slice(0, 10) === value);
+      if (!validDate(dto.customPriceStartDate) || !validDate(dto.customPriceEndDate) ||
+        (dto.customPriceStartDate && dto.customPriceEndDate && dto.customPriceStartDate > dto.customPriceEndDate)) {
+        throw new BadRequestException('יש להזין טווח תאריכים תקין למחיר האישי');
+      }
+      if (!['LIVE', 'FROZEN'].includes(dto.pricePolicy) || (dto.customMonthlyPriceAgorot != null &&
+        (!Number.isSafeInteger(dto.customMonthlyPriceAgorot) || dto.customMonthlyPriceAgorot < 0 || dto.customMonthlyPriceAgorot > 100000000))) {
+        throw new BadRequestException('הגדרת המחיר אינה תקינה');
+      }
+      const before = this.pricingSettings(sub);
+      let frozen = { frozenPlanId: null as number | null, frozenMonthlyPriceAgorot: null as number | null };
+      if (dto.pricePolicy === 'FROZEN') {
+        if (!sub.planId) throw new BadRequestException('יש לבחור תוכנית לפני שמירת המחיר');
+        if (sub.pricePolicy === 'FROZEN' && sub.frozenPlanId === sub.planId && sub.frozenMonthlyPriceAgorot != null) {
+          frozen = { frozenPlanId: sub.frozenPlanId, frozenMonthlyPriceAgorot: sub.frozenMonthlyPriceAgorot };
+        } else {
+          const plan = await manager.findOne(SubscriptionPlan, { where: { id: sub.planId }, lock: { mode: 'pessimistic_read' } });
+          if (!plan) throw new NotFoundException('התוכנית לא נמצאה');
+          const licensed = await manager.findOne(Business, { where: { firebaseId: sub.firebaseId, businessType: BusinessType.LICENSED } });
+          frozen = { frozenPlanId: plan.id, frozenMonthlyPriceAgorot: this.pricingService.resolveEffectivePlanPrice(plan, licensed ? 'LICENSED' : 'EXEMPT') };
+        }
+      }
+      const patch = { pricePolicy: dto.pricePolicy, ...frozen,
+        customMonthlyPriceAgorot: dto.customMonthlyPriceAgorot ?? null,
+        customPriceStartDate: dto.customMonthlyPriceAgorot != null ? dto.customPriceStartDate ?? null : null,
+        customPriceEndDate: dto.customMonthlyPriceAgorot != null ? dto.customPriceEndDate ?? null : null };
+      await manager.update(Subscription, id, patch);
+      Object.assign(sub, patch);
+      await this.audit(manager, actor, 'UPDATE_SUBSCRIPTION_PRICING', before, this.pricingSettings(sub), sub);
+      return this.pricingContext(manager, sub);
+    });
+  }
+
+  async planImpact(id: number) {
+    const plan = await this.planRepo.findOneBy({ id });
+    if (!plan) throw new NotFoundException('התוכנית לא נמצאה');
+    const subscriptions = await this.subscriptionRepo.find({ where: { planId: id } });
+    const today = jerusalemDate(new Date());
+    const custom = (s: Subscription) => s.customMonthlyPriceAgorot != null &&
+      (!s.customPriceStartDate || today >= String(s.customPriceStartDate)) && (!s.customPriceEndDate || today <= String(s.customPriceEndDate));
+    return { totalSubscribers: subscriptions.length, customPrice: subscriptions.filter(custom).length,
+      frozenPrice: subscriptions.filter(s => !custom(s) && s.pricePolicy === 'FROZEN' && s.frozenPlanId === id).length,
+      followsPlan: subscriptions.filter(s => !custom(s) && !(s.pricePolicy === 'FROZEN' && s.frozenPlanId === id)).length };
+  }
+
+  async deletePlan(id: number, actor: string) {
+    return this.dataSource.transaction(async manager => {
+      const plan = await manager.findOne(SubscriptionPlan, { where: { id }, lock: { mode: 'pessimistic_write' } });
+      if (!plan) throw new NotFoundException('התוכנית לא נמצאה');
+      if (await manager.count(Subscription, { where: { planId: id } }) ||
+        await manager.count(BillingObligation, { where: { planId: id, status: 'OPEN' as any } }) ||
+        await manager.count(BillingAttempt, { where: { planId: id, status: In(UNRESOLVED_ATTEMPT_STATUSES) } })) {
+        throw new ConflictException('לא ניתן למחוק תוכנית עם מנויים או חיובים פתוחים. אפשר להפסיק הצטרפות אליה.');
+      }
+      const events = await manager.find(BillingEvent, { where: { eventType: BillingEventType.PLAN_CHANGE_REQUESTED }, order: { id: 'DESC' } });
+      const seen = new Set<string>();
+      for (const event of events) {
+        const policy = event.metadata?.policy;
+        if (!['PRORATED_V1', 'OPEN_BANKING_TRIAL_V1'].includes(policy)) continue;
+        const key = `${event.subscriptionId}:${policy}`;
+        if (seen.has(key)) continue;
+        if (policy === 'PRORATED_V1' && !['SCHEDULE', 'CANCEL', 'APPLY'].includes(event.metadata?.command)) continue;
+        seen.add(key);
+        if (['SCHEDULE', 'PREPARE', 'READY'].includes(event.metadata?.command) &&
+          (event.metadata?.snapshot?.targetPlanId === id || event.metadata?.planId === id)) {
+          throw new ConflictException('קיימת הצטרפות או החלפת תוכנית עתידית שתלויה בתוכנית זו');
+        }
+      }
+      await manager.softDelete(SubscriptionPlan, id);
+      await this.audit(manager, actor, 'DELETE_PLAN', plan, null);
+      return { deleted: true };
+    });
+  }
+
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
   /** Returns all plans regardless of isActive/isPublic, ordered by displayOrder. */
@@ -208,7 +358,8 @@ export class AdminBillingService {
     return this.planRepo.find({ order: { displayOrder: 'ASC', id: 'ASC' } });
   }
 
-  async createPlan(dto: CreatePlanDto): Promise<SubscriptionPlan> {
+  async createPlan(dto: CreatePlanDto, actor = 'system'): Promise<SubscriptionPlan> {
+    if (dto.currency && dto.currency !== 'ILS') throw new BadRequestException('מטבע החיוב הנתמך הוא ILS');
     const plan = this.planRepo.create({
       ...dto,
       currency: dto.currency ?? 'ILS',
@@ -217,30 +368,40 @@ export class AdminBillingService {
       isPublic: dto.isPublic ?? true,
       displayOrder: dto.displayOrder ?? 0,
     });
-    return this.planRepo.save(plan);
+    return this.dataSource.transaction(async manager => {
+      if (plan.currency !== 'ILS') throw new BadRequestException('מטבע החיוב הנתמך הוא ILS');
+      if (plan.recommended) await manager.update(SubscriptionPlan, { recommended: true }, { recommended: false });
+      const saved = await manager.save(SubscriptionPlan, plan);
+      await this.audit(manager, actor, 'CREATE_PLAN', null, saved);
+      return saved;
+    });
   }
 
-  async updatePlan(id: number, dto: UpdatePlanDto): Promise<SubscriptionPlan> {
-    const plan = await this.planRepo.findOneBy({ id });
-    if (!plan) throw new NotFoundException(`תוכנית ${id} לא נמצאה`);
-    Object.assign(plan, dto);
-    return this.planRepo.save(plan);
+  async updatePlan(id: number, dto: UpdatePlanDto, actor = 'system'): Promise<SubscriptionPlan> {
+    return this.dataSource.transaction(async manager => {
+      const plan = await manager.findOne(SubscriptionPlan, { where: { id }, lock: { mode: 'pessimistic_write' } });
+      if (!plan) throw new NotFoundException(`תוכנית ${id} לא נמצאה`);
+      const before = { ...plan };
+      if (dto.currency && dto.currency !== plan.currency && await manager.count(Subscription, { where: { planId: id } })) {
+        throw new ConflictException('לא ניתן לשנות מטבע של תוכנית עם מנויים');
+      }
+      Object.assign(plan, dto);
+      if (plan.currency !== 'ILS') throw new BadRequestException('מטבע החיוב הנתמך הוא ILS');
+      if (plan.recommended) await manager.update(SubscriptionPlan, { recommended: true }, { recommended: false });
+      const saved = await manager.save(SubscriptionPlan, plan);
+      await this.audit(manager, actor, 'UPDATE_PLAN', before, saved);
+      return saved;
+    });
   }
 
   /** Deactivates the plan by setting isActive=false. Record is kept intact. */
-  async deactivatePlan(id: number): Promise<SubscriptionPlan> {
-    const plan = await this.planRepo.findOneBy({ id });
-    if (!plan) throw new NotFoundException(`תוכנית ${id} לא נמצאה`);
-    plan.isActive = false;
-    return this.planRepo.save(plan);
+  async deactivatePlan(id: number, actor = 'system'): Promise<SubscriptionPlan> {
+    return this.updatePlan(id, { isActive: false }, actor);
   }
 
   /** Re-activates a previously deactivated plan. */
-  async activatePlan(id: number): Promise<SubscriptionPlan> {
-    const plan = await this.planRepo.findOneBy({ id });
-    if (!plan) throw new NotFoundException(`תוכנית ${id} לא נמצאה`);
-    plan.isActive = true;
-    return this.planRepo.save(plan);
+  async activatePlan(id: number, actor = 'system'): Promise<SubscriptionPlan> {
+    return this.updatePlan(id, { isActive: true }, actor);
   }
 
   // ─── Subscriptions ───────────────────────────────────────────────────────────
@@ -262,6 +423,13 @@ export class AdminBillingService {
       .addSelect('s.canceledAt',          'canceledAt')
       .addSelect('s.endedAt',             'endedAt')
       .addSelect('s.createdAt',           'createdAt')
+      .addSelect('s.pricePolicy', 'pricePolicy')
+      .addSelect('s.frozenPlanId', 'frozenPlanId')
+      .addSelect('s.frozenMonthlyPriceAgorot', 'frozenMonthlyPriceAgorot')
+      .addSelect('s.customMonthlyPriceAgorot', 'customMonthlyPriceAgorot')
+      .addSelect('s.customPriceStartDate', 'customPriceStartDate')
+      .addSelect('s.customPriceEndDate', 'customPriceEndDate')
+      .addSelect('p.licensedDealerPriceMonthlyAgorot', 'licensedDealerPriceMonthlyAgorot')
       .addSelect('s.discountPercent',     'discountPercent')
       .addSelect('s.discountAmountAgorot', 'discountAmountAgorot')
       .addSelect('s.discountStartDate',   'discountStartDate')
@@ -309,6 +477,7 @@ export class AdminBillingService {
     }
 
     // Q3: businesses keyed by firebaseId (latest per user)
+    const licensedOwners = new Set<string>();
     const businessMap = new Map<string, { id: number; businessName: string | null }>();
     if (firebaseIds.length > 0) {
       const businesses: any[] = await this.dataSource
@@ -316,11 +485,15 @@ export class AdminBillingService {
         .select('b.id',            'id')
         .addSelect('b.firebaseId', 'firebaseId')
         .addSelect('b.businessName', 'businessName')
+        .addSelect('b.businessType', 'businessType')
         .from(Business, 'b')
         .where('b.firebaseId IN (:...ids)', { ids: firebaseIds })
         .orderBy('b.id', 'ASC')
         .getRawMany();
-      for (const b of businesses) businessMap.set(b.firebaseId, { id: Number(b.id), businessName: b.businessName });
+      for (const b of businesses) {
+        businessMap.set(b.firebaseId, { id: Number(b.id), businessName: b.businessName });
+        if (b.businessType === BusinessType.LICENSED) licensedOwners.add(b.firebaseId);
+      }
     }
 
     // Q4: one grouped query for every subscription's unresolved-attempt indicator
@@ -334,20 +507,20 @@ export class AdminBillingService {
       const sid  = Number(r.subscriptionId);
       const planPriceAgorot = r.planPriceAgorot != null ? Number(r.planPriceAgorot) : null;
 
-      // Approximation only — see AdminSubscriptionResponse.nextBillingAmountAgorot doc comment.
+      const priceSub = { ...r, planId: r.planId == null ? null : Number(r.planId),
+        frozenPlanId: r.frozenPlanId == null ? null : Number(r.frozenPlanId),
+        frozenMonthlyPriceAgorot: r.frozenMonthlyPriceAgorot == null ? null : Number(r.frozenMonthlyPriceAgorot),
+        customMonthlyPriceAgorot: r.customMonthlyPriceAgorot == null ? null : Number(r.customMonthlyPriceAgorot),
+        discountPercent: r.discountPercent == null ? null : Number(r.discountPercent),
+        discountAmountAgorot: r.discountAmountAgorot == null ? null : Number(r.discountAmountAgorot) };
+      const pricePlan = { id: priceSub.planId, priceMonthlyAgorot: planPriceAgorot,
+        licensedDealerPriceMonthlyAgorot: r.licensedDealerPriceMonthlyAgorot == null ? null : Number(r.licensedDealerPriceMonthlyAgorot) } as SubscriptionPlan;
+      const currentPrice = planPriceAgorot == null ? null : this.pricingService.resolveMonthlyPrice(pricePlan, priceSub, licensedOwners.has(r.firebaseId) ? 'LICENSED' : 'EXEMPT');
+      // New-period estimate uses the same source, business type and date semantics as charging.
       let nextBillingAmountAgorot: number | null = null;
       if (planPriceAgorot != null && r.nextBillingDate) {
-        const nextBillingDateString = new Date(r.nextBillingDate).toISOString().slice(0, 10);
-        nextBillingAmountAgorot = this.pricingService.applySubscriptionDiscount(
-          planPriceAgorot,
-          {
-            discountPercent: r.discountPercent != null ? Number(r.discountPercent) : null,
-            discountAmountAgorot: r.discountAmountAgorot != null ? Number(r.discountAmountAgorot) : null,
-            discountStartDate: r.discountStartDate ?? null,
-            discountEndDate: r.discountEndDate ?? null,
-          },
-          nextBillingDateString,
-        ).finalAmountAgorot;
+        nextBillingAmountAgorot = this.pricingService.resolveMonthlyPrice(pricePlan, priceSub,
+          licensedOwners.has(r.firebaseId) ? 'LICENSED' : 'EXEMPT', new Date(r.nextBillingDate)).amountBeforeVatAgorot;
       }
 
       return {
@@ -366,6 +539,10 @@ export class AdminBillingService {
         planName:           r.planName ?? null,
         planSlug:           r.planSlug ?? null,
         planPriceAgorot,
+        pricePolicy: r.pricePolicy ?? 'LIVE', frozenMonthlyPriceAgorot: priceSub.frozenMonthlyPriceAgorot,
+        customMonthlyPriceAgorot: priceSub.customMonthlyPriceAgorot, customPriceStartDate: r.customPriceStartDate ?? null,
+        customPriceEndDate: r.customPriceEndDate ?? null, priceSource: currentPrice?.source ?? 'PLAN',
+        effectiveMonthlyPriceBeforeVatAgorot: currentPrice?.amountBeforeVatAgorot ?? null,
         nextBillingAmountAgorot,
         trialEnd:           r.trialEnd ?? null,
         currentPeriodStart: r.currentPeriodStart ?? null,
@@ -539,47 +716,58 @@ export class AdminBillingService {
   async updateSubscriptionDiscount(
     subscriptionId: number,
     dto: UpdateSubscriptionDiscountDto,
+    actor?: string,
   ): Promise<AdminSubscriptionDiscountResponse> {
-    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
-    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    return this.dataSource.transaction(async manager => {
+      const subscription = await manager.findOne(Subscription, { where: { id: subscriptionId }, lock: { mode: 'pessimistic_write' } });
+      if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
 
-    const nextPercent = dto.discountPercent !== undefined ? dto.discountPercent : subscription.discountPercent;
-    const nextAmount = dto.discountAmountAgorot !== undefined ? dto.discountAmountAgorot : subscription.discountAmountAgorot;
-    const nextStart = dto.discountStartDate !== undefined
-      ? (dto.discountStartDate ? new Date(dto.discountStartDate) : null)
-      : subscription.discountStartDate;
-    const nextEnd = dto.discountEndDate !== undefined
-      ? (dto.discountEndDate ? new Date(dto.discountEndDate) : null)
-      : subscription.discountEndDate;
+      const before = { discountPercent: subscription.discountPercent, discountAmountAgorot: subscription.discountAmountAgorot, discountStartDate: subscription.discountStartDate, discountEndDate: subscription.discountEndDate };
+      const nextPercent = dto.discountPercent !== undefined ? dto.discountPercent : subscription.discountPercent;
+      const nextAmount = dto.discountAmountAgorot !== undefined ? dto.discountAmountAgorot : subscription.discountAmountAgorot;
+      const nextStart = dto.discountStartDate !== undefined
+        ? (dto.discountStartDate ? new Date(dto.discountStartDate) : null)
+        : subscription.discountStartDate;
+      const nextEnd = dto.discountEndDate !== undefined
+        ? (dto.discountEndDate ? new Date(dto.discountEndDate) : null)
+        : subscription.discountEndDate;
 
-    if (nextPercent != null && nextAmount != null) {
-      throw new BadRequestException('ניתן להגדיר אחוז הנחה או סכום הנחה, לא את שניהם');
-    }
-    if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
-      throw new BadRequestException('תאריך התחלת ההנחה חייב להיות לפני או שווה לתאריך הסיום');
-    }
+      if (nextPercent != null && nextAmount != null) {
+        throw new BadRequestException('ניתן להגדיר אחוז הנחה או סכום הנחה, לא את שניהם');
+      }
+      if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
+        throw new BadRequestException('תאריך התחלת ההנחה חייב להיות לפני או שווה לתאריך הסיום');
+      }
 
-    const discountPercent = nextPercent ?? null;
-    const discountAmountAgorot = nextAmount ?? null;
-    const discountStartDate = nextStart ?? null;
-    const discountEndDate = nextEnd ?? null;
+      const discountPercent = nextPercent ?? null;
+      const discountAmountAgorot = nextAmount ?? null;
+      const discountStartDate = nextStart ?? null;
+      const discountEndDate = nextEnd ?? null;
 
-    // A narrow UPDATE prevents a stale entity loaded before an access-mode
-    // change from writing STANDARD back over COMPLIMENTARY_FULL.
-    await this.subscriptionRepo.update(subscription.id, {
-      discountPercent,
-      discountAmountAgorot,
-      discountStartDate,
-      discountEndDate,
+      if ((subscription.discountPercent ?? null) === discountPercent && (subscription.discountAmountAgorot ?? null) === discountAmountAgorot &&
+        dateOnly(subscription.discountStartDate) === dateOnly(discountStartDate) && dateOnly(subscription.discountEndDate) === dateOnly(discountEndDate)) {
+        return { subscriptionId, discountPercent, discountAmountAgorot, discountStartDate, discountEndDate };
+      }
+      await this.assertPricingMutable(manager, subscription);
+
+      // A narrow UPDATE prevents a stale entity loaded before an access-mode
+      // change from writing STANDARD back over COMPLIMENTARY_FULL.
+      await manager.update(Subscription, subscription.id, {
+        discountPercent,
+        discountAmountAgorot,
+        discountStartDate,
+        discountEndDate,
+      });
+
+      if (actor) await this.audit(manager, actor, 'UPDATE_SUBSCRIPTION_DISCOUNT', before, { discountPercent, discountAmountAgorot, discountStartDate, discountEndDate }, subscription);
+      return {
+        subscriptionId: subscription.id,
+        discountPercent,
+        discountAmountAgorot,
+        discountStartDate,
+        discountEndDate,
+      };
     });
-
-    return {
-      subscriptionId: subscription.id,
-      discountPercent,
-      discountAmountAgorot,
-      discountStartDate,
-      discountEndDate,
-    };
   }
 
   /**
@@ -590,6 +778,7 @@ export class AdminBillingService {
   async updateSubscriptionTrialEnd(
     subscriptionId: number,
     dto: UpdateSubscriptionTrialEndDto,
+    actor?: string,
   ): Promise<AdminSubscriptionTrialEndResponse> {
     return this.dataSource.transaction(async manager => {
       const subscription = await manager.findOne(Subscription, {
@@ -612,6 +801,8 @@ export class AdminBillingService {
           : { trialEnd },
       );
 
+      if (actor) await this.audit(manager, actor, 'UPDATE_TRIAL_END', { trialEnd: subscription.trialEnd, status: subscription.status },
+        { trialEnd, status: restoresExpiredTrial ? SubscriptionStatus.TRIAL : subscription.status }, subscription);
       return {
         subscriptionId: subscription.id,
         trialEnd,
@@ -627,6 +818,7 @@ export class AdminBillingService {
   async updateSubscriptionPlan(
     subscriptionId: number,
     dto: UpdateSubscriptionPlanDto,
+    actor = 'system',
   ): Promise<AdminSubscriptionPlanResponse> {
     let plan: SubscriptionPlan | null = null;
     if (dto.planId != null) {
@@ -644,7 +836,15 @@ export class AdminBillingService {
         throw new BadRequestException('לא ניתן לשייך תוכנית למשתמש עם גישה מלאה ללא חיוב');
       }
 
-      await manager.update(Subscription, subscription.id, { planId: dto.planId ?? null });
+      if (subscription.planId === (dto.planId ?? null)) return;
+      await this.assertPricingMutable(manager, subscription);
+      if (dto.planId != null) {
+        const target = await manager.findOne(SubscriptionPlan, { where: { id: dto.planId }, lock: { mode: 'pessimistic_read' } });
+        if (!target || !target.isActive) throw new BadRequestException('התוכנית אינה פתוחה להצטרפות');
+      }
+      const patch = { planId: dto.planId ?? null, ...await frozenPricePlanPatch(manager, subscription, dto.planId ?? null) };
+      await manager.update(Subscription, subscription.id, patch);
+      await this.audit(manager, actor, 'UPDATE_SUBSCRIPTION_PLAN', { planId: subscription.planId }, patch, subscription);
     });
 
     return {
@@ -873,7 +1073,9 @@ export class AdminBillingService {
     const subscription = await this.subscriptionRepo.findOneBy({ id: event.subscriptionId });
     if (!subscription) throw new NotFoundException(`מנוי ${event.subscriptionId} לא נמצא`);
 
-    const plan = subscription.planId ? await this.planRepo.findOneBy({ id: subscription.planId }) : null;
+    const originalPlanId = Number.isSafeInteger(event.metadata?.planId) && event.metadata!.planId > 0
+      ? event.metadata!.planId as number : subscription.planId;
+    const plan = originalPlanId ? await this.planRepo.findOne({ where: { id: originalPlanId }, withDeleted: true }) : null;
     if (!plan) throw new BadRequestException('לא נמצאה תוכנית עבור המנוי — לא ניתן להפיק קבלה');
 
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();

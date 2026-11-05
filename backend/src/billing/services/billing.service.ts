@@ -45,7 +45,8 @@ import {
   BillingMutationActorContext,
 } from './billing-attempt-orchestration.service';
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
-import { billingDate, nextBillingPeriod } from '../domain/billing-debt-periods';
+import { applyZeroPricePeriod } from '../domain/zero-price-period';
+import { billingDate, nextBillingInstant, nextBillingPeriod } from '../domain/billing-debt-periods';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -587,6 +588,18 @@ export class BillingService {
       plan.id,
     );
 
+    if (!changeSnapshot && !collection && !recoverySnapshot && pricing.finalAmountAgorot === 0) {
+      const start = new Date();
+      const anchor = Number(billingDate(start).slice(8));
+      const end = nextBillingInstant(start, anchor);
+      await this.subscriptionRepo.manager.transaction(manager => applyZeroPricePeriod(manager, {
+        subscriptionId: subscription.id, planId: plan.id, start, end, anchor, initial: true,
+        fingerprint: 'pricingFingerprint' in pricing ? pricing.pricingFingerprint as string : undefined,
+        actorFirebaseId: firebaseId,
+      }));
+      return { status: 'APPLIED', effectiveAt: start.toISOString() };
+    }
+
     // PAST_DUE recovery remains hosted checkout (never token charging), but
     // gets a canonical recurring-period obligation before CardCom I/O. The
     // webhook carries the attempt id so later migration can apply its result
@@ -599,6 +612,7 @@ export class BillingService {
       const start = billingDate(new Date());
       const purchaseInput = {
         actor, subscriptionId: subscription.id, planId: plan.id,
+        ...('pricingFingerprint' in pricing ? { pricingFingerprint: pricing.pricingFingerprint as string } : {}),
         periodStart: start, periodEnd: nextBillingPeriod(start, Number(start.slice(8))),
         amountAgorot: pricing.finalAmountAgorot,
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
@@ -1306,7 +1320,7 @@ export class BillingService {
     const planNameById = new Map<number, string>();
     if (planIds.size > 0) {
       const plans = await this.planRepo.find({
-        where: { id: In([...planIds]) },
+        where: { id: In([...planIds]) }, withDeleted: true,
       });
       for (const plan of plans) planNameById.set(plan.id, plan.name);
     }
@@ -1441,12 +1455,10 @@ export class BillingService {
     // Resolved on the backend so the frontend never chooses between exempt/
     // licensed pricing, and never adds VAT for display. Any active discount is
     // reported separately in `discount` — it is NOT subtracted here.
-    const effectiveMonthlyPriceBeforeVatAgorot = plan
-      ? this.pricingService.resolveEffectivePlanPrice(plan, billingBusinessType)
-      : null;
-
-    const discount =
-      this.pricingService.resolveSubscriptionDiscount(subscription);
+    const monthly = plan ? this.pricingService.resolveMonthlyPrice(plan, subscription, billingBusinessType) : null;
+    const effectiveMonthlyPriceBeforeVatAgorot = monthly?.baseAmountAgorot ?? null;
+    // Custom is a final price; suppress the separate discount so the client cannot subtract it twice.
+    const discount = monthly?.source === 'CUSTOM' ? null : this.pricingService.resolveSubscriptionDiscount(subscription);
 
     return {
       hasSubscription: true,

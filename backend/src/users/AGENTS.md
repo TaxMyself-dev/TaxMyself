@@ -66,3 +66,7 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Referral signup locks the selected active plan for reading inside the signup
+transaction, so concurrent administrative soft deletion cannot leave a new user
+assigned to a deleted plan. Existing missing/inactive referral fallback is unchanged.
