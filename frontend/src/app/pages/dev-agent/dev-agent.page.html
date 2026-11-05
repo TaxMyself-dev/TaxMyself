@@ -22,6 +22,15 @@
     <div class="setup-error">{{ error }}</div>
   }
 
+  @if (contextChanged) {
+    <div class="setup-error context-changed">
+      The app switched client or business since this chat started. This chat stays with
+      <code>{{ clientId ?? 'your own account' }}</code> / <code>{{ businessNumber ?? 'no business' }}</code>
+      and cannot continue under the new one.
+      <button type="button" (click)="startSession()">Start a chat for the current client and business</button>
+    </div>
+  }
+
   @if (chat(); as c) {
     <div class="messages" #scroller>
       @if (c.messages.length === 0) {
@@ -103,12 +112,13 @@
         (keydown)="onComposerKey($event)"
         [dir]="locale() === 'he' ? 'rtl' : 'ltr'"
         rows="2"
+        [disabled]="contextChanged"
         placeholder="Message the agent (Enter sends, Shift+Enter is a new line)"
       ></textarea>
       @if (isBusy(c)) {
         <button type="button" class="stop" (click)="stop()">Stop</button>
       } @else {
-        <button type="button" (click)="send()" [disabled]="!draft.trim()">Send</button>
+        <button type="button" (click)="send()" [disabled]="!draft.trim() || contextChanged">Send</button>
       }
     </footer>
     <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>

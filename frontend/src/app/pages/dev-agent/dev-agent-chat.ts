@@ -18,6 +18,32 @@ export interface DevAgentRequestAuth {
 }
 
 /**
+ * The context a chat belongs to: the agent's user for the pair (the person
+ * signed in, the client they act for), and the business. The backend keys
+ * every conversation to it, so a chat keeps sending the context it started
+ * in; when the app switches client or business, the page starts a new chat
+ * instead of carrying the old one over (DevAgentPage.contextChanged).
+ */
+export interface DevAgentChatContext {
+  agentUserId: string;
+  businessNumber: string | null;
+  clientId: string | null;
+}
+
+/**
+ * The request auth of one chat context: the live Firebase token, with the
+ * business and client the context was started with.
+ */
+export const fixedContextAuth = (
+  auth: DevAgentRequestAuth,
+  context: { businessNumber: string | null; clientId: string | null },
+): DevAgentRequestAuth => ({
+  token: auth.token,
+  businessNumber: () => context.businessNumber,
+  clientId: () => context.clientId,
+});
+
+/**
  * The headers every agent request carries, as AuthInterceptor sets them for
  * the app's HttpClient calls.
  */

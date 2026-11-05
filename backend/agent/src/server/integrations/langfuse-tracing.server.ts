@@ -53,6 +53,31 @@ const langfusePhonePattern =
 const langfuseEmailPattern =
   /[\dA-Za-z][\w.+-]{0,63}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}/gu;
 
+// KeepInTax: development traces go only to a Langfuse on this machine (the
+// team's decision: self-hosted in development, Langfuse Cloud in
+// production). A Langfuse elsewhere receives traces only from the
+// environment labelled "production" (LANGFUSE_TRACING_ENVIRONMENT), or when
+// LANGFUSE_ALLOW_REMOTE=true says so on purpose; otherwise nothing is traced
+// and the server logs why, so a developer's .env with the cloud keys never
+// sends their chats there silently.
+const localLangfuseUrl =
+  /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/u;
+
+/**
+ * Whether traces may go to this Langfuse from this environment.
+ *
+ * @param baseUrl - LANGFUSE_BASE_URL.
+ * @param environment - The traces' environment label.
+ * @param allowRemote - LANGFUSE_ALLOW_REMOTE, an explicit opt-in.
+ * @returns true for a local Langfuse, for production, or when opted in.
+ */
+export const langfuseTracingAllowed = (
+  baseUrl: string,
+  environment: string,
+  allowRemote: boolean
+) =>
+  localLangfuseUrl.test(baseUrl) || environment === "production" || allowRemote;
+
 // A trace value as JSON: what Langfuse hands the mask, parsed.
 type LangfuseTraceValue = Schema.Json;
 
@@ -140,6 +165,18 @@ export class LangfuseTracing extends Context.Service<
         Config.orElse(() => Config.String("VERCEL_ENV")),
         Config.withDefault("development")
       );
+
+      const allowRemote = yield* Config.Boolean("LANGFUSE_ALLOW_REMOTE").pipe(
+        Config.withDefault(false)
+      );
+
+      if (!langfuseTracingAllowed(baseUrl, environment, allowRemote)) {
+        yield* Effect.logWarning(
+          `LANGFUSE_NOT_LOCAL: tracing is off; in ${environment}, traces go only to a Langfuse on this machine (LANGFUSE_BASE_URL=http://localhost:3000), not to ${new URL(baseUrl).host}. Set LANGFUSE_ALLOW_REMOTE=true to send them there on purpose.`
+        );
+
+        return LangfuseTracing.of({ integrations: [], flush: Effect.void });
+      }
 
       const processor = new LangfuseSpanProcessor({
         publicKey: keys.value.publicKey,

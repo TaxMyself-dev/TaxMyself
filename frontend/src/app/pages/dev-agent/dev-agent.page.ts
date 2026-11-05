@@ -9,7 +9,13 @@ import { take } from 'rxjs/operators';
 import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { environment } from 'src/environments/environment';
-import { createDevAgentChat, devAgentHeaders, DevAgentRequestAuth } from './dev-agent-chat';
+import {
+  createDevAgentChat,
+  DevAgentChatContext,
+  devAgentHeaders,
+  DevAgentRequestAuth,
+  fixedContextAuth,
+} from './dev-agent-chat';
 
 type MessagePart = UIMessage['parts'][number];
 
@@ -69,7 +75,9 @@ export class DevAgentPage implements OnInit, OnDestroy {
   readonly apiUrl = devAgentApiUrl(new URLSearchParams(location.search).get('api'));
 
   chat = signal<Chat<UIMessage> | null>(null);
-  agentUserId = signal<string | null>(null);
+  // The context the chat belongs to (agent user, business, client), read
+  // once per session: a chat never moves to another client or business.
+  context = signal<DevAgentChatContext | null>(null);
   setupError = signal<string | null>(null);
   locale = signal<'he' | 'en'>('he');
   draft = '';
@@ -80,18 +88,49 @@ export class DevAgentPage implements OnInit, OnDestroy {
     clientId: () => this.clientPanelService.getSelectedClientId(),
   };
 
+  agentUserId() {
+    return this.context()?.agentUserId ?? null;
+  }
+
+  // The business and client the chat belongs to.
   get businessNumber() {
-    return this.auth.businessNumber();
+    return this.context()?.businessNumber ?? null;
   }
 
   get clientId() {
-    return this.auth.clientId();
+    return this.context()?.clientId ?? null;
+  }
+
+  // Whether the app switched client or business since the chat's context
+  // was read: the chat is then locked, and a new one starts in the new
+  // context (startSession), so nothing from the previous client or business
+  // is used under the new one.
+  get contextChanged() {
+    const context = this.context();
+
+    return (
+      context !== null &&
+      (context.businessNumber !== this.auth.businessNumber() || context.clientId !== this.auth.clientId())
+    );
   }
 
   async ngOnInit() {
+    await this.startSession();
+  }
+
+  // Reads the agent's user for the app's current client and business, and
+  // starts a chat in that context.
+  async startSession() {
+    void this.chat()?.stop();
+    this.chat.set(null);
+    this.context.set(null);
+    this.setupError.set(null);
+
+    const live = { businessNumber: this.auth.businessNumber(), clientId: this.auth.clientId() };
+
     try {
       const response = await fetch(`${this.apiUrl}api/agent/fn/readAgentSession`, {
-        headers: await devAgentHeaders(this.auth),
+        headers: await devAgentHeaders(fixedContextAuth(this.auth, live)),
       });
       const body = await response.json();
 
@@ -99,7 +138,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
         throw new Error(`${response.status}: ${JSON.stringify(body)}`);
       }
 
-      this.agentUserId.set(body.userId);
+      this.context.set({ agentUserId: body.userId, ...live });
       this.newChat();
     } catch (error) {
       this.setupError.set(
@@ -114,9 +153,14 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   newChat() {
-    const agentUserId = this.agentUserId();
+    const context = this.context();
 
-    if (!agentUserId) {
+    if (!context) {
+      return;
+    }
+
+    if (this.contextChanged) {
+      void this.startSession();
       return;
     }
 
@@ -125,9 +169,9 @@ export class DevAgentPage implements OnInit, OnDestroy {
       createDevAgentChat({
         apiUrl: this.apiUrl,
         conversationId: crypto.randomUUID(),
-        agentUserId,
+        agentUserId: context.agentUserId,
         locale: this.locale(),
-        auth: this.auth,
+        auth: fixedContextAuth(this.auth, context),
         onFinish: () => this.scrollDown(),
         onError: () => this.scrollDown(),
       }),
@@ -143,7 +187,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
     const chat = this.chat();
     const message = text.trim();
 
-    if (!chat || !message || this.isBusy(chat)) {
+    if (!chat || !message || this.isBusy(chat) || this.contextChanged) {
       return;
     }
 
