@@ -92,4 +92,28 @@ describe('BillingPlansPage plan changes', () => {
     http.expectNone(`${environment.apiUrl}billing/checkout`);
     expect(state.refreshBillingState).not.toHaveBeenCalled();
   });
+  it('refreshes a zero-price initial activation without redirecting to an undefined URL', async () => {
+    state.effectiveStatus = () => 'TRIAL';
+    const beforeUrl = window.location.href;
+    sessionStorage.setItem('tm.checkoutLowProfileId', 'old-checkout');
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush({ status: 'APPLIED', nextBillingDate: '2026-12-05' });
+    await operation;
+    expect(state.refreshBillingState).toHaveBeenCalledTimes(1);
+    expect(page.checkingOutPlanId()).toBeNull();
+    expect(sessionStorage.getItem('tm.checkoutLowProfileId')).toBeNull();
+    expect(window.location.href).toBe(beforeUrl);
+    expect(toast).toHaveBeenCalledWith('התוכנית הופעלה ללא חיוב.', 'success');
+  });
+  it('rejects an invalid initial checkout response without navigation', async () => {
+    state.effectiveStatus = () => 'TRIAL';
+    const beforeUrl = window.location.href;
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush({});
+    await operation;
+    expect(page.checkingOutPlanId()).toBeNull();
+    expect(window.location.href).toBe(beforeUrl);
+    expect(toast).toHaveBeenCalledWith('שגיאה בתהליך התשלום. נסה שוב.', 'error');
+  });
+
 });

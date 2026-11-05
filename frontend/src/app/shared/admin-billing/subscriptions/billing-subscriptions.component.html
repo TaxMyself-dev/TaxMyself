@@ -49,8 +49,8 @@
     [dataTable]="tableRows()"
     [actions]="rowActions"
     [isLoadingState]="isLoading()"
-    [placeholderSearch]="'חיפוש לפי שם משתמש'"
-    columnSearch="userName"
+    [placeholderSearch]="'חיפוש לפי שם, אימייל או עסק'"
+    columnSearch="searchText"
     tableHeight="520px">
   </app-generic-table>
 
@@ -297,6 +297,57 @@
           placeholder="dd/mm/yyyy">
         </app-input-date>
 
+        <fieldset class="pricing-settings" [disabled]="pricingLoading() || pricingFailed() || savingEdit()">
+          <legend>מחיר המשתמש</legend>
+          @if (pricingLoading()) { <p role="status">טוען את הגדרות המחיר…</p> }
+          @if (pricing(); as context) {
+            <div class="pricing-summary">
+              <strong>המחיר הנוכחי לפני מע״מ: {{ formatAmount(context.current?.amountBeforeVatAgorot) }}</strong>
+              <span>כולל מע״מ: {{ formatAmount(context.current?.amountIncludingVatAgorot) }}</span>
+              @if (context.current) { <span>מקור: {{ priceSourceLabels[context.current.source] }}</span> }
+              <span>מחיר חודשי לפי ההגדרות לחיוב הבא: {{ formatAmount(context.next?.amountBeforeVatAgorot) }} לפני מע״מ
+                ({{ formatAmount(context.next?.amountIncludingVatAgorot) }} כולל מע״מ)</span>
+              <small>מועד חיוב: {{ formatDate(context.nextBillingDate) }}. חובות קיימים נשארים בסכום המקורי.</small>
+            </div>
+            <label for="subscriptionPricePolicy">בעת שינוי מחיר התוכנית</label>
+            <select id="subscriptionPricePolicy" formControlName="pricePolicy">
+              <option value="LIVE">עדכון המחיר לפי התוכנית</option>
+              <option value="FROZEN">שמירת מחיר התוכנית בעת הפעלת האפשרות</option>
+            </select>
+            @if (editForm.get('pricePolicy')?.value === 'FROZEN') {
+              <small>המחיר השמור: {{ formatAmount(context.frozenMonthlyPriceAgorot) }} לפני מע״מ.
+                בשינוי תוכנית יישמר המחיר של התוכנית החדשה. היכולות תמיד יתעדכנו לפי התוכנית.</small>
+            }
+            <label class="pricing-checkbox"><input type="checkbox" formControlName="customPriceEnabled" /> הגדרת מחיר אישי קבוע</label>
+            @if (editForm.get('customPriceEnabled')?.value) {
+              <label for="subscriptionCustomPrice">מחיר חודשי אישי לפני מע״מ (₪)</label>
+              <input id="subscriptionCustomPrice" type="number" min="0" max="1000000" step="0.01" formControlName="customPriceShekels" />
+              <small>המחיר האישי גובר על המחיר השמור ועל ההנחות, ונשאר גם במעבר לתוכנית אחרת.</small>
+              <label for="subscriptionCustomStart">תחילת תוקף (ריק = מיד)</label>
+              <input id="subscriptionCustomStart" type="date" formControlName="customPriceStartDate" />
+              <label class="pricing-checkbox"><input type="checkbox" formControlName="customPriceTemporary" /> מחיר לתקופה מוגדרת</label>
+              @if (editForm.get('customPriceTemporary')?.value) {
+                <label for="subscriptionCustomEnd">בתוקף עד (כולל, לפי שעון ישראל)</label>
+                <input id="subscriptionCustomEnd" type="date" formControlName="customPriceEndDate" />
+                <small>לאחר סיום התקופה יחול המחיר השמור או מחיר התוכנית, לפי המדיניות שנבחרה וההנחה הקיימת.</small>
+              } @else { <small>ללא תאריך סיום.</small> }
+              @if (!pricingPayload()) { <p class="pricing-error" role="alert">יש להזין מחיר בין 0 ל־1,000,000 ₪ וטווח תאריכים תקין. לתקופה מוגדרת נדרש תאריך סיום.</p> }
+            }
+            @if (pricingChanged() || editForm.get('planId')?.value !== context.planId) {
+              <p class="pricing-pending">השינויים טרם נשמרו. הסכומים למעלה משקפים את ההגדרות השמורות.
+                @if (editForm.get('customPriceEnabled')?.value && pricingPayload(); as proposed) {
+                  המחיר האישי המבוקש: {{ formatAmount(proposed.customMonthlyPriceAgorot) }} לפני מע״מ.
+                }
+                השינוי יחול על חיובים עתידיים.</p>
+            }
+          }
+        </fieldset>
+        @if (pricingFailed()) {
+          <div class="pricing-error" role="alert">לא ניתן לטעון את הגדרות המחיר. השמירה חסומה כדי למנוע שינוי לא מכוון.
+            <button type="button" (click)="loadPricing(sub.subscriptionId)">נסה שוב</button>
+          </div>
+        }
+
         <app-input-select
           [parentForm]="editForm"
           controlName="discountKind"
@@ -355,6 +406,7 @@
             [buttonSize]="buttonSize.SMALL"
             [buttonColor]="saveButtonColor"
             [isLoading]="savingEdit()"
+            [disabled]="editForm.get('billingAccessMode')?.value === 'STANDARD' && (pricingLoading() || pricingFailed() || !pricing())"
             (onButtonClicked)="saveEdit()">
           </app-p-button>
         </div>

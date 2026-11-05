@@ -67,3 +67,43 @@ It never calls generate; missing documents retain only the generation action.
 Only sent=true produces the success toast; failed/busy delivery shows a warning.
 Requests suppress overlapping clicks and refresh the pending list afterwards.
 Isolated checks: tsconfig.receipt-email.spec.json.
+
+## Admin subscription pricing (2026-11-05)
+
+Plan editor supports base/licensed-dealer net monthly prices, a support display checkbox (preserving other saved feature keys),
+badge, recommendation, notes and all capability modules including EXPENSES.
+A price change requires a successful impact read and explicit confirmation with
+live/frozen/custom subscriber counts. The form is locked while that confirmation
+is pending. Deactivation is presented as stopping new enrollment, preserving
+existing members. Delete is separately confirmed and relies on the server's
+subscription/pending-dependency guard; historical billing is preserved.
+
+The subscription drawer lazily loads its authoritative pricing context separately
+from payment exceptions and cancels old requests when switching/closing drawers.
+It exposes LIVE/FROZEN price policy and an optional final custom net monthly
+price, including zero, with date-only start and optional inclusive Israel-time
+end date. Custom prices override discounts and survive plan changes. Existing
+plan, trial, access-mode and discount controls remain. The summary distinguishes
+saved current/next amounts and source from unsaved requested changes. Pricing
+load failure blocks ordinary save and offers retry. Access-mode confirmation is
+still independent. Plan/trial/discount writes finish before changed pricing is
+saved. Those endpoints are separate transactions: failures explicitly report
+possible partial saves, close stale drawer state and reload the list before retry.
+Search covers user name, email and business name.
+
+Isolated checks: npm test -- --watch=false --browsers=ChromeHeadless --progress=false
+--karma-config=karma.admin-subscription-pricing.cjs
+--ts-config=tsconfig.admin-subscription-pricing.spec.json
+--include=src/app/shared/admin-billing/subscriptions/billing-subscriptions*.spec.ts
+--include=src/app/shared/admin-billing/plans/billing-plans.component.spec.ts
+--include=src/app/services/admin-billing.pricing.spec.ts
+--include=src/app/pages/billing/billing-plans.page.spec.ts
+(Karma uses port 9881). Production application validation: npm run build --
+--configuration production --progress=false. No live charge is needed for UI tests.
+
+Focused feature verification passed 33/33 tests in Chrome Headless 156 on
+2026-11-05. Coverage includes zero-price initial activation without redirect,
+pricing request sequencing, load failure, partial-save failure, stale drawer
+requests, date/zero validation, impact confirmation/cancellation, safe deletion,
+SUPPORT mapping and API request contracts. Production build is verified separately
+by the task integration manager against the final combined feature revision.

@@ -248,3 +248,17 @@
 
   .billing-exceptions .detail-label { margin-top: 6px; }
 }
+
+.pricing-settings {
+  display: flex; flex-direction: column; gap: 10px; border: 1px solid #d1d5db;
+  border-radius: 8px; padding: 16px; margin: 8px 0 20px; min-width: 0;
+  legend { font-weight: 600; padding: 0 6px; }
+  select, input[type="number"], input[type="date"] {
+    width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font: inherit;
+  }
+  small { color: #4b5563; line-height: 1.6; }
+}
+.pricing-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px; background: #f3f4f6; border-radius: 6px; }
+.pricing-checkbox { display: flex; gap: 8px; align-items: center; }
+.pricing-error { color: #b91c1c; line-height: 1.6; }
+.pricing-pending { padding: 10px; background: #fffbeb; color: #92400e; line-height: 1.6; border-radius: 6px; }
