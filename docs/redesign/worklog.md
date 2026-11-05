@@ -2675,6 +2675,20 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
   Focused TypeScript validation and Karma tests (3/3) passed, and the Angular
   production build passed with the existing budget/CommonJS warnings.
 
+## 2026-11-05 — Direct-card cashflow, local-main verification
+
+- Integrated the approved Direct-card import restoration, immutable operational
+  label under בנק, אשראי ותנועות, owner exclusion preference and detected-card
+  popup with current local main. Classification rules retain their bill-wide
+  scope. Preserved newer source identity, consent-aware sync and full-sync retry.
+- SQL remains manual and cumulative; five approved columns and one unique index,
+  no classified_transactions.sourceRecordId. It was already applied only to dev;
+  integration did not run DB/provider/production operations or alter journals.
+- Combined validation: 23 backend suites / 277 tests, six frontend suites / 59
+  tests, Nest build and Angular production build passed (existing frontend
+  budget/CommonJS warnings). Personal main test and explicit push approval remain
+  pending. No GitHub push or deployment authorized.
+
 ## 2026-10-22 — Business number follows the selected proprietor
 
 - In private-account Settings, selecting the primary user or spouse as the

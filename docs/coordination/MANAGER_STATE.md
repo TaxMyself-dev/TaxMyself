@@ -1,5 +1,20 @@
 # Primary manager state
 
+## Direct-card cashflow — local main integration, 2026-11-05
+
+Elazar authorized local integration for personal main testing and explicitly
+forbade pushing. Merged main 99e604b0 into codex/direct-card-cashflow at 3880d3bf,
+preserving permanent source-ID handling, consent-aware sync and full-sync retry.
+Included his final copy edits. Approved Direct-card imports replace old skip
+expectations; bank exclusion remains owner opt-in by stable SYSTEM subcategory.
+Combined checks: 23 backend suites / 277 tests and six frontend suites / 59 tests
+passed; isolated-output Nest build and Angular production build passed (existing
+budget/CommonJS warnings). No production, provider or DB operation during merge;
+the approved dev schema was already applied. Deliver verified descendant to local
+main only. Retain feature worktree; no push until Elazar personally tests the
+current main revision and explicitly approves. See
+[task evidence](../tasks/active/direct-card-cashflow.md).
+
 ## Billing existing-invoice recovery — local main integration, 2026-11-03
 
 Elazar authorized local main integration after review and combined checks, with

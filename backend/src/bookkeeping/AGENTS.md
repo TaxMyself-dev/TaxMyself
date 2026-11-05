@@ -46,7 +46,7 @@ classified to the immutable SYSTEM subcategory identified by
 DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
 predicate serves cashflow lists/charts, pending archives/previews and approval
 guards. Existing approved expenses/journals are preserved. Settings stores the
-preference on the server; the cashflow list can explicitly show excluded rows.
+preference on the server; the cashflow list follows it without a show-excluded toggle.
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
-The script is also appended to cutover.sql and has not been executed here.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

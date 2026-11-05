@@ -1,10 +1,10 @@
 # Direct-card cashflow imports and opt-in exclusion
 
-- Status: WORKER_COMPLETE — local implementation; manual DB/UI validation pending.
+- Status: LOCAL_MAIN_VERIFICATION_PENDING — approved local integration; no push authorized.
 - Task manager and implementer: Codex, single isolated feature worktree.
 - Branch: codex/direct-card-cashflow
 - Base commit: 4570bede (origin/main fetched 2026-11-04).
-- No push, deployment, production access or main integration performed.
+- Local main integration authorized 2026-11-05. No push, deployment or production access.
 
 ## Acceptance criteria
 
@@ -13,9 +13,33 @@
 - [x] Owner-only server-persisted boolean preference, false by default; narrow update preserves concurrent connection state.
 - [x] Exclude classified owned BANK_ACCOUNT rows from lists, aggregates, pending archives/previews and direct approval endpoints.
 - [x] Keep classification/source provenance across cache rebuilds; preserve existing bill-wide rule matching, identity and backfill across sources.
-- [x] Inspect/reclassify excluded rows; opt-out restores visibility. Refresh cached lists/charts on saved preference changes.
+- [x] Opt-out restores visibility for inspection/reclassification; no show-excluded checkbox. Refresh cached lists/charts on saved preference changes.
 - [x] Sync failures stay independent; synthetic demo covers both states without provider calls.
 - [x] Prepare manual SQL, append it to cutover.sql and document rollout/limits.
+
+## Local main integration — 2026-11-05
+
+Elazar explicitly requested integration into local main for personal testing and
+forbade GitHub push. Preserved his final popup/settings copy in 1ab0765c and merged
+current local main 99e604b0 into the feature at 3880d3bf. Resolved additive topic
+documentation and combined the Direct popup with main's full-sync retry binding.
+Removed main's old explicit Direct-skip guard while retaining permanent source-ID
+lookup, consent-aware selection and error handling. Updated three obsolete test
+expectations to normal Direct imports/not_synced discovery; no product behavior
+was broadened during integration.
+
+Verification on the merged tree: 23 backend suites / 277 tests passed across
+banking/classification/demo and report/expense checks (the two old-expectation
+suites reran green after correction). Six frontend suites / 59 ChromeHeadless
+tests passed. Nest build passed using an isolated output directory to avoid
+disturbing the watch server; Angular production build passed with existing
+CSS/bundle budget and CommonJS warnings. SQL copies match; no generated files,
+environment files or secrets are included. No live provider, DB or production
+operation was needed during integration. Dev SQL was already applied earlier.
+
+Feature and main are retained locally for Elazar's personal main verification.
+Real Direct-card feed coverage still needs his connected-account check. No remote
+push is authorized until he tests this current main revision and explicitly approves.
 
 ## Validation
 

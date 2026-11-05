@@ -24,7 +24,7 @@ describe('Open banking reliability regression', () => {
       { type:'card', sourceId:'1', consentId:'c', isDirect:true }, { type:'card', sourceId:'2', consentId:'c' },
     ])).rejects.toMatchObject({ completed:1, issues:[expect.objectContaining({code:'OB-02'})] });
     expect(state.save).toHaveBeenCalledTimes(2);
-    expect(state.save.mock.calls[0][0].status).toBe('skipped_direct');
+    expect(state.save.mock.calls[0][0].status).toBe('not_synced');
     expect(state.save.mock.calls[1][0].consentId).toBe('c');
   });
   it('continues outcome writes after one source fails', async () => {

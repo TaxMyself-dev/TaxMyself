@@ -148,12 +148,12 @@ describe('Consent-aware transaction synchronization', () => {
     expect(result.processingError).toBe('OB-04|' + issue.errorId);
     expect(result.__identityResults[0].error).toBe(result.processingError);
   });
-  it('keeps intentionally skipped Direct cards quiet even when no bank is linked', async () => {
+  it('imports a legacy skipped Direct card even when no bank is linked', async () => {
     const { service } = fixture([row(1, { status: 'skipped_direct' })]);
     const result = await pull(service);
-    expect(result.__identityResults[0].status).toBe('skipped_direct');
+    expect(result.__identityResults[0].status).toBe('success');
     expect(result.cardErrors).toEqual([]);
-    expect(service.getAndSaveUserCardTransactions).not.toHaveBeenCalled();
+    expect(service.getAndSaveUserCardTransactions).toHaveBeenCalledTimes(1);
   });
   it('uses ordinary Direct results when the Direct-import feature enables legacy retries', async () => {
     jest.spyOn(FeezbackService, 'isRetryablePendingStatus').mockReturnValue(true);
@@ -167,10 +167,10 @@ describe('Consent-aware transaction synchronization', () => {
     expect((await pull(service)).__identityResults[0].status).toBe('success');
     expect(service.getAndSaveUserCardTransactions).toHaveBeenCalledTimes(1);
   });
-  it('keeps an independently known Direct card quiet even if its old status was failed', async () => {
+  it('retries an independently known Direct card after its old failed status', async () => {
     const { service } = fixture([row(1, { status: 'failed', source: { isDirect: true } })]);
-    expect((await pull(service)).__identityResults[0].status).toBe('skipped_direct');
-    expect(service.getAndSaveUserCardTransactions).not.toHaveBeenCalled();
+    expect((await pull(service)).__identityResults[0].status).toBe('success');
+    expect(service.getAndSaveUserCardTransactions).toHaveBeenCalledTimes(1);
   });
   it('does not publish an old resource outcome after discovery replaced its resource ID', async () => {
     const { service, rows } = fixture([row(1)]);
