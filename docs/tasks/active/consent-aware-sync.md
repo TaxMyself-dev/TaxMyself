@@ -23,4 +23,6 @@
 - Schema / production / security / accounting / external impact: no schema changes, live API calls, DB writes, production access, accounting changes or external API contract changes. Diagnostics retain credential redaction and bounded bodies.
 - Direct feature integration: ordinary imports are enabled by that feature making skipped_direct retryable. Current intentional skips remain non-errors; positive credit classification overrides stale Direct status. Combined branch integration should rerun both feature regressions.
 - Local main integration authorized by repository workflow; remote push is forbidden until Elazar manually tests current main and explicitly approves.
-- Main verification and manual test: pending.
+- Main integration: executable commit 30e7b7dd fast-forwarded onto clean local main.
+- Exact integrated-main verification: npm test -- --runInBand feezback user-sync-state.service.spec.ts passed 439 tests in 32 suites; npm run build passed. Evidence: consent-aware-main-tests.txt and consent-aware-main-build.txt in the investigation workspace.
+- Manual main verification and push approval: pending Elazar. No remote push or deployment performed. Restart the local backend, then use the full-sync retry action to exercise a new run.
