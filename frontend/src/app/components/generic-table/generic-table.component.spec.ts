@@ -34,19 +34,37 @@ describe('GenericTable unified row actions', () => {
   });
 
   for (const mobileView of [false,true]) {
-    it(`keeps existing banking rows visible during running and failed refreshes (mobile=${mobileView})`, () => {
+    it(`shows the loader for a new pull with retained rows, then restores rows on failure (mobile=${mobileView})`, () => {
       mobile.set(mobileView);
       if (mobileView) fixture.componentRef.setInput('mobileCardConfig',{primaryFields:['name']});
       fixture.componentRef.setInput('useSyncState',true);
       fixture.componentRef.setInput('preserveRowsDuringSync',true);
       fixture.componentRef.setInput('processStatus','running');
       fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeTrue();
+      expect(component.dataTable()).toEqual([row]);
+      expect(fixture.nativeElement.querySelector('.pi-spinner-dotted')).not.toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('נתונים נמשכים מהבנק');
+      expect(fixture.nativeElement.querySelector('.table-container').getAttribute('aria-busy')).toBe('true');
+      fixture.componentRef.setInput('processStatus','failed');fixture.detectChanges();
       expect(component.effectiveIsLoading()).toBeFalse();
       expect(fixture.nativeElement.textContent).toContain('מסמך');
-      expect(fixture.nativeElement.textContent).toContain('הנתונים הקיימים');
-      fixture.componentRef.setInput('processStatus','failed');fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('מסמך');
       expect(fixture.nativeElement.querySelector('.sync-error-text')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.pi-spinner-dotted')).toBeNull();
+    });
+    it(`keeps the loader until refreshed table data finishes loading (mobile=${mobileView})`, () => {
+      mobile.set(mobileView);
+      if (mobileView) fixture.componentRef.setInput('mobileCardConfig',{primaryFields:['name']});
+      fixture.componentRef.setInput('useSyncState',true);
+      fixture.componentRef.setInput('preserveRowsDuringSync',true);
+      fixture.componentRef.setInput('processStatus','completed');
+      fixture.componentRef.setInput('isLoadingState',true);fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeTrue();
+      expect(component.dataTable()).toEqual([row]);
+      fixture.componentRef.setInput('isLoadingState',false);fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeFalse();
+      expect(fixture.nativeElement.textContent).toContain('מסמך');
+      expect(fixture.nativeElement.querySelector('.table-container').getAttribute('aria-busy')).toBe('false');
     });
   }
 

@@ -211,8 +211,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
   hasRetainedRows = computed(() => this.preserveRowsDuringSync() && !!this.dataTable()?.length);
-  effectiveIsLoading = computed(() => !this.hasRetainedRows() &&
-    (this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')));
+  // Retention protects the last readable rows after a failed refresh; it must
+  // not hide the loading indicator while a new pull or table read is in flight.
+  effectiveIsLoading = computed(() =>
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running'));
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();

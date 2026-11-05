@@ -3,9 +3,9 @@
     (change)="onFileChange($event)" (cancel)="onFileSelectionCanceled()" />
 }
 @if (hasRetainedRows() && useSyncState() && processStatus() === 'running') {
-  <p role="status" dir="rtl">מעדכנים את הנתונים. בינתיים מוצגים הנתונים הקיימים.</p>
+  <p role="status" dir="rtl">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
 }
-<div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
+<div class="table-container" [attr.aria-busy]="effectiveIsLoading()" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
     <div class="input-title-container">

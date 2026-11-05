@@ -57,3 +57,10 @@ table contract and must have identical availability and execution in both layout
   --ts-config=tsconfig.table-actions.spec.json
   --include=src/app/components/generic-table/*.spec.ts
   --include=src/app/components/table-row-actions-menu/*.spec.ts`.
+
+## Banking retry loading feedback (2026-11-05)
+
+preserveRowsDuringSync retains source data and restores it after refresh failure;
+it no longer suppresses effectiveIsLoading. Running syncs and subsequent table
+reads show the existing desktop/mobile loaders even with prior rows. aria-busy
+tracks this state. Feedback belongs to the table and outlives the banking toast.
