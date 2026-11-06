@@ -72,6 +72,8 @@ Isolated checks: tsconfig.receipt-email.spec.json.
 
 Plan editor supports base/licensed-dealer net monthly prices, a support display checkbox (preserving other saved feature keys),
 badge, recommendation, notes and all capability modules including EXPENSES.
+Trial duration is configured application-wide. The plan list and editor omit
+the legacy per-plan trial-days field and plan saves do not send it.
 A price change requires a successful impact read and explicit confirmation with
 live/frozen/custom subscriber counts. The form is locked while that confirmation
 is pending. Deactivation is presented as stopping new enrollment, preserving

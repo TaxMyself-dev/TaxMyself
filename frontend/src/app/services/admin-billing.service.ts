@@ -38,7 +38,6 @@ export interface CreatePlanPayload {
   notes?: string | null;
   currency?: string;
   modules?: string[];
-  trialDays?: number;
   isActive?: boolean;
   isPublic?: boolean;
   displayOrder?: number;

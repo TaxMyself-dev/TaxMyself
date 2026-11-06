@@ -1,6 +1,6 @@
 # Admin subscription plans and personal pricing
 
-Plans can be created/edited with both business-type prices, capabilities, trial,
+Plans can be created/edited with both business-type prices, capabilities,
 marketing copy, badge/recommendation and listing order. Stopping admission keeps
 existing members and approved plan/enrollment changes working. Deletion is soft:
 it rejects attached subscribers, open debts/unresolved attempts and pending
