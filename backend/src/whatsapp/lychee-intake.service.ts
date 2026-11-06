@@ -6,6 +6,7 @@ import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { DocumentImportService } from '../document-import/document-import.service';
 import { DocumentImportSource } from '../document-import/enums/document-import.enums';
+import { DocumentsService } from '../documents/documents.service';
 import { isImportBlockCode } from '../document-import/document-import-blocked.error';
 import { lycheeSender } from './lychee-sender';
 import { lycheeAccountsForPhone } from './lychee-account-lookup';
@@ -46,6 +47,7 @@ export class LycheeIntakeService {
     private readonly businesses: Repository<Business>,
     private readonly prompts: LycheePromptService,
     private readonly notifications: LycheeNotificationService,
+    private readonly documentsService: DocumentsService,
   ) {}
 
   onModuleDestroy(): void {
@@ -399,5 +401,21 @@ export class LycheeIntakeService {
         : 'המסמך נשמר בדרייב ותוצאת הייבוא נשמרה במסד',
     );
     this.notifications.wake();
+    // The webhook was acknowledged before this worker started. OCR can run
+    // here without delaying Meta/Lychee, and the resulting document appears
+    // in the archive without waiting for report navigation.
+    try {
+      await this.documentsService.processInboxForUser(owner, businessNumber);
+    } catch (error) {
+      const diagnostic = safeLycheeError(error);
+      lycheeLog(
+        e.event_id,
+        'document.ocr',
+        'failed',
+        diagnostic.reason,
+        { httpStatus: diagnostic.httpStatus, code: diagnostic.code },
+      );
+      // The import is already durable and the periodic inbox sweep retries it.
+    }
   }
 }

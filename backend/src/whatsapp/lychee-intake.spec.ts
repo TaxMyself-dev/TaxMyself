@@ -306,6 +306,13 @@ describe('Lychee document workflow without sending', () => {
     };
     prompts = { wake: jest.fn() };
     notifications = { wake: jest.fn() };
+    const documentsService = {
+      processInboxForUser: jest.fn().mockResolvedValue({
+        processed: 1,
+        failed: 0,
+        alreadyProcessing: false,
+      }),
+    };
     service = new LycheeIntakeService(
       store,
       client,
@@ -314,6 +321,7 @@ describe('Lychee document workflow without sending', () => {
       businesses,
       prompts,
       notifications,
+      documentsService as any,
     );
   });
   it('wakes result delivery only after import completion has committed', async () => {

@@ -41,7 +41,16 @@
         class="mrc__highlighted"
         [class.mrc__highlighted--expense]="sumExpenseHighlight()"
         [class.mrc__highlighted--income]="sumIncomeHighlight()">
-        @if (formattedHighlightedValue()) {
+        @if (highlightedColumn()?.cellRenderer === CellRenderer.SOURCE_BADGE) {
+          <span class="mrc__source-badge">
+            @if (row().sourceIconUrl) {
+              <img class="mrc__source-image" [src]="row().sourceIconUrl" alt="" aria-hidden="true" />
+            } @else if (row().sourceIconClass) {
+              <i class="mrc__source-icon {{ row().sourceIconClass }}" aria-hidden="true"></i>
+            }
+            <span>{{ formattedHighlightedValue() }}</span>
+          </span>
+        } @else if (formattedHighlightedValue()) {
           {{ formattedHighlightedValue() }}
         }
       </span>
@@ -90,6 +99,15 @@
           @if (row().statusDetail) {
             <small class="mrc__status-detail">{{ row().statusDetail }}</small>
           }
+        </span>
+      } @else if (col.cellRenderer === CellRenderer.SOURCE_BADGE) {
+        <span class="mrc__source-badge">
+          @if (row().sourceIconUrl) {
+            <img class="mrc__source-image" [src]="row().sourceIconUrl" alt="" aria-hidden="true" />
+          } @else if (row().sourceIconClass) {
+            <i class="mrc__source-icon {{ row().sourceIconClass }}" aria-hidden="true"></i>
+          }
+          <span>{{ resolveValue(col) }}</span>
         </span>
       } @else if (col.name === 'billName' && unassignedBillRed() && billUnassigned()) {
         <span class="mrc__value--bill-unassigned">לא משוייך</span>

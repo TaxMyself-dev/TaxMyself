@@ -129,4 +129,32 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       RecordSource.EMAIL,
     );
   });
+
+  it('preserves WHATSAPP as the OCR/archive source for an API-imported file', async () => {
+    const file = {
+      id: 'whatsapp-file',
+      name: 'receipt.pdf',
+      mimeType: 'application/pdf',
+      md5Checksum: null,
+      createdTime: '2026-11-05T10:00:00.000Z',
+    };
+    const test = subject([[], [], []], file, [{
+      driveFileId: file.id,
+      source: DocumentImportSource.API_IMPORT,
+    }]);
+    test.fakeThis.documentProcessor.extract.mockResolvedValue({
+      invoices: null,
+      rawResponse: 'diagnostic OCR failure',
+    });
+
+    await expect(test.run()).resolves.toMatchObject({ failed: 1 });
+    expect(test.fakeThis.saveErrorRow).toHaveBeenCalledWith(
+      7,
+      '123456789',
+      file,
+      new Date(file.createdTime),
+      'diagnostic OCR failure',
+      RecordSource.WHATSAPP,
+    );
+  });
 });

@@ -84,6 +84,16 @@ allocation, retries perform local work only and never call SHAAM again.
   upstream response bodies. Operational logs may include status/error codes and
   template identifiers only.
 - `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files.
+- Provisioned Drive inboxes are also scanned automatically every minute by
+  `InboxOcrCronService`, independently of report navigation. Browser Drive
+  uploads and WhatsApp intake trigger the same locked processor immediately;
+  the periodic sweep is the recovery path and detects files dropped directly
+  into Drive. No separate processing lifecycle is exposed in the archive:
+  successful OCR rows enter as `PENDING_REVIEW`.
+- The archive also projects unrepresented files still present in the Drive
+  inbox as the existing `PENDING`/"waiting for approval" state. These rows
+  are previewable but not approvable until OCR persists the corresponding
+  `ExtractedDocument`; no additional user-facing processing status exists.
 - Byte-identical live duplicates are recorded as `REJECTED` without another OCR
   pass and persist the user-facing rejection reason `קובץ כפול`; the diagnostic
   `rawResponse` retains the original Drive file id. Archive projection also

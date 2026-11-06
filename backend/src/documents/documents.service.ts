@@ -3001,10 +3001,7 @@ ${finalOwnerName}`;
     const sourceByDriveId = new Map(
       importRows.map(row => [
         row.driveFileId,
-        row.source === DocumentImportSource.GMAIL ||
-        row.source === DocumentImportSource.EMAIL_FORWARDING
-          ? RecordSource.EMAIL
-          : RecordSource.DRIVE,
+        this.recordSourceForImport(row.source),
       ]),
     );
 
@@ -3758,6 +3755,15 @@ ${finalOwnerName}`;
       );
       uploaded.push({ fileId, fileName: file.originalname });
     }
+    // User-facing Drive uploads should become archive rows immediately,
+    // independently of report navigation. The distributed lock keeps this
+    // safe if the periodic inbox sweep or another request is already running.
+    void this.processInboxForUser(firebaseId, businessNumber).catch((error: any) => {
+      this.logger.warn(
+        `Immediate Drive upload OCR failed for biz=${businessNumber}: ${error?.message ?? error}`,
+      );
+      // The automatic inbox sweep will retry the durable Drive files.
+    });
     return uploaded;
   }
 
@@ -4058,6 +4064,63 @@ ${finalOwnerName}`;
       canManageExpenses,
   }));
 
+    // Files can be visible in Drive before OCR has persisted an
+    // ExtractedDocument. Surface those durable inbox files immediately using
+    // the existing PENDING archive status; approval actions stay disabled
+    // until the OCR row replaces this projection.
+    let pendingInboxItems: ArchivedItem[] = [];
+    const business = await this.businessRepo.findOne({
+      where: { firebaseId, businessNumber },
+      select: ['driveInboxFolderId'],
+    });
+    if (business?.driveInboxFolderId) {
+      try {
+        const inboxFiles = await this.googleDriveService.listFolderFiles(
+          business.driveInboxFolderId,
+        );
+        const representedDriveIds = new Set(docs.map(doc => doc.driveFileId));
+        const unrepresentedFiles = inboxFiles.filter(
+          file => !representedDriveIds.has(file.id),
+        );
+        const importRows = unrepresentedFiles.length
+          ? await this.importedDocumentRepo.find({
+              where: {
+                firebaseId,
+                businessNumber,
+                driveFileId: In(unrepresentedFiles.map(file => file.id)),
+              },
+            })
+          : [];
+        const sourceByDriveId = new Map(importRows.map(row => [
+          row.driveFileId,
+          this.recordSourceForImport(row.source),
+        ]));
+
+        pendingInboxItems = unrepresentedFiles.map(file => ({
+          id: this.pendingInboxArchiveId(file.id),
+          itemType: 'DOCUMENT',
+          documentType: null,
+          documentKind: null,
+          name: file.name,
+          documentDate: null,
+          uploadDate: file.createdTime,
+          source: sourceByDriveId.get(file.id) ?? RecordSource.DRIVE,
+          status: ArchiveItemStatus.PENDING,
+          canResolve: false,
+          canReclassify: false,
+          canManageExpenses,
+          driveFileId: file.id,
+          rejectionReason: null,
+          vatReportPeriod: null,
+          annualReportingYear: null,
+        }));
+      } catch (error: any) {
+        this.logger.warn(
+          `Archive inbox projection failed for biz=${businessNumber}: ${error?.message ?? error}`,
+        );
+      }
+    }
+
     // Every Expense not backed by a source document: bank/card transactions
     // classified as an expense (approveTxNoDoc, source=OPEN_BANKING) AND
     // plain manual entries (source=MANUAL, no transaction either) — both are
@@ -4129,11 +4192,29 @@ ${finalOwnerName}`;
       };
     });
 
-    return [...docItems, ...txItems, ...pendingTransactionItems].sort((a, b) => {
+    return [...docItems, ...pendingInboxItems, ...txItems, ...pendingTransactionItems].sort((a, b) => {
       const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;
     });
+  }
+
+  private recordSourceForImport(source: DocumentImportSource): RecordSource {
+    if (
+      source === DocumentImportSource.GMAIL ||
+      source === DocumentImportSource.EMAIL_FORWARDING
+    ) {
+      return RecordSource.EMAIL;
+    }
+    if (source === DocumentImportSource.API_IMPORT) {
+      return RecordSource.WHATSAPP;
+    }
+    return RecordSource.DRIVE;
+  }
+
+  private pendingInboxArchiveId(driveFileId: string): number {
+    const prefix = createHash('sha256').update(driveFileId).digest('hex').slice(0, 8);
+    return -Number.parseInt(prefix, 16) - 1;
   }
 
   /** Change a non-approved document between the archive's business

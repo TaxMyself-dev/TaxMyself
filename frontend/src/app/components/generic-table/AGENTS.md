@@ -15,6 +15,11 @@ table contract and must have identical availability and execution in both layout
   DOM rendering/clicks, file ownership and canceled file selections.
 
 ## Main flows and invariants
+- `ICellRenderer.SOURCE_BADGE` renders an intake-source icon and label on both
+  desktop rows and mobile cards. Consumers provide `sourceIconClass` or
+  `sourceIconUrl` on the row; the renderer keeps the source text searchable.
+  The archive uses stable source colors: purple transaction arrows, blue mail,
+  green WhatsApp, the multicolor Drive mark, and an orange manual-entry pencil.
 - Optional `emptyText` changes only a genuinely empty source collection on
   desktop/mobile. Its default remains the existing no-results text; local search
   or filtering of nonempty source rows retains no-results copy. Loading and sync

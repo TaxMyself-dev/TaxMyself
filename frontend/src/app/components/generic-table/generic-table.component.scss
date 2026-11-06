@@ -602,3 +602,25 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
+
+.generic-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.generic-source-badge__icon,
+.generic-source-badge__image {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  object-fit: contain;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.generic-source-badge__icon.pi-whatsapp { color: #25d366; }
+.generic-source-badge__icon.pi-envelope { color: #2563eb; }
+.generic-source-badge__icon.pi-arrow-right-arrow-left { color: #7c3aed; }
+.generic-source-badge__icon.pi-pencil { color: #f59e0b; }
