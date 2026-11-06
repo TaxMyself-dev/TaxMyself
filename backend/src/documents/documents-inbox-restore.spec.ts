@@ -32,6 +32,7 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       safelyMoveToProcessed: jest.fn().mockResolvedValue(undefined),
       saveDuplicateRow: jest.fn(),
       saveErrorRow: jest.fn(),
+      recordSourceForImport: (DocumentsService.prototype as any).recordSourceForImport,
       logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
     };
 

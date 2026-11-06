@@ -110,7 +110,12 @@ describe('Admin billing resolution boundaries', () => {
 });
 
 describe('Admin resolution runtime and authorization', () => {
+  afterEach(() => jest.useRealTimers());
+
   it.each(['ACTIVE', 'CANCELED'])('resumes only local token completion for a %s subscription', async status => {
+    // Recovery status is intentionally evaluated against the current instant.
+    // Freeze it before this fixture's period end so the test remains timeless.
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-20T12:00:00.000Z'));
     const row = { id: 10, obligationId: 1, planId: 5, status: Status.CAPTURED,
       cardcomTransactionId: 'verified-tx', capturedAt: new Date() };
     const debt = { id: 1, subscriptionId: 7, periodStart: '2026-10-06', periodEnd: '2026-11-06' };
