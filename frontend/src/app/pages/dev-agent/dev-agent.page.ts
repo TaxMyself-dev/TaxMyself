@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import type { Chat } from '@ai-sdk/angular';
 import type { UIMessage } from 'ai';
@@ -16,6 +17,7 @@ import {
   DevAgentRequestAuth,
   fixedContextAuth,
 } from './dev-agent-chat';
+import { DEV_AGENT_FROM_ADMIN, devAgentApiOverride } from './dev-agent.route';
 
 type MessagePart = UIMessage['parts'][number];
 
@@ -30,15 +32,8 @@ interface ToolPartView {
   approvalId: string | null;
 }
 
-// Only a local backend may stand in for the app's: the page sends it the
-// signed-in user's Firebase token.
-const devAgentApiUrl = (override: string | null) => {
-  if (override && /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}\/?$/.test(override)) {
-    return override.endsWith('/') ? override : `${override}/`;
-  }
-
-  return environment.apiUrl;
-};
+// Only a local backend may stand in for the app's (devAgentApiOverride).
+const devAgentApiUrl = (override: string | null) => devAgentApiOverride(override) ?? environment.apiUrl;
 
 const examplePrompts = [
   'כמה הוצאתי על דלק השנה?',
@@ -67,12 +62,18 @@ export class DevAgentPage implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly clientPanelService = inject(ClientPanelService);
 
+  private readonly router = inject(Router);
+  private readonly query = inject(ActivatedRoute).snapshot.queryParamMap;
+
   @ViewChild('scroller') private scroller?: ElementRef<HTMLElement>;
 
   readonly examplePrompts = examplePrompts;
   // The backend the agent runs in: the app's, or another local one given as
-  // ?api=http://localhost:3001/ (several worktrees' backends run side by side).
-  readonly apiUrl = devAgentApiUrl(new URLSearchParams(location.search).get('api'));
+  // ?api=http://localhost:3011/ (several worktrees' backends run side by side).
+  // Read from the route, so it holds after an in-app navigation too.
+  readonly apiUrl = devAgentApiUrl(this.query.get('api'));
+  // Opened from the admin panel's "צ׳אט AI" tab: offer the way back.
+  readonly fromAdminPanel = this.query.get('from') === DEV_AGENT_FROM_ADMIN;
 
   chat = signal<Chat<UIMessage> | null>(null);
   // The context the chat belongs to (agent user, client), read once per
@@ -148,6 +149,12 @@ export class DevAgentPage implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     void this.chat()?.stop();
+  }
+
+  // Back to the admin panel, keeping the ?api= override for the next visit.
+  backToAdminPanel() {
+    const api = devAgentApiOverride(this.query.get('api'));
+    void this.router.navigate(['/admin-panel'], { queryParams: api ? { api } : {} });
   }
 
   newChat() {

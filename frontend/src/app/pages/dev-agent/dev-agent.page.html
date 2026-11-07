@@ -12,6 +12,9 @@
       </div>
     </div>
     <div class="actions">
+      @if (fromAdminPanel) {
+        <button type="button" class="back" dir="rtl" (click)="backToAdminPanel()">→ חזרה לפאנל הניהול</button>
+      }
       <button type="button" [class.on]="locale() === 'he'" (click)="setLocale('he')">עברית</button>
       <button type="button" [class.on]="locale() === 'en'" (click)="setLocale('en')">English</button>
       <button type="button" (click)="newChat()" [disabled]="!agentUserId()">New chat</button>

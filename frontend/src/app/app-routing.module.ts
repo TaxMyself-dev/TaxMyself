@@ -12,7 +12,7 @@ import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
 import { AdminRouteGuard } from './shared/guard/admin-route.guard';
 import { AccountantRouteGuard } from './shared/guard/accountant-route.guard';
 import { AppRoute } from './shared/access-control';
-import { environment } from 'src/environments/environment';
+import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agent.route';
 
 /**
  * In-app routes that require connectivity for deliberate navigation while a
@@ -23,9 +23,10 @@ import { environment } from 'src/environments/environment';
 const appRoutes: Routes = [
   // The AI agent's test page (backend/agent), only where the environment
   // turns it on (local development); never in dev or production builds.
-  ...((environment as { agentDevPage?: boolean }).agentDevPage
+  // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
+  ...(devAgentRouteEnabled()
     ? [{
-        path: 'dev/agent',
+        path: DEV_AGENT_PATH,
         canActivate: [AuthGuard],
         loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),
       }]

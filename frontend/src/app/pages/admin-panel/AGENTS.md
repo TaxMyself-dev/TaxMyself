@@ -100,6 +100,16 @@ together with a bounded evidence reference.
 
 - Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
+- `צ׳אט AI` tab (local development only): not a panel. It navigates to the
+  existing agent chat at `/dev/agent?from=admin-panel` (its own `AuthGuard`
+  and Firebase token; actor/owner isolation stays in the backend) and keeps
+  the previous tab selected. A local `?api=` override on `/admin-panel` is
+  passed on (only `http://localhost|127.0.0.1:<port>/`), e.g.
+  `/admin-panel?api=http://localhost:3011/`; the chat's back button returns
+  here with it. The tab and the route share one flag,
+  `devAgentRouteEnabled()` in `pages/dev-agent/dev-agent.route.ts`
+  (`environment.agentDevPage`), so the tab is absent wherever the route is.
+  Focused specs: `tsconfig.admin-ai-chat.spec.json`.
 - `/admin-panel` is protected by `AuthGuard` plus `AdminRouteGuard`; API
   endpoints still require server-side `AdminGuard`/persisted-role checks.
 - In the nested Cards tab, administer SYSTEM cards and create a new SYSTEM card (plus its paired SYSTEM sub-category unless marked technical-only).

@@ -207,6 +207,23 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
   Docker Desktop, then `docker compose up -d` in
   `C:\Users\user\langfuse-local`.
 
+## Follow-up 2026-11-07: admin-panel entry to the chat
+
+- The admin panel has a `צ׳אט AI` tab, present only where the `/dev/agent`
+  route is (one shared flag, `pages/dev-agent/dev-agent.route.ts`). It
+  navigates to the existing chat page with `from=admin-panel` and passes on
+  a local `?api=` override; the chat page reads `api`/`from` from the route
+  and shows `→ חזרה לפאנל הניהול`, which returns with the same override.
+- No change to authorization: `/admin-panel` keeps `AuthGuard` +
+  `AdminRouteGuard`; `/dev/agent` keeps `AuthGuard` and sends the Firebase
+  token; actor/owner/business isolation is untouched (backend only).
+- No port is configured anywhere: 3011 is given only as
+  `/admin-panel?api=http://localhost:3011/`.
+- Focused specs: `npx ng test --ts-config tsconfig.admin-ai-chat.spec.json
+  --include src/app/pages/admin-panel/admin-panel.page.spec.ts --include
+  src/app/pages/dev-agent/dev-agent.route.spec.ts --watch=false
+  --browsers=ChromeHeadless`.
+
 ## Integration
 
 - Reviewed by:
