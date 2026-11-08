@@ -154,6 +154,7 @@ export class GenericService {
   /** עדכון פרטי עסק (תמיכה בעדכון לפי id לעסק חדש או לפי businessNumber) */
   async updateBusiness(payload: {
     id?: number;
+    proprietorRole?: string;
     businessNumber?: string;
     advanceTaxPercent?: number;
     businessName?: string;
@@ -175,6 +176,7 @@ export class GenericService {
 
   /** יצירת עסק חדש למשתמש המחובר (עם פרטים אופציונליים מהמודל) */
   async createBusiness(payload?: {
+    proprietorRole: string;
     businessName?: string;
     businessNumber?: string;
     businessAddress?: string;

@@ -13,7 +13,7 @@ import { Form1342ReportDto, Form1342ReportRowDto } from './dtos/depreciation-rep
 import { ExpensesService } from '../expenses/expenses.service';
 import { SharedService } from 'src/shared/shared.service';
 import { User } from '../users/user.entity';
-import { BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
+import { BusinessProprietorRole, BusinessType, DOC_TYPE_INFO, DocumentSummaryRow, DocumentType, FIELD_MAP, isExemptBusinessType, JournalReferenceType, ListSummaryRow, PaymentMethodType, UniformFileTypeCodeMap, UniformSummaries} from 'src/enum';
 import { Documents } from 'src/documents/documents.entity';
 import { DocLines } from 'src/documents/doc-lines.entity';
 import * as path from 'path';
@@ -76,6 +76,11 @@ export interface UniformFileArtifacts {
   bkmvdataBuffer: Buffer;
   document_summary: DocumentSummaryRow[];
   list_summary: ListSummaryRow[];
+}
+
+export interface UniformFileGenerationContext {
+  uniqueId?: string;
+  generatedAt?: Date;
 }
 
 const createUniformGenerationState = (): UniformGenerationState => ({
@@ -804,9 +809,12 @@ export class ReportsService {
     const netProfitBeforeTax = effectiveIncome - totalExpenses;
     const owner = await this.userRepo.findOne({
       where: { firebaseId },
-      select: ['fName', 'lName'],
+      select: ['fName', 'lName', 'spouseFName', 'spouseLName'],
     });
-    const businessOwnerName = [owner?.fName, owner?.lName]
+    const proprietorNameParts = business.proprietorRole === BusinessProprietorRole.SPOUSE
+      ? [owner?.spouseFName, owner?.spouseLName]
+      : [owner?.fName, owner?.lName];
+    const businessOwnerName = proprietorNameParts
       .filter((part): part is string => !!part?.trim())
       .join(' ')
       .trim() || business.businessName || businessNumber;
@@ -1540,11 +1548,26 @@ export class ReportsService {
   }
 
 
-    async createUniformFile(userId: string, startDate: string, endDate: string, businessNumber: string): Promise<UniformFileArtifacts> {
+    async createUniformFile(
+      userId: string,
+      startDate: string,
+      endDate: string,
+      businessNumber: string,
+      generationContext: UniformFileGenerationContext = {},
+    ): Promise<UniformFileArtifacts> {
       const state = createUniformGenerationState();
 
-      // Generate Unique Random Number (15 digits)
-      const uniqueId = this.generateUniqueId();
+      const generatedAt = generationContext.generatedAt
+        ? new Date(generationContext.generatedAt)
+        : new Date();
+      if (Number.isNaN(generatedAt.getTime())) {
+        throw new Error('Invalid uniform-file generation timestamp');
+      }
+
+      const uniqueId = generationContext.uniqueId ?? this.generateUniqueId();
+      if (!/^\d{15}$/.test(uniqueId)) {
+        throw new Error('Uniform-file unique ID must contain exactly 15 digits');
+      }
       
       const { content: dataContent } = await this.generateDataFileContent(
         userId,
@@ -1564,12 +1587,12 @@ export class ReportsService {
       }
 
       // Get current year suffix (XX)
-      const currentYear = new Date().getFullYear();
+      const currentYear = generatedAt.getFullYear();
       const XX = String(currentYear).slice(-2);
 
       // Create folder names
       const businessFolder = `${trimBusinessNumber}.${XX}`;
-      const MMDDhhmm = this.getCurrentTimestamp();
+      const MMDDhhmm = this.getCurrentTimestamp(generatedAt);
       const filePath = `${businessFolder}/${MMDDhhmm}` 
 
       // Generate file contents
@@ -1580,6 +1603,7 @@ export class ReportsService {
         startDate,
         endDate,
         state,
+        generatedAt,
       );
 
       assertValidUniformFileContents(iniContent, dataContent);
@@ -1629,15 +1653,16 @@ export class ReportsService {
       startDate: string,
       endDate: string,
       state: UniformGenerationState,
+      generatedAt: Date = new Date(),
     ): Promise<string> {
 
       const startDateObj = this.sharedService.convertStringToDateObject(startDate);
       const endDateObj = this.sharedService.convertStringToDateObject(endDate);
       
 
-      const currentDate = new Date();
+      const currentDate = generatedAt;
       const formattedCurrentDate = `${currentDate.getFullYear()}${String(currentDate.getMonth() + 1).padStart(2, '0')}${String(currentDate.getDate()).padStart(2, '0')}`;
-      const currentTime = `${String(new Date().getHours()).padStart(2, '0')}${String(new Date().getMinutes()).padStart(2, '0')}`;
+      const currentTime = `${String(currentDate.getHours()).padStart(2, '0')}${String(currentDate.getMinutes()).padStart(2, '0')}`;
 
       let result = '';
     
@@ -1694,8 +1719,7 @@ export class ReportsService {
 
 
     // Function to get current timestamp for folder naming (MMDDhhmm)
-    private getCurrentTimestamp(): string {
-      const now = new Date();
+    private getCurrentTimestamp(now: Date = new Date()): string {
       return `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
     }
 

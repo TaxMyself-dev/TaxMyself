@@ -1,0 +1,58 @@
+<section dir="rtl" aria-label="ניהול חיבור לבנקאות פתוחה" [class.embedded]="embedded" [attr.aria-busy]="loading() || busy()">
+  @if (!embedded) {
+    <h3>ניהול חשבונות בבנקאות פתוחה</h3>
+    @if (rows().length) {
+      <app-generic-table [dataTable]="rows()" [columnsTitle]="$any(columns)" [actions]="rowActions"
+        [mobileCardConfig]="mobileConfig" [tableHeight]="'auto'"></app-generic-table>
+    } @else if (!loading()) { <p>לא נמצאו אמצעים עם הרשאה נוכחית.</p> }
+  }
+  @if (!canManage()) { <p>ניהול החיבור זמין לבעל החשבון. מנהל יכול לנהל אותו דרך לוח הלקוחות.</p> }
+  @else {
+    <app-open-banking-error [issue]="supportError()"></app-open-banking-error>
+    @if (targets(); as state) {
+      @if (state.complete && !state.hasOpenBanking && state.consents.length === 0) { <p role="status">בנקאות פתוחה מנותקת</p> }
+    }
+    <div class="actions banking-footer">
+      <app-p-button    (onButtonClicked)="openFullDisconnect()"
+        [disabled]="busy() || loading() || externalBusy || synthetic()" buttonText="התנתקות מלאה מבנקאות פתוחה" [buttonSize]="small" [isLoading]="loading()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
+      <app-p-button   [buttonColor]="buttonColor.WHITE_BORDER" variant="outlined" (onButtonClicked)="refresh()" [disabled]="loading() || busy() || externalBusy" [buttonText]="loading() ? 'בודק הרשאות…' : 'רענון בדיקת הרשאות'" [buttonSize]="small" [isLoading]="loading()" />
+      @if (!embedded && !firebaseId && !synthetic()) {
+        <app-p-button   (onButtonClicked)="reconnect()" [disabled]="busy() || loading() || externalBusy" buttonText="חיבור מחדש" [buttonSize]="small" [isLoading]="false" />
+      }
+    </div>
+  }
+</section>
+<p-dialog [header]="choices() ? 'בחירת הרשאה לביטול' : confirmation() === 'all' ? 'התנתקות מלאה מבנקאות פתוחה' : 'ביטול הרשאה'"
+  [visible]="confirmation() !== null || choices() !== null" (visibleChange)="!$event && closePreview()"
+  [modal]="true" [closable]="!busy()" [closeOnEscape]="!busy()" [style]="{ width: '36rem', maxWidth: '95vw' }">
+  <div dir="rtl">
+    @if (choices(); as candidates) {
+      <p>האמצעי משויך ליותר מהרשאה אחת. יש לבחור איזו הרשאה לבטל ולבדוק את כל האמצעים הכלולים בה.</p>
+      @for (consent of candidates; track consentKey(consent); let index = $index) {
+        <article>
+          <strong>הרשאה {{ index + 1 }} — {{ consentStatusLabel(consent.status) }}</strong>
+          <ul>@for (source of consent.sources; track source.sourceRecordId ?? source.resourceId ?? $index) {
+            <li>{{ sourceTypeLabel(source.sourceType) }} <bdi>{{ source.sourceName }}</bdi></li>
+          } @empty { <li>אין אמצעי תשלום מזוהים להרשאה זו.</li> }</ul>
+          <app-p-button   (onButtonClicked)="selectConsent(consent)" [disabled]="busy() || externalBusy" buttonText="בחירת הרשאה זו" [buttonSize]="small" [isLoading]="false" />
+        </article>
+      }
+    } @else {
+      <p>{{ confirmation() === 'all' ? 'כל ההרשאות יבוטלו, כולל של בן או בת הזוג, ומשיכת מידע חדש תיפסק.' : 'ביטול הרשאה זו יפסיק עדכונים לכל האמצעים המופיעים להלן, גם אם בחרת בשורה אחת בלבד. הרשאות אחרות יישארו בתוקף.' }}</p>
+      @for (consent of affectedConsents(); track consentKey(consent)) {
+        <strong>{{ consent.connectionRole === 'spouse' ? 'בן / בת הזוג' : 'בעל החשבון' }}</strong>
+        <ul>@for (source of consent.sources; track source.sourceRecordId ?? source.resourceId ?? $index) {
+          <li>{{ sourceTypeLabel(source.sourceType) }} <bdi>{{ source.sourceName }}</bdi></li>
+        } @empty { <li>אין אמצעי תשלום מזוהים להרשאה זו. הביטול חל על ההרשאה כולה.</li> }</ul>
+      }
+      @if (!targets()?.complete) { <p class="error" role="alert">לא ניתן לאמת את הרשימה המלאה כרגע. סגור את החלון ורענן את בדיקת ההרשאות לפני אישור.</p> }
+      <p>פרטי החשבונות והכרטיסים, הסיווגים, השיוכים וההוצאות שאושרו נשמרים. חזרה לשירות דורשת הרשאה מחדש. הפעולה אינה משנה את המנוי.</p>
+    }
+    <div class="actions">
+      <app-p-button   (onButtonClicked)="closePreview()" [disabled]="busy()" buttonText="חזרה" [buttonSize]="small" [isLoading]="false" />
+      @if (!choices()) {
+        <app-p-button    (onButtonClicked)="confirm()" [disabled]="!canConfirm()" [buttonText]="busy() ? 'מבטל הרשאות…' : (confirmation() === 'all' ? 'אישור התנתקות מלאה' : 'אישור ביטול הרשאה')" [buttonSize]="small" [isLoading]="busy()" severity="danger" variant="outlined" [buttonColor]="buttonColor.RED_OUTLINE" />
+      }
+    </div>
+  </div>
+</p-dialog>

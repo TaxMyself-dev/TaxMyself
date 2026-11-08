@@ -6,6 +6,7 @@ import {
 
 
 export class GetTransactionsDto {
+    @IsOptional() @IsString() includeExcluded?: string;
 
     @IsString()
     @IsNotEmpty()

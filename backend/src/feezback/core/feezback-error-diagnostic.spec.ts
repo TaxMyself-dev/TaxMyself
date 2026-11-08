@@ -23,3 +23,14 @@ describe('Feezback error diagnostics', () => {
     expect(result).toContain('<OMITTED>');
   });
 });
+
+describe('bounded provider response diagnostics', () => {
+  it('bounds large bodies without losing the provider code or JSON validity', () => {
+    const body = { error: { code: 'INSUFFICIENT_CONSENT' }, detail: Array.from({ length: 1000 }, () => 'x'.repeat(10000)) };
+    const output = feeZbackErrorDiagnostic(new FeezbackHttpError({ method: 'GET', url: 'https://provider/accounts',
+      message: 'Denied', status: 401, responseBody: body }));
+    expect(output.length).toBeLessThan(18000);
+    expect(JSON.parse(output).providerCode).toBe('INSUFFICIENT_CONSENT');
+    expect(output).toContain('<TRUNCATED>');
+  });
+});

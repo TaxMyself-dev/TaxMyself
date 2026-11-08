@@ -32,7 +32,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
   }
 
   describe('upsertSourceConsents', () => {
-    it('creates a NEW direct card with status skipped_direct (never not_synced)', async () => {
+    it('creates a NEW direct card as pending ordinary import', async () => {
       const { service, sourceRepo } = makeService();
       sourceRepo.findOne.mockResolvedValue(null);
 
@@ -41,7 +41,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ sourceId: '3221', status: 'skipped_direct' }),
+        expect.objectContaining({ sourceId: '3221', status: 'not_synced' }),
       );
     });
 
@@ -58,7 +58,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       );
     });
 
-    it('pins an EXISTING row to skipped_direct when the card is determined direct', async () => {
+    it('resets an existing Direct card on consent rotation', async () => {
       const { service, sourceRepo } = makeService();
       sourceRepo.findOne.mockResolvedValue({
         userId: USER, sourceId: '3221', type: 'card', status: 'not_synced', consentId: 'old', resourceId: 'card-1',
@@ -69,8 +69,8 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceRecordId: 11 },
-        expect.objectContaining({ status: 'skipped_direct', transactionCount: 0, error: null }),
+        expect.objectContaining({ userId: USER, sourceRecordId: 11 }),
+        expect.objectContaining({ status: 'not_synced', error: null }),
       );
     });
 
@@ -85,7 +85,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       expect(sourceRepo.update).toHaveBeenCalledWith(
-        { userId: USER, sourceRecordId: 11 },
+        expect.objectContaining({ userId: USER, sourceRecordId: 11 }),
         expect.objectContaining({ status: 'not_synced' }),
       );
     });
@@ -101,7 +101,7 @@ describe('UserSyncStateService — skipped_direct handling', () => {
       ]);
 
       const patch = sourceRepo.update.mock.calls[0][1];
-      expect(patch).not.toHaveProperty('status');
+      expect(patch).toMatchObject({ status: 'not_synced', error: null });
     });
   });
 
@@ -116,25 +116,25 @@ describe('UserSyncStateService — skipped_direct handling', () => {
 
       expect(cleared).toBe(3);
       expect(sourceRepo.update).toHaveBeenCalledTimes(2);
-      expect(sourceRepo.update.mock.calls[0][1]).toEqual({
+      expect(sourceRepo.update.mock.calls[0][1]).toMatchObject({
         consentId: null, status: 'not_synced', error: null,
       });
       expect(sourceRepo.update.mock.calls[1][0]).toEqual(
         expect.objectContaining({ status: 'skipped_direct' }),
       );
-      expect(sourceRepo.update.mock.calls[1][1]).toEqual({ consentId: null });
+      expect(sourceRepo.update.mock.calls[1][1]).toMatchObject({ consentId: null, consentVerifiedAt: expect.any(Date) });
     });
   });
 
   describe('markSyncEmpty', () => {
-    it('does not reset skipped_direct rows to not_synced', async () => {
+    it('resets all source outcomes including legacy skipped Direct cards', async () => {
       const { service, sourceRepo } = makeService();
 
       await service.markSyncEmpty(USER);
 
       const [criteria, patch] = sourceRepo.update.mock.calls[0];
       expect(patch).toEqual({ status: 'not_synced', transactionCount: 0, error: null });
-      expect(JSON.stringify(criteria)).toContain('skipped_direct');
+      expect(criteria).toEqual({ userId: USER });
     });
   });
 });

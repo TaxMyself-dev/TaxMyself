@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "types": ["jasmine", "node"] },
+  "include": [
+    "src/app/components/open-banking-management/*.spec.ts",
+    "src/app/services/sync-status.reliability.spec.ts",
+    "src/app/components/generic-table/*.spec.ts",
+    "src/app/pages/settings/settings-banking-row-actions.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

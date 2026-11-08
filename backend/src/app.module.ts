@@ -1,8 +1,10 @@
+import { assertDevCompletionEnvironment, devCompletionScheduleOptions } from './billing/domain/dev-completion-mode';
 import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ReadinessService } from './readiness.service';
 //Modules
 import { HttpModule } from '@nestjs/axios';
 import { ClientsModule } from './clients/clients.module';
@@ -26,6 +28,8 @@ import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { BillingModule } from './billing/billing.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { DocumentImportModule } from './document-import/document-import.module';
+import { WhatsappDevelopmentModule } from './whatsapp/whatsapp-development.module';
+import { LycheeModule } from './whatsapp/lychee.module';
 import { InboundEmailModule } from './inbound-email/inbound-email.module';
 import { InboundEmailAddress } from './inbound-email/inbound-email-address.entity';
 //Integrations entities
@@ -145,6 +149,7 @@ import { ShaamInvoiceAllocationAttempt } from './shaam/entities/shaam-invoice-al
 // npm's default script-shell doesn't support `VAR=value command` syntax —
 // run that line from Git Bash, or set the env var as a separate PowerShell
 // statement first: `$env:DISABLE_SYNCHRONIZE='false'`.)
+assertDevCompletionEnvironment();
 const isSynchronizeEnabled = process.env.NODE_ENV !== 'production' && process.env.DISABLE_SYNCHRONIZE !== 'true';
 if (isSynchronizeEnabled && /prod/i.test(process.env.DB_DATABASE || '')) {
   throw new Error(
@@ -220,10 +225,12 @@ new Logger('Bootstrap').log(
       ImportedDocument,
       ReportWorkflow,
     ]),
-    ScheduleModule.forRoot(),
+    ScheduleModule.forRoot(devCompletionScheduleOptions()),
+    LycheeModule,
+    ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
     HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule, AgentHarnessModule],
   controllers: [AppController],
-  providers: [AppService, MailService, ClientsService, BookkeepingService, BusinessService],
+  providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],
 })
 export class AppModule {
 

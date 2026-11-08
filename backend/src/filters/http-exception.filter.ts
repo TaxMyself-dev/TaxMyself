@@ -35,7 +35,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const stack = exception instanceof Error ? exception.stack : undefined;
 
-    const path = request?.url ?? request?.path;
+    // Never log the raw URL: SHAAM routes currently carry the business number
+    // in the query string. `path` excludes it; the fallback is defensively
+    // stripped for non-Express test/adaptor requests.
+    const rawPath = request?.path ?? request?.url ?? '';
+    const path = String(rawPath).split(/[?#]/, 1)[0];
     const method = request?.method;
 
     if (status >= 500) {
@@ -48,6 +52,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
         method,
         stack,
       }));
+    } else if (status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN) {
+      const exceptionResponse =
+        exception instanceof HttpException ? exception.getResponse() : undefined;
+      const errorCode =
+        typeof exceptionResponse === 'object' && exceptionResponse !== null
+          ? this.boundedErrorCode((exceptionResponse as any).code)
+          : undefined;
+      this.logger.warn(JSON.stringify({
+        event: 'security_event',
+        securityEvent: 'http_authorization_denied',
+        severity: 'WARNING',
+        statusCode: status,
+        path,
+        method,
+        ...(errorCode ? { errorCode } : {}),
+      }));
     } else {
       this.logger.warn(`${status} ${method} ${path} — ${message}`);
     }
@@ -58,5 +78,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : { statusCode: status, message };
 
     response.status(status).json(body);
+  }
+
+  private boundedErrorCode(value: unknown): string | undefined {
+    return typeof value === 'string' && /^[A-Z0-9_]{1,64}$/.test(value)
+      ? value
+      : undefined;
   }
 }

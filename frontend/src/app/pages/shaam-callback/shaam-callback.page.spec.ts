@@ -52,4 +52,16 @@ describe('ShaamCallbackPage origin routing', () => {
     expect(page.connectionOrigin).toBe('document');
     expect(sessionStorage.getItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY)).toBeNull();
   });
+
+  it('returns a uniform-file authorization to the uniform-file page', () => {
+    const page = setup('uniform-file');
+
+    page.ngOnInit();
+
+    expect(page.isUniformFileOrigin).toBeTrue();
+    page.navigateToUniformFile();
+    expect((page as any).router.navigate).toHaveBeenCalledWith([
+      '/uniform-file',
+    ]);
+  });
 });

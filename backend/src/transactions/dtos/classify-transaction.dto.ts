@@ -1,7 +1,9 @@
-import { IsNumber, IsString, IsOptional, IsBoolean, ValidateIf, IsDate, IsIn } from 'class-validator';
+import { IsInt, Min, IsNumber, IsString, IsOptional, IsBoolean, ValidateIf, IsDate, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ClassifyTransactionDto {
+  @IsOptional() @IsInt() @Min(1) subCategoryId?: number;
+
 
   @IsString()
   externalTransactionId: string;

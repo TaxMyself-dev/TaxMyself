@@ -6,7 +6,7 @@ import { environment } from 'src/environments/environment';
 export const SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED =
   'SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED';
 
-export type ShaamOAuthOrigin = 'document' | 'settings';
+export type ShaamOAuthOrigin = 'document' | 'settings' | 'uniform-file';
 export const SHAAM_OAUTH_ORIGIN_STORAGE_KEY = 'shaam_oauth_origin';
 
 export interface ShaamAllocationStatus {
@@ -31,6 +31,36 @@ export interface ShaamUnknownAllocationAttempt {
   httpStatus: number | null;
   failureCategory: string | null;
   providerErrorCode: string | null;
+}
+
+export type UniformFileSubmissionState =
+  | 'GENERATED'
+  | 'AUTH_REQUIRED'
+  | 'LINKS_RESERVED'
+  | 'INI_UPLOADED'
+  | 'PAIR_UPLOADED'
+  | 'PROCESSING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'RETRYABLE_FAILURE'
+  | 'UNKNOWN_OUTCOME';
+
+export type UniformFileRemoteStatus = 'UPLOADED' | 'APPROVED' | 'REJECTED';
+
+export interface UniformFileSubmission {
+  id: number;
+  state: UniformFileSubmissionState;
+  periodStart: string;
+  periodEnd: string;
+  iniStatus: UniformFileRemoteStatus | null;
+  bkmStatus: UniformFileRemoteStatus | null;
+  errorCategory: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  generatedAt: string;
+  uploadedAt: string | null;
+  lastPolledAt: string | null;
+  completedAt: string | null;
 }
 
 @Injectable({
@@ -58,9 +88,10 @@ export class ShaamService {
     businessNumber?: string,
     onError?: (error: unknown) => void,
     origin: ShaamOAuthOrigin = 'document',
+    product = 'INVOICE_ALLOCATION',
   ): void {
     if (!businessNumber) throw new Error('businessNumber is required');
-    this.getAuthorizeUrl(businessNumber).subscribe({
+    this.getAuthorizeUrl(businessNumber, product).subscribe({
       next: ({ url }) => {
         sessionStorage.setItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY, origin);
         window.location.assign(url);
@@ -92,6 +123,36 @@ export class ShaamService {
       expiresAt: string | null;
       requiresReauthorization: boolean;
     }>(url);
+  }
+
+  createUniformFileSubmission(
+    businessNumber: string,
+    startDate: string,
+    endDate: string,
+    representorCompanyId?: string,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.post<UniformFileSubmission>(url, {
+      startDate,
+      endDate,
+      ...(representorCompanyId ? { representorCompanyId } : {}),
+    });
+  }
+
+  getUniformFileSubmission(
+    businessNumber: string,
+    submissionId: number,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions/${submissionId}?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.get<UniformFileSubmission>(url);
+  }
+
+  pollUniformFileSubmission(
+    businessNumber: string,
+    submissionId: number,
+  ): Observable<UniformFileSubmission> {
+    const url = `${environment.apiUrl}shaam/uniform-file/submissions/${submissionId}/poll?businessNumber=${encodeURIComponent(businessNumber)}`;
+    return this.http.post<UniformFileSubmission>(url, {});
   }
 
   /** Request allocation for an already-persisted invoice. The backend builds

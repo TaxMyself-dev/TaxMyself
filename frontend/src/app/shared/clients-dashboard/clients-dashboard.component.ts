@@ -37,6 +37,8 @@ export class ClientsDashboardComponent implements OnInit {
   filteredUsers: any[] = [];
   visibleFeezbackDialog = signal<boolean>(false);
   selectedClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingClient = signal<{ firebaseId: string; name: string } | null>(null);
+  bankingBusy = signal(false);
 
   // Admin: live accounts/cards diagnostic dialog
   accountsDialogVisible = signal<boolean>(false);
@@ -146,6 +148,13 @@ export class ClientsDashboardComponent implements OnInit {
   ];
 
   fileActions: IGenericTableAction[] = [
+    {
+      name: 'manageOpenBanking', desktopDisplay: 'icon', icon: 'pi pi-link',
+      title: 'ניהול הרשאות וניתוק מבנקאות פתוחה',
+      action: (_event: any, row: IRowDataTable) => this.bankingClient.set({
+        firebaseId: row['firebaseId'] as string, name: row['fullName'] as string,
+      }),
+    },
     {
       name: 'enterAsUser',
       desktopDisplay: 'icon',
@@ -522,7 +531,7 @@ export class ClientsDashboardComponent implements OnInit {
           this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: `${src.paymentIdentifier}: נמשכו ${result.transactionCount} תנועות`, life: 4000, key: 'br' });
         } else if (result.status === 'skipped_direct') {
           // Direct/Debit card — intentionally not pulled (bank feed covers it).
-          this.messageService.add({ severity: 'info', summary: 'כרטיס דיירקט', detail: `${src.paymentIdentifier}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'br' });
+          this.messageService.add({ severity: 'info', summary: 'כרטיס דיירקט', detail: `${src.paymentIdentifier}: יש למשוך מחדש את עסקאות כרטיס הדיירקט`, life: 6000, key: 'br' });
         } else {
           this.messageService.add({ severity: 'warn', summary: 'משיכה נכשלה', detail: `${src.paymentIdentifier}: ${result.error ?? 'שגיאה לא ידועה'}`, life: 6000, key: 'br' });
         }

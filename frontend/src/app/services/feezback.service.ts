@@ -2,10 +2,40 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
+import { BankingSupportError } from '../components/open-banking-management/open-banking-error.component';
 
 export interface AdminAccountsAndCardsResponse {
   accounts: any;
   cards: any;
+}
+
+export interface BankingConsent {
+  consentId: string;
+  connectionRole: 'primary' | 'spouse';
+  status: string;
+  sources: { sourceRecordId: number | null; resourceId?: string; sourceName: string; sourceType: 'BANK_ACCOUNT' | 'CREDIT_CARD' }[];
+}
+export interface BankingTargets {
+  supportError?: BankingSupportError;
+  consents: BankingConsent[];
+  complete: boolean;
+  hasOpenBanking: boolean;
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
+}
+export interface BankingDisconnectRequest {
+  firebaseId?: string;
+  scope: 'all' | 'consent';
+  consentId?: string;
+  connectionRole?: 'primary' | 'spouse';
+}
+export interface BankingDisconnectResult {
+  supportError?: BankingSupportError;
+  status: 'success' | 'partial';
+  remainingConsents: BankingConsent[];
+  complete: boolean;
+  hasOpenBanking: boolean;
+  errors: { connectionRole: string; code: string; operation?: 'consents' | 'accounts' | 'cards'; stage?: 'authentication' | 'provider' | 'response' | 'unknown'; httpStatus?: number }[];
+  results: { consentId: string; connectionRole: string; status: 'terminated' | 'failed' | 'pending' }[];
 }
 
 @Injectable({
@@ -14,6 +44,20 @@ export interface AdminAccountsAndCardsResponse {
 export class FeezbackService {
 
   constructor(private http: HttpClient) { }
+
+  refreshPermissions(firebaseId?: string): Observable<BankingTargets> {
+    return this.http.post<BankingTargets>(`${environment.apiUrl}feezback/refresh-permissions`, firebaseId ? { firebaseId } : {});
+  }
+
+  disconnectionTargets(firebaseId?: string): Observable<BankingTargets> {
+    return this.http.get<BankingTargets>(`${environment.apiUrl}feezback/disconnection-targets`, {
+      params: firebaseId ? { firebaseId } : {},
+    });
+  }
+
+  disconnect(request: BankingDisconnectRequest): Observable<BankingDisconnectResult> {
+    return this.http.post<BankingDisconnectResult>(`${environment.apiUrl}feezback/disconnect`, request);
+  }
 
   /**
    * Creates a consent link for Feezback open banking

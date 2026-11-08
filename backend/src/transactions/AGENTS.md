@@ -1,4 +1,15 @@
 ## Purpose
+
+MySQL upserts: QueryBuilder.values() accepts entity properties, while orUpdate()
+requires physical column names. Map slim/cache update keys through repository
+metadata; subCategoryId maps to sub_category_id and matchedDocumentId to
+matched_document_id on slim. Do not add duplicate camelCase DB columns to work
+around an upsert error. Regression generates real MySQL SQL without a connection.
+
+Direct-card notice eligibility comes from owned CREDIT_CARD sources with
+isDirect=true via cashflow-preferences (also returns lastLoginAt and permanent
+notice-dismissal state). Owner-only PATCH direct-card-notice persists only
+user.directCardNoticeDismissed=true; it never changes the cashflow preference.
 Owns bank/card transaction ingestion, classification (rule-based and manual), and the slim/cache dual-table model that powers flow analysis, expense confirmation, and report-period locking.
 
 ## Key entities/files
@@ -52,3 +63,54 @@ Depends on: shared (`FxRateService` for `ilsAmount`, `SharedService`), expenses 
 
 ## Disconnected payment sources
 DELETE /transactions/sources/:sourceRecordId uses FirebaseAuthGuard and effective user ownership. A transaction locks the owned source and its sync state, refuses any nonempty consentId with SOURCE_HAS_ACTIVE_CONSENT (409), detaches historical cache references, deletes sync metadata, then deletes only that source. Bills, slim transactions, cache history, expenses and provider consents are retained. No schema changes or provider API calls. Settings sources include records without a sync state.
+
+## Consent rotation during an in-flight pull
+
+For existing sync rows, updateSourceResults writes outcome fields only. Discovery
+owns consent/resource rotation. Results with older identifiers are ignored; an
+atomic identifier predicate prevents a pull finishing after termination or
+reconnection from resurrecting old consent metadata. Permanent sources, bill
+associations, classifications, rules, slim rows and approved expenses are retained.
+Reconnection and empty-cache rebuild regression tests cover stable source IDs,
+identity/currency separation, one-time classifications and confirmed states.
+
+## Verified provider disconnection cache removal
+
+Feezback's disconnection service now deletes only temporary cache rows after authoritative verification. Partial termination targets owned permanent Source IDs, excluding any source covered by another nonterminal permission; uncertain/ambiguous scopes are retained. Full verified absence of all permissions clears the user's entire temporary cache (including legacy rows with no Source ID), cache freshness and full-sync transient outcome fields. Slim classifications/confirmation, Expenses, rules, Sources and bill associations remain intact for reconnect.
+
+Feezback persistence and cache-state promotions share the per-user queue and pessimistic User row lock with cleanup. They recheck the current connected flag and stable source consent pointers before ingestion, preventing late pulls from restoring disconnected cache. Generic transaction classification/rebuild behavior and nightly cleanup are unchanged.
+
+## Banking reliability (2026-11-01)
+
+Sync status is varchar(32), including skipped_direct. Per-source writes are isolated and aggregate failures are reported. Consent writes use observation timestamps plus conditional identifier/freshness predicates; older refreshes cannot rotate newer pointers. Owned source/consent links are the sole stored mapping. Two scalar operational fields record attempt time and support code/ID under a User-first lock; no permission list/names are copied. Existing consent-start/success timestamps use millisecond precision to scope errors correctly. Screen reads do not call the provider. Existing cached transactions remain readable while synchronization is running or failed; tenant and subscription guards remain unchanged. A cache-exists login preserves the preceding quality/error result. Prepared schema SQL is docs/features/feezback-sync-reliability.sql; never execute the full historic cutover file for this release.
+
+A successful single-source/cache-ready promotion preserves an existing aggregate failed/partial result, row count and support ID; only full-sync reconciliation certifies complete success. markSyncInterrupted conditionally updates a running job to no_access after connection loss under the existing User lock. It does not change empty lifecycle state already cleared by disconnect cleanup, cache contents or permission flags.
+
+## Current-pull summaries and verified permission cleanup
+
+Permission refresh and permission/data-ready webhooks reconcile through UserSyncStateService.reconcileSourceConsents after complete provider proof. User/Source/consent locks and observation fences protect newer reconnections. Only temporary full_transactions_cache, cache freshness and per-source operational pointer/outcome fields are cleared. Sources/Bills, slim classifications, Expenses, rules, legacy accounting and technical history remain intact. Null-source orphan cache is cleared only after both identities prove full absence with no unresolved coverage. FullRunId/resultRunId identify job membership rather than copying permissions. Legacy nullable tags do not authorize a current-run success; cache reuse returns no current-run outcomes. One failed source outcome transaction does not roll back unrelated source successes.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Classification rules retain their existing billId + merchant + optional-condition
+scope across all sources associated with that bill. No sourceRecordId column or
+source predicate is added to classified_transactions; durable source provenance
+on slim_transactions is used only for the bank-only cashflow exclusion policy.
+
+## Stable source outcome identity (2026-11-04)
+
+After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.

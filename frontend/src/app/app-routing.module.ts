@@ -32,6 +32,11 @@ const appRoutes: Routes = [
       }]
     : []),
   {
+    path: 'billing/open-banking/manage',
+    canActivate: [AuthGuard],
+    loadComponent: () => import('./components/open-banking-management/open-banking-management.page').then(m => m.OpenBankingManagementPage),
+  },
+  {
     path: 'billing/open-banking',
     canActivate: [AuthGuard],
     loadComponent: () => import('./pages/billing/open-banking/open-banking.page').then(m => m.OpenBankingPage),
@@ -189,13 +194,22 @@ const routes: Routes = [
     loadChildren: () => import('./pages/login/login.module').then(m => m.LoginPageModule)
   },
   {
+    // Firebase-only enrollment surface. It deliberately does not call the
+    // protected backend until the user signs in again with both factors.
+    path: 'mfa/setup',
+    loadComponent: () => import('./pages/mfa-setup/mfa-setup.page').then(m => m.MfaSetupPage),
+  },
+  {
     path: 'shaam/callback',
     loadChildren: () => import('./pages/shaam-callback/shaam-callback.module').then(m => m.ShaamCallbackPageModule)
   },
   {
     // In-app shell: one offline gate for all deliberate in-session navigations.
     path: '',
-    canActivateChild: [OfflineNavigationGuard],
+    // AuthGuard at the shell also closes legacy routes that omitted their own
+    // authentication declaration, and becomes the global MFA entry gate when
+    // environment.requireMfa is enabled.
+    canActivateChild: [OfflineNavigationGuard, AuthGuard],
     children: appRoutes,
   },
 ];

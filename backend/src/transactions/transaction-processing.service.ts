@@ -1,3 +1,4 @@
+import { cashflowExcludedSql } from './cashflow-exclusion';
 import {
   BadRequestException,
   ConflictException,
@@ -133,9 +134,10 @@ export class TransactionProcessingService {
     rows: Partial<SlimTransaction>[],
   ): Promise<void> {
     if (rows.length === 0) return;
-    const updateColumns = Object.keys(rows[0] as object).filter(
-      (k) => k !== 'userId' && k !== 'externalTransactionId',
-    );
+    // values() maps entity properties, but orUpdate() expects database names.
+    const updateColumns = Object.keys(rows[0] as object)
+      .filter((k) => k !== 'userId' && k !== 'externalTransactionId')
+      .map((k) => this.slimRepo.metadata.findColumnWithPropertyName(k)?.databaseName ?? k);
     await this.slimRepo
       .createQueryBuilder()
       .insert()
@@ -149,6 +151,7 @@ export class TransactionProcessingService {
   /** Cache-independent display/provenance fields for the pending archive. */
   private slimArchiveSnapshot(cache: FullTransactionCache): Pick<
     SlimTransaction,
+    | 'sourceRecordId'
     | 'merchantNameSnapshot'
     | 'transactionDateSnapshot'
     | 'amountSnapshot'
@@ -156,6 +159,7 @@ export class TransactionProcessingService {
     | 'ilsAmountSnapshot'
   > {
     return {
+      sourceRecordId: cache.sourceRecordId ?? null,
       merchantNameSnapshot: cache.merchantName,
       transactionDateSnapshot: cache.transactionDate,
       amountSnapshot: Number(cache.amount),
@@ -258,7 +262,7 @@ export class TransactionProcessingService {
     cacheRow: FullTransactionCache,
     slim: Pick<
       SlimTransaction,
-      'category' | 'subCategory' | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'isRecognized' | 'reportScope' | 'businessNumber' | 'vatReportingDate'
+      'category' | 'subCategory' | 'subCategoryId' | 'vatPercent' | 'taxPercent' | 'reductionPercent' | 'isEquipment' | 'isRecognized' | 'reportScope' | 'businessNumber' | 'vatReportingDate'
     >,
   ): Promise<void> {
     const expense = await this.expenseRepo.findOne({
@@ -283,6 +287,7 @@ export class TransactionProcessingService {
     await this.expensesService.reclassifyExpenseFromNames(expense, {
       category: slim.category,
       subCategory: slim.subCategory,
+      subCategoryId: slim.subCategoryId ?? null,
       vatPercent: slim.vatPercent,
       taxPercent: slim.taxPercent,
       reductionPercent: slim.reductionPercent,
@@ -459,7 +464,8 @@ export class TransactionProcessingService {
       if (slim) {
         cacheUpserts.push(this.buildCacheRowWithSlim(userId, tx, slim, fxStamp));
         if (
-          slim.merchantNameSnapshot == null
+          slim.sourceRecordId == null
+          || slim.merchantNameSnapshot == null
           || slim.transactionDateSnapshot == null
           || slim.amountSnapshot == null
         ) {
@@ -499,6 +505,7 @@ export class TransactionProcessingService {
           classificationRuleId: matchedRule.id,
           category: matchedRule.category,
           subCategory: matchedRule.subCategory,
+          subCategoryId: matchedRule.subCategoryId ?? null,
           vatPercent: matchedRule.vatPercent,
           taxPercent: matchedRule.taxPercent,
           reductionPercent: matchedRule.reductionPercent,
@@ -589,9 +596,9 @@ export class TransactionProcessingService {
       // SELECT them back after the MySQL INSERT — but needs entity.id to do so,
       // which is absent in a Partial<> upsert payload.  Using the query builder
       // with .updateEntity(false) skips that re-select entirely.
-      const upsertUpdateColumns = Object.keys(cacheUpserts[0]).filter(
-        (k) => k !== 'userId' && k !== 'externalTransactionId',
-      );
+      const upsertUpdateColumns = Object.keys(cacheUpserts[0])
+        .filter((k) => k !== 'userId' && k !== 'externalTransactionId')
+        .map((k) => this.cacheRepo.metadata.findColumnWithPropertyName(k)?.databaseName ?? k);
       await this.cacheRepo
         .createQueryBuilder()
         .insert()
@@ -642,6 +649,10 @@ export class TransactionProcessingService {
       );
     }
 
+    if (dto.subCategoryId != null) {
+      await this.expensesService.resolveTransactionSubCategory(userId, dto.businessNumber ?? cacheRow.businessNumber, dto.category, dto.subCategory, dto.subCategoryId);
+    }
+
     // 3. Load slim to check VAT lock.
     const slim = await this.slimRepo.findOne({
       where: { userId, externalTransactionId: dto.externalTransactionId },
@@ -683,6 +694,7 @@ export class TransactionProcessingService {
         classificationRuleId: null,
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -702,6 +714,7 @@ export class TransactionProcessingService {
       {
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -722,6 +735,7 @@ export class TransactionProcessingService {
       await this.syncExpenseFromSlim(userId, cacheRow, {
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -780,6 +794,10 @@ export class TransactionProcessingService {
       throw new BadRequestException(
         `Transaction "${dto.externalTransactionId}" has no billId and cannot be classified.`,
       );
+    }
+
+    if (dto.subCategoryId != null) {
+      await this.expensesService.resolveTransactionSubCategory(userId, dto.businessNumber ?? cacheRow.businessNumber, dto.category, dto.subCategory, dto.subCategoryId);
     }
 
     // 3. Load existing slim to check guards.
@@ -842,6 +860,7 @@ export class TransactionProcessingService {
     const classificationFields = {
       category: dto.category,
       subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
       vatPercent: dto.vatPercent,
       taxPercent: dto.taxPercent,
       reductionPercent: dto.reductionPercent,
@@ -884,6 +903,7 @@ export class TransactionProcessingService {
         classificationRuleId: savedRule.id,
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -903,6 +923,7 @@ export class TransactionProcessingService {
       {
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -923,6 +944,7 @@ export class TransactionProcessingService {
       await this.syncExpenseFromSlim(userId, cacheRow, {
         category: dto.category,
         subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
         vatPercent: dto.vatPercent,
         taxPercent: dto.taxPercent,
         reductionPercent: dto.reductionPercent,
@@ -1048,9 +1070,10 @@ export class TransactionProcessingService {
     billIds: string[] | null,
     categories: string[] | null,
     sources: string[] | null,
+    includeExcluded = false,
   ): Promise<Record<string, unknown>[]> {
     return this.getPageTransactions(
-      userId, startDate, endDate, billIds, categories, sources, 'positive',
+      userId, startDate, endDate, billIds, categories, sources, 'positive', includeExcluded,
     );
   }
 
@@ -1065,9 +1088,10 @@ export class TransactionProcessingService {
     billIds: string[] | null,
     categories: string[] | null,
     sources: string[] | null,
+    includeExcluded = false,
   ): Promise<Record<string, unknown>[]> {
     return this.getPageTransactions(
-      userId, startDate, endDate, billIds, categories, sources, 'negative',
+      userId, startDate, endDate, billIds, categories, sources, 'negative', includeExcluded,
     );
   }
 
@@ -1090,6 +1114,7 @@ export class TransactionProcessingService {
     categories: string[] | null,
     sources: string[] | null,
     amountSign: 'positive' | 'negative',
+    includeExcluded = false,
   ): Promise<Record<string, unknown>[]> {
     const qb = this.cacheRepo
       .createQueryBuilder('c')
@@ -1145,10 +1170,17 @@ export class TransactionProcessingService {
       );
     }
 
+    if (!includeExcluded) {
+      qb.andWhere('NOT (' + cashflowExcludedSql('c') + ')');
+      qb.orderBy('c.transactionDate', 'DESC');
+      const rows = await qb.getMany();
+      return rows.map(r => ({ ...this.mapCacheToLegacyShape(r), excludedFromCashflow: false }));
+    }
+    qb.addSelect(cashflowExcludedSql('c'), 'cashflowExcluded');
     qb.orderBy('c.transactionDate', 'DESC');
 
-    const rows = await qb.getMany();
-    return rows.map((r) => this.mapCacheToLegacyShape(r));
+    const { entities, raw } = await qb.getRawAndEntities();
+    return entities.map((r, i) => ({ ...this.mapCacheToLegacyShape(r), excludedFromCashflow: Number(raw[i]?.cashflowExcluded) === 1 }));
   }
 
   // ---------------------------------------------------------------------------
@@ -1446,6 +1478,7 @@ export class TransactionProcessingService {
     const classificationPayload = {
       category: dto.category,
       subCategory: dto.subCategory,
+        subCategoryId: dto.subCategoryId ?? null,
       vatPercent: dto.vatPercent,
       taxPercent: dto.taxPercent,
       reductionPercent: dto.reductionPercent,
@@ -1720,6 +1753,7 @@ export class TransactionProcessingService {
       note: tx.note,
       category: null,
       subCategory: null,
+      subCategoryId: null,
       vatPercent: 0,
       taxPercent: 0,
       reductionPercent: 0,
@@ -1742,6 +1776,7 @@ export class TransactionProcessingService {
       ...this.buildCacheRow(userId, tx, fxStamp),
       category: slim.category,
       subCategory: slim.subCategory,
+      subCategoryId: slim.subCategoryId ?? null,
       vatPercent: slim.vatPercent,
       taxPercent: slim.taxPercent,
       reductionPercent: slim.reductionPercent,
@@ -1767,6 +1802,7 @@ export class TransactionProcessingService {
       ...this.buildCacheRow(userId, tx, fxStamp),
       category: rule.category,
       subCategory: rule.subCategory,
+      subCategoryId: rule.subCategoryId ?? null,
       vatPercent: rule.vatPercent,
       taxPercent: rule.taxPercent,
       reductionPercent: rule.reductionPercent,
@@ -1881,6 +1917,7 @@ export class TransactionProcessingService {
       monthlyQb.andWhere(`${columnMap[lineFilterType]} = :lineFilterValue`, { lineFilterValue });
     }
 
+    monthlyQb.andWhere('NOT (' + cashflowExcludedSql('c') + ')');
     const monthlyRaw = await monthlyQb.getRawMany<{ month: string; incomes: string; expenses: string }>();
 
     // Fill every month in range so there are no gaps in the chart
@@ -1913,6 +1950,7 @@ export class TransactionProcessingService {
       .andWhere('c.billId = :billId', { billId })
       .andWhere('c.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
       .andWhere('c.amount < 0')
+      .andWhere('NOT (' + cashflowExcludedSql('c') + ')')
       .groupBy('c.category')
       .orderBy('SUM(ABS(c.amount))', 'DESC')
       .getRawMany<{ label: string | null; amount: string }>();
@@ -2085,6 +2123,7 @@ export class TransactionProcessingService {
           {
             category: null,
             subCategory: null,
+            subCategoryId: null,
             classificationType: null,
             isRecognized: false,
             reportScope: ExpenseReportScope.PNL,
@@ -2126,7 +2165,11 @@ export class TransactionProcessingService {
       throw new NotFoundException(`Rule ${ruleId} not found.`);
     }
 
+    if (dto.subCategoryId != null) {
+      await this.expensesService.resolveTransactionSubCategory(userId, dto.businessNumber ?? rule.businessNumber, dto.category ?? rule.category, dto.subCategory ?? rule.subCategory, dto.subCategoryId);
+    }
     const classificationChanged =
+      (dto.subCategoryId !== undefined && dto.subCategoryId !== rule.subCategoryId) ||
       (dto.category !== undefined && dto.category !== rule.category) ||
       (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory) ||
       (dto.vatPercent !== undefined && dto.vatPercent !== rule.vatPercent) ||
@@ -2136,6 +2179,7 @@ export class TransactionProcessingService {
       (dto.isRecognized !== undefined && dto.isRecognized !== rule.isRecognized) ||
       (dto.reportScope !== undefined && dto.reportScope !== rule.reportScope);
 
+    if ((dto.category !== undefined && dto.category !== rule.category) || (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory)) rule.subCategoryId = dto.subCategoryId ?? null;
     Object.assign(rule, dto);
     const saved = await this.rulesRepo.save(rule);
 
@@ -2143,6 +2187,7 @@ export class TransactionProcessingService {
       await this.propagateRuleUpdate(userId, ruleId, {
         category: saved.category,
         subCategory: saved.subCategory,
+        subCategoryId: saved.subCategoryId ?? null,
         vatPercent: saved.vatPercent,
         taxPercent: saved.taxPercent,
         reductionPercent: saved.reductionPercent,
@@ -2159,6 +2204,7 @@ export class TransactionProcessingService {
     userId: string,
     ruleId: number,
     fields: {
+      subCategoryId: number | null;
       category: string;
       subCategory: string;
       vatPercent: number;

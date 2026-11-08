@@ -39,6 +39,10 @@ export class ShaamCallbackPage implements OnInit {
     return this.connectionOrigin === 'settings';
   }
 
+  get isUniformFileOrigin(): boolean {
+    return this.connectionOrigin === 'uniform-file';
+  }
+
   ngOnInit() {
     this.connectionOrigin = this.consumeConnectionOrigin();
     // Get query parameters from SHAAM redirect or backend redirect
@@ -107,6 +111,10 @@ export class ShaamCallbackPage implements OnInit {
     this.router.navigate(['/settings'], { queryParams: { tab: 'permissions' } });
   }
 
+  navigateToUniformFile(): void {
+    this.router.navigate(['/uniform-file']);
+  }
+
   tryAgain(): void {
     this.navigateToHome();
   }
@@ -114,7 +122,10 @@ export class ShaamCallbackPage implements OnInit {
   private consumeConnectionOrigin(): ShaamOAuthOrigin {
     const storedOrigin = sessionStorage.getItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
     sessionStorage.removeItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY);
-    return storedOrigin === 'settings' ? 'settings' : 'document';
+    if (storedOrigin === 'settings' || storedOrigin === 'uniform-file') {
+      return storedOrigin;
+    }
+    return 'document';
   }
 }
 

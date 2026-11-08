@@ -2630,3 +2630,198 @@ DELIMITER ;
 -- Operator order, paused writers/backup, configuration and rollback limits:
 -- docs/features/admin-refunds-release.md
 -- No production access or DDL execution was performed during this preparation.
+-- KT-091: explicit business proprietor (2026-10-22)
+SET @kt091_add_proprietor_role = IF(
+  EXISTS(
+    SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'business' AND COLUMN_NAME = 'proprietorRole'
+  ),
+  'SELECT 1',
+  'ALTER TABLE `business` ADD COLUMN `proprietorRole` ENUM(''PRIMARY'',''SPOUSE'') NOT NULL DEFAULT ''PRIMARY'' AFTER `firebaseId`'
+);
+PREPARE kt091_stmt FROM @kt091_add_proprietor_role;
+EXECUTE kt091_stmt;
+DEALLOCATE PREPARE kt091_stmt;
+
+UPDATE `business` b
+INNER JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+SET b.`proprietorRole` = 'SPOUSE'
+WHERE u.`isCompany` = 0
+  AND u.`spouseId` IS NOT NULL
+  AND u.`spouseId` <> ''
+  AND b.`businessNumber` = u.`spouseId`
+  AND (u.`id` IS NULL OR b.`businessNumber` <> u.`id`);
+
+UPDATE `business` b
+INNER JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+SET b.`proprietorRole` = 'PRIMARY'
+WHERE u.`isCompany` = 1;
+
+SELECT b.`id`, b.`firebaseId`, b.`businessNumber`, b.`proprietorRole`
+FROM `business` b
+LEFT JOIN `user` u ON u.`firebaseId` = b.`firebaseId`
+WHERE u.`firebaseId` IS NULL
+   OR (b.`proprietorRole` = 'SPOUSE' AND (u.`isCompany` = 1 OR u.`spouseId` IS NULL OR u.`spouseId` = ''));
+
+
+-- Feezback sync reliability (2026-11-01)
+-- Prepared only. NOT executed by the application or by this task.
+-- Apply this additive section before deploying the matching backend.
+-- Take the normal schema backup first. Do not rerun the entire historical cutover.sql.
+-- Preflight: must return zero rows; stop for investigation otherwise.
+SELECT `status`, COUNT(*) AS rows_count FROM `user_source_sync_state`
+WHERE `status` NOT IN ('not_synced', 'success', 'failed', 'skipped_direct') GROUP BY `status`;
+
+ALTER TABLE `user_source_sync_state`
+  MODIFY COLUMN `status` varchar(32) NOT NULL DEFAULT 'not_synced';
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='source' AND COLUMN_NAME='metadataVerifiedAt')=0,
+  'ALTER TABLE `source` ADD COLUMN `metadataVerifiedAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='consentVerifiedAt')=0,
+  'ALTER TABLE `user_source_sync_state` ADD COLUMN `consentVerifiedAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `permissionsSnapshot` json NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='feezback_webhook_events' AND COLUMN_NAME='processing_started_at')=0,
+  'ALTER TABLE `feezback_webhook_events` ADD COLUMN `processing_started_at` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+-- Verification: inspect type/default/nullability against the matching entities.
+SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND
+ ((TABLE_NAME='source' AND COLUMN_NAME='metadataVerifiedAt')
+ OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME IN ('status','consentVerifiedAt'))
+ OR (TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')
+ OR (TABLE_NAME='feezback_webhook_events' AND COLUMN_NAME='processing_started_at'));
+-- Rollback: revert code first; leave the wider status type and nullable columns in place.
+-- Narrowing back to the old enum would reject skipped_direct and is not a safe rollback.
+
+
+-- Feezback remove duplicate permission storage (2026-11-01)
+-- Upgrade for the approved dev database; back up the old column before execution.
+-- No permission list or source mapping is stored in the two operational fields.
+-- Keep existing flow timestamps precise enough to distinguish attempts within one second.
+ALTER TABLE `user_sync_state`
+  MODIFY COLUMN `lastSourcesRefreshAt` timestamp(3) NULL DEFAULT NULL,
+  MODIFY COLUMN `lastConsentInitiatedAt` timestamp(3) NULL DEFAULT NULL;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='lastSourcesRefreshAttemptAt')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `lastSourcesRefreshAttemptAt` datetime(3) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='sourcesRefreshFailureReason')=0,
+  'ALTER TABLE `user_sync_state` ADD COLUMN `sourcesRefreshFailureReason` varchar(255) NULL', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+  AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='permissionsSnapshot')>0,
+  'ALTER TABLE `user_sync_state` DROP COLUMN `permissionsSnapshot`', 'SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+
+SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user_sync_state'
+AND COLUMN_NAME IN ('lastSourcesRefreshAt','lastConsentInitiatedAt','lastSourcesRefreshAttemptAt','sourcesRefreshFailureReason','permissionsSnapshot');
+
+-- Feezback current-pull membership (2026-11-01)
+-- Apply only to an explicitly approved database before starting the matching backend.
+-- Nullable operational run identifiers. No financial data or permission-list copy.
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')=0,
+ 'ALTER TABLE `user_sync_state` ADD COLUMN `fullRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SET @ob_ddl = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+ AND TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId')=0,
+ 'ALTER TABLE `user_source_sync_state` ADD COLUMN `resultRunId` varchar(36) NULL','SELECT 1');
+PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
+SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')
+ OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId'));
+
+
+-- 2026-11-04 Direct-card cashflow (manual, opt-in)
+-- Direct-card cashflow preference. MANUAL application before starting this version.
+-- No deletion of transactions, expenses, rules, documents or journal entries.
+-- MySQL: run in the selected application database. Rerunnable.
+DELIMITER $$
+DROP PROCEDURE IF EXISTS kt_direct_card_cashflow$$
+CREATE PROCEDURE kt_direct_card_cashflow()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='excludeDirectCardBankTransactionsFromCashflow') THEN
+    ALTER TABLE `user` ADD COLUMN excludeDirectCardBankTransactionsFromCashflow tinyint NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='directCardNoticeDismissed') THEN
+    ALTER TABLE `user` ADD COLUMN directCardNoticeDismissed tinyint NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sub_category' AND COLUMN_NAME='systemKey') THEN
+    ALTER TABLE sub_category ADD COLUMN systemKey varchar(64) NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sub_category' AND INDEX_NAME='UQ_sub_category_system_key') THEN
+    ALTER TABLE sub_category ADD UNIQUE INDEX UQ_sub_category_system_key (systemKey);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='full_transactions_cache' AND COLUMN_NAME='sub_category_id') THEN
+    ALTER TABLE full_transactions_cache ADD COLUMN sub_category_id int NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='slim_transactions' AND COLUMN_NAME='sourceRecordId') THEN
+    ALTER TABLE slim_transactions ADD COLUMN sourceRecordId int NULL;
+  END IF;
+
+  -- Do not silently repurpose an existing accounting/private classification.
+  IF EXISTS (
+    SELECT 1 FROM sub_category s INNER JOIN category c ON c.id=s.categoryId
+    WHERE s.chartOwnerKey='SYSTEM' AND c.chartOwnerKey='SYSTEM'
+      AND c.name='בנק, אשראי ותנועות' AND s.name='כרטיס דיירקט'
+      AND (s.systemKey IS NULL OR s.systemKey<>'DIRECT_CARD_BANK_PAYMENT')
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Existing system Direct label needs manual catalog review';
+  END IF;
+
+  INSERT INTO category (name, type, ownerType, chartOwnerKey, visibilityScope, isDefault, isActive)
+  SELECT 'בנק, אשראי ותנועות', 'EXPENSE', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 1, 1
+  WHERE NOT EXISTS (SELECT 1 FROM category WHERE chartOwnerKey='SYSTEM' AND name='בנק, אשראי ותנועות' AND type='EXPENSE');
+
+  INSERT INTO sub_category
+    (categoryId, name, systemKey, isPrivate, accountId, necessity, ownerType, chartOwnerKey, visibilityScope, approvalStatus, isDefault, isActive)
+  SELECT c.id, 'כרטיס דיירקט', 'DIRECT_CARD_BANK_PAYMENT', 1, NULL, 'IMPORTANT', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 'APPROVED', 1, 1
+  FROM category c
+  WHERE c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
+    AND NOT EXISTS (SELECT 1 FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT');
+
+  -- Preserve the stable sub-category ID when upgrading an already-applied version.
+  UPDATE sub_category s INNER JOIN category c
+    ON c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
+  SET s.categoryId=c.id
+  WHERE s.systemKey='DIRECT_CARD_BANK_PAYMENT' AND s.chartOwnerKey='SYSTEM';
+
+  -- Copy only existing stable classification IDs/provenance; never guess by merchant name.
+  UPDATE full_transactions_cache c INNER JOIN slim_transactions s
+    ON s.userId=c.userId AND s.externalTransactionId=c.externalTransactionId
+  SET c.sub_category_id=s.sub_category_id;
+  UPDATE slim_transactions s INNER JOIN full_transactions_cache c
+    ON s.userId=c.userId AND s.externalTransactionId=c.externalTransactionId
+  SET s.sourceRecordId=c.sourceRecordId
+  WHERE s.sourceRecordId IS NULL;
+
+  -- Linked legacy Direct cards must participate in the next normal retry.
+  UPDATE user_source_sync_state
+  SET status='not_synced', transactionCount=0, error=NULL
+  WHERE type='card' AND status='skipped_direct';
+END$$
+CALL kt_direct_card_cashflow()$$
+DROP PROCEDURE kt_direct_card_cashflow$$
+DELIMITER ;
+
+SELECT id, categoryId, name, systemKey, isPrivate, accountId, isActive
+FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT';
+SELECT COUNT(*) AS opted_in_users FROM `user`
+WHERE excludeDirectCardBankTransactionsFromCashflow=1;

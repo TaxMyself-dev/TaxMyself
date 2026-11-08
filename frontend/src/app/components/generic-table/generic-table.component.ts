@@ -65,6 +65,9 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   genericService = inject(GenericService);
   title = input<string>();
+  emptyText = input<string>('אויש, לא מצאנו את מה שחיפשת');
+  readonly displayedEmptyText = computed(() => this.dataTable()?.length
+    ? 'אויש, לא מצאנו את מה שחיפשת' : this.emptyText());
   actions = input<IGenericTableAction[]>([]);
   /** Opt-in legacy attach fallback; ordinary row actions never create an upload control. */
   fileAttachmentEnabled = input<boolean>(false);
@@ -76,6 +79,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   arrayFilters = input<any>();
   isLoadingState = input<boolean>(false);
   useSyncState = input<boolean>(false);
+  preserveRowsDuringSync = input<boolean>(false);
   processStatus = input<'running' | 'completed' | 'failed' | null>(null);
   incomeMode = input<boolean>(false);
   showCheckbox = input<boolean>(false);
@@ -206,9 +210,11 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
+  hasRetainedRows = computed(() => this.preserveRowsDuringSync() && !!this.dataTable()?.length);
+  // Retention protects the last readable rows after a failed refresh; it must
+  // not hide the loading indicator while a new pull or table read is in flight.
   effectiveIsLoading = computed(() =>
-    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')
-  );
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running'));
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();

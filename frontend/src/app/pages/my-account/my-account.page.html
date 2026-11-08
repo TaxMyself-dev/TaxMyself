@@ -1,4 +1,8 @@
 <div class="page-wrapper" [class.page-wrapper--delegated]="isDelegatedClientView()">
+    <app-direct-card-notice [active]="directNoticeActive() && !isDelegatedClientView()"
+      [blocked]="feezbackDialogVisible() || syncProcessStatus() === 'running'" [refresh]="directNoticeRefresh()"
+      (preferenceSaved)="getTransToClassify()"></app-direct-card-notice>
+    <app-open-banking-error [issue]="bankingError()" [fullSyncRetry]="bankingFullSyncRetry"></app-open-banking-error>
     @if (feezbackDialogVisible()) {
       <div class="feezback-dialog-backdrop" (click)="closeFeezbackDialog()">
         <div class="feezback-dialog" (click)="$event.stopPropagation()">
@@ -542,7 +546,7 @@
         [dataTable]="$any(transToClassify | async)"
         [selectionModeCheckBox]="null"
         [tableHeight]="'500px'"
-        [useSyncState]="true" [processStatus]="syncProcessStatus()"
+        [useSyncState]="true" [processStatus]="syncProcessStatus()" [preserveRowsDuringSync]="true"
         (syncTriggered)="onSyncTriggered()"
         [mobileCardConfig]="mobileCardConfig"
         [sumSignColors]="true"

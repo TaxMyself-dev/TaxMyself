@@ -1,3 +1,4 @@
+import { FeezbackHttpError } from '../core/feezback-errors';
 import { Injectable, Logger } from '@nestjs/common';
 import { FeezbackHttpClient } from '../core/feezback-http.client';
 import type { FeezbackDebugHttpCall } from '../core/feezback-http.client';
@@ -26,10 +27,37 @@ export class FeezbackApiService {
     return this.httpClient.withDebugTrace(operation);
   }
 
-  async getUserConsents(sub: string): Promise<{ consents: any[] }> {
+  async getUserConsents(sub: string, withInvalid = false): Promise<{ consents: any[] }> {
     // this.logger.log(`Fetching user consents for sub=${sub}`);
-    const data = await this.getFromUserPath(sub, '/consents');
+    let data: any;
+    try {
+      data = await this.getFromUserPath(sub, '/consents', withInvalid ? { withInvalid: 'true' } : undefined);
+    } catch (error) {
+      // Only this exact provider GET documents 404 as userNotFound. Token
+      // endpoint/configuration 404s must remain uncertain, never prove revocation.
+      if (withInvalid && error instanceof FeezbackHttpError && error.status === 404 && error.method === 'GET') {
+        try {
+          const base = this.authService.getTppApiUrl().replace(/\/+$/, '');
+          const expected = new URL(`${base}/tpp/v1/users/${encodeURIComponent(this.buildUserIdentifier(sub))}/consents`);
+          const actual = new URL(error.url);
+          if (actual.origin === expected.origin && decodeURIComponent(actual.pathname) === decodeURIComponent(expected.pathname)) {
+            return { consents: [] };
+          }
+        } catch { /* Malformed URL cannot prove the identity is absent. */ }
+      }
+      throw error;
+    }
+    if (withInvalid && !Array.isArray(data) && !['consents', 'data', 'items'].some(key => Array.isArray(data?.[key]))) {
+      throw new Error('Invalid Feezback consent response');
+    }
     return this.normalizeConsentsResponse(data);
+  }
+
+  async terminateConsent(sub: string, consentId: string): Promise<void> {
+    await this.ensureAuthorized(sub);
+    await this.httpClient.delete(`/tpp/v1/users/${encodeURIComponent(this.buildUserIdentifier(sub))}/consents/${encodeURIComponent(consentId)}`, {
+      sub, params: { reason: 'clientDisconnectedFromDigital' }, timeout: 60_000,
+    });
   }
 
   async getUserAccounts(
@@ -61,7 +89,7 @@ export class FeezbackApiService {
 
   async getUserCards(
     sub: string,
-    options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean },
+    options?: { preventUpdate?: boolean; withInvalid?: boolean; withBalances?: boolean; strictResponse?: boolean },
   ): Promise<{ cards: any[] }> {
     const { preventUpdate = true, withInvalid, withBalances } = options ?? {};
 
@@ -79,6 +107,10 @@ export class FeezbackApiService {
 
     const data = await this.getFromUserPath(sub, '/cards', queryParams);
 
+    if (options?.strictResponse && !Array.isArray(data) && !Array.isArray(data?.cards) &&
+      !Array.isArray(data?.data?.cards) && !Array.isArray(data?.data)) {
+      throw new Error('Invalid Feezback cards response');
+    }
     const cards = this.normalizeCardsResponse(data);
     return { cards };
   }

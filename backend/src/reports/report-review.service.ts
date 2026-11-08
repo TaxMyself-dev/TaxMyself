@@ -1,3 +1,4 @@
+import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import {
   Injectable,
   Logger,
@@ -311,6 +312,7 @@ export class ReportReviewService {
         .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
         .andWhere('slim.isRecognized = true')
         .andWhere('slim.confirmed = false')
+        .andWhere('NOT (' + cashflowExcludedSql('slim') + ')')
         .andWhere('cache.transactionDate <= :to', { to: periodEnd })
         .getCount();
       hasUnconfirmedExpenses = count > 0;
@@ -1388,6 +1390,7 @@ export class ReportReviewService {
       .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
       .andWhere('slim.isRecognized = true')
       .andWhere('slim.confirmed = false')
+      .andWhere('NOT (' + cashflowExcludedSql('slim') + ')')
       .andWhere('cache.transactionDate <= :to', { to: range.to })
       .orderBy('cache.transactionDate', 'ASC')
       .getMany();
@@ -1442,6 +1445,10 @@ export class ReportReviewService {
     if (slim.businessNumber !== businessNumber) {
       throw new ForbiddenException(`Transaction ${slimTransactionId} is not in business ${businessNumber}`);
     }
+    const excluded = await this.slimRepo.createQueryBuilder('slim')
+      .where('slim.id = :id AND slim.userId = :uid', { id: slim.id, uid: slim.userId })
+      .andWhere(cashflowExcludedSql('slim')).getCount();
+    if (excluded) throw new BadRequestException('התנועה מוחרגת מהתזרים ולא ניתן לאשרה כהוצאה');
     if (slim.confirmed) {
       throw new BadRequestException(`Transaction ${slimTransactionId} is already confirmed`);
     }

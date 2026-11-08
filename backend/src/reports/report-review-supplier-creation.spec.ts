@@ -34,7 +34,16 @@ function makeService(addExpenseResult: any = { id: 999 }) {
   const svc: any = Object.create(ReportReviewService.prototype);
   svc.logger = { log: jest.fn(), error: jest.fn(), warn: jest.fn() };
   svc.docRepo = { findOne: jest.fn() };
-  svc.slimRepo = { findOne: jest.fn() };
+  // These supplier-creation scenarios use transactions included in cashflow.
+  const cashflowQuery = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getCount: jest.fn().mockResolvedValue(0),
+  };
+  svc.slimRepo = {
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(cashflowQuery),
+  };
   svc.cacheRepo = { findOne: jest.fn() };
   svc.userRepo = { findOne: jest.fn().mockResolvedValue({ index: 42 }) };
   svc.businessRepo = { findOne: jest.fn().mockResolvedValue({ businessType: 'LICENSED', vatReportingType: 'MONTHLY_REPORT' }) };

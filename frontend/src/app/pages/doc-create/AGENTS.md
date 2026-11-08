@@ -77,13 +77,12 @@ Frontend components: add-client (`AddClientComponent` — opened via PrimeNG `Di
 ## Profile avatar
 - The document-page header uses the application profile image with a fallback through `AccountImageComponent`. This image is separate from the issuing business logo used in PDF generation; document and payment editing flows are unchanged.
 
-## Known discount audit finding (2026-10-18, not fixed)
+## Discount calculation
 
 `calculateVatFieldsForLine` converts an INCLUDE discount to net in
-`disBefVatPerLine`, but `updateDocumentTotalsFromLines` sums gross `line.discount`
-and subtracts it from net amounts. Synthetic 1180 incl VAT / 118 discount / 18%
-produces line gross1062 vs document1044. EXCLUDE/WITHOUT control cases reconcile.
-`doc-create-discount-audit.spec.ts` characterizes this existing discrepancy;
-`tsconfig.doc-discount.spec.json` isolates its three ChromeHeadless tests.
-The audit changed no calculations; any correction requires separately approved
-scope and must not be concealed by changing only PDF display values.
+`disBefVatPerLine`; `updateDocumentTotalsFromLines` aggregates that before-VAT
+value rather than the gross `line.discount`. Synthetic 1180 incl VAT / 118
+discount / 18% therefore produces a net discount of 100 and matching line and
+document totals of 1062. EXCLUDE/WITHOUT continue to use the entered discount
+unchanged. `doc-create-discount-audit.spec.ts` covers all three paths;
+`tsconfig.doc-discount.spec.json` isolates its ChromeHeadless tests.

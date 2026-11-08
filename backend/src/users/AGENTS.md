@@ -1,4 +1,9 @@
 ## Purpose
+
+Direct-card notice: directCardNoticeDismissed defaults false and is written only
+by the owner-only transactions/direct-card-notice endpoint. Generic profile updates
+strip this field and the cashflow preference. The existing lastLoginAt supplies
+the real-login token for browser-local temporary notice suppression.
 Owns the user account entity/lifecycle (signup, signin, profile update, children), Firebase-auth integration, and per-user Google Drive folder provisioning.
 
 ## Key entities/files
@@ -13,10 +18,14 @@ Owns the user account entity/lifecycle (signup, signin, profile update, children
 - KT-053: signup forces hasOpenBanking=false, and profile updates strip this
   field. Only provider-verified discovery (or explicit demo seeding) sets it;
   it is not a user-editable billing permission.
-- `POST /signup` — creates a `User` (+ associated `Business`/`Child` rows), ensures a trial `UserModuleSubscription`.
+- `POST /signup` — creates a `User` (+ associated `Business`/`Child` rows), ensures a trial `UserModuleSubscription`. Each private-account business must declare `proprietorRole=PRIMARY|SPOUSE`; spouse ownership requires saved spouse identity. Company accounts force `PRIMARY`, while private accounts continue to reject company/partnership business types. Legacy signed-in primary/spouse business fields are selected by proprietor role, never row order.
 - `GET /signin` — loads user by `firebaseId`, rolls `lastLoginAt` → `previousLoginAt`.
 - `PATCH /update-user`, `/children` — profile edits.
 - Drive provisioning: `provisionDriveStructure`/`auditDriveShares`/`revokeAccountantDriveAccess`/`getDriveProvisioningStatus` — creates and audits the per-user Google Drive folder structure and accountant sharing.
+- User-root Drive provisioning persists the folder ID with a constrained
+  `UPDATE`, never `save(entity)`: if concurrent account cleanup removed the
+  user, the newly created folder is deleted and the stale entity cannot be
+  inserted again.
 - The legacy manual Drive provisioning endpoint under `auth/dev/drive` is
   retained for diagnostics but requires both Firebase authentication and the
   persisted administrator role.
@@ -36,3 +45,24 @@ The existing primary identity remains Firebase UID + _sub. Only explicit checkbo
 Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Source.connectionRole stores primary/spouse identity once; sync and cached transactions reference the permanent Source.id through sourceRecordId. Account labels have no spouse suffix. Individual retries resolve the owned source ID and role to the appropriate SUB. Opaque normalized transaction IDs retain their deterministic _spouse suffix for import idempotency. No additional identity mapping table is used.
 
 Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.
+
+## Signup transaction isolation
+UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).
+
+Banking login work is dispatched before awaiting Drive diagnostics. A slow/failed Drive check must not delay or prevent banking synchronization; synthetic-demo skip behavior is unchanged.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

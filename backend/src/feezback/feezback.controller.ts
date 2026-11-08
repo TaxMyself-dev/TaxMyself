@@ -1,3 +1,6 @@
+import { FeezbackDisconnectionService, DisconnectRequest } from './feezback-disconnection.service';
+import { BankingBatchError, bankingIssue } from './core/open-banking-issue';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, Param, Post, Query, Req, UseGuards, Res } from '@nestjs/common';
 import type { SourceResult } from '../transactions/user-source-sync-state.entity';
 import { FeezbackService } from './feezback.service';
@@ -27,6 +30,7 @@ export class FeezbackController {
     private readonly routerService: FeezbackWebhookRouterService,
     private readonly userSyncStateService: UserSyncStateService,
     @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly disconnection?: FeezbackDisconnectionService,
   ) { }
 
   @Post('webhook-router')
@@ -41,10 +45,74 @@ export class FeezbackController {
     });
   }
 
+  private async disconnectionSubject(req: AuthenticatedRequest, target?: string): Promise<string> {
+    const subject = target ?? req.user?.firebaseId;
+    const actor = req.user?.actorFirebaseId ?? req.user?.firebaseId;
+    if (typeof subject !== 'string' || !subject.trim() || !actor) throw new ForbiddenException('Authentication required');
+    if (actor !== subject || req.isDelegatedAccess || req.isAdminImpersonation) {
+      if (!await this.usersService.isAdmin(actor)) throw new ForbiddenException('Only the owner or an administrator may disconnect open banking');
+    }
+    return subject;
+  }
+
+  @Get('disconnection-targets')
+  @UseGuards(FirebaseAuthGuard)
+  async disconnectionTargets(@Req() req: AuthenticatedRequest, @Query('firebaseId') firebaseId?: string) {
+    const subject = await this.disconnectionSubject(req, firebaseId);
+    try { return await this.disconnection!.storedTargets(subject); }
+    catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new ServiceUnavailableException({supportError:bankingIssue(this.logger,'connection_save',subject,'stored_permissions_read_failed',error)});
+    }
+  }
+
+  @Post('refresh-permissions')
+  @UseGuards(FirebaseAuthGuard)
+  async refreshPermissions(@Req() req: AuthenticatedRequest, @Body() body: { firebaseId?: string } = {}) {
+    const firebaseId = await this.disconnectionSubject(req, body.firebaseId);
+    try {
+      return await this.feezbackService.refreshUserSources(firebaseId, 'permissions-refresh');
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      const issue = error instanceof BankingBatchError ? error.issues[0]
+        : bankingIssue(this.logger, 'consent_check', firebaseId, 'permissions_refresh_failed', error);
+      try {
+        const stored = await this.disconnection!.storedTargets(firebaseId);
+        return { ...stored, complete: false, supportError: issue };
+      } catch { throw new ServiceUnavailableException({supportError:issue}); }
+    }
+  }
+
+  @Post('disconnect')
+  @UseGuards(FirebaseAuthGuard)
+  async disconnect(@Req() req: AuthenticatedRequest, @Body() body: DisconnectRequest & { firebaseId?: string }) {
+    const firebaseId = await this.disconnectionSubject(req, body?.firebaseId);
+    try { return await this.disconnection!.disconnect(firebaseId, body); }
+    catch(error) {
+      if (error instanceof BadRequestException) throw error;
+      const issue = error instanceof BankingBatchError ? error.issues[0]
+        : bankingIssue(this.logger,'connection_save',firebaseId,'disconnection_failed',error);
+      throw new ServiceUnavailableException({supportError:issue});
+    }
+  }
+
   @Get('connection-options')
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   async connectionOptions(@Req() req: AuthenticatedRequest) {
-    return this.feezbackService.getConnectionOptions(req.user!.firebaseId);
+    const firebaseId = req.user!.firebaseId;
+    try {
+      // Reconcile stale connection flags before deciding whether to offer the
+      // spouse choice. This only reads provider state; it never revokes consent.
+      const state = await this.disconnection!.targets(firebaseId);
+      if (state.complete && state.consents.length === 0) return { offerSpouse: false };
+    } catch (error) {
+      const response = error instanceof BadRequestException ? error.getResponse() : null;
+      // Synthetic demos intentionally have local connection flags and no live
+      // provider registration. Preserve that existing behavior, not other errors.
+      if (!response || typeof response !== 'object' ||
+        (response as { code?: string }).code !== 'SYNTHETIC_OPEN_BANKING') throw error;
+    }
+    return this.feezbackService.getConnectionOptions(firebaseId);
   }
 
   @Post('consent-link')

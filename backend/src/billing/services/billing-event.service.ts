@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { BillingTasksService } from './billing-tasks.service';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { BillingEvent } from '../entities/billing-event.entity';
@@ -25,8 +27,8 @@ export interface LogBillingEventInput {
 
 /**
  * Append-only audit log for all billing actions.
- * All methods are fire-and-forget safe: they catch internally and NEVER
- * throw, so a logging failure can never break the main request flow.
+ * Audit helpers are best effort. Durable receipt-email claims and completion
+ * are transactional and throw on persistence failure.
  */
 @Injectable()
 export class BillingEventService {
@@ -35,6 +37,7 @@ export class BillingEventService {
   constructor(
     @InjectRepository(BillingEvent)
     private readonly billingEventRepo: Repository<BillingEvent>,
+    @Optional() private readonly tasks?: BillingTasksService,
   ) {}
 
   async logEvent(input: LogBillingEventInput): Promise<BillingEvent | null> {
@@ -219,6 +222,76 @@ export class BillingEventService {
       );
       return false;
     }
+  }
+
+  /** Durable delivery claims throw on DB failure: never send without a saved lease. */
+  async claimReceiptEmail(eventId: number, manual = false, now = new Date(), actor?: string): Promise<string | null> {
+    let wakeup: Date | undefined;
+    const result = await this.billingEventRepo.manager.transaction(async manager => {
+      const event = await manager.findOne(BillingEvent, { where: { id: eventId }, lock: { mode: 'pessimistic_write' } });
+      if (!event?.receiptDocId || ![BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS, BillingEventType.REFUND_SUCCESS].includes(event.eventType)) return null;
+      const previous = event.metadata?.receiptEmail ?? {};
+      if (Date.parse(previous.leaseUntil ?? '') > now.getTime()) return null;
+      if (!manual && (event.receiptEmailSent || previous.skipped === 'NO_RECIPIENT' || Date.parse(previous.nextAttemptAt ?? '') > now.getTime())) return null;
+      const leaseId = randomUUID();
+      const attempts = Number(previous.attempts ?? 0) + 1;
+      const delay = ([1, 5, 15, 30][attempts - 1] ?? 60) * 60000;
+      event.metadata = { ...(event.metadata ?? {}), receiptEmail: {
+        ...previous, sent: false, attempts, leaseId, skipped: null,
+        leaseUntil: new Date(now.getTime() + 5 * 60000).toISOString(),
+        nextAttemptAt: new Date(now.getTime() + 5 * 60000 + delay).toISOString(),
+        lastAttemptAt: now.toISOString(), ...(actor ? { lastAdminActor: actor } : {}),
+      } };
+      // Manual resend after an earlier success must also survive a failed send/crash.
+      event.receiptEmailSent = false;
+      await manager.save(BillingEvent, event);
+      if ([BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType)) {
+        wakeup = new Date(event.metadata.receiptEmail.nextAttemptAt);
+      }
+      return leaseId;
+    });
+    if (wakeup) await this.tasks?.enqueue('MAIL', eventId, wakeup).catch(() => undefined);
+    return result;
+  }
+
+  async finishReceiptEmail(eventId: number, leaseId: string, sent: boolean, error?: string, skipped = false): Promise<void> {
+    let wakeup: Date | undefined;
+    await this.billingEventRepo.manager.transaction(async manager => {
+      const event = await manager.findOne(BillingEvent, { where: { id: eventId }, lock: { mode: 'pessimistic_write' } });
+      if (!event || event.metadata?.receiptEmail?.leaseId !== leaseId) return;
+      const previous = event.metadata.receiptEmail;
+      const run = Math.max(1, Number(previous.attempts ?? 1));
+      const minutes = [1, 5, 15, 30][run - 1] ?? 60;
+      event.receiptEmailSent = sent;
+      event.metadata = { ...event.metadata, receiptEmail: { ...previous, sent,
+        leaseId: null, leaseUntil: null,
+        nextAttemptAt: sent || skipped ? null : new Date(Date.now() + minutes * 60000).toISOString(),
+        lastError: error ? redactForLog(error).slice(0, 500) : null,
+        skipped: skipped ? 'NO_RECIPIENT' : null,
+      } };
+      await manager.save(BillingEvent, event);
+      if (!sent && !skipped && [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS].includes(event.eventType)) {
+        wakeup = new Date(event.metadata.receiptEmail.nextAttemptAt);
+      }
+    });
+    if (wakeup) await this.tasks?.enqueue('MAIL', eventId, wakeup).catch(() => undefined);
+  }
+
+  async findDueReceiptEmails(now = new Date(), limit = 20, afterId = 0): Promise<BillingEvent[]> {
+    return this.billingEventRepo.createQueryBuilder('e')
+      .where('e.eventType IN (:...types)', { types: [BillingEventType.PAYMENT_SUCCESS, BillingEventType.RENEWAL_SUCCESS] })
+      .andWhere('e.receiptDocId IS NOT NULL AND e.receiptEmailSent = false')
+      .andWhere("JSON_EXTRACT(e.metadata, '$.receiptEmail.attempts') > 0")
+      .andWhere("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.skipped')), '') <> 'NO_RECIPIENT'")
+      .andWhere("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.nextAttemptAt')), 'null'), '') <= :now", { now: now.toISOString() })
+      .andWhere("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(e.metadata, '$.receiptEmail.leaseUntil')), 'null'), '') <= :now", { now: now.toISOString() })
+      .andWhere('e.id > :afterId', { afterId })
+      .orderBy('e.id', 'ASC').take(limit).getMany();
+  }
+
+  /** Queue processing must distinguish a missing row from a failed DB read. */
+  async findReceiptTaskEvent(id: number): Promise<BillingEvent | null> {
+    return this.billingEventRepo.findOne({ where: { id } });
   }
 
   async markReceiptEmailSent(eventId: number): Promise<void> {

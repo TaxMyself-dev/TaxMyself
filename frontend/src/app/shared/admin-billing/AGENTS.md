@@ -31,7 +31,7 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 - Plans: list/create/edit pricing plans and their included modules.
 - Complimentary access grant/revoke requires confirmation, is saved separately
   from ordinary plan edits, and hides manual-charge actions.
-- Subscriptions: list subscriptions, including each user's current open-banking connection flag and latest application login timestamp; edit plan/trial end/discounts; and run renewal batches. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
+- Subscriptions: list non-demo subscriptions, including each user's current open-banking connection flag and latest application login timestamp; filter locally by all, active, trial, or expired-trial status; edit plan/trial end/discounts; and run renewal batches. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
 - Billing exceptions (KT-038 Task 5B, read-only): a subscription with an unresolved `UNKNOWN`/`MANUAL_REVIEW` attempt gets a small warning icon (tooltip: count + most severe status) inside the existing status cell; other rows are unchanged. Opening the existing drawer lazily calls `AdminBillingService.getUnresolvedBillingAttempts(id)` and renders a "חריגות חיוב" section (loading/empty/error states, newest first) with Hebrew status, charge mode, amount, timestamps, reconciliation counts, failure category, CardCom ids, token-recovered flag and whether the customer or an internal reviewer must act. The section has no actions and the API never carries tokens or raw provider data. Karma compiles every spec in the project, so run this area in isolation with a temporary `tsconfig.spec` whose `include` lists only `subscriptions/*.spec.ts` (`ng test --ts-config=… --include=…`).
 
 ## Payment exception resolution (KT-045, supersedes the read-only section above)
@@ -57,3 +57,13 @@ Isolated verification uses frontend/tsconfig.billing-resolution.spec.json.
 - Backend: billing (`AdminBillingService` → admin billing endpoints)
 - Frontend pages: admin-panel (embeds `<app-admin-billing>` as a tab)
 - Frontend shared: clients-dashboard (sibling admin-panel tab; reads subscription status via the same `AdminBillingService.getSubscriptions()`)
+
+## Pending invoice emails (2026-11-01)
+
+The “חשבוניות ומיילים ממתינים” tab includes successful initial/renewal payments
+with a missing invoice OR an unsent invoice email. A linked document gets the
+separate confirmed “שלח חשבונית קיימת במייל” action, using its billing-event id.
+It never calls generate; missing documents retain only the generation action.
+Only sent=true produces the success toast; failed/busy delivery shows a warning.
+Requests suppress overlapping clicks and refresh the pending list afterwards.
+Isolated checks: tsconfig.receipt-email.spec.json.

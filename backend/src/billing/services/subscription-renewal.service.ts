@@ -672,7 +672,7 @@ export class SubscriptionRenewalService {
    * actually charged — never from a fresh price.
    */
   /** Resume this exact captured attempt; never run the charge/renewal entry point. */
-  async completeCapturedAttempt(attemptId: number): Promise<string> {
+  async completeCapturedAttempt(attemptId: number, scheduledOnly = false): Promise<string> {
     const attempt = await this.dataSource.manager.findOneByOrFail(BillingAttempt, { id: attemptId });
     if (attempt.operation === 'REFUND') throw new Error('Refunds cannot complete a renewal');
     if (attempt.status !== BillingAttemptStatus.CAPTURED || !attempt.cardcomTransactionId || !attempt.capturedAt) {
@@ -685,6 +685,7 @@ export class SubscriptionRenewalService {
     const result = await this.billingLifecycleService!.resumeCapturedAttempt({
       actor: { actorFirebaseId: subscription.firebaseId, subjectFirebaseId: subscription.firebaseId },
       attemptId, leaseOwner: `admin-complete-${attemptId}`,
+      scheduledOnly,
       activate: async () => {
         await this.dataSource.transaction(async manager => {
           const current = await manager.findOneOrFail(Subscription, {

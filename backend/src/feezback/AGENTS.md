@@ -35,13 +35,15 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   access. PREPARE recovery runs daily at 02:45 (original trial plus seven-day
   recovery window), using existing read-only provider endpoints; errors are
   isolated per user. Source discovery itself persists flag/source metadata.
+  Discovery does not select or upgrade referral plans. The old automatic
+  referral-basic to referral-open-banking mutation is removed. Only the
+  existing explicitly approved trial enrollment receives connectionVerified;
+  paid plan changes use the shared billing preview/confirmation mechanism.
 - Pending provider work: when a paid downgrade to a plan without OPEN_BANKING
-  becomes effective, or subscription cancellation takes effect, delete the
-  provider user/registration through Feezback's future endpoint. No such endpoint
-  is implemented or called here; stopping local access does not stop provider cost.
+  becomes effective, or subscription cancellation takes effect, revoke provider consents through the explicit owner/admin disconnection flow. Automatic subscription-triggered provider cancellation is not implemented; stopping local access does not stop provider cost.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.
-- Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` trigger `refreshUserSources` + full sync; `ConsentStatusChanged` clears stale consent IDs on terminal states.
+- Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` refresh saved consent/source metadata; transaction pulls remain explicit or login-triggered; `ConsentStatusChanged` clears stale consent IDs on terminal states.
 - `GET /feezback/user-accounts`, `GET /feezback/transactions` — direct pass-through account/transaction reads.
 - `POST /feezback/admin-user-transactions` — admin-only, synchronous date-range pull. It persists normalized bank/card transactions and returns a token-free diagnostic bundle containing a run ID, exact `sub`/user identifier, request filters, per-source V2 metadata, redacted cURL commands, raw/extracted/normalized transactions, responses/errors, sent/received timestamps, and suspected provider duplicates (same source/business fields/note hash but different external IDs). Suspected duplicates are diagnostic only and are never merged or deleted. A `partial` result means some sources failed even if other-source transactions were successfully saved. `admin/refresh-sources/:firebaseId`, `admin/pull-source/:firebaseId`, and `admin/accounts/:firebaseId` provide the other manual sync/retry diagnostics.
 - Passing `persistTransactions=false` to the admin pull makes it diagnostic-only:
@@ -75,6 +77,127 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
 
 The existing primary identity remains Firebase UID + _sub. Only explicit checkbox selection creates a consent link for UID + _sub_spouse. The final enrollment redirect reads server connection-options and offers the unchecked choice if hasOpenBanking OR hasSpouseFeezbackIdentity. It also covers direct page navigation and saved-card resumes.
 
-Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Source.connectionRole stores primary/spouse identity once; sync and cached transactions reference the permanent Source.id through sourceRecordId. Account labels have no spouse suffix. Individual retries resolve the owned source ID and role to the appropriate SUB. Opaque normalized transaction IDs retain their deterministic _spouse suffix for import idempotency. No additional identity mapping table is used.
+Only a spouse data-ready webhook plus provider verification of a valid, unexpired consent linked to a source writes user.hasSpouseFeezbackIdentity=true. Profile writes and browser redirects cannot set it. The historical flag survives consent expiry until a complete disconnection-target read proves that neither identity has a nonterminal permission. Known identities participate in discovery and sync; connection state is aggregated, with partial failures unable to clear prior state. Source.connectionRole stores primary/spouse identity once; sync and cached transactions reference the permanent Source.id through sourceRecordId. Account labels have no spouse suffix. Individual retries resolve the owned source ID and role to the appropriate SUB. Opaque normalized transaction IDs retain their deterministic _spouse suffix for import idempotency. No additional identity mapping table is used.
 
 Apply the appended user-column SQL in docs/redesign/cutover.sql before deployment. No production or live provider operations are part of validation.
+
+## Consent termination and full disconnection (2026-10-22)
+
+`GET /feezback/disconnection-targets` and `POST /feezback/disconnect` use Firebase authentication without subscription gating so customers can revoke after losing module entitlement. Only the owner or a server-verified administrator actor may operate; accountant delegation is insufficient. Optional firebaseId targets require verifying the real actor as admin. POST accepts scope all or consent, with consentId + connectionRole for a single permission.
+
+The disconnection service probes both primary/spouse identities with withInvalid=true, including pending spouse onboarding before its historical flag is set (only a FeezbackHttpError GET 404 attributed to the exact owned consent-list pathname proves an absent identity; token-endpoint and unattributed errors remain uncertain), includes pending/suspended/unknown statuses, terminates provider-owned consents through authenticated DELETE with reason=clientDisconnectedFromDigital, and verifies fresh consent state before reporting success. Failed reads, failed DELETEs and asynchronous termination remain partial/pending. hasOpenBanking follows current valid provider consent/source proof; uncertainty preserves prior state. A complete absence of nonterminal permissions clears it. A preview never resets flags or deletes cache. Only the verified explicit disconnect flow resets historical/onboarding flags. A POST resets the same fields only after a verified successful result with zero remaining permissions, including cancellation of the last individual permission. Partial/error results and any remaining pending/suspended/unknown permission preserve spouse/onboarding flags; lack of usable valid sources alone does not prove full disconnection. No automatic billing cancellation or fee guarantee is implied.
+
+Only sync-state consent pointers are cleared after verified termination, including stale pointers on an already-terminal retry. Shared sources are first rebound to a remaining valid, unexpired permission through metadata-only upserts. Discovery only prepopulates retry pointers from provider-verified valid sources, using copied source metadata with a verified valid/unexpired direct consent or the first valid related consent (raw provider diagnostics are unchanged), so a late data-ready webhook cannot restore terminal consent IDs. Source rows and IDs, account/card bill mappings, slim transaction classifications, rules and approved expenses are retained; verified disconnected transient cache is now removed immediately; the normal 03:00 cleanup remains unchanged. Reconnection uses permanent source identity keys rather than provider consent/resource IDs.
+
+Discovery, spouse webhook verification (including its flag write), and disconnection share a per-user in-process operation queue to prevent an older discovery from overwriting a completed termination. Later webhooks still require fresh provider proof. This queue is not a cross-process lock; multi-instance consistency remains subject to provider propagation and the existing discovery architecture. Tests use mocks only; no live provider, database or application startup is required.
+
+Synthetic open-banking demo profiles are rejected with SYNTHETIC_OPEN_BANKING before provider reads, source reads or connection-flag writes, preserving their demo connection state.
+
+Disconnection previews return safe read diagnostics (`operation`, `stage`, optional `httpStatus`, and identity role), never provider messages, URLs, bodies or credentials. An absent-identity 404 is accepted only for the exact configured API origin and consent-list path, including the proxy base-path prefix; token, wrong-origin, wrong-path and other-owner failures remain uncertain. The preview includes provider-linked accounts/cards not yet stored locally, with `sourceRecordId: null`, masked labels and a provider resource key; these are preview-only and never create Source rows or participate in sync-pointer rebinding.
+
+## Fully disconnected state reset (2026-10-23)
+
+The connection-flag reset is limited to the two User connection flags and UserSyncState.lastConsentInitiatedAt (via clearConsentInitiated); transient cache lifecycle reset is described separately below. Firebase identity, deterministic primary/spouse SUBs, Source.connectionRole, permanent Source IDs, bill mappings, classifications, expenses, plan/enrollment and billing state are retained. These describe stable identity, retained data, operational history or subscription terms, not current provider consent. Explicit refresh and disconnect verification probe both identities even after hasSpouseFeezbackIdentity resets, so reconnection can reuse existing sources without creating duplicate instruments.
+
+## Connection options and stored management reads
+
+GET /feezback/disconnection-targets derives its view from owned Source rows and user_source_sync_state links only. No permission-list copy is persisted. It never calls Feezback, writes flags, starts a sync or clears cache. GET /feezback/connection-options retains its Firebase/subscription guards and uses a read-only provider preview to suppress the spouse choice after complete absence; it does not reset flags.
+
+## Immediate disconnected cache cleanup (2026-10-23)
+
+Only explicit POST disconnect triggers FeezbackCacheCleanupService after its final verified snapshot and pointer reconciliation. Stored reads, provider previews and permission refresh never clean cache. Only FullTransactionCache rows are deleted. A complete absence of nonterminal permissions across both identities permits deleting the whole tenant cache, including null/orphan source references. Otherwise deletion requires owned stable Source IDs whose old consent is absent/terminal and that are not linked to any remaining nonterminal permission. Pending/suspended/unknown permissions protect shared sources. Failed role reads and remaining provider instruments without stable mappings preserve that role's cache conservatively.
+
+Cleanup locks the tenant User row with pessimistic_write in a database transaction, matching the ingestion guard. Full cleanup publishes hasOpenBanking=false under the same lock before cache deletion so a waiting late pull cannot refill it. Cache freshness deletion shares the transaction; full cleanup also resets only full-cache outcome/timestamps and source-discovery freshness. Partial cleanup preserves unrelated source/user outcomes. Failure rolls back cache and freshness updates and propagates instead of claiming completion. No SlimTransaction, Expense, Source, classification rule, bill mapping or accounting/billing data is deleted. Confirmed expenses survive deletion of their transient mirrored cache rows. Consent/onboarding flags retain the separate verified-reset rules above.
+
+## Intermittent public-key lookup mitigation (2026-10-25)
+
+Only HTTP400 with the observed flat numeric error_code=1004 qualifies for a single 200ms retry on the exact configured token/link POST URLs. The request body and signed JWT are reused unchanged. FeezbackHttpClient spends this retry within its existing three-attempt transport budget; a repeated1004 immediately propagates. FeezbackAuthService's separate token path allows at most two attempts and caches only a valid successful response. Other400s and all TPP/DELETE retry rules remain unchanged. Final failures retain the existing redacted diagnostics. This mitigates observed intermittent PUBLIC_KEY_NOT_FOUND lookup responses; it does not claim to fix the provider's upstream cause. Tests use mocked HTTP only.
+
+- Transaction HTTP failures (bank/card, legacy and consent-scoped reads) emit [FeezbackResponse] for every failed attempt: sanitized provider responseBody, method/endpoint, HTTP status, transport code, one-based attempt/maxAttempts, and per-attempt durationMs. Query strings, user path identity, known request credentials, and sensitive nested fields are redacted; Axios config/request is never serialized. Successful responses are not logged. Existing retry policy, including the one-time LGS1004 retry, is unchanged.
+
+- Card-list GET failures (user-wide and consent-scoped /cards) use the same sanitized [FeezbackResponse] logging as transaction failures, including responseBody and attempt timing. Successful card reads remain unlogged; authorization credentials and echoed request tokens are redacted.
+
+## Consent and ingestion reliability (2026-11-01)
+
+POST /feezback/refresh-permissions uses the same owner/verified-admin actor boundary as disconnect. It verifies both identities and saves source/consent metadata, including rotations and proven inactive links. Failed scopes retain prior pointers; independently complete scopes can update. Unknown consent states protect prior links. Manual refresh never arms billing enrollment, pulls transactions or terminates consents. Under the subsequently approved contract, fully verified revocation clears affected operational cache, links and outcomes through the same reconciliation used by permission webhooks. Partial/unknown provider responses never trigger cleanup. Webhooks retain the established enrollment verification behavior.
+
+Discovery requests inactive history for reconciliation, but only sources linked to currently valid, unexpired consent may create permanent Source rows. Historical rows do not create new instruments; existing Source IDs/bills are retained. Discovery diagnostics count provider records separately from verified-active records and log masked identifiers only for verified-active instruments. A present consent identifier is not proof of validity; discovery does not log module-access activation.
+
+Source.metadataVerifiedAt and sync-row consentVerifiedAt fence older responses; Only lastSourcesRefreshAttemptAt and sourcesRefreshFailureReason record operational refresh outcome, atomically with the verified connection flag under the same User-row lock used by ingestion. Disconnect verification also advances this fence, without claiming a source refresh or overwriting cleanup-cleared freshness. Permanent source IDs, bill associations and classifications are retained. The UI renders stored consent pointers; direct cards without one show no consent.
+
+Per-source discovery and outcome writes continue after individual failures and throw an aggregate issue after all sources are attempted. Freshness is stamped only after complete persistence. Ingestion counts missing-link exclusions instead of silently dropping them; successful reads cannot make a failed save a full success. Card normalization failures are isolated by card. Local persistence failures and authorization denials do not receive automatic within-run provider retries. A later explicit pull/real login remains a new attempt.
+
+Operational stages are consent_check (OB-01), connection_save (OB-02), transaction_fetch (OB-03), transaction_save (OB-04). Logs include exact allowlisted cause/status, user ID, stable source ID/masked label, counts and support error UUID; no SQL, credentials or raw identity/financial payloads are serialized by this logger. The frontend presents Hebrew explanation, code, error ID and copy action.
+
+Webhook received_at records receipt; processing_started_at is a conditional processing lease. processed_at is set only after successful processing; failed processing leaves it null and records the support code/ID. Successful/in-flight duplicates are ignored; failed or abandoned duplicates can be claimed once using an atomic predicate. Existing historical rows marked successful cannot be inferred to have actually succeeded; normal permission refresh repairs metadata without a special recovery job.
+
+Apply only docs/features/feezback-sync-reliability.sql before this backend version; it is also appended to cutover.sql. No SQL runner or app startup executes it. All validation for this task uses mocked dependencies and local builds.
+
+Review follow-up: ordinary pulls include a spouse identity with owned saved consent/resource pointers even when its historical User flag is absent; pointer lookup failures propagate instead of silently omitting that identity. This does not set the historical identity flag or activate billing. ConsentStatusChanged probes both identities and reconciles a return to valid without requiring a second data-ready event. Stored management reads do not enter the provider-operation queue. Terminal-state write failures reach the existing bounded failure-recovery path, including login retries; a disconnected job conditionally ends only its still-running lifecycle and does not revive state cleared by explicit cleanup. Rejected transaction sources retain failed outcomes, and partial quality counts valid existing/deduplicated rows as handled. Discovery, skipped-account and sync-summary console identifiers are masked; raw source rows are no longer logged by settings.
+
+## Access-token lifetime (2026-11-01)
+
+Feezback confirmed access tokens expire after ten minutes. FeezbackAuthService caps all reported/default lifetimes at 600 seconds, respects a shorter finite positive expiresIn/expires_in, counts from token-request start, and renews 60 seconds early. Missing or invalid expiry metadata no longer defaults to one hour. Every FeezbackHttpClient request/attempt rebuilds authentication, so paginated bank/card pulls and retry backoffs refresh tokens during long operations. Refresh failures propagate; expired cached tokens are never used as fallback. Tests use simulated time and mocked HTTP only; no production/provider calls.
+
+Current-pull summaries use user_sync_state.fullRunId and user_source_sync_state.resultRunId, nullable UUID tags only. Full pulls and retry batches publish a fresh run; outcomes/terminal state are fenced against newer runs. Sync-status excludes historical/discovery-only/cache-reuse outcomes. Shared cleanup holds the User lock and validates per-source timestamps; it preserves active alternative coverage, Sources/Bills, slim data, Expenses, rules and webhook history. Explicit cancellation also resets resource pointers/counts/run tags through the shared operational-reset helper. Cleanup failures return OB-02 and never full success. Pending unresolved permissions retain their scope. Apply the separately reviewed feezback-pull-run.sql before starting this backend; it has not been executed as part of this implementation.
+
+
+## Cancellation failure diagnostics (2026-11-01)
+
+Consent termination failures and unconfirmed completion use consent_termination / OB-05 with a server UUID. Per-consent results retain their support issue; full disconnection attempts every discovered permission, including separate consents under the same identity. Authoritative terminal verification may recover a transport failure. Partial outcomes always carry a support issue, including failed initial discovery. DELETE attempt diagnostics redact provider payloads/credentials; the aggregate outcome logs scope, counts and the support ID. No cache removal is authorized by an unverified termination failure. Profile reload failure does not hide the cancellation response. This follow-up adds no schema change or production operation.
+
+
+## Direct classification readiness (2026-11-02)
+
+The absence-of-balances Direct rule is evaluated for new discovery classifications only with UserDataIsAvailable proof matching the exact identity, consent and successful card reference. failedToFetchAccounts overrides fetchedAccounts; missing/malformed proof preserves the prior kind. ConsentStatusChanged and ordinary permission refresh save verified links but do not introduce Direct classifications. Other identities/consents are never certified by this proof. No additional schema or consent snapshot is used.
+
+Transaction pulls retain known card kinds; positive balances can identify credit, but missing balances cannot introduce Direct. An unknown card kind without balances yields an isolated CARD_DATA_NOT_READY source failure rather than importing a potential duplicate feed or silently skipping it. Other cards continue. OpenBankingCardKind diagnostics contain readiness, field presence, balance count and the chosen/preserved kind, without monetary amounts or full card identifiers.
+
+### Disconnected-source retry exclusion (2026-11-04)
+Login and automatic retry select only sources with a non-empty stored consentId. Stable historical source rows without a consent are not pending transaction work. Per-source pull/retry guards return a transient not_synced outcome without error, provider call or outcome write for disconnected rows. Missing resourceId under an existing consent remains a real error. Retry quality counts only currently linked sources, including a recheck after concurrent revocation. A historical OB-03 is cleared on login only when its exact old run contains exclusively failed disconnected outcomes and every currently linked source is already successful or Direct-skipped. Other failures are preserved. No provider consent verification or DB cleanup is added to login.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Stable source outcome identity (2026-11-04)
+
+After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.
+
+## Consent-aware transaction outcomes (2026-11-05)
+
+Full sync selects only stored nonblank consent links per sourceRecordId, type and
+connectionRole. A type/identity with no linked sources issues no provider request
+and contributes no transaction-fetch error. Discovery and permission-table behavior
+are unchanged; browser return does not discover/pull a pending new connection.
+Data-ready webhook discovery remains the owner of new source registration.
+
+Every expected source must receive a fetch outcome. Missing provider entries or
+stored resource IDs fail the source even if the provider list is empty. Zero
+transactions on a successfully fetched source are normal. Selection is rechecked
+after the call: revoked/replaced consent or resource snapshots cannot publish stale
+outcomes. No HTTP error automatically clears a permission or asks users to reconnect.
+Persistence failures remain OB-02/OB-04 and independently successful data is kept.
+
+Direct compatibility follows existing isRetryablePendingStatus('skipped_direct'):
+while Direct imports are disabled, known Direct sources are successful skips.
+The direct-card-cashflow feature enables ordinary retry/import of these rows, so
+they then participate in ordinary success/failure reporting without a new flag.
+Cashflow display/exclusion preferences never determine sync success.
+
+Failed account/consent-list requests now emit [FeezbackResponse] like card/transaction
+failures. Provider code and a redacted, bounded body are retained, with attempt
+timing and async-local run/source/role context when available. Success bodies and
+Axios request/config objects are not logged. No raw provider body is sent to users.

@@ -1,7 +1,7 @@
 import { TemplateRef } from "@angular/core";
 import { ValidatorFn } from "@angular/forms";
 import { RegisterFormModules } from "../pages/register/regiater.enum";
-import { AccountantTaskSource, AccountantTaskType, BusinessFieldType, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
+import { AccountantTaskSource, AccountantTaskType, BusinessFieldType, BusinessProprietorRole, BusinessStatus, BusinessType, ExpenseFormColumns, ExpenseFormHebrewColumns, FormTypes, ICellRenderer, TaxReportingType, VATReportingType } from "./enums";
 
 /** רשומת משימה של רואה חשבון – החזרה מה-API (כולל שמות לקוח/עסק לתצוגה) */
 export interface IAccountantTask {
@@ -639,6 +639,7 @@ export interface Business {
     logoPath?: string | null;
     id?: number;
     firebaseId: string;
+    proprietorRole: BusinessProprietorRole;
     businessName: string | null;
     businessField: BusinessFieldType | null;
     businessNumber: string | null;

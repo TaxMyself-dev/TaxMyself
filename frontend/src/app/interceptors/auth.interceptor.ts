@@ -7,6 +7,7 @@ import { AuthService } from '../services/auth.service';
 import { ClientPanelService } from '../services/clients-panel.service';
 import { AuthUnavailableError } from '../shared/errors/auth-unavailable.error';
 import { NetworkStatusService } from '../services/pwa/network-status.service';
+import { OWNER_PROFILE_REQUEST } from '../shared/auth/owner-profile-request';
 
 /**
  * How long to wait for Firebase to hand us an ID token before giving up.
@@ -65,8 +66,9 @@ export class AuthInterceptor implements HttpInterceptor {
       switchMap(token => {
         // Reaching here means Firebase resolved. A null token is a genuine
         // "no session" (public endpoints, login/signup) — unchanged behavior.
-        const businessNumber = this.authService.getActiveBusinessNumber();
-        const clientId = this.clientPanelService.getSelectedClientId();
+        const ownerProfile = req.context.get(OWNER_PROFILE_REQUEST);
+        const businessNumber = ownerProfile ? null : this.authService.getActiveBusinessNumber();
+        const clientId = ownerProfile ? null : this.clientPanelService.getSelectedClientId();
         if (!token && !businessNumber && !clientId) {
           return next.handle(req);
         }

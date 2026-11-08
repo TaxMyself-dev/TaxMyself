@@ -1,4 +1,5 @@
 import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
+import { BankingSupportError, OpenBankingErrorComponent, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, DestroyRef, ElementRef, inject, OnInit, signal, ViewChild } from '@angular/core';
@@ -10,7 +11,7 @@ import { AvatarModule } from 'primeng/avatar';
 import { AvatarGroupModule } from 'primeng/avatargroup';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { DialogService } from 'primeng/dynamicdialog';
-import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile } from 'rxjs';
+import { catchError, EMPTY, finalize, map, Observable, of, Subject, take, takeUntil, takeWhile, switchMap, throwError } from 'rxjs';
 import { AccountAssociationDialogComponent } from 'src/app/components/account-association-dialog/account-association-dialog.component';
 import { AddBillComponent } from 'src/app/components/add-bill/add-bill.component';
 import { AddCategoryComponent } from 'src/app/components/add-category/add-category.component';
@@ -35,20 +36,21 @@ import { buildTransactionColumns } from 'src/app/shared/transaction-columns.conf
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
-import { SourceResult, SyncStatusService } from 'src/app/services/sync-status.service';
+import { SourceResult, SyncStatusService, isPreviousPullResult } from 'src/app/services/sync-status.service';
 import { MessageService } from 'primeng/api';
 import { BillingStateService } from 'src/app/services/billing-state.service';
 import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice/direct-card-notice.component';
 
 @Component({
   selector: 'app-my-account',
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [AccountImageComponent,
+  imports: [AccountImageComponent, OpenBankingErrorComponent, DirectCardNoticeComponent,
     CommonModule,
     FormsModule,
     IonicModule,
@@ -68,6 +70,34 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
   providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {
+  // Root uses Angular router-outlet; Ionic entry hooks are not guaranteed.
+  readonly directNoticeActive = signal(true);
+  readonly directNoticeRefresh = signal(0);
+  readonly bankingError = signal<BankingSupportError | null>(null);
+  private readonly fullSyncRetryStarting=signal(false);
+  readonly bankingFullSyncRetry={
+    enabled:()=>this.hasOpenBanking()===true && !this.isDelegatedClientView(),
+    busy:()=>this.fullSyncRetryStarting() || this.syncProcessStatus()==='running',
+    run:()=>this.retryBankingSync(),
+  };
+
+  retryBankingSync():void {
+    if(!this.bankingFullSyncRetry.enabled() || this.bankingFullSyncRetry.busy())return;
+    this.fullSyncRetryStarting.set(true);
+    this.syncProcessStatus.set('running');
+    this.restartPolling$.next();
+    this.syncStatusService.triggerFreshFullSync(()=>this.bankingFullSyncRetry.enabled()).pipe(
+      take(1),takeUntilDestroyed(this.destroyRef),
+      finalize(()=>{this.fullSyncRetryStarting.set(false);if(!this.bankingFullSyncRetry.enabled())this.syncProcessStatus.set(null);}),
+    ).subscribe({
+      next:({previousRunId})=>{if(this.bankingFullSyncRetry.enabled())this.startSyncStatusPolling(true,0,previousRunId);},
+      error:error=>{
+        if(!this.bankingFullSyncRetry.enabled())return;
+        this.syncProcessStatus.set('failed');
+        this.bankingError.set(bankingRequestError(error,'OB-03'));
+      },
+    });
+  }
 
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
@@ -501,7 +531,33 @@ export class MyAccountPage implements OnInit {
     private authService: AuthService,
     private route: ActivatedRoute,
     private router: Router,
-  ) { }
+  ) {
+    this.observeOwnerProfile();
+  }
+
+  private observeOwnerProfile(): void {
+    this.authService.ownerProfileUpdates$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(profile => {
+      if (profile && !this.isDelegatedClientView() && !this.authService.isViewingAsClient() &&
+        this.authService.getCurrentAuthUser()?.uid === profile.firebaseId) {
+        this.userData = profile;
+        this.hasOpenBanking.set(!!profile.hasOpenBanking);
+        if (this.transToClassify) this.getTransToClassify();
+      }
+    });
+  }
+
+  ionViewWillEnter(): void {
+    this.directNoticeActive.set(true);
+    this.directNoticeRefresh.update(value => value + 1);
+    // Ionic may retain this page while Settings updates the owner's profile.
+    const profile = this.authService.getUserDataFromLocalStorage();
+    if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
+    if (this.transToClassify) this.getTransToClassify();
+  }
+
+  ionViewWillLeave(): void {
+    this.directNoticeActive.set(false);
+  }
 
   ngOnInit() {
     console.log("MyAccountPage initialized");
@@ -523,13 +579,8 @@ export class MyAccountPage implements OnInit {
     this.accountsList = this.transactionService.accountsList;
 
     if (this.hasOpenBanking()) {
-      // Show the loader synchronously, before the first poll response comes
-      // back — otherwise the table renders its default "no data" empty state
-      // for the brief gap between mount and that first network round-trip,
-      // which is exactly the flash the user is not supposed to see. Whichever
-      // branch below runs will correct this shortly (to null/failed) once we
-      // actually know the sync state.
-      this.syncProcessStatus.set('running');
+      // Read cached rows while polling determines whether a job is running.
+      this.syncProcessStatus.set(null);
 
       if (this.consumeDemoBankLoaderFlag()) {
         // Demo entrance: hold the "נתונים נמשכים מהבנק" loader for 5s
@@ -537,12 +588,8 @@ export class MyAccountPage implements OnInit {
         // instantly flip to 'completed' for seeded demo data).
         setTimeout(() => this.startSyncStatusPolling(), 5000);
       } else {
-        // requireRunningFirst=true only right after a fresh login: the
-        // backend's post-login sync starts a moment after /auth/signin
-        // resolves (it runs a Drive provisioning check first), so polling
-        // immediately can otherwise see "nothing running yet" and treat it
-        // as already-completed with zero data. Ordinary page loads/navigation
-        // (flag absent) keep acting on whatever the current state already is.
+        // A fresh login gets a bounded scheduling grace period. Ordinary
+        // navigation immediately uses the persisted job state.
         this.startSyncStatusPolling(this.consumeFreshLoginFlag());
       }
     }
@@ -816,6 +863,12 @@ export class MyAccountPage implements OnInit {
         .subscribe({
           next: (res) => {
             if (this.feezbackDialogStatus() !== 'awaiting-webhook') return; // dialog moved on
+            if (res.status === 'failed') {
+              this.bankingError.set(res.supportError ?? null);
+              this.feezbackDialogStatus.set('failure');
+              this.feezbackDialogTitle.set('לא הצלחנו להשלים את בדיקת החיבור. פרטי השגיאה מופיעים במסך.');
+              return;
+            }
             if (res.status === 'completed') {
               this.authService.restoreUserData().pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
                 next: user => {
@@ -857,6 +910,8 @@ export class MyAccountPage implements OnInit {
    * fires POST /transactions/trigger-sync, then polls /sync-status until terminal.
    */
   onPullTransactionsClick(): void {
+    this.restartPolling$.next();
+    this.syncSourceResults.set([]);
     this.feezbackDialogStatus.set('loading');
     this.feezbackDialogTitle.set('שמחים שהצטרפת לבנקאות הפתוחה!');
     this.feezbackDialogIcon.set(null);
@@ -878,15 +933,20 @@ export class MyAccountPage implements OnInit {
       return;
     }
 
-    this.syncStatusService.triggerSync()
+    this.syncStatusService.getSyncResponse().pipe(
+      switchMap(before=>before ? this.syncStatusService.triggerSync().pipe(map(result=>({
+        ...result, previousRunId:result.status==='started' ? before.fullSync.runId ?? null : undefined,
+      }))) : throwError(()=>new Error('Cannot establish pull baseline'))),
+    )
       .pipe(take(1))
       .subscribe({
-        next: () => {
+        next: result => {
           // 'started' or 'running' — either way poll /sync-status until terminal.
-          this.startSyncStatusPolling(true);
+          this.startSyncStatusPolling(true,0,result.previousRunId);
         },
         error: (err) => {
           console.error('[MyAccount] post-consent triggerSync failed:', err);
+          this.bankingError.set(bankingRequestError(err,'OB-03'));
           // Cancel any background polling so it can't race and override 'failure'.
           this.restartPolling$.next();
           const code = err?.error?.code;
@@ -919,6 +979,14 @@ export class MyAccountPage implements OnInit {
    *   - no sources       → generic success ("הפעולה הסתיימה בהצלחה")
    */
   private applyTerminalDialogState(): void {
+    // A persistence failure can exist even when provider source reads succeeded.
+    const issue = this.bankingError();
+    if (issue) {
+      this.feezbackDialogStatus.set('failure');
+      this.feezbackDialogTitle.set(issue.message);
+      this.feezbackDialogIcon.set(issue.partial === false ? 'error' : 'warning');
+      return;
+    }
     const rows = this.syncSourceResults();
     if (rows.length === 0) {
       this.feezbackDialogStatus.set('success');
@@ -991,12 +1059,14 @@ export class MyAccountPage implements OnInit {
    *   on stale terminal state left over from a previous sync.
    *   When false (page load / navigation back), act on whatever the current state is.
    */
-  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0): void {
+  private startSyncStatusPolling(requireRunningFirst = false, timeoutRetryCount = 0, previousRunId?: string | null): void {
     // Cancels any previous polling session before starting a new one.
     this.restartPolling$.next();
 
     let hasFetched = false;
     let seenRunning = false;
+    const waitForStartUntil = Date.now() + 10_000;
+    if (!this.transToClassify) this.getTransToClassify();
 
     // A terminal state whose finishedAt is within 15 min is considered "this session".
     // This handles the case where the webhook sync completes before the user returns
@@ -1013,7 +1083,8 @@ export class MyAccountPage implements OnInit {
           ({ stageState }) =>
             !stageState ||
             stageState.processStatus === 'running' ||
-            (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)),
+            (requireRunningFirst && isPreviousPullResult(stageState,previousRunId)) ||
+            (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt) && Date.now() < waitForStartUntil),
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -1026,7 +1097,7 @@ export class MyAccountPage implements OnInit {
           if (timeoutRetryCount === 0) {
             console.warn('[MyAccount] Sync status poll timed out — retrying once before giving up', err);
             this.syncProcessStatus.set('running');
-            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1), 3000);
+            setTimeout(() => this.startSyncStatusPolling(requireRunningFirst, timeoutRetryCount + 1, previousRunId), 3000);
           } else {
             console.warn('[MyAccount] Sync status poll timed out again — giving up without clearing data', err);
             this.messageService.add({
@@ -1046,6 +1117,10 @@ export class MyAccountPage implements OnInit {
         }),
       )
       .subscribe(({ stageState, sourceResults }) => {
+        if (requireRunningFirst && isPreviousPullResult(stageState,previousRunId)) {
+          this.syncSourceResults.set([]);
+          return;
+        }
         this.syncSourceResults.set(sourceResults);
         if (!stageState) {
           // null = transient HTTP error during polling — keep current state, don't fail
@@ -1053,6 +1128,7 @@ export class MyAccountPage implements OnInit {
         }
 
         const status = stageState.processStatus;
+        this.bankingError.set(stageState.supportError ?? null);
         console.log(`[MyAccount] poll status=${status} skipReason=${stageState.skipReason} hasFetched=${hasFetched}`);
 
         if (status === 'running') {
@@ -1062,7 +1138,7 @@ export class MyAccountPage implements OnInit {
           this.syncSourceResults.set([]);
           this.syncRanThisSession.set(true);
         } else if (status === 'completed') {
-          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)) return; // stale — keep polling
+          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt) && Date.now() < waitForStartUntil) return;
           this.syncProcessStatus.set(null);
           if (this.feezbackDialogVisible() &&
               (this.feezbackDialogStatus() === 'loading' || this.feezbackDialogStatus() === 'failure')) {
@@ -1082,9 +1158,9 @@ export class MyAccountPage implements OnInit {
             });
           }
         } else if (status === 'failed') {
-          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt)) return; // stale — keep polling
+          if (requireRunningFirst && !seenRunning && !isRecentFinish(stageState.finishedAt) && Date.now() < waitForStartUntil) return;
           this.syncProcessStatus.set('failed');
-          this.transToClassify = of([]);
+          // Retain the last readable data while the failed refresh is reported separately.
           if (this.feezbackDialogVisible() && this.feezbackDialogStatus() === 'loading') {
             this.applyTerminalDialogState();
             // Restart polling (without requireRunningFirst) to catch the subsequent login sync

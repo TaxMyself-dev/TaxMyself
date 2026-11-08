@@ -89,6 +89,7 @@ export type ResumeCapturedAttemptResult =
   | { status: 'ALREADY_COMPLETED'; attempt: BillingAttempt }
   | { status: 'NOT_CAPTURED'; attempt: BillingAttempt }
   | { status: 'LEASE_HELD'; attempt: BillingAttempt }
+  | { status: 'RETRY_SCHEDULED'; attempt: BillingAttempt }
   | {
       status: 'RECEIPT_PENDING';
       attempt: BillingAttempt;
@@ -287,14 +288,16 @@ export class BillingLifecycleService {
    *   existing receipt/journal instead of issuing another.
    * - COMPLETED/SATISFIED is written only after the receipt step succeeds; on
    *   any failure the attempt stays CAPTURED (never UNKNOWN/DECLINED) with its
-   *   original provider transaction id, and the lease is released so the next
-   *   run can retry. Failures are reported with a sanitized category only.
+   *   original provider transaction id. Releasing the lease persists the next
+   *   completion retry; failures are reported with a sanitized category only.
    */
   async resumeCapturedAttempt(input: {
     actor: BillingMutationActorContext;
     attemptId: number;
     receipt: BillingReceiptFinalizer;
     leaseOwner: string;
+    /** Automatic sweeps must respect a schedule rechecked under the lease lock. */
+    scheduledOnly?: boolean;
     /**
      * Optional local step that must be complete BEFORE the receipt and the
      * completion: applies the subscription state this capture paid for. It
@@ -305,16 +308,18 @@ export class BillingLifecycleService {
   }): Promise<ResumeCapturedAttemptResult> {
     const { actor, attemptId, receipt, leaseOwner, activate } = input;
     this.orchestration.assertOwnerMutation(actor);
-    const claim = await this.orchestration.claimForFinalization(
-      attemptId,
-      leaseOwner,
-      actor.subjectFirebaseId,
-    );
+    const claim = input.scheduledOnly
+      ? await this.orchestration.claimForFinalization(
+          attemptId, leaseOwner, actor.subjectFirebaseId, undefined, undefined, true,
+        )
+      : await this.orchestration.claimForFinalization(attemptId, leaseOwner, actor.subjectFirebaseId);
     if (!claim.claimed) {
       if (claim.reason === 'ALREADY_COMPLETED')
         return { status: 'ALREADY_COMPLETED', attempt: claim.attempt };
       if (claim.reason === 'NOT_CAPTURED')
         return { status: 'NOT_CAPTURED', attempt: claim.attempt };
+      if (claim.reason === 'NOT_DUE')
+        return { status: 'RETRY_SCHEDULED', attempt: claim.attempt };
       return { status: 'LEASE_HELD', attempt: claim.attempt };
     }
 
@@ -323,7 +328,7 @@ export class BillingLifecycleService {
       failureCategory: PostCaptureFailureCategory,
       error?: unknown,
     ): Promise<ResumeCapturedAttemptResult> => {
-      // Diagnostics stay in server logs only (callers get the category), and
+      // Detailed diagnostics stay in server logs (the retry stores the category), and
       // even there card-number-like digits and credential key/values are masked.
       const line = `Post-capture completion ${
         failureCategory === 'ACTIVATION_DEFERRED' ? 'deferred' : 'failed'
@@ -333,7 +338,7 @@ export class BillingLifecycleService {
       if (failureCategory === 'ACTIVATION_DEFERRED') this.logger.warn(line);
       else this.logger.error(line);
       await this.orchestration
-        .releaseFinalizationLease(captured.id, captured.stateVersion)
+        .releaseFinalizationLease(captured.id, captured.stateVersion, failureCategory)
         .catch((releaseError: unknown) =>
           this.logger.error(
             `Failed to release finalization lease for attempt #${

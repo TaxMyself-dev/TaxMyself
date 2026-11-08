@@ -10,20 +10,33 @@ jest.mock('../utils/shaam-encryption.util', () => ({
 }));
 
 describe('ShaamConnectionService', () => {
+  const originalScopes = process.env.SHAAM_SCOPES;
+
+  beforeEach(() => {
+    process.env.SHAAM_SCOPES = 'invoices_scope';
+  });
+
+  afterAll(() => {
+    if (originalScopes === undefined) {
+      delete process.env.SHAAM_SCOPES;
+    } else {
+      process.env.SHAAM_SCOPES = originalScopes;
+    }
+  });
+
   function setup(row: any) {
+    if (row && row.scopes === undefined) row.scopes = 'invoices_scope';
     const repo = {
       findOne: jest.fn().mockResolvedValue(row),
       create: jest.fn((v) => v),
       save: jest.fn(async (v) => v),
     };
     const oauth = {
-      refreshAccessToken: jest
-        .fn()
-        .mockResolvedValue({
-          access_token: 'new',
-          refresh_token: 'new-r',
-          expires_in: 3600,
-        }),
+      refreshAccessToken: jest.fn().mockResolvedValue({
+        access_token: 'new',
+        refresh_token: 'new-r',
+        expires_in: 3600,
+      }),
     };
     return {
       service: new ShaamConnectionService(repo as any, oauth as any),
@@ -36,6 +49,7 @@ describe('ShaamConnectionService', () => {
     const row = {
       accessToken: 'enc:token',
       refreshToken: null,
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
       status: ShaamConnectionStatus.ACTIVE,
       expiresAt: new Date(Date.now() + 3600_000),
     };
@@ -56,10 +70,35 @@ describe('ShaamConnectionService', () => {
     });
   });
 
+  it('requires both uniform-file scopes before using a Daily Token', async () => {
+    const row = {
+      accessToken: 'enc:token',
+      refreshToken: null,
+      scopes: 'UniStructFileUploadLinks_scope',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
+    const { service, repo } = setup(row);
+
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.UNIFORM_FILE,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBeNull();
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
+    );
+  });
+
   it('never refreshes an expired uniform-file Daily Token', async () => {
     const row = {
       accessToken: 'enc:old',
       refreshToken: 'enc:r',
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
       status: ShaamConnectionStatus.ACTIVE,
       expiresAt: new Date(Date.now() - 1),
     };
@@ -119,6 +158,70 @@ describe('ShaamConnectionService', () => {
     );
     expect(JSON.stringify(debug.mock.calls)).not.toContain('enc:r');
     expect(JSON.stringify(debug.mock.calls)).not.toContain('enc:new');
+  });
+
+  it('requires a new authorization before use when a configured scope is missing', async () => {
+    process.env.SHAAM_SCOPES = 'invoices_scope,donations_scope';
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      scopes: 'invoices_scope',
+      connectedByFirebaseId: 'actor',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
+    const { service, oauth, repo } = setup(row);
+    const warn = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation();
+
+    await expect(
+      service.getValidAccessToken(
+        1,
+        ShaamProduct.INVOICE_ALLOCATION,
+        ShaamEnvironment.TSANDBOX,
+      ),
+    ).resolves.toBeNull();
+
+    expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
+    expect(row.status).toBe(ShaamConnectionStatus.REAUTH_REQUIRED);
+    expect(repo.save).toHaveBeenCalledWith(row);
+    expect(warn).toHaveBeenCalledWith(
+      'SHAAM connection is missing required scopes',
+      expect.objectContaining({
+        operation: 'oauth_scope_validation',
+        outcome: 'reauthorization_required',
+        missingScopeCount: 1,
+        requiredScopeCount: 2,
+      }),
+    );
+  });
+
+  it('does not activate a newly saved grant that omits a required scope', async () => {
+    process.env.SHAAM_SCOPES = 'invoices_scope,donations_scope';
+    const { service, repo } = setup(null);
+
+    await expect(
+      service.saveToken(
+        1,
+        'actor',
+        ShaamProduct.INVOICE_ALLOCATION,
+        ShaamEnvironment.TSANDBOX,
+        {
+          access_token: 'new',
+          refresh_token: 'new-r',
+          expires_in: 3600,
+          scope: 'invoices_scope',
+        } as any,
+      ),
+    ).resolves.toBe(ShaamConnectionStatus.REAUTH_REQUIRED);
+
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: 'invoices_scope',
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+      }),
+    );
   });
 
   it('refreshes an expired invoice token during the connection-status pre-flight', async () => {
@@ -195,6 +298,7 @@ describe('ShaamConnectionService', () => {
 
     expect(row.accessToken).toBe('enc:new');
     expect(row.refreshToken).toBe('enc:keep-me');
+    expect((row as any).scopes).toBe('invoices_scope');
   });
 
   it('keeps an active grant and surfaces a transient refresh failure', async () => {
@@ -277,5 +381,39 @@ describe('ShaamConnectionService', () => {
       }),
     );
     expect(JSON.stringify(warn.mock.calls)).not.toContain('enc:r');
+  });
+
+  it('clears rejected token material only on the matching connection row', async () => {
+    const row = {
+      accessToken: 'enc:old',
+      refreshToken: 'enc:r',
+      scopes: 'UniStructFileUploadLinks_scope,FilesStatus_scope',
+      status: ShaamConnectionStatus.ACTIVE,
+      expiresAt: new Date(Date.now() + 3600_000),
+    };
+    const { service, repo } = setup(row);
+
+    await service.markReauthorizationRequired(
+      7,
+      ShaamProduct.UNIFORM_FILE,
+      ShaamEnvironment.TSANDBOX,
+    );
+
+    expect(repo.findOne).toHaveBeenCalledWith({
+      where: {
+        businessId: 7,
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: ShaamEnvironment.TSANDBOX,
+      },
+    });
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ShaamConnectionStatus.REAUTH_REQUIRED,
+        accessToken: null,
+        refreshToken: null,
+        expiresAt: null,
+        scopes: null,
+      }),
+    );
   });
 });

@@ -36,6 +36,7 @@ export class PendingReceiptsComponent implements OnInit {
   generatingEventId = signal<number | null>(null);
 
   readonly columnsTitle: IColumnDataTable<string, string>[] = [
+    { name: 'completionStatus', value: 'מצב השלמה', type: FormTypes.TEXT },
     { name: 'userName',    value: 'משתמש',       type: FormTypes.TEXT },
     { name: 'userEmail',   value: 'אימייל',       type: FormTypes.TEXT },
     { name: 'planName',    value: 'תוכנית',       type: FormTypes.TEXT },
@@ -47,9 +48,16 @@ export class PendingReceiptsComponent implements OnInit {
 
   readonly rowActions: IGenericTableAction[] = [
     {
+      name: 'resendEmail', icon: 'pi pi-envelope', title: 'שלח חשבונית קיימת במייל',
+      showWhen: row => !!row['receiptDocId'],
+      isLoading: () => this.generatingEventId() !== null,
+      action: (_: any, row: IRowDataTable) => this.confirmResend(row),
+    },
+    {
       name: 'generate',
       icon: 'pi pi-file-check',
       title: 'הפק קבלה',
+      showWhen: row => !row['receiptDocId'],
       isLoading: () => this.generatingEventId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmGenerate(row),
     },
@@ -58,6 +66,8 @@ export class PendingReceiptsComponent implements OnInit {
   readonly tableRows = computed<IRowDataTable[]>(() =>
     this.failures().map(f => ({
       billingEventId: f.billingEventId,
+      receiptDocId: f.receiptDocId,
+      completionStatus: f.receiptDocId ? `ממתין למייל · מסמך ${f.receiptDocId}` : 'מסמך חסר',
       userName:       f.userName ?? '—',
       userEmail:      f.userEmail ?? '—',
       planName:       f.planName ?? '—',
@@ -93,6 +103,30 @@ export class PendingReceiptsComponent implements OnInit {
   formatAmount(agorot: number | null | undefined): string {
     if (agorot == null) return '—';
     return `₪${(agorot / 100).toFixed(2)}`;
+  }
+
+  confirmResend(row: IRowDataTable): void {
+    if (this.generatingEventId() !== null) return;
+    this.confirmationService.confirm({
+      header: 'שליחת חשבונית קיימת',
+      message: 'לשלוח את החשבונית הקיימת לכתובת המייל השמורה במסמך? הפעולה שולחת את הקובץ הקיים בלבד.',
+      acceptLabel: 'שלח', rejectLabel: 'ביטול',
+      accept: () => {
+        if (this.generatingEventId() !== null) return;
+        this.generatingEventId.set(row['billingEventId'] as number);
+        this.adminBillingService.resendReceiptEmail(row['billingEventId'] as number)
+          .pipe(finalize(() => this.generatingEventId.set(null)), takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: result => {
+              this.messageService.add({ key: 'br', severity: result.sent ? 'success' : 'warn',
+                summary: result.sent ? 'המייל נשלח' : 'השליחה לא הושלמה',
+                detail: result.sent ? 'החשבונית הקיימת נשלחה במייל' : 'השליחה נכשלה או ממתינה לניסיון נוסף' });
+              this.loadFailures();
+            },
+            error: () => { this.messageService.add({ key: 'br', severity: 'error', summary: 'השליחה לא הושלמה' }); this.loadFailures(); },
+          });
+      },
+    });
   }
 
   confirmGenerate(row: IRowDataTable): void {

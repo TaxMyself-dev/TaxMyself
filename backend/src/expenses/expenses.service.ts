@@ -331,6 +331,7 @@ export class ExpensesService {
     async reclassifyExpenseFromNames(
         expense: Expense,
         input: {
+            subCategoryId?: number;
             category: string;
             subCategory: string;
             vatPercent?: number;
@@ -356,7 +357,7 @@ export class ExpensesService {
         if (input.vatReportingDate != null) expense.vatReportingDate = input.vatReportingDate as any;
 
         const rc = await this.resolveExpenseClassification(
-            { category: input.category, subCategory: input.subCategory },
+            { category: input.category, subCategory: input.subCategory, subCategoryId: input.subCategoryId },
             expense.businessNumber,
             expense.userId,
         );
@@ -1271,6 +1272,7 @@ export class ExpensesService {
         return {
             id: sub.id,
             subCategoryName: sub.name,
+            systemKey: sub.systemKey ?? null,
             categoryName: sub.category?.name,
             firebaseId: sub.userId ?? sub.accountantId ?? null,
             businessNumber: sub.businessNumber ?? null,
@@ -1516,6 +1518,15 @@ export class ExpensesService {
     }
 
 
+
+    async resolveTransactionSubCategory(userId: string, businessNumber: string | null, category: string, name: string, id: number): Promise<SubCategory> {
+        const ctx = await this.catalogContextService.forUser(userId, businessNumber);
+        const resolved = await this.catalogService.resolveSubCategory(id, ctx);
+        if (!resolved || resolved.subCategory.name !== name || resolved.subCategory.category?.name !== category) {
+            throw new BadRequestException('תת־הקטגוריה אינה תואמת לסיווג שנבחר');
+        }
+        return resolved.subCategory;
+    }
 
     async getSubCategories(
         firebaseId: string | null,

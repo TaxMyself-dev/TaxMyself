@@ -224,6 +224,54 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
   src/app/pages/dev-agent/dev-agent.route.spec.ts --watch=false
   --browsers=ChromeHeadless`.
 
+## Follow-up 2026-11-08: local main merged into the feature branch
+
+- Authorized by Elazar: merge local `main` into `new-ai-assistant` only (no
+  integration into `main`, no push). Feature HEAD before: `66b11cdb`; merged
+  main: `a027d1c9` (188 commits ahead, 11 behind at the start).
+- Conflicts (both additive, both sides kept):
+  - `backend/src/app.module.ts`: main's
+    `ScheduleModule.forRoot(devCompletionScheduleOptions())`, `LycheeModule`,
+    dev-only `WhatsappDevelopmentModule`, `ReadinessService`, plus
+    `AgentHarnessModule` (imported and registered once).
+  - `frontend/src/environments/environment.ts`: `agentDevPage: true` and
+    `requireMfa: false`.
+- Reviewed auto-merges: `backend/src/main.ts` keeps `enableShutdownHooks()`
+  and the `/api/agent/` JSON-parser bypass next to main's path-scoped
+  Lychee/Mailgun parsers and dev-completion gate; `FirebaseAuthGuard` keeps
+  its request contract (main adds env-gated MFA, `AUTH_MFA_REQUIRED`, and
+  security-event logs); routing keeps `/dev/agent` and `/admin-panel`.
+  Main's `backend/package.json` change is scripts only; no lockfile was
+  changed on both sides; no Docker change on main. No compatibility code
+  change was needed; `backend/agent` is byte-identical to `66b11cdb`.
+- Note for the agent spec (no behavior change made): main added
+  `Business.proprietorRole` (`PRIMARY`/`SPOUSE`). The agent's businesses
+  are still the account's businesses (`getUserBusinesses(firebaseId)`), so
+  a spouse's business on the same account is included in combined totals.
+- Results (logs in the session scratchpad `merge-logs/`):
+  - agent `npm run typecheck` 0; `npm run build` 0; `npm run check`: Oxfmt
+    passed (315 files), Oxlint **blocked** — Windows Application Control
+    now blocks the Effect-patched, unsigned `tsgolint.exe` (Code Integrity
+    event 3077); type-aware lint did not run.
+  - agent vitest with `AGENT_TEST_DATABASE_URL` on a new disposable MySQL
+    8.0.40 (127.0.0.1:3317, `agent_test`, both agent migrations applied):
+    `--maxWorkers=4` 59/59 files, 301/301 tests, 0 skipped. With default
+    workers 3 runs gave 298 passed, 3 skipped: the 10 s `beforeAll` import
+    in `agent-http-integration.test.ts` times out under load (the file
+    alone: 3/3). Unchanged code, not a merge regression.
+  - Nest `npx jest src/agent-harness` 3 suites, 42/42; `nest build` 0.
+  - Frontend admin-chat specs 13/13; `ng build --configuration production` 0
+    (pre-existing budget/CommonJS warnings only).
+  - Full backend `jest --runInBand`: 229/230 suites, 2433/2434 tests. The
+    failure, `admin-billing-resolution.spec.ts` "resumes only local token
+    completion for a ACTIVE subscription" (expects ACTIVE, gets PAST_DUE;
+    the fixture's period ended 2026-11-05 against the real clock), fails
+    identically on `a027d1c9` in an isolated detached worktree: baseline.
+- Known eval findings, unchanged and out of scope (run `expenses-local-1`,
+  not rerun): 4 apparent number-origin false positives (`299.9` vs
+  `299.90`); 1 answer with the correct combined total but without the
+  required per-business subtotals.
+
 ## Integration
 
 - Reviewed by:

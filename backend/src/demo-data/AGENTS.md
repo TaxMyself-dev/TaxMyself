@@ -1,10 +1,25 @@
 ## Purpose
+
+Direct-demo initial seed/testReset also resolves every cache payment identifier to
+the unique owned Source and persists missing sourceRecordId before creating card
+twins. Bank provenance is required for cashflow exclusion; it must not be inferred
+from merchant labels. Existing scenario rebuild already supplies these source IDs.
+
+Direct-demo seed/reset starts with exclusion off to exercise the opt-in popup on
+a real owner login. Only applyDirectCardFix passes enableDirectExclusion=true.
+Admin demo-entry is view-as, so owner-only preferences remain read-only there.
+
+Direct-card twins must omit the original cache row's generated primary key:
+TypeORM insert mutates bank-row objects with id before applyProfileSourceState
+clones them. buildLegacyDuplicateRows strips id while preserving stable external
+IDs, amounts and dates, so fresh seed/reset and scenario rebuilds cannot reuse a
+bank row's PRIMARY key. Regression fixture includes already-inserted bank IDs.
 Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Firebase + full DB graph across most modules) from static, version-controlled "profile" templates, for admin demos and in-app "אפס נתוני בדיקה" testing.
 
 ## Key entities/files
 - `demo-data.service.ts` — `DemoDataService`: `listProfiles`, `seedProfile` (creates Firebase users + User/Business/Bill/Source/FullTransactionCache/UserSyncState rows in a transaction, then Documents/Expenses via `DocumentsService`/`ExpensesService`, then optional Google Drive folder provisioning + sample PDF upload), `resetProfile` (full wipe of a profile's users, DB rows, and Firebase accounts), `testReset` (preserves Firebase identity/session; the explicitly capable designer sandbox rebuilds its complete DB graph, while legacy internal fixtures retain the narrower derived-data reset). Declared per-source sync rows resolve to exactly one saved `Source` and persist its required permanent id in `sourceRecordId`; missing or ambiguous fixture sources fail the transaction. Document/expense creation remains best-effort for ordinary profiles; a profile declaring `uniformFileScenario` is strict, waits for every attempted source row, seeds businesses and their expenses sequentially to avoid cross-business journal-counter deadlocks, fails on any partial fixture and cleans up the newly created profile.
 - `demo-data.controller.ts` — `DemoDataController` at route `demo-data`, admin-gated except `test-reset`.
-- `demo-profile.types.ts` — `DemoProfile`/`DemoClient`/`DemoUser`/`DemoBusiness`/`DemoBill`/`DemoTransactionTemplate`/`DemoDocumentTemplate`/`DemoExpenseTemplate`/`DemoSource`/`DemoStandaloneSource`/`DemoSourceSyncState` interfaces defining the static profile shape. Transactions declare exactly one date form: relative `daysAgo`, or fixed `transactionDate` (`YYYY-MM-DD`) when reset must preserve a historical calendar period. A document template may include real line/payment templates and a discount; `DemoProfile.uniformFileScenario` declares its deterministic business/cut and opts the fixture into strict seeding. `DemoSource.isDirect` (optional) → `Source.isDirect`; `DemoSource.connectionRole` (optional, default `primary`) → the permanent primary/spouse source identity; `DemoProfile.sourceSyncStates` (optional) → `user_source_sync_state` rows.
+- `demo-profile.types.ts` — `DemoProfile`/`DemoClient`/`DemoUser`/`DemoBusiness`/`DemoBill`/`DemoTransactionTemplate`/`DemoDocumentTemplate`/`DemoExpenseTemplate`/`DemoSource`/`DemoStandaloneSource`/`DemoSourceSyncState` interfaces defining the static profile shape. `DemoBusiness.proprietorRole` may be explicit; otherwise seeding derives spouse ownership only from an exact spouse-ID business-number match and defaults to primary. Transactions declare exactly one date form: relative `daysAgo`, or fixed `transactionDate` (`YYYY-MM-DD`) when reset must preserve a historical calendar period. A document template may include real line/payment templates and a discount; `DemoProfile.uniformFileScenario` declares its deterministic business/cut and opts the fixture into strict seeding. `DemoSource.isDirect` (optional) → `Source.isDirect`; `DemoSource.connectionRole` (optional, default `primary`) → the permanent primary/spouse source identity; `DemoProfile.sourceSyncStates` (optional) → `user_source_sync_state` rows.
 - `profiles/*.profile.ts` — concrete profile definitions (e.g. `couple-two-businesses`, `accountant-with-clients`, `single-licensed-no-banking`, `couple-open-banking-no-bills`, `single-ob-ocr-test`, `ledger-test`, `direct-card-demo`).
 - `profiles/direct-card-demo.profile.ts` — permanent Direct/Debit-card demo: bank source + a `isDirect: true` card source, every transaction on the BANK feed (the card has zero of its own), and per-source sync state `success` / `skipped_direct`. Lets the Direct-card UI be verified without calling Feezback. Guarded by `direct-card-demo.profile.spec.ts`. Also declares `legacyDuplicateScenario`, which opts it into the two admin-only before/after actions below.
 - `profiles/ledger-test.profile.ts` — ledger plus uniform-file fixture. For business `222222226` (synthetic number with a valid Israeli check digit), generate the cut `2026-02-01` through `2026-03-31`: January journals exercise B110 opening balances, and the cut includes invoices/credits/expenses plus one discounted invoice-receipt with a real D110 line and D120 bank-transfer payment. `testReset` deletes its journals and document counters before recreating the same source graph, preventing duplicate B100 rows. A pre-KT-060 instance with the former business number must be fully reset/recreated by an admin once; self-reset detects the mismatch before deleting anything and returns a clear conflict.
@@ -36,3 +51,19 @@ Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Fir
 - accountant-tasks (`AccountantTask` entity, purged on reset)
 - report-workflow (`ReportWorkflow` entity, purged on reset)
 - annual-report (`AnnualReport`/`AnnualReportFile`, purged on reset)
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

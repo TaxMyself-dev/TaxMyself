@@ -1,9 +1,22 @@
 ## Purpose
 Main integration keeps server verification authoritative: returning from Feezback does not optimistically set hasOpenBanking in UI or local storage.
+The dashboard subscribes to validated owner-profile cache updates so cancellation
+updates `hasOpenBanking` and the existing yellow disconnected banner without a
+browser reload, including when Ionic retains the page. Owner events are ignored
+in represented-client mode and when the Firebase UID differs. `ionViewWillEnter`
+also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
 ## Key entities/files
+
+- DirectCardNoticeComponent offers the exclusion checkbox only for server-detected
+  Direct-card owners with exclusion off and notice not permanently dismissed. It
+  waits for banking sync/dialogs, follows Ionic entry/leave, and never appears in
+  represented-client mode. Close/X/Later suppress for the current lastLoginAt in
+  this browser; Never Show Again persists independently on the owner account.
+  It starts active on normal Angular initialization; do not rely exclusively on
+  ionViewWillEnter, since the app root uses Angular router-outlet.
 - `my-account.page.ts` — standalone component; the largest/most central page component in the app. Aggregates: bank/card sync status polling (`SyncStatusService`), transactions needing classification (`ExpenseDataService`/`TransactionsService`), Feezback consent/pull dialog flow (`FeezbackService`), payment-result banner + polling after checkout redirect (`BillingStateService`), feature-gated navigation to doc-create/transactions (`AccessService`/`AccessHandlerService`/`AppFeature`), modals for add-bill/add-category/classify-transaction/account-association/manual-expense.
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
@@ -41,3 +54,15 @@ Frontend shared: none confirmed (add-bill/add-category/manual-expense/classify-t
 - The dashboard greeting uses `AccountImageComponent` to load the application profile image through authenticated HttpClient. Missing images keep the user-initials fallback. The Firebase Auth photoURL is independent.
 
 Optional spouse source keys end in _spouse; sync result labels render this as בן/בת הזוג, while retries retain the exact internal source key. Identity selection is handled immediately before the provider redirect on /billing/open-banking.
+
+Banking status/error handling (2026-11-01): cached rows are fetched during background synchronization and retained on failure. The table opts into preserveRowsDuringSync. Only a real backend running state shows banking progress; the initial scheduling grace is bounded to ten seconds. A failed post-consent discovery returns its persisted support issue immediately rather than waiting for webhook timeout. Slow status requests are not canceled on every poll tick, and polling is bounded even for stale terminal responses.
+
+The terminal banking dialog prioritizes the aggregate support error over per-source provider-read successes or an empty source list, so failed/partial persistence cannot display a success dialog.
+
+## Pull-result isolation and permission changes
+
+The post-consent pull reads its baseline run ID before triggering a new pull. It ignores that previous run even if it finished recently, while allowing a response that joins an already-running job. The comparison survives poll retries and never suppresses transport errors. Both API and polling service return source outcomes only for the current fullRunId; discovery-only skipped_direct and historical successes are excluded. Owner-profile updates and retained-page entry refetch existing displayed cache, so verified cleanup is reflected without a new transaction pull. Nullable run tags require docs/features/feezback-pull-run.sql before this backend is started.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.

@@ -1,0 +1,11 @@
+{
+  "revisionNames": [],
+  "serviceState": {
+    "status": {
+      "traffic": [
+        { "percent": 50, "revisionName": "revision-a" },
+        { "percent": 50, "revisionName": "revision-b" }
+      ]
+    }
+  }
+}

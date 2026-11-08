@@ -12,6 +12,12 @@ import { UserRole, TaxReportingType, VATReportingType, BusinessType, FamilyStatu
 @Entity()
 @Index('ux_user_referral_code', ['referralCode'], { unique: true })
 export class User {
+  @Column({ default: false })
+  excludeDirectCardBankTransactionsFromCashflow: boolean;
+
+  @Column({ default: false })
+  directCardNoticeDismissed: boolean;
+
     @Column({ type: 'varchar', length: 255, nullable: true, default: null })
     profileImagePath: string | null;
 
@@ -121,7 +127,7 @@ export class User {
     @Column({ default: false })
     hasOpenBanking: boolean;
 
-    /** Ever verified by a spouse data-ready webhook; retained after consent expiry. */
+    /** Spouse webhook verified; retained after expiry, reset after verified complete disconnection. */
     @Column({ default: false })
     hasSpouseFeezbackIdentity: boolean;
     

@@ -18,7 +18,11 @@ import { GenericService } from 'src/app/services/generic.service';
 import { ReportingPeriodType } from 'src/app/shared/enums';
 import { AuthService } from 'src/app/services/auth.service';
 import { ButtonClass } from 'src/app/shared/button/button.enum';
-import { SyncStatusService } from 'src/app/services/sync-status.service';
+import { SyncStatusService, isPreviousPullResult } from 'src/app/services/sync-status.service';
+import { BankingSupportError, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
+import { ClientPanelService } from 'src/app/services/clients-panel.service';
+import { AccessHandlerService } from 'src/app/services/access-handler.service';
+import { AppFeature } from 'src/app/shared/access-control';
 
 @Component({
   selector: 'app-transactions',
@@ -28,6 +32,70 @@ import { SyncStatusService } from 'src/app/services/sync-status.service';
 })
 
 export class TransactionsPage implements OnInit {
+  readonly bankingError = signal<BankingSupportError | null>(null);
+  private readonly fullSyncRetryStarting=signal(false);
+  readonly bankingFullSyncRetry={
+    enabled:()=>this.hasOpenBanking()===true && !this.isDelegatedClientView(),
+    busy:()=>this.fullSyncRetryStarting() || this.syncProcessStatus()==='running',
+    run:()=>this.retryBankingSync(),
+  };
+
+  retryBankingSync():void {
+    if(!this.bankingFullSyncRetry.enabled() || this.bankingFullSyncRetry.busy())return;
+    this.fullSyncRetryStarting.set(true);
+    this.syncProcessStatus.set('running');
+    this.restartPolling$.next();
+    this.syncStatusService.triggerFreshFullSync(()=>this.bankingFullSyncRetry.enabled()).pipe(
+      take(1),takeUntilDestroyed(this.destroyRef),takeUntil(this.disconnectedReads$),
+      finalize(()=>{this.fullSyncRetryStarting.set(false);if(!this.bankingFullSyncRetry.enabled())this.syncProcessStatus.set(null);}),
+    ).subscribe({
+      next:({previousRunId})=>{if(this.bankingFullSyncRetry.enabled())this.startSyncStatusPolling(0,previousRunId);},
+      error:error=>{
+        if(!this.bankingFullSyncRetry.enabled())return;
+        this.syncProcessStatus.set('failed');
+        this.bankingError.set(bankingRequestError(error,'OB-03'));
+      },
+    });
+  }
+  readonly hasOpenBanking = signal<boolean | null>(null);
+  readonly consentDialogVisible = signal(false);
+  readonly consentChecked = signal(false);
+  readonly transactionsLoadFailed = signal(false);
+  private readonly clientPanel = inject(ClientPanelService);
+  private readonly accessHandler = inject(AccessHandlerService);
+  isDelegatedClientView(): boolean { return !!this.clientPanel.getSelectedClientId() || this.authService.isViewingAsClient(); }
+  private readConnectionState(): void {
+    const profile = this.authService.getUserDataFromLocalStorage();
+    const expectedId = this.clientPanel.getSelectedClientId() ?? this.authService.getCurrentAuthUser()?.uid;
+    this.setConnectionState(profile?.firebaseId === expectedId && typeof profile?.hasOpenBanking === 'boolean' ? profile.hasOpenBanking : null);
+  }
+  private setConnectionState(connected: boolean | null): void {
+    const previous = this.hasOpenBanking();
+    this.hasOpenBanking.set(connected);
+    if (connected === false) {
+      // A retained Ionic page can still hold rows from before cancellation.
+      this.restartPolling$.next(); this.disconnectedReads$.next();
+      this.syncProcessStatus.set(null); this.isLoadingStateTable.set(false);
+      this.transactionsLoadFailed.set(false);
+      this.incomesData = []; this.expensesData = [];
+      this.filteredIncomesData.set([]); this.filteredExpensesData.set([]);
+      this.filterData.set(null); this.selectedValue = ['classification', 'notClassification'];
+    } else if (connected === true && previous === false) this.startSyncStatusPolling();
+  }
+  ionViewWillEnter(): void { this.readConnectionState(); }
+  tableEmptyText(): string {
+    return this.hasOpenBanking() === false && !this.isLoadingStateTable() && !this.syncProcessStatus() &&
+      !this.transactionsLoadFailed()
+      ? 'אין נתונים כי אין חיבור לבנקאות פתוחה' : 'אויש, לא מצאנו את מה שחיפשת';
+  }
+  connectToOpenBanking(): void {
+    if (this.isDelegatedClientView() || !this.accessHandler.handleFeatureAccess(AppFeature.OPEN_BANKING_CONNECT).allowed) return;
+    this.consentChecked.set(false); this.consentDialogVisible.set(true);
+  }
+  confirmConsentAndConnect(): void {
+    if (!this.consentChecked() || this.isDelegatedClientView() || !this.accessHandler.handleFeatureAccess(AppFeature.OPEN_BANKING_CONNECT).allowed) return;
+    this.consentDialogVisible.set(false); void this.router.navigate(['/billing/open-banking']);
+  }
 
   @ViewChild('filterPanelRef') filterPanelRef!: ElementRef;
   // PrimeNG 19 uses data-pc-section="panel" on every overlay panel appended to body.
@@ -90,6 +158,7 @@ export class TransactionsPage implements OnInit {
   readonly syncProcessStatus = signal<'running' | 'failed' | null>(null);
   /** Emitting on this Subject cancels the current polling session so a new one can start cleanly. */
   private readonly restartPolling$ = new Subject<void>();
+  private readonly disconnectedReads$ = new Subject<void>();
 
   // ─── Row-level action loading state ─────────────────────────────────────────
   isLoadingQuickClassify = signal<boolean>(false);
@@ -226,6 +295,7 @@ export class TransactionsPage implements OnInit {
   originalSubCategoryList: ISubCategory[];
   expenseDataService = inject(ExpenseDataService);
   myIcon: string;
+
   filterByExpense: string = "";
   filterByIncome: string = "";
   userData: IUserData;
@@ -237,6 +307,14 @@ export class TransactionsPage implements OnInit {
   private messageService = inject(MessageService);
 
   constructor(private router: Router, private formBuilder: FormBuilder, private modalController: ModalController, private dateService: DateService, private transactionService: TransactionsService, private authService: AuthService, private genericService: GenericService) {
+    this.transactionService.cashflowPreferencesChanged$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.hasOpenBanking() !== false) this.getTransactions(this.filterData());
+    });
+    this.clientPanel.selectedClientId$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.readConnectionState());
+    this.authService.ownerProfileUpdates$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(profile => {
+      if (profile && !this.isDelegatedClientView() && this.authService.getCurrentAuthUser()?.uid === profile.firebaseId)
+        this.setConnectionState(!!profile.hasOpenBanking);
+    });
 
     this.transactionsForm = this.formBuilder.group({
       reportingPeriodType: new FormControl(
@@ -309,6 +387,7 @@ export class TransactionsPage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.filterData = this.transactionService.filterData;
+    this.readConnectionState();
     this.startSyncStatusPolling();
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.bussinesesList.push({ name: this.userData?.businessName, value: this.userData?.businessNumber });
@@ -345,10 +424,13 @@ export class TransactionsPage implements OnInit {
    * takeWhile(..., inclusive=true) ensures the terminal emission is processed before
    * the stream completes.
    */
-  private startSyncStatusPolling(timeoutRetryCount = 0): void {
+  private startSyncStatusPolling(timeoutRetryCount = 0, previousRunId?:string|null): void {
     // Cancels any previous polling session before starting a new one.
     // takeUntil(restartPolling$) in the pipe completes the old stream on this signal.
     this.restartPolling$.next();
+    if (this.hasOpenBanking() === false) return;
+
+    if (!this.filteredExpensesData() && !this.filteredIncomesData()) this.getTransactions(null);
 
     let hasFetched = false;
 
@@ -357,7 +439,7 @@ export class TransactionsPage implements OnInit {
         takeUntilDestroyed(this.destroyRef),
         takeUntil(this.restartPolling$),
         takeWhile(
-          ({ stageState }) => !stageState || stageState.processStatus === 'running',
+          ({ stageState }) => !stageState || stageState.processStatus === 'running' || isPreviousPullResult(stageState,previousRunId),
           /* inclusive */ true,
         ),
         catchError(err => {
@@ -369,7 +451,7 @@ export class TransactionsPage implements OnInit {
           if (timeoutRetryCount === 0) {
             console.warn('[Transactions] Sync status poll timed out — retrying once before giving up', err);
             this.syncProcessStatus.set('running');
-            setTimeout(() => this.startSyncStatusPolling(timeoutRetryCount + 1), 3000);
+            setTimeout(() => this.startSyncStatusPolling(timeoutRetryCount + 1,previousRunId), 3000);
           } else {
             console.warn('[Transactions] Sync status poll timed out again — giving up without clearing data', err);
             this.messageService.add({
@@ -384,12 +466,14 @@ export class TransactionsPage implements OnInit {
         }),
       )
       .subscribe(({ stageState }) => {
+        if(isPreviousPullResult(stageState,previousRunId))return;
         if (!stageState) {
           // null = transient HTTP error during polling — keep current state, don't fail
           return;
         }
 
         const status = stageState.processStatus;
+        this.bankingError.set(stageState.supportError ?? null);
 
         if (status === 'running') {
           this.syncProcessStatus.set('running');
@@ -401,8 +485,7 @@ export class TransactionsPage implements OnInit {
           }
         } else if (status === 'failed') {
           this.syncProcessStatus.set('failed');
-          this.filteredExpensesData.set(null);
-          this.filteredIncomesData.set(null);
+          // Preserve existing data when a refresh fails.
         }
       });
   }
@@ -416,12 +499,14 @@ export class TransactionsPage implements OnInit {
    * identically — a sync is in progress, so we poll for it.
    */
   onSyncTriggered(): void {
+    if (this.hasOpenBanking() === false) return;
     this.syncProcessStatus.set('running');
     this.syncStatusService.triggerSync()
-      .pipe(take(1))
+      .pipe(take(1), takeUntil(this.disconnectedReads$))
       .subscribe({
-        next: () => this.startSyncStatusPolling(),
+        next: () => { if (this.hasOpenBanking() !== false) this.startSyncStatusPolling(); },
         error: (err) => {
+          if (this.hasOpenBanking() === false) return;
           console.error('[Transactions] triggerSync failed during retry:', err);
           this.syncProcessStatus.set('failed');
           this.filteredExpensesData.set(null);
@@ -495,9 +580,11 @@ export class TransactionsPage implements OnInit {
   }
 
   getTransactions(filters: any | null): void {
+    if (this.hasOpenBanking() === false) return;
     console.log("filters: ", filters);
 
     this.isLoadingStateTable.set(true);
+    this.transactionsLoadFailed.set(false);
     const periodType = filters?.periodType;
     let accounts: ISelectItem[] = filters?.account || null;
     let categories: ISelectItem[] = filters?.category;
@@ -566,6 +653,8 @@ export class TransactionsPage implements OnInit {
 
     zip(incomeData$, expensesData$)
       .pipe(
+        takeUntil(this.disconnectedReads$),
+        catchError(() => { this.transactionsLoadFailed.set(true); return EMPTY; }),
         finalize(() => this.isLoadingStateTable.set(false))
         , map(([incomeData, expenseData]) => {
           const incomeDataRows = this.handleTableData(incomeData);
@@ -575,6 +664,7 @@ export class TransactionsPage implements OnInit {
         )
       )
       .subscribe((data: { incomes: IRowDataTable[]; expenses: IRowDataTable[] }) => {
+        if (this.hasOpenBanking() === false) return;
         this.incomesData = data.incomes;
         this.expensesData = data.expenses;
         this.classifyDataFilter();
@@ -640,6 +730,7 @@ export class TransactionsPage implements OnInit {
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
+        if ((row as any).excludedFromCashflow) data.name = String(data.name ?? '') + ' · מוחרג מהתזרים';
         data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";
         data.subCategory ? null : data.subCategory = "טרם סווג";

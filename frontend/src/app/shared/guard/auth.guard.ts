@@ -4,21 +4,30 @@ import {
   RouterStateSnapshot,
   Router,
   UrlTree,
+  CanActivate,
+  CanActivateChild,
 } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { StartupService } from '../../services/startup.service';
 import { isTransportError } from '../errors/auth-unavailable.error';
+import { MfaService } from '../../services/mfa.service';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root',
 })
-export class AuthGuard {
+export class AuthGuard implements CanActivate, CanActivateChild {
   constructor(
     public authService: AuthService,
     public router: Router,
     private startup: StartupService,
+    private mfa: MfaService,
   ) {}
+
+  canActivateChild(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Promise<boolean | UrlTree> {
+    return this.canActivate(next, state);
+  }
 
   async canActivate(
     next: ActivatedRouteSnapshot,
@@ -33,6 +42,16 @@ export class AuthGuard {
     if (!this.authService.isLoggedIn) {
       console.warn('AuthGuard: no restored Firebase session - redirecting to login');
       return this.router.createUrlTree(['/login']);
+    }
+
+    if (environment.requireMfa) {
+      const mfaState = await this.mfa.sessionState();
+      if (mfaState === 'NOT_ENROLLED') {
+        return this.router.createUrlTree(['/mfa/setup']);
+      }
+      if (mfaState !== 'VERIFIED') {
+        return this.router.createUrlTree(['/login']);
+      }
     }
 
     const userData = this.authService.getUserDataFromLocalStorage();

@@ -1320,7 +1320,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
         summary.totalVatApplicable += lineSum;
         summary.totalVat += Number(line.vatPerLine ?? 0);
       }
-      summary.totalDiscount += Number(line.discount ?? 0);
+      // All document summary amounts are before VAT. For VAT-inclusive input,
+      // `line.discount` is the gross amount entered by the user while
+      // `disBefVatPerLine` is its calculated net equivalent.
+      summary.totalDiscount += Number(line.disBefVatPerLine ?? line.discount ?? 0);
     }
 
     this.documentSummary.set(summary);

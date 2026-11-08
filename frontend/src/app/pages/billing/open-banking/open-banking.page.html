@@ -36,7 +36,7 @@
       <a routerLink="/billing/plans">בחירת תוכנית</a>
     }
   } @else {
-    <button class="secondary" [disabled]="busy()" (click)="load()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
+    <button class="secondary" [disabled]="busy()" (click)="retryLoad()">{{ busy() ? 'טוענים פרטים…' : 'נסה שוב' }}</button>
   }
   }
   @if (identityDialog()) {

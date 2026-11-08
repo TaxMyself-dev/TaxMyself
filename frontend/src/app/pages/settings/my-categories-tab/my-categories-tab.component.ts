@@ -1,3 +1,4 @@
+import { AuthService } from 'src/app/services/auth.service';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
@@ -80,6 +81,8 @@ export interface UserCategoryGroup {
   providers: [ConfirmationService, MessageService],
 })
 export class MyCategoriesTabComponent {
+  readonly authService = inject(AuthService);
+  private ruleSubIds = new Map<string, number>();
   private transactionsService = inject(TransactionsService);
   private expenseDataService = inject(ExpenseDataService);
   private confirmationService = inject(ConfirmationService);
@@ -93,6 +96,31 @@ export class MyCategoriesTabComponent {
   selectedBusinessNumber = signal<string | null>(null);
   rulesTableData = signal<IRowDataTable[]>([]);
   categoriesTableData = signal<IRowDataTable[]>([]);
+  excludeDirect = signal(false);
+  hasDirectCard = signal(false);
+  savingCashflow = signal(false);
+  cashflowLoaded = signal(false);
+  cashflowError = signal('');
+
+  loadCashflowPreference(): void {
+    this.cashflowLoaded.set(false);
+    this.transactionsService.getCashflowPreferences().subscribe({
+      next: value => { this.hasDirectCard.set(value.hasDirectCard === true); this.excludeDirect.set(value.excludeDirectCardBankTransactionsFromCashflow); this.cashflowLoaded.set(true); this.cashflowError.set(''); },
+      error: () => this.cashflowError.set('לא ניתן לטעון את הגדרת התזרים. נסו שוב.'),
+    });
+  }
+
+  saveCashflowPreference(value: boolean): void {
+    if (this.savingCashflow() || !this.cashflowLoaded()) return;
+    const previous = this.excludeDirect();
+    this.excludeDirect.set(value);
+    this.savingCashflow.set(true);
+    this.transactionsService.setCashflowPreferences(value).subscribe({
+      next: result => { this.excludeDirect.set(result.excludeDirectCardBankTransactionsFromCashflow); this.savingCashflow.set(false); this.cashflowError.set(''); },
+      error: () => { this.excludeDirect.set(previous); this.savingCashflow.set(false); this.cashflowError.set('ההגדרה לא נשמרה. נסו שוב.'); },
+    });
+  }
+
   loading = signal(false);
   errorText = signal<string | null>(null);
 
@@ -240,6 +268,7 @@ export class MyCategoriesTabComponent {
   );
 
   constructor() {
+    this.loadCashflowPreference();
     // Default to the first business once the list arrives.
     effect(() => {
       const options = this.businessOptions();
@@ -316,7 +345,7 @@ export class MyCategoriesTabComponent {
     const form = this.editRuleForm();
     if (!original || !form) return;
     this.editRuleSaving.set(true);
-    this.transactionsService.updateUserRule(original.id, form).subscribe({
+    this.transactionsService.updateUserRule(original.id, { ...form, subCategoryId: this.ruleSubIds.get(form.subCategory) }).subscribe({
       next: () => {
         this.editRuleSaving.set(false);
         this.editRuleVisible.set(false);
@@ -393,6 +422,7 @@ export class MyCategoriesTabComponent {
     }
     this.expenseDataService.getSubCategory(categoryName, null as any, true, bn).subscribe({
       next: (items: any[]) => {
+        this.ruleSubIds = new Map((items ?? []).map(s => [s.subCategoryName, s.id]));
         const mapped: ISelectItem[] = (items ?? []).map((s) => ({
           name: s.subCategoryName,
           value: s.subCategoryName,

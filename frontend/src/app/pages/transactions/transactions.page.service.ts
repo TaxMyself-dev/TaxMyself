@@ -1,11 +1,18 @@
 import { Injectable, OnInit, signal } from '@angular/core';
-import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map, tap } from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, Subject, catchError, finalize, map, tap } from 'rxjs';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { environment } from 'src/environments/environment';
 import { IClassifyTrans, IClassifyTransMinimal, IRowDataTable, ISelectItem, ITransactionData } from 'src/app/shared/interface';
 import * as XLSX from 'xlsx';
 import { ca } from 'date-fns/locale';
 import { paymentIdentifierType } from 'src/app/shared/enums';
+
+export interface CashflowPreferences {
+  excludeDirectCardBankTransactionsFromCashflow: boolean;
+  hasDirectCard: boolean;
+  directCardNoticeDismissed: boolean;
+  lastLoginAt: string | null;
+}
 
 
 // Appends each value as a repeated query param so values containing ',' survive
@@ -21,6 +28,21 @@ function appendList(params: HttpParams, key: string, values: string[] | null | u
   providedIn: 'root'
 })
 export class TransactionsService implements OnInit {
+  private readonly cashflowPreferenceChanges = new Subject<void>();
+  readonly cashflowPreferencesChanged$ = this.cashflowPreferenceChanges.asObservable();
+
+  getCashflowPreferences(): Observable<CashflowPreferences> {
+    return this.http.get<CashflowPreferences>(`${environment.apiUrl}transactions/cashflow-preferences`);
+  }
+
+  setCashflowPreferences(value: boolean): Observable<CashflowPreferences> {
+    return this.http.patch<CashflowPreferences>(`${environment.apiUrl}transactions/cashflow-preferences`, { excludeDirectCardBankTransactionsFromCashflow: value })
+      .pipe(tap(() => this.cashflowPreferenceChanges.next()));
+  }
+
+  dismissDirectCardNotice(): Observable<{ dismissed: boolean }> {
+    return this.http.patch<{ dismissed: boolean }>(`${environment.apiUrl}transactions/direct-card-notice`, { dismissed: true });
+  }
 
   accountsList = signal<ISelectItem[]>([]);
   filterData = signal<any>(null);
@@ -82,7 +104,7 @@ export class TransactionsService implements OnInit {
   }
 
 
-  getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
+  getIncomeTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[], includeExcluded = false): Observable<ITransactionData[]> {
     const url = `${environment.apiUrl}transactions/get-incomes`;
     let param = new HttpParams()
       .set('startDate', startDate)
@@ -90,11 +112,12 @@ export class TransactionsService implements OnInit {
     param = appendList(param, 'billId', billId);
     param = appendList(param, 'categories', categories);
     param = appendList(param, 'sources', sources);
+    param = param.set('includeExcluded', String(includeExcluded));
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 
 
-  getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[]): Observable<ITransactionData[]> {
+  getExpenseTransactionsData(startDate: string, endDate: string, billId: string[], categories: string[], sources: string[], includeExcluded = false): Observable<ITransactionData[]> {
     console.log("billId: ", billId);
 
     const url = `${environment.apiUrl}transactions/get-expenses`;
@@ -104,6 +127,7 @@ export class TransactionsService implements OnInit {
     param = appendList(param, 'billId', billId);
     param = appendList(param, 'categories', categories);
     param = appendList(param, 'sources', sources);
+    param = param.set('includeExcluded', String(includeExcluded));
     return this.http.get<ITransactionData[]>(url, { params: param })
   }
 

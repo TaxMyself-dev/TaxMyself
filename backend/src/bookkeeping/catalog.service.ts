@@ -101,6 +101,7 @@ export interface AccountLaw {
 }
 
 export interface CreateSubCategoryInput {
+  systemKey?: string;
   isPrivate?: boolean;
   /** Legacy percent-bearing path (old CreateUserSubCategoryDto shape) — resolves
    *  to a card via findOrCreateVariantAccount rather than living on the row. */
@@ -290,8 +291,20 @@ export class CatalogService {
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId, isActive: true },
       relations: ['account', 'category'],
     });
+    if (!rows.some(row => row.systemKey === 'DIRECT_CARD_BANK_PAYMENT')) {
+      const protectedSub = await this.subCategoryRepo.findOne({
+        where: { systemKey: 'DIRECT_CARD_BANK_PAYMENT', ownerType: OwnerType.SYSTEM, isActive: true },
+        relations: ['account', 'category'],
+      });
+      if (protectedSub) {
+        const parent = await this.categoryRepo.findOne({ where: { id: categoryId } });
+        if (parent?.name === protectedSub.category?.name) rows.push(protectedSub);
+      }
+    }
     const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
-    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
+    const protectedRows = visible.filter(s => s.systemKey === 'DIRECT_CARD_BANK_PAYMENT');
+    const protectedNames = new Set(protectedRows.map(s => s.name));
+    return [...this.mergeByName(visible, chartOwnerKeys, s => s.name).filter(s => !protectedNames.has(s.name)), ...protectedRows];
   }
 
   /**
@@ -317,7 +330,9 @@ export class CatalogService {
       relations: ['account', 'account.section', 'category'],
     });
     const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
-    return this.mergeByName(visible, chartOwnerKeys, (s) => s.name);
+    const protectedRows = visible.filter(s => s.systemKey === 'DIRECT_CARD_BANK_PAYMENT');
+    const protectedNames = new Set(protectedRows.map(s => s.name));
+    return [...this.mergeByName(visible, chartOwnerKeys, s => s.name).filter(s => !protectedNames.has(s.name)), ...protectedRows];
   }
 
   /** All active rows for one chartOwnerKey (admin/user "list everything I own"
@@ -646,6 +661,9 @@ export class CatalogService {
   async createSubCategory(scope: CatalogScope, category: Category, name: string, input: CreateSubCategoryInput): Promise<SubCategory> {
     const trimmed = name?.trim();
     if (!trimmed) throw new BadRequestException('subCategoryName is required');
+    if (trimmed === 'כרטיס דיירקט' && (scope.ownerType !== OwnerType.SYSTEM || input.systemKey !== 'DIRECT_CARD_BANK_PAYMENT')) {
+      throw new BadRequestException('כרטיס דיירקט הוא סיווג מערכת קבוע');
+    }
 
     let accountId: number | null = input.accountId ?? null;
     let approvalStatus = ApprovalStatus.APPROVED;
@@ -669,6 +687,7 @@ export class CatalogService {
     return this.subCategoryRepo.save(
       this.subCategoryRepo.create({
         categoryId: category.id,
+        systemKey: input.systemKey ?? null,
         name: trimmed,
         isPrivate: input.isPrivate ?? false,
         accountId: input.isPrivate ? null : accountId,
@@ -692,6 +711,7 @@ export class CatalogService {
    * are never edited in place — they belong to the card").
    */
   async updateSubCategoryLaw(sub: SubCategory, scope: CatalogScope, law: AccountLaw): Promise<SubCategory> {
+    if (sub.systemKey) throw new BadRequestException('לא ניתן לשנות תת־קטגוריית מערכת קבועה');
     const baseAccount = sub.account ?? (await this.findSystemSubCategoryByName(sub.name).then((s) => s?.account ?? null));
     const category = sub.category ?? (await this.categoryRepo.findOne({ where: { id: sub.categoryId } }));
     const account = await this.findOrCreateVariantAccount(scope, law, sub.name, baseAccount, category?.name ?? null);
@@ -704,11 +724,15 @@ export class CatalogService {
    *  sub_categories pointing at it by categoryId (D4 merge reads by name,
    *  but categoryId FKs on sub_category are real). */
   async deleteCategory(category: Category): Promise<void> {
+    if (await this.subCategoryRepo.count({ where: { categoryId: category.id, systemKey: 'DIRECT_CARD_BANK_PAYMENT' } })) {
+      throw new BadRequestException('הקטגוריה מכילה תת־קטגוריית מערכת קבועה');
+    }
     category.isActive = false;
     await this.categoryRepo.save(category);
   }
 
   async deleteSubCategory(sub: SubCategory): Promise<void> {
+    if (sub.systemKey) throw new BadRequestException('לא ניתן לשנות תת־קטגוריית מערכת קבועה');
     sub.isActive = false;
     await this.subCategoryRepo.save(sub);
   }
@@ -830,6 +854,7 @@ export class CatalogService {
    *  touching accountId — callers that only need updateSubCategoryLaw's
    *  card-repointing skip this and call that instead. */
   async saveSubCategory(sub: SubCategory): Promise<SubCategory> {
+    if (sub.systemKey) throw new BadRequestException('לא ניתן לשנות תת־קטגוריית מערכת קבועה');
     return this.subCategoryRepo.save(sub);
   }
 

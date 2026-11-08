@@ -33,8 +33,8 @@ export class Source {
   /**
    * Card sources only (always NULL for bank accounts).
    *   true  — Direct/Debit card (Feezback returns NO balances for it). Its
-   *           card-feed transactions are intentionally NOT imported — they
-   *           arrive through the checking-account (bank) feed instead.
+   *           card-feed transactions are imported normally. Users may opt to
+   *           exclude classified bank mirrors through the cashflow preference.
    *   false — Credit card (Feezback returns balances). Imported normally.
    *   NULL  — not yet determined (row predates the isDirect column, or the
    *           card hasn't been inspected with withBalances=true yet).
@@ -44,6 +44,9 @@ export class Source {
    */
   @Column({ type: 'boolean', nullable: true, default: null })
   isDirect: boolean | null;
+
+  @Column({ type: 'datetime', precision: 3, nullable: true })
+  metadataVerifiedAt: Date | null;
 
   @ManyToOne(() => Bill, bill => bill.sources)
   bill: Bill;
