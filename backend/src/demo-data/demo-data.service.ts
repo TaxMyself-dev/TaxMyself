@@ -1107,10 +1107,11 @@ export class DemoDataService {
       if (!subscription) throw new Error('Billing QA subscription was not created');
 
       const plan = await m.findOne(SubscriptionPlan, {
-        where: { slug: 'consumer-basic', isActive: true },
+        where: { isActive: true, isPublic: true },
+        order: { displayOrder: 'ASC', id: 'ASC' },
       });
       if (!plan) {
-        throw new Error('Billing QA requires the active consumer-basic plan');
+        throw new Error('Billing QA requires at least one active public plan');
       }
 
       await this.clearBillingQaFixture(m, firebaseId, subscription.id);

@@ -23,7 +23,7 @@ describe('DemoDataService billing QA scenario', () => {
     const subscription: any = { id: 41, firebaseId: 'billing-demo' };
     const plan: any = {
       id: 7,
-      slug: 'consumer-basic',
+      slug: 'dev-basic-plan-without-a-canonical-slug',
       isActive: true,
       priceMonthlyAgorot: 2950,
       licensedDealerPriceMonthlyAgorot: 5900,
@@ -70,6 +70,13 @@ describe('DemoDataService billing QA scenario', () => {
       providerCalled: false,
     });
     expect(subscription.status).toBe(SubscriptionStatus.PAST_DUE);
+    expect(manager.findOne).toHaveBeenCalledWith(
+      SubscriptionPlan,
+      {
+        where: { isActive: true, isPublic: true },
+        order: { displayOrder: 'ASC', id: 'ASC' },
+      },
+    );
     expect(saved.some((row) => row.cardBrand === 'DEMO')).toBe(true);
     expect(saved).toContainEqual(
       expect.objectContaining({
