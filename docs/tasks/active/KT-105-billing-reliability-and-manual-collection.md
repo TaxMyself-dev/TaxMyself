@@ -53,6 +53,8 @@ healthy recurring subscription.
   CardCom link for a new payment method. Admins never receive raw card details.
 - [x] The dedicated billing QA profile is visible in admin subscriptions so the
   two manual charge actions can be exercised; every other demo stays excluded.
+- [x] Saved payer details are presented as an editable payment profile, with the
+  edit action labeled accurately and aligned to the visual left in the RTL card.
 - [ ] Focused backend/frontend tests, backend build and frontend production build
   pass, and billing documentation plus cumulative cutover SQL are updated.
 

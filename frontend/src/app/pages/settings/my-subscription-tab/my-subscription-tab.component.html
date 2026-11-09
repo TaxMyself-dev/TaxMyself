@@ -211,8 +211,8 @@
             (input)="updatePayerField('businessNumber', $any($event.target).value)" />
         </label>
       </div>
-      <div class="card-actions">
-        <app-p-button [buttonText]="'שמירת פרטי משלם'" [buttonColor]="buttonColor.WHITE_BORDER"
+      <div class="card-actions payer-profile-actions">
+        <app-p-button [buttonText]="'עריכת פרטי תשלום'" [buttonColor]="buttonColor.WHITE_BORDER"
           [buttonSize]="buttonSize.SMALL" [isLoading]="payerProfileSaving()" [disabled]="payerProfileSaving()"
           (onButtonClicked)="savePayerProfile()" />
       </div>

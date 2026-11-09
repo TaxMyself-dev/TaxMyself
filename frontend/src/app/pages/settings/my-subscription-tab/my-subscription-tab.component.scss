@@ -304,6 +304,12 @@ $border-soft: #f2f2f2;
   justify-content: flex-start;
 }
 
+.payer-profile-actions {
+  // The settings surface is RTL, so flex-end places this secondary edit action
+  // at the visual left edge of the card.
+  justify-content: flex-end;
+}
+
 .payer-profile-note {
   color: #667085;
   margin: 0 0 18px;
