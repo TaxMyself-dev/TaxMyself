@@ -20,6 +20,9 @@ healthy recurring subscription.
 
 - [x] Overdue/failed payment access is represented explicitly and never opens the
   plan-upgrade dialog; the customer is directed to resolve payment.
+- [x] A silently overdue ACTIVE subscription is materialized as one frozen debt
+  and moved to PAST_DUE before recovery opens, without contacting CardCom; the
+  billing-block dialog contains no unrelated open-banking action.
 - [x] A definitive recurring-card decline schedules at most two further charge
   attempts, each thirty minutes after the preceding decline; UNKNOWN/timeout
   outcomes are reconciled read-only and are never automatically charged again.

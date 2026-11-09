@@ -31,6 +31,7 @@ import { OpenBankingEnrollmentDto, CancelOpenBankingEnrollmentDto } from './dtos
 import { Optional } from '@nestjs/common';
 import { BillingPayerProfileService } from './services/billing-payer-profile.service';
 import { UpdateBillingPayerProfileDto } from './dtos/billing-payer-profile.dto';
+import { BillingOverdueRecoveryService } from './services/billing-overdue-recovery.service';
 
 @Controller('billing')
 export class BillingController {
@@ -38,7 +39,8 @@ export class BillingController {
 
   constructor(private readonly billingService: BillingService,
     @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
-    @Optional() private readonly payerProfiles?: BillingPayerProfileService) {}
+    @Optional() private readonly payerProfiles?: BillingPayerProfileService,
+    @Optional() private readonly overdueRecovery?: BillingOverdueRecoveryService) {}
 
   @Get('payer-profile')
   @UseGuards(FirebaseAuthGuard)
@@ -179,6 +181,13 @@ export class BillingController {
     const firebaseId = request.user?.firebaseId;
     if (!firebaseId) throw new NotFoundException('User not found in request');
     return this.billingService.provisionExpiredSubscription(firebaseId);
+  }
+
+  /** Materializes silently overdue ACTIVE debt without contacting CardCom. */
+  @Post('overdue/prepare')
+  @UseGuards(FirebaseAuthGuard)
+  prepareOverdueRecovery(@Req() request: AuthenticatedRequest) {
+    return this.overdueRecovery!.prepare(this.assertDirectOwner(request));
   }
 
   /**

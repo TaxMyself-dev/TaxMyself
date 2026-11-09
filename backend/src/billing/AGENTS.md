@@ -752,3 +752,10 @@ The additive payer-profile/provider-diagnostics schema in the KT-105 section of
 2026-11-09. Production execution is not authorized. The dedicated raw-mysql
 runner `scripts/migrations/2026-11-09_apply-billing-reliability-dev.js` refuses
 any database other than `keepintax-dev` and supports explicit review/apply modes.
+
+An `ACTIVE_OVERDUE` owner must call `POST /billing/overdue/prepare` before
+opening recovery. The endpoint locks the subscription, freezes the first unpaid
+period as one `RECURRING_PERIOD` obligation, records `OVERDUE_DEBT_CREATED`, and
+changes only `ACTIVE` to `PAST_DUE`. It creates no billing attempt and makes no
+CardCom call; the existing recovery flow performs the later customer-approved
+payment. Repeated calls return the existing open debt.

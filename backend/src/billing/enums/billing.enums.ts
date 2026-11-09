@@ -61,6 +61,7 @@ export enum BillingEventType {
   REFUND_FAILED = 'REFUND_FAILED',
   REFUND_RESOLUTION = 'REFUND_RESOLUTION',
   MANUAL_CHARGE_REQUESTED = 'MANUAL_CHARGE_REQUESTED',
+  OVERDUE_DEBT_CREATED = 'OVERDUE_DEBT_CREATED',
 }
 
 /** A canonical debt. Recovery never creates a second obligation. */

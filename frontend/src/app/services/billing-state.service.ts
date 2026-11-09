@@ -595,4 +595,20 @@ export class BillingStateService {
       return { resolved: false, error: err?.error?.message ?? 'שגיאה בהסדרת המנוי' };
     }
   }
+
+  /** Creates canonical debt for a silently overdue ACTIVE subscription. No provider call occurs. */
+  async prepareOverdueRecovery(): Promise<{ prepared: boolean; error?: string }> {
+    try {
+      await firstValueFrom(
+        this.http.post(`${environment.apiUrl}billing/overdue/prepare`, {})
+      );
+      await this.refreshBillingState();
+      return { prepared: true };
+    } catch (err: any) {
+      return {
+        prepared: false,
+        error: err?.error?.message ?? 'שגיאה בהכנת החוב להסדרה',
+      };
+    }
+  }
 }

@@ -442,6 +442,12 @@ SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_ONE_OFF'), @kt105_enum_type)>0, 'S
  CONCAT('ALTER TABLE billing_obligation MODIFY COLUMN kind ',
  LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_ONE_OFF'') NOT NULL'));
 PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('OVERDUE_DEBT_CREATED'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_event MODIFY COLUMN event_type ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''OVERDUE_DEBT_CREATED'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
 
 SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt' AND COLUMN_NAME='trigger');

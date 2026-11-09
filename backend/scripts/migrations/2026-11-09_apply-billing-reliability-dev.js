@@ -175,6 +175,12 @@ async function main() {
       'event_type',
       'MANUAL_CHARGE_REQUESTED',
     );
+    await ensureEnumValue(
+      connection,
+      'billing_event',
+      'event_type',
+      'OVERDUE_DEBT_CREATED',
+    );
 
     const after = await inspect(connection);
     console.log(JSON.stringify({ mode: MODE, after }, null, 2));
@@ -187,7 +193,8 @@ async function main() {
         after.payerProfileSnapshot &&
         after.obligationKind?.includes("'MANUAL_ONE_OFF'") &&
         after.attemptTrigger?.includes("'MANUAL_ONE_OFF'") &&
-        after.eventType?.includes("'MANUAL_CHARGE_REQUESTED'");
+        after.eventType?.includes("'MANUAL_CHARGE_REQUESTED'") &&
+        after.eventType?.includes("'OVERDUE_DEBT_CREATED'");
       if (!complete) throw new Error('KT-105 schema verification failed');
       console.log('KT-105 keepintax-dev schema verified successfully');
     }

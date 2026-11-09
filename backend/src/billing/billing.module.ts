@@ -58,6 +58,7 @@ import {
 } from './services/billing-provider-runtime.service';
 import { BillingCardcomExecutorService } from './services/billing-cardcom-executor.service';
 import { BillingPayerProfileService } from './services/billing-payer-profile.service';
+import { BillingOverdueRecoveryService } from './services/billing-overdue-recovery.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -126,6 +127,7 @@ import { BusinessModule } from 'src/business/business.module';
     BillingProviderRuntimeService,
     BillingCardcomExecutorService,
     BillingPayerProfileService,
+    BillingOverdueRecoveryService,
     {
       provide: BILLING_CARD_COM_EXECUTOR,
       useExisting: BillingCardcomExecutorService,

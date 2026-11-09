@@ -43,10 +43,6 @@ export class AppComponent implements OnInit {
 
   // Show the blocking billing dialog when the backend reports a blocking status,
   // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
-  openBankingManagement(): void {
-    void this.router.navigate(['/billing/open-banking/manage']);
-  }
-
   protected readonly showBillingDialog = computed(() => {
     const url = this.currentUrl();
     if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {
@@ -75,7 +71,7 @@ export class AppComponent implements OnInit {
     const status = this.billingStateService.effectiveStatus();
     const paymentBlockReason =
       this.billingStateService.billingState()?.access?.paymentBlockReason;
-    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' }> = {
+    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' | 'PREPARE_OVERDUE_RECOVERY' }> = {
       SUBSCRIPTION_MISSING: {
         title: 'תקלה בחשבון',
         message: 'נראה שהתרחשה תקלה בחשבון שלך.\nיש להסדיר את המנוי כדי להמשיך.',
@@ -106,7 +102,7 @@ export class AppComponent implements OnInit {
         title: 'קיימת בעיה בתשלום',
         message: 'החיוב האחרון לא הושלם. יש להסדיר את התשלום כדי להמשיך להשתמש במערכת.',
         buttonLabel: 'הסדרת התשלום',
-        action: 'RECOVER_PAYMENT' as const,
+        action: 'PREPARE_OVERDUE_RECOVERY' as const,
       };
     }
     return map[status!] ?? { title: '', message: '', buttonLabel: '', action: 'NAVIGATE_TO_PLANS' as const };
@@ -455,6 +451,7 @@ export class AppComponent implements OnInit {
   }
 
   protected readonly resolvingMissingSubscription = signal(false);
+  protected readonly preparingOverdueRecovery = signal(false);
 
   /**
    * Single entry point for the blocking dialog's CTA button — dispatches by
@@ -467,8 +464,25 @@ export class AppComponent implements OnInit {
       void this.resolveMissingSubscription();
     } else if (this.billingDialogContent().action === 'RECOVER_PAYMENT') {
       void this.router.navigate(['/billing/recovery']);
+    } else if (this.billingDialogContent().action === 'PREPARE_OVERDUE_RECOVERY') {
+      void this.prepareOverdueRecovery();
     } else {
       this.navigateToBillingPlans();
+    }
+  }
+
+  private async prepareOverdueRecovery(): Promise<void> {
+    if (this.preparingOverdueRecovery()) return;
+    this.preparingOverdueRecovery.set(true);
+    try {
+      const result = await this.billingStateService.prepareOverdueRecovery();
+      if (!result.prepared) {
+        this.genericService.showToast(result.error ?? 'שגיאה בהכנת החוב להסדרה', 'error');
+        return;
+      }
+      await this.router.navigate(['/billing/recovery']);
+    } finally {
+      this.preparingOverdueRecovery.set(false);
     }
   }
 
