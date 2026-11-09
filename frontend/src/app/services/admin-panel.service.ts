@@ -172,6 +172,16 @@ export class AdminPanelService {
     );
   }
 
+  applyDemoBillingScenario(
+    id: string,
+    state: BillingQaScenarioState,
+  ): Observable<DemoBillingQaScenarioResult> {
+    return this.http.post<DemoBillingQaScenarioResult>(
+      `${environment.apiUrl}demo-data/profiles/${id}/billing-scenario/${state}`,
+      {},
+    );
+  }
+
   /**
    * In-app reset for the signed-in demo user. Backs the "אפס נתוני בדיקה"
    * button on the dashboard — wipes Drive files + OCR/expense/transaction
@@ -332,6 +342,23 @@ export interface DemoProfileListItem {
   clients?: DemoSubUser[];
   /** True when this profile exposes the two Direct-card scenario actions. */
   supportsDirectCardScenario?: boolean;
+  /** True only for the dedicated provider-free billing QA profile. */
+  supportsBillingQaScenario?: boolean;
+}
+
+export type BillingQaScenarioState =
+  | 'ACTIVE_OVERDUE'
+  | 'PAST_DUE'
+  | 'DECLINED';
+
+export interface DemoBillingQaScenarioResult {
+  state: BillingQaScenarioState;
+  firebaseId: string;
+  seededUser: boolean;
+  subscriptionId: number;
+  obligationId: number | null;
+  attemptId: number | null;
+  providerCalled: false;
 }
 
 /** Result of the two Direct-card scenario actions. */

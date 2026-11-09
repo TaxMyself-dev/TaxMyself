@@ -103,6 +103,36 @@
                 (onButtonClicked)="onApplyDirectCardFix(profile)"
               />
             }
+
+            @if (profile.supportsBillingQaScenario) {
+              <p class="billing-qa-note">
+                לבדיקת חסימת חיוב יש להיכנס ישירות עם פרטי הדמו, ולא דרך התחזות מנהל.
+              </p>
+              <app-p-button
+                [buttonText]="'מצב פעיל באיחור'"
+                [buttonColor]="buttonColor.WHITE_BORDER"
+                [buttonSize]="buttonSize.SMALL"
+                [disabled]="isBusy(profile.id)"
+                [isLoading]="isBusy(profile.id)"
+                (onButtonClicked)="onApplyBillingScenario(profile, 'ACTIVE_OVERDUE')"
+              />
+              <app-p-button
+                [buttonText]="'מצב חוב בפיגור'"
+                [buttonColor]="buttonColor.WHITE_BORDER"
+                [buttonSize]="buttonSize.SMALL"
+                [disabled]="isBusy(profile.id)"
+                [isLoading]="isBusy(profile.id)"
+                (onButtonClicked)="onApplyBillingScenario(profile, 'PAST_DUE')"
+              />
+              <app-p-button
+                [buttonText]="'מצב חיוב שנדחה'"
+                [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.SMALL"
+                [disabled]="isBusy(profile.id)"
+                [isLoading]="isBusy(profile.id)"
+                (onButtonClicked)="onApplyBillingScenario(profile, 'DECLINED')"
+              />
+            }
           </div>
         </li>
       }

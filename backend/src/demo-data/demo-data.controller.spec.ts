@@ -35,3 +35,37 @@ describe('DemoDataController.testReset', () => {
     expect(service.testReset).not.toHaveBeenCalled();
   });
 });
+
+describe('DemoDataController.billingScenario', () => {
+  const request = { user: { firebaseId: 'admin-firebase-id' } } as any;
+
+  it('keeps the scenario admin-only and delegates without provider work', async () => {
+    const service = {
+      applyBillingQaScenario: jest.fn().mockResolvedValue({
+        state: 'DECLINED',
+        providerCalled: false,
+      }),
+    };
+    const usersService = { isAdmin: jest.fn().mockResolvedValue(true) };
+    const controller = new DemoDataController(service as any, usersService as any);
+
+    await expect(
+      controller.billingScenario(request, 'billing-qa', 'DECLINED'),
+    ).resolves.toEqual({ state: 'DECLINED', providerCalled: false });
+    expect(service.applyBillingQaScenario).toHaveBeenCalledWith(
+      'billing-qa',
+      'DECLINED',
+    );
+  });
+
+  it('rejects a non-admin before changing fixture data', async () => {
+    const service = { applyBillingQaScenario: jest.fn() };
+    const usersService = { isAdmin: jest.fn().mockResolvedValue(false) };
+    const controller = new DemoDataController(service as any, usersService as any);
+
+    await expect(
+      controller.billingScenario(request, 'billing-qa', 'PAST_DUE'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.applyBillingQaScenario).not.toHaveBeenCalled();
+  });
+});

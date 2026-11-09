@@ -87,6 +87,9 @@ healthy recurring subscription.
 - Risks and manual checks: exercise hosted payer details, decline retry timing,
   payment-required routing, provider diagnostics, PAST_DUE settlement and
   independent one-off charging with CardCom test credentials before release.
+- Manual fixture: the demo registry includes `billing-qa` with synthetic
+  `ACTIVE_OVERDUE`, `PAST_DUE`, and `DECLINED` switches. Creating or switching
+  the fixture is provider-free; direct login is required for access-block UI.
 - Documentation updated: backend billing, admin billing, settings, guards,
   Cloud Tasks feature guide, cumulative migration and production cutover SQL.
 

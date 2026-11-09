@@ -21,6 +21,7 @@ import {
   OwnerType,
   VatOptions,
   VATReportingType,
+  VAT_RATES,
 } from 'src/enum';
 import { DocumentsService } from 'src/documents/documents.service';
 import { ExpensesService } from 'src/expenses/expenses.service';
@@ -70,6 +71,27 @@ import {
 } from './demo-profile.types';
 import { GoogleDriveService, ServiceAccountQuotaError } from 'src/google-drive/google-drive.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
+import { Subscription } from 'src/billing/entities/subscription.entity';
+import { SubscriptionPlan } from 'src/billing/entities/subscription-plan.entity';
+import { PaymentMethod } from 'src/billing/entities/payment-method.entity';
+import { BillingPayerProfile } from 'src/billing/entities/billing-payer-profile.entity';
+import { BillingObligation } from 'src/billing/entities/billing-obligation.entity';
+import { BillingAttempt } from 'src/billing/entities/billing-attempt.entity';
+import {
+  BillingAccessMode,
+  BillingAttemptStatus,
+  BillingAttemptTrigger,
+  BillingChargeMode,
+  BillingObligationKind,
+  BillingObligationStatus,
+  SubscriptionStatus,
+} from 'src/billing/enums/billing.enums';
+import { encryptCardcomToken } from 'src/billing/utils/billing-token-encryption.util';
+
+export type BillingQaScenarioState =
+  | 'ACTIVE_OVERDUE'
+  | 'PAST_DUE'
+  | 'DECLINED';
 
 export interface DemoSubUser {
   firebaseId?: string;
@@ -96,6 +118,8 @@ export interface DemoProfileListItem {
    * be pointed at an unrelated demo user.
    */
   supportsDirectCardScenario: boolean;
+  /** True only for the dedicated local billing QA profile. */
+  supportsBillingQaScenario: boolean;
 }
 
 export interface DemoSeedResult {
@@ -133,6 +157,16 @@ export interface DemoScenarioResult {
   cardIsDirect: boolean | null;
   /** Value written to the card's `user_source_sync_state.status`. */
   cardStatus: SourceSyncStatus;
+}
+
+export interface DemoBillingQaScenarioResult {
+  state: BillingQaScenarioState;
+  firebaseId: string;
+  seededUser: boolean;
+  subscriptionId: number;
+  obligationId: number | null;
+  attemptId: number | null;
+  providerCalled: false;
 }
 
 export interface DemoTestResetResult {
@@ -210,6 +244,7 @@ export class DemoDataService {
         firebaseId: existing?.firebaseId,
         clients,
         supportsDirectCardScenario: !!p.legacyDuplicateScenario,
+        supportsBillingQaScenario: p.billingQaScenario === true,
       });
     }
     return out;
@@ -302,6 +337,26 @@ export class DemoDataService {
         await admin.auth().deleteUser(uid).catch(() => undefined);
       }
       throw dbErr;
+    }
+
+    // The billing QA fixture is strict and provider-free. It starts in the
+    // stale ACTIVE state that reproduces the original wrong-upgrade prompt.
+    if (profile.billingQaScenario) {
+      try {
+        await this.applyBillingQaScenarioForUser(
+          primaryFirebaseId,
+          profile,
+          'ACTIVE_OVERDUE',
+        );
+      } catch (billingErr) {
+        this.logger.error(
+          `[demo-data] billing QA seed failed for ${profile.id}: ${
+            (billingErr as Error)?.message ?? billingErr
+          }`,
+        );
+        await this.resetProfile(profile.id).catch(() => undefined);
+        throw billingErr;
+      }
     }
 
     // 3.5 Documents + Expenses (opt-in per profile). Runs OUTSIDE the seed
@@ -1039,6 +1094,242 @@ export class DemoDataService {
     return { profile, scenario };
   }
 
+  private async applyBillingQaScenarioForUser(
+    firebaseId: string,
+    profile: DemoProfile,
+    state: BillingQaScenarioState,
+  ): Promise<Omit<DemoBillingQaScenarioResult, 'seededUser'>> {
+    return this.dataSource.transaction(async (m) => {
+      const subscription = await m.findOne(Subscription, {
+        where: { firebaseId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!subscription) throw new Error('Billing QA subscription was not created');
+
+      const plan = await m.findOne(SubscriptionPlan, {
+        where: { slug: 'consumer-basic', isActive: true },
+      });
+      if (!plan) {
+        throw new Error('Billing QA requires the active consumer-basic plan');
+      }
+
+      await this.clearBillingQaFixture(m, firebaseId, subscription.id);
+
+      const now = new Date();
+      const dueAt = new Date(now);
+      dueAt.setUTCDate(dueAt.getUTCDate() - 4);
+      dueAt.setUTCHours(9, 0, 0, 0);
+      const periodStartAt = new Date(dueAt);
+      periodStartAt.setUTCMonth(periodStartAt.getUTCMonth() - 1);
+      const unpaidPeriodEndAt = new Date(dueAt);
+      unpaidPeriodEndAt.setUTCMonth(unpaidPeriodEndAt.getUTCMonth() + 1);
+
+      // Deliberately invalid, encrypted demo token. Merely creating/switching
+      // the fixture never submits it. An explicit admin charge can safely
+      // exercise the configured CardCom test terminal's decline path.
+      const paymentMethod = await m.save(
+        m.create(PaymentMethod, {
+          firebaseId,
+          cardcomToken: encryptCardcomToken('billing-qa-invalid-test-token'),
+          last4: '0000',
+          cardBrand: 'DEMO',
+          cardExpiryMonth: 12,
+          cardExpiryYear: 2030,
+          sourceUpdateAttemptId: null,
+          cardcomTokenDeleteAt: null,
+        }),
+      );
+
+      const payerSnapshot = {
+        fullName: `${profile.user.fName} ${profile.user.lName}`,
+        identityNumber: profile.user.id,
+        email: profile.email,
+        phone: profile.user.phone,
+        businessNumber: profile.businesses[0]?.businessNumber ?? profile.user.id,
+      };
+      await m.save(
+        m.create(BillingPayerProfile, {
+          subscriptionId: subscription.id,
+          ...payerSnapshot,
+          version: 1,
+          verifiedAt: now,
+        }),
+      );
+
+      subscription.planId = plan.id;
+      subscription.paymentMethodId = paymentMethod.id;
+      subscription.activePaymentMethodUpdateAttemptId = null;
+      subscription.status =
+        state === 'ACTIVE_OVERDUE'
+          ? SubscriptionStatus.ACTIVE
+          : SubscriptionStatus.PAST_DUE;
+      subscription.billingAccessMode = BillingAccessMode.STANDARD;
+      subscription.trialStart = null;
+      subscription.trialEnd = null;
+      subscription.currentPeriodStart = periodStartAt;
+      subscription.currentPeriodEnd = dueAt;
+      subscription.nextBillingDate = dueAt;
+      subscription.billingAnchorDay = dueAt.getUTCDate();
+      subscription.gracePeriodEndsAt = null;
+      subscription.renewalAttempts = state === 'ACTIVE_OVERDUE' ? 0 : 3;
+      subscription.canceledAt = null;
+      subscription.endedAt = null;
+      await m.save(Subscription, subscription);
+
+      let obligation: BillingObligation | null = null;
+      let attempt: BillingAttempt | null = null;
+      if (state !== 'ACTIVE_OVERDUE') {
+        const amountAgorot =
+          plan.licensedDealerPriceMonthlyAgorot ?? plan.priceMonthlyAgorot;
+        const vatRate = VAT_RATES[now.getFullYear()] ?? 0.18;
+        const amountBeforeVatAgorot = Math.round(amountAgorot / (1 + vatRate));
+        const vatAmountAgorot = amountAgorot - amountBeforeVatAgorot;
+        const periodStart = dueAt.toISOString().slice(0, 10);
+        const periodEnd = unpaidPeriodEndAt.toISOString().slice(0, 10);
+        obligation = await m.save(
+          m.create(BillingObligation, {
+            subscriptionId: subscription.id,
+            firebaseIdSnapshot: firebaseId,
+            obligationKey: `demo:billing-qa:${subscription.id}:${periodStart}`,
+            kind: BillingObligationKind.RECURRING_PERIOD,
+            status: BillingObligationStatus.OPEN,
+            planId: plan.id,
+            periodStart,
+            periodEnd,
+            amountAgorot,
+            amountBeforeVatAgorot,
+            vatAmountAgorot,
+            currency: 'ILS',
+            activeAttemptId: null,
+            satisfiedAttemptId: null,
+            satisfiedAt: null,
+            version: 0,
+          }),
+        );
+
+        if (state === 'DECLINED') {
+          attempt = await m.save(
+            m.create(BillingAttempt, {
+              operation: 'CHARGE',
+              sourcePaymentEventId: null,
+              requestId: null,
+              requestedByFirebaseId: null,
+              refundReason: null,
+              obligationId: obligation.id,
+              attemptNumber: 1,
+              trigger: BillingAttemptTrigger.RENEWAL,
+              chargeMode: BillingChargeMode.TOKEN_TRANSACTION,
+              status: BillingAttemptStatus.DECLINED,
+              paymentMethodId: paymentMethod.id,
+              cardcomExternalUniqTranId: `demo-billing-${subscription.id}`.slice(0, 25),
+              cardcomLowProfileId: null,
+              providerTerminalRef: 'DEMO',
+              cardcomTransactionId: null,
+              providerResponseCode: 4,
+              providerDescription: 'עסקת דמו נדחתה - כרטיס בדיקה',
+              payerProfileVersion: 1,
+              payerProfileSnapshot: payerSnapshot,
+              failureCategory: 'PROVIDER_DECLINED',
+              planId: plan.id,
+              amountAgorot,
+              amountBeforeVatAgorot,
+              vatAmountAgorot,
+              currency: 'ILS',
+              receiptDocId: null,
+              leaseOwner: null,
+              leaseExpiresAt: null,
+              stateVersion: 1,
+              nextActionAt: null,
+              unknownSince: null,
+              submittedAt: now,
+              capturedAt: null,
+              completedAt: null,
+              reconciliationAttempts: 0,
+              lastReconciledAt: null,
+            }),
+          );
+        }
+      }
+
+      this.logger.log(
+        `[demo-data][billing-qa] state=${state} subscription=${subscription.id} providerCalled=false`,
+      );
+      return {
+        state,
+        firebaseId,
+        subscriptionId: subscription.id,
+        obligationId: obligation?.id ?? null,
+        attemptId: attempt?.id ?? null,
+        providerCalled: false as const,
+      };
+    });
+  }
+
+  private async clearBillingQaFixture(
+    m: EntityManager,
+    firebaseId: string,
+    subscriptionId: number,
+  ): Promise<void> {
+    await m.query(
+      `UPDATE documents d
+         JOIN billing_attempt a ON a.id = d.billing_attempt_id
+         JOIN billing_obligation o ON o.id = a.obligation_id
+          SET d.billing_attempt_id = NULL
+        WHERE o.subscription_id = ?`,
+      [subscriptionId],
+    );
+    await m.query(
+      'DELETE FROM billing_event WHERE subscription_id = ? OR firebase_id = ?',
+      [subscriptionId, firebaseId],
+    );
+    await m.query(
+      `DELETE l FROM billing_attempt_obligation l
+        JOIN billing_obligation o ON o.id = l.obligation_id
+       WHERE o.subscription_id = ?`,
+      [subscriptionId],
+    );
+    await m.query(
+      'UPDATE billing_obligation SET active_attempt_id = NULL, satisfied_attempt_id = NULL WHERE subscription_id = ?',
+      [subscriptionId],
+    );
+    await m.query(
+      `DELETE a FROM billing_attempt a
+        JOIN billing_obligation o ON o.id = a.obligation_id
+       WHERE o.subscription_id = ?`,
+      [subscriptionId],
+    );
+    await m.query('DELETE FROM billing_obligation WHERE subscription_id = ?', [subscriptionId]);
+    await m.query('DELETE FROM billing_payer_profile WHERE subscription_id = ?', [subscriptionId]);
+    await m.query('DELETE FROM cardcom_webhook_log WHERE subscription_id = ? OR firebase_id = ?', [subscriptionId, firebaseId]);
+    await m.query(
+      'UPDATE subscription SET payment_method_id = NULL, active_payment_method_update_attempt_id = NULL WHERE id = ?',
+      [subscriptionId],
+    );
+    await m.query(
+      'UPDATE payment_method SET source_update_attempt_id = NULL WHERE firebase_id = ?',
+      [firebaseId],
+    );
+    await m.query(
+      'UPDATE payment_method_update_attempt SET previous_payment_method_id = NULL, result_payment_method_id = NULL WHERE subscription_id = ?',
+      [subscriptionId],
+    );
+    await m.query('DELETE FROM payment_method_update_attempt WHERE subscription_id = ?', [subscriptionId]);
+    await m.query('DELETE FROM payment_method WHERE firebase_id = ?', [firebaseId]);
+  }
+
+  private async purgeBillingQaUser(
+    m: EntityManager,
+    firebaseId: string,
+    deleted: Record<string, number>,
+  ): Promise<void> {
+    const subscription = await m.findOne(Subscription, { where: { firebaseId } });
+    if (!subscription) return;
+    await this.clearBillingQaFixture(m, firebaseId, subscription.id);
+    const result = await m.delete(Subscription, { id: subscription.id });
+    deleted.billingSubscriptions =
+      (deleted.billingSubscriptions ?? 0) + (result.affected ?? 0);
+  }
+
   /**
    * Find the profile's primary user, seeding the whole profile first if they
    * don't exist. Lets an admin hit either scenario action on a clean
@@ -1265,6 +1556,9 @@ export class DemoDataService {
         for (const cu of clientUsers) {
           await this.purgeUserData(m, cu.firebaseId, deleted);
         }
+        if (profile.billingQaScenario) {
+          await this.purgeBillingQaUser(m, primary.firebaseId, deleted);
+        }
         await this.purgeUserData(m, primary.firebaseId, deleted);
       } finally {
         await m.query('SET FOREIGN_KEY_CHECKS = 1');
@@ -1293,6 +1587,28 @@ export class DemoDataService {
       `[demo-data] reset ${profile.id}: ${JSON.stringify(deleted)} (${allFirebaseIds.length} firebase user(s))`,
     );
     return { existed: true, deletedRows: deleted };
+  }
+
+  async applyBillingQaScenario(
+    profileId: string,
+    state: BillingQaScenarioState,
+  ): Promise<DemoBillingQaScenarioResult> {
+    const profile = this.findProfile(profileId);
+    if (!profile.billingQaScenario) {
+      throw new NotFoundException(
+        `Demo profile "${profileId}" does not declare a billingQaScenario`,
+      );
+    }
+    if (!['ACTIVE_OVERDUE', 'PAST_DUE', 'DECLINED'].includes(state)) {
+      throw new ConflictException(`Unsupported billing QA state: ${state}`);
+    }
+    const { firebaseId, seededUser } = await this.ensureProfileUser(profile);
+    const result = await this.applyBillingQaScenarioForUser(
+      firebaseId,
+      profile,
+      state,
+    );
+    return { ...result, seededUser };
   }
 
   // ---------------- Internals ----------------
