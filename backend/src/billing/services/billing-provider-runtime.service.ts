@@ -1,5 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import type { BillingPayerSnapshot } from './billing-payer-profile.service';
 import {
   BillingAttemptTrigger,
   BillingChargeMode,
@@ -26,6 +27,10 @@ export interface CardComChargeRequest {
   planId?: number;
   firebaseId?: string;
   subscriptionId?: number | null;
+  payerProfile?: BillingPayerSnapshot | null;
+  trigger?: BillingAttemptTrigger;
+  attemptNumber?: number;
+  obligationId?: number | null;
 }
 export interface CardComChargeResponse {
   success?: boolean;
@@ -33,6 +38,7 @@ export interface CardComChargeResponse {
   transactionId?: string | null;
   terminalRef?: string | null;
   failureCategory?: string | null;
+  providerDescription?: string | null;
   /**
    * Reconciliation only: the executor proved that this exact attempt was
    * rejected. Without it a non-success lookup result is never a decline.
@@ -82,6 +88,7 @@ export type ProviderSubmitResult =
 
 @Injectable()
 export class BillingProviderRuntimeService {
+  private readonly logger = new Logger(BillingProviderRuntimeService.name);
   constructor(
     private readonly orchestration: BillingAttemptOrchestrationService,
     @Inject(BILLING_CARD_COM_EXECUTOR)
@@ -108,14 +115,26 @@ export class BillingProviderRuntimeService {
       externalUniqTranId: lease.attempt.cardcomExternalUniqTranId,
       amountAgorot: lease.attempt.amountAgorot,
       currency: lease.attempt.currency,
+      payerProfile: lease.attempt.payerProfileSnapshot,
+      subscriptionId: input.subscriptionId ?? null,
+      trigger: lease.attempt.trigger,
+      attemptNumber: lease.attempt.attemptNumber,
+      obligationId: lease.attempt.obligationId,
     };
     let outcome: NormalizedChargeOutcome;
+    this.logProviderEvent('BILLING_PROVIDER_REQUEST_PREPARED', request);
     try {
-      outcome = normalizeCardComCharge(
-        await this.executor.executeCharge(request),
-      );
+      const response = await this.executor.executeCharge(request);
+      this.logProviderEvent('BILLING_PROVIDER_RESPONSE_RECEIVED', request, {
+        responseCode: response.responseCode ?? null,
+        hasTransactionId: !!response.transactionId,
+      });
+      outcome = normalizeCardComCharge(response);
     } catch (error) {
       if (error instanceof BillingPreSubmissionError) {
+        this.logProviderEvent('BILLING_PROVIDER_REQUEST_NOT_SENT', request, {
+          reason: error.reason,
+        });
         // No request reached CardCom: terminate locally, never as UNKNOWN.
         const attempt = await this.orchestration.applyPreSubmissionFailure(
           lease.attempt.id,
@@ -130,10 +149,31 @@ export class BillingProviderRuntimeService {
           attempt,
         };
       }
+      this.logProviderEvent('BILLING_PROVIDER_OUTCOME_UNKNOWN', request);
       outcome = { kind: 'UNKNOWN', failureCategory: 'TRANSPORT_ERROR' };
     }
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
+  }
+
+  private logProviderEvent(
+    event: string,
+    request: CardComChargeRequest,
+    extra: Record<string, unknown> = {},
+  ): void {
+    this.logger.log(JSON.stringify({
+      event,
+      attemptId: request.attemptId,
+      subscriptionId: request.subscriptionId ?? null,
+      obligationId: request.obligationId ?? null,
+      trigger: request.trigger ?? null,
+      attemptNumber: request.attemptNumber ?? null,
+      paymentMethodId: request.paymentMethodId,
+      externalUniqTranId: request.externalUniqTranId,
+      amountAgorot: request.amountAgorot,
+      currency: request.currency,
+      ...extra,
+    }));
   }
   /**
    * A definitive DECLINED outcome of a token-renewal attempt also applies the
@@ -225,6 +265,7 @@ export function normalizeCardComReconciliation(
     return {
       kind: 'UNKNOWN',
       providerResponseCode: outcome.providerResponseCode,
+      providerDescription: response.providerDescription ?? null,
       failureCategory: response.failureCategory ?? 'UNVERIFIED_LOOKUP_RESULT',
     };
   }
@@ -242,6 +283,7 @@ export function normalizeCardComCharge(
     return {
       kind: 'UNKNOWN',
       providerResponseCode: code,
+      providerDescription: response.providerDescription ?? null,
       failureCategory: 'CONFLICTING_PROVIDER_RESPONSE',
     };
   const captured = response.success === true || code === 0;
@@ -251,6 +293,7 @@ export function normalizeCardComCharge(
       cardcomTransactionId: response.transactionId,
       providerTerminalRef: response.terminalRef ?? null,
       providerResponseCode: code,
+      providerDescription: response.providerDescription ?? null,
     };
   if (captured || code == null)
     return {
@@ -261,6 +304,7 @@ export function normalizeCardComCharge(
   return {
     kind: 'DECLINED',
     providerResponseCode: code,
+    providerDescription: response.providerDescription ?? null,
     failureCategory: response.failureCategory ?? 'PROVIDER_DECLINED',
   };
 }

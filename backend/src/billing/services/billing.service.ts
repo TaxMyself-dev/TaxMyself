@@ -46,6 +46,7 @@ import {
 } from './billing-attempt-orchestration.service';
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 import { billingDate, nextBillingPeriod } from '../domain/billing-debt-periods';
+import { BillingPayerProfileService } from './billing-payer-profile.service';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -117,6 +118,7 @@ export class BillingService {
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
     @Optional() private readonly cancellationService?: BillingCancellationService,
     @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly payerProfiles?: BillingPayerProfileService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -591,6 +593,29 @@ export class BillingService {
     // gets a canonical recurring-period obligation before CardCom I/O. The
     // webhook carries the attempt id so later migration can apply its result
     // idempotently without allocating a second debt.
+    const fallbackUser = await this.userRepo.findOne({ where: { firebaseId } });
+    const payerProfile = this.payerProfiles
+      ? await this.payerProfiles.ensureDraft(subscription.id, firebaseId)
+      : {
+          email: fallbackUser?.email ?? null,
+          fullName: fallbackUser?.fName
+            ? `${fallbackUser.fName} ${fallbackUser.lName ?? ''}`.trim()
+            : null,
+          phone: fallbackUser?.phone ?? null,
+          identityNumber: fallbackUser?.id ?? null,
+          businessNumber: null,
+        };
+    if (this.payerProfiles) {
+      const missingPayerFields = (['fullName', 'identityNumber', 'email', 'phone', 'businessNumber'] as const)
+        .filter(field => !payerProfile[field]?.trim());
+      if (missingPayerFields.length) {
+        throw new BadRequestException({
+          message: 'יש להשלים את פרטי המשלם לפני פתיחת עמוד התשלום',
+          code: 'BILLING_PAYER_PROFILE_INCOMPLETE',
+          missingFields: missingPayerFields,
+        });
+      }
+    }
     let recoveryAttemptId: number | null = null;
     const isInitialPurchase = [SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status);
     const isUpgrade = subscription.status === SubscriptionStatus.ACTIVE;
@@ -653,10 +678,6 @@ export class BillingService {
     }
 
     // Fetch user profile for customer info (best-effort — optional fields).
-    const user = await this.userRepo
-      .findOne({ where: { firebaseId } })
-      .catch(() => null);
-
     let cardcomResult: {
       lowProfileId: string;
       paymentUrl: string;
@@ -677,11 +698,11 @@ export class BillingService {
           subscriptionId: subscription.id,
           billingAttemptId: recoveryAttemptId,
         }),
-        customerEmail: user?.email ?? null,
-        customerName: user?.fName
-          ? `${user.fName} ${user.lName ?? ''}`.trim()
-          : null,
-        customerPhone: user?.phone ?? null,
+        customerEmail: payerProfile.email,
+        customerName: payerProfile.fullName,
+        customerPhone: payerProfile.phone,
+        customerIdentityNumber: payerProfile.identityNumber,
+        businessNumber: payerProfile.businessNumber,
       });
     } catch (err) {
       if (recoveryAttemptId != null && this.billingLifecycleService) {
@@ -1505,6 +1526,8 @@ export class BillingService {
           this.subscriptionAccessService.isTrialActive(subscription),
         isPaymentRequired:
           this.subscriptionAccessService.isPaymentRequired(subscription),
+        paymentBlockReason:
+          this.subscriptionAccessService.paymentBlockReason(subscription),
         isPastDue: subscription.status === SubscriptionStatus.PAST_DUE,
         gracePeriodActive:
           this.subscriptionAccessService.gracePeriodActive(subscription),

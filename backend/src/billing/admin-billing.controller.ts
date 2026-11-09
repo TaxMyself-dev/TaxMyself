@@ -31,6 +31,8 @@ import { Optional } from '@nestjs/common';
 import { BillingRefundService } from './services/billing-refund.service';
 import { CreateRefundDto, ResolveRefundDto } from './dtos/admin/refund.dto';
 import { Response } from 'express';
+import { SettleDebtDto } from './dtos/admin/settle-debt.dto';
+import { OneOffChargeDto } from './dtos/admin/one-off-charge.dto';
 
 @Controller('admin/billing')
 @UseGuards(FirebaseAuthGuard)
@@ -41,6 +43,48 @@ export class AdminBillingController {
     @Optional() private readonly resolution?: AdminBillingResolutionService,
     @Optional() private readonly refunds?: BillingRefundService,
   ) {}
+
+  @Get('subscriptions/:id/debt-settlement')
+  async debtSettlementPreview(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.previewDebtSettlement(id);
+  }
+
+  @Post('subscriptions/:id/debt-settlement/saved-card')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async settleDebtWithSavedCard(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SettleDebtDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.settleDebtWithSavedCard(
+      id,
+      request.user?.actorFirebaseId ?? request.user!.firebaseId,
+      dto.obligationIds,
+      dto.recoveryQuote,
+    );
+  }
+
+  @Post('subscriptions/:id/one-off-charge')
+  @HttpCode(HttpStatus.OK)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async oneOffCharge(
+    @Req() request: AuthenticatedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OneOffChargeDto,
+  ) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.createOneOffCharge(
+      id,
+      request.user?.actorFirebaseId ?? request.user!.firebaseId,
+      dto,
+    );
+  }
 
   @Get('subscriptions/:id/refunds')
   async refundContext(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {

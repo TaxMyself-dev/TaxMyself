@@ -19,6 +19,7 @@ import { BillingObligation } from './billing-obligation.entity';
 import { PaymentMethod } from './payment-method.entity';
 import { SubscriptionPlan } from './subscription-plan.entity';
 import { BillingEvent } from './billing-event.entity';
+import type { BillingPayerSnapshot } from '../services/billing-payer-profile.service';
 
 @Entity('billing_attempt')
 @Index('ux_billing_attempt_number', ['obligationId', 'attemptNumber'], {
@@ -165,6 +166,21 @@ export class BillingAttempt {
     default: null,
   })
   providerResponseCode: number | null;
+
+  @Column({
+    name: 'provider_description',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+    default: null,
+  })
+  providerDescription: string | null;
+
+  @Column({ name: 'payer_profile_version', type: 'int', nullable: true })
+  payerProfileVersion: number | null;
+
+  @Column({ name: 'payer_profile_snapshot', type: 'json', nullable: true })
+  payerProfileSnapshot: BillingPayerSnapshot | null;
 
   @Column({
     name: 'failure_category',

@@ -16,7 +16,7 @@ import { ModuleName } from 'src/enum';
 describe('BillingService.getMyBillingState — professional-access overrides', () => {
   let service: BillingService;
   let subscriptionRepo: { findOne: jest.Mock };
-  let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; gracePeriodActive: jest.Mock };
+  let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; paymentBlockReason: jest.Mock; gracePeriodActive: jest.Mock };
   let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveSubscriptionDiscount: jest.Mock };
   let billingEventService: { findLatestPaymentResultEvent: jest.Mock; findLatestPaymentMethodUpdateResultEvent: jest.Mock };
 
@@ -42,6 +42,7 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
       resolveModulesAccess: jest.fn().mockReturnValue(['EXPENSES', 'ACCOUNTANT']),
       isTrialActive: jest.fn().mockReturnValue(false),
       isPaymentRequired: jest.fn().mockReturnValue(true),
+      paymentBlockReason: jest.fn().mockReturnValue('TRIAL_EXPIRED'),
       gracePeriodActive: jest.fn().mockReturnValue(false),
     };
     pricingService = {

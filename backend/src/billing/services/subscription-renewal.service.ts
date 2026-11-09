@@ -43,7 +43,7 @@ import {
 import {
   MAX_RENEWAL_ATTEMPTS,
   RENEWAL_GRACE_PERIOD_DAYS as GRACE_PERIOD_DAYS,
-  RENEWAL_RETRY_DELAYS_DAYS as RETRY_DELAYS_DAYS,
+  RENEWAL_RETRY_DELAYS_MINUTES as RETRY_DELAYS_MINUTES,
   renewalPeriodStart,
 } from '../domain/billing-renewal-policy';
 /** Bounded concurrency for the daily batch — avoids hammering CardCom/DB. */
@@ -678,10 +678,14 @@ export class SubscriptionRenewalService {
     if (attempt.status !== BillingAttemptStatus.CAPTURED || !attempt.cardcomTransactionId || !attempt.capturedAt) {
       throw new Error('Verified capture required');
     }
-    const debt = await this.dataSource.manager.findOneByOrFail(BillingObligation, { id: attempt.obligationId });
+    const debts = await this.billingLifecycleService.findAttemptObligations(attempt);
+    if (!debts.length) throw new Error('Captured attempt has no billing obligations');
+    const debt = debts[0];
     const subscription = await this.subscriptionRepo.findOneByOrFail({ id: debt.subscriptionId });
     const plan = await this.dataSource.manager.findOneByOrFail(SubscriptionPlan, { id: attempt.planId });
-    const start = billingBoundary(debt.periodStart), end = billingBoundary(debt.periodEnd);
+    const orderedDebts = [...debts].sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+    const start = billingBoundary(orderedDebts[0].periodStart);
+    const end = billingBoundary(orderedDebts[orderedDebts.length - 1].periodEnd);
     const result = await this.billingLifecycleService!.resumeCapturedAttempt({
       actor: { actorFirebaseId: subscription.firebaseId, subjectFirebaseId: subscription.firebaseId },
       attemptId, leaseOwner: `admin-complete-${attemptId}`,
@@ -692,7 +696,7 @@ export class SubscriptionRenewalService {
             where: { id: subscription.id }, lock: { mode: 'pessimistic_write' },
           });
           if (current.currentPeriodEnd && current.currentPeriodEnd >= end) return;
-          await manager.update(Subscription, current.id, recoverySubscriptionPatch(current, [debt]));
+          await manager.update(Subscription, current.id, recoverySubscriptionPatch(current, orderedDebts));
         });
       },
       receipt: { createReceipt: (captured, outcome) => this.createCanonicalRenewalReceipt(
@@ -1064,9 +1068,11 @@ export class SubscriptionRenewalService {
     let outcome: 'retry_scheduled' | 'past_due';
 
     if (!isFinalAttempt) {
-      const delayDays = RETRY_DELAYS_DAYS[attemptNumber - 1];
+      const delayMinutes = RETRY_DELAYS_MINUTES[attemptNumber - 1];
       retryScheduledFor = new Date(now);
-      retryScheduledFor.setDate(retryScheduledFor.getDate() + delayDays);
+      retryScheduledFor.setMinutes(
+        retryScheduledFor.getMinutes() + delayMinutes,
+      );
       outcome = 'retry_scheduled';
 
       await qr.manager.update(Subscription, subscription.id, {

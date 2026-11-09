@@ -1,4 +1,12 @@
 ## Purpose
+KT-105 replaces the ambiguous “manual charge” row action with two explicit
+flows. “Debt settlement” appears only for PAST_DUE subscriptions with a saved
+card, previews every unpaid period and a VAT-inclusive total, and performs one
+server-authorized attempt. “One-off additional charge” is available only for
+ACTIVE/PAST_DUE paying subscriptions with a saved card and requires a
+VAT-inclusive amount, receipt description and non-secret consent evidence.
+UNKNOWN results warn against retrying. Neither action accepts raw card details.
+
 Refund history offers PDF view/download for linked credit documents through an
 authenticated admin endpoint. Missing PDFs show an actionable completion message;
 view/download never triggers credit creation or money operations.

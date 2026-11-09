@@ -1,4 +1,4 @@
-import { BillingTaskController, BillingTaskGuard } from './billing-task.controller';
+import { BillingTaskController, BillingTaskGuard, BillingChargeTaskGuard } from './billing-task.controller';
 import { BillingTasksService } from './services/billing-tasks.service';
 import { forwardRef, Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
@@ -18,6 +18,8 @@ import { BillingObligation } from './entities/billing-obligation.entity';
 import { BillingAttempt } from './entities/billing-attempt.entity';
 import { BillingAttemptObligation } from './entities/billing-attempt-obligation.entity';
 import { PaymentMethodUpdateAttempt } from './entities/payment-method-update-attempt.entity';
+import { BillingPayerProfile } from './entities/billing-payer-profile.entity';
+import { Business } from 'src/business/business.entity';
 
 // Guards
 import { FirebaseAuthGuard } from 'src/guards/firebase-auth.guard';
@@ -55,6 +57,7 @@ import {
   BillingProviderRuntimeService,
 } from './services/billing-provider-runtime.service';
 import { BillingCardcomExecutorService } from './services/billing-cardcom-executor.service';
+import { BillingPayerProfileService } from './services/billing-payer-profile.service';
 
 // Modules
 import { UsersModule } from 'src/users/users.module';
@@ -81,6 +84,8 @@ import { BusinessModule } from 'src/business/business.module';
       BillingAttempt,
       BillingAttemptObligation,
       PaymentMethodUpdateAttempt,
+      BillingPayerProfile,
+      Business,
       // External entities required by FirebaseAuthGuard
       User,
       Delegation,
@@ -95,6 +100,7 @@ import { BusinessModule } from 'src/business/business.module';
   providers: [
     BillingTasksService,
     BillingTaskGuard,
+    BillingChargeTaskGuard,
     BillingRefundService,
     FirebaseAuthGuard,
     BillingService,
@@ -119,6 +125,7 @@ import { BusinessModule } from 'src/business/business.module';
     BillingReconciliationService,
     BillingProviderRuntimeService,
     BillingCardcomExecutorService,
+    BillingPayerProfileService,
     {
       provide: BILLING_CARD_COM_EXECUTOR,
       useExisting: BillingCardcomExecutorService,

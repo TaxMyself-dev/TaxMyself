@@ -35,6 +35,10 @@ entitlements, referral consent, offline navigation and view-only delegation.
   backend-verified demo profile (`isDemo=true`); admins on real clients and
   non-admin users on demos remain blocked.
 - Auth, delegation or entitlement-policy changes require explicit approval.
+- Payment-required routing uses `access.isPaymentRequired` plus
+  `paymentBlockReason`, not only the persisted subscription status. In
+  particular an overdue ACTIVE row is a payment block and must route to payment
+  recovery; it must never open the module/plan upgrade dialog.
 
 ## Related topics
 

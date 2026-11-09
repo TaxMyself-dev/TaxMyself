@@ -19,6 +19,7 @@ import { DrawerModule } from 'primeng/drawer';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize } from 'src/app/components/button/button.enum';
@@ -27,6 +28,7 @@ import { InputDateComponent } from 'src/app/components/input-date/input-date.com
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import {
   AdminBillingService,
+  AdminDebtSettlementPreview,
   AdminSubscription,
   AdminUnresolvedBillingAttempt,
   BillingResolutionAction,
@@ -95,6 +97,7 @@ export const STATUS_LABELS: Record<string, string> = {
     DrawerModule,
     TooltipModule,
     ConfirmDialogModule,
+    DialogModule,
     GenericTableComponent,
     ButtonComponent,
     InputTextComponent,
@@ -187,6 +190,11 @@ export class BillingSubscriptionsComponent implements OnInit {
    *  pattern used elsewhere — disables the "charge now" action across all rows
    *  while any one charge is in flight. */
   chargingSubscriptionId = signal<number | null>(null);
+  oneOffSubscriptionId = signal<number | null>(null);
+  oneOffAmountShekels = signal('');
+  oneOffDescription = signal('');
+  oneOffConsentEvidence = signal('');
+  oneOffRequestId = signal('');
   /** True while the manual "run cron now" batch request is in flight. */
   runningDueRenewals = signal(false);
 
@@ -247,10 +255,20 @@ export class BillingSubscriptionsComponent implements OnInit {
     {
       name: 'chargeNow',
       icon: 'pi pi-credit-card',
-      title: 'חיוב ידני',
-      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL',
+      title: 'גביית חוב בכרטיס השמור',
+      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        row['status'] === 'PAST_DUE' && row['cardTokenExists'] === true,
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
+    },
+    {
+      name: 'oneOffCharge',
+      icon: 'pi pi-plus-circle',
+      title: 'חיוב נוסף חד־פעמי',
+      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        ['ACTIVE', 'PAST_DUE'].includes(String(row['status'])) && row['cardTokenExists'] === true,
+      isLoading: () => this.chargingSubscriptionId() !== null,
+      action: (_: any, row: IRowDataTable) => this.openOneOffCharge(row['subscriptionId'] as number),
     },
   ];
 
@@ -518,33 +536,51 @@ export class BillingSubscriptionsComponent implements OnInit {
       });
   }
 
-  // ─── Manual renewal charge ─────────────────────────────────────────────────
+  // ─── PAST_DUE debt settlement with the saved card ─────────────────────────
 
   confirmChargeNow(row: IRowDataTable): void {
     const subscriptionId = row['subscriptionId'] as number;
+    this.chargingSubscriptionId.set(subscriptionId);
+    this.adminBillingService.getDebtSettlementPreview(subscriptionId)
+      .pipe(finalize(() => this.chargingSubscriptionId.set(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: preview => this.confirmDebtSettlement(subscriptionId, preview),
+        error: err => this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לטעון את החוב',
+          detail: err?.error?.message ?? 'יש לרענן את נתוני המנוי ולנסות שוב.' }),
+      });
+  }
+
+  private confirmDebtSettlement(subscriptionId: number, preview: AdminDebtSettlementPreview): void {
+    const periods = preview.periods.map(period =>
+      `${this.formatDate(period.periodStart)}–${this.formatDate(period.periodEnd)}: ${this.formatAmount(period.amountAgorot)}`
+    ).join('<br>');
     this.confirmationService.confirm({
-      header: 'חיוב מנוי',
-      message:
-        'האם אתה בטוח שברצונך לבצע חיוב ידני עבור מנוי זה?<br><br>' +
-        'הפעולה תנסה לחייב את אמצעי התשלום השמור של הלקוח באמצעות CardCom.',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: 'אישור',
+      header: 'גביית יתרת חוב',
+      message: `${periods}<br><br><strong>סה״כ כולל מע״מ: ${this.formatAmount(preview.finalAmountAgorot)}</strong><br>` +
+        'יתבצע ניסיון אחד בכרטיס השמור. רק הצלחה מאומתת תחזיר מנוי PAST_DUE לפעילות.',
+      icon: 'pi pi-credit-card',
+      acceptLabel: 'חייב את הכרטיס השמור',
       rejectLabel: 'ביטול',
-      accept: () => this.runChargeNow(subscriptionId),
+      accept: () => this.runChargeNow(subscriptionId, preview),
     });
   }
 
-  private runChargeNow(subscriptionId: number): void {
+  private runChargeNow(subscriptionId: number, preview: AdminDebtSettlementPreview): void {
     this.chargingSubscriptionId.set(subscriptionId);
-    this.adminBillingService.triggerSubscriptionRenewal(subscriptionId)
+    this.adminBillingService.settleDebtWithSavedCard(subscriptionId, preview)
       .pipe(
         finalize(() => this.chargingSubscriptionId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: result => {
-          const { severity, summary, detail } = this.describeRenewalResult(result);
-          this.messageService.add({ key: 'br', severity, summary, detail, life: 5000 });
+          const success = result.status === 'SETTLED';
+          const detail = success ? 'החוב נגבה והמנוי הופעל מחדש.'
+            : result.status === 'DECLINED' || result.status === 'PAYMENT_METHOD_REQUIRED'
+              ? 'הכרטיס השמור לא חויב. יש לבקש מהלקוח לעדכן אמצעי תשלום ולשלם בקישור מאובטח.'
+              : 'החיוב אינו סופי. אין לנסות שוב לפני בדיקת מצב הניסיון בפאנל.';
+          this.messageService.add({ key: 'br', severity: success ? 'success' : 'warn',
+            summary: success ? 'החוב שולם' : 'החיוב לא הושלם', detail, life: 7000 });
           this.loadSubscriptions();
         },
         error: err => {
@@ -556,6 +592,53 @@ export class BillingSubscriptionsComponent implements OnInit {
             life: 5000,
           });
         },
+      });
+  }
+
+  openOneOffCharge(subscriptionId: number): void {
+    this.oneOffSubscriptionId.set(subscriptionId);
+    this.oneOffAmountShekels.set('');
+    this.oneOffDescription.set('');
+    this.oneOffConsentEvidence.set('');
+    this.oneOffRequestId.set(crypto.randomUUID());
+  }
+
+  closeOneOffCharge(): void {
+    if (this.chargingSubscriptionId() !== null) return;
+    this.oneOffSubscriptionId.set(null);
+  }
+
+  submitOneOffCharge(): void {
+    const subscriptionId = this.oneOffSubscriptionId();
+    const amount = Number(this.oneOffAmountShekels());
+    const description = this.oneOffDescription().trim();
+    const consentEvidence = this.oneOffConsentEvidence().trim();
+    if (!subscriptionId || !Number.isFinite(amount) || amount < 1 ||
+      description.length < 3 || consentEvidence.length < 10) {
+      this.messageService.add({ key: 'br', severity: 'warn', summary: 'יש למלא סכום, תיאור ואסמכתת הסכמה' });
+      return;
+    }
+    this.chargingSubscriptionId.set(subscriptionId);
+    this.adminBillingService.createOneOffCharge(subscriptionId, {
+      requestId: this.oneOffRequestId(),
+      amountAgorot: Math.round(amount * 100),
+      description,
+      consentEvidence,
+    }).pipe(finalize(() => this.chargingSubscriptionId.set(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          const success = result.status === 'CHARGED';
+          this.messageService.add({ key: 'br', severity: success ? 'success' : 'warn',
+            summary: success ? 'החיוב בוצע' : 'החיוב לא הושלם',
+            detail: success ? 'הופקה אסמכתה והחיוב לא שינה את מצב המנוי.'
+              : result.status === 'DECLINED' || result.status === 'PAYMENT_METHOD_REQUIRED'
+                ? 'הכרטיס השמור לא חויב; יש להשתמש באמצעי תשלום חדש.'
+                : 'התוצאה אינה סופית. אין לשלוח ניסיון נוסף עם מזהה בקשה חדש.', life: 7000 });
+          if (success) this.oneOffSubscriptionId.set(null);
+          this.loadSubscriptions();
+        },
+        error: err => this.messageService.add({ key: 'br', severity: 'error', summary: 'החיוב לא בוצע',
+          detail: err?.error?.message ?? 'יש לרענן ולנסות שוב רק לאחר בירור מצב הניסיון.' }),
       });
   }
 

@@ -46,6 +46,7 @@ import { BillingObligation } from './billing/entities/billing-obligation.entity'
 import { BillingAttempt } from './billing/entities/billing-attempt.entity';
 import { BillingAttemptObligation } from './billing/entities/billing-attempt-obligation.entity';
 import { PaymentMethodUpdateAttempt } from './billing/entities/payment-method-update-attempt.entity';
+import { BillingPayerProfile } from './billing/entities/billing-payer-profile.entity';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -185,6 +186,7 @@ new Logger('Bootstrap').log(
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
+        BillingPayerProfile,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
         ShaamConnection, ShaamOauthState, UniformFileSubmission, ShaamInvoiceAllocationAttempt,

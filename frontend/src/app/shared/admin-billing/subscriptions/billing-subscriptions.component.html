@@ -1,4 +1,32 @@
 <div class="billing-subscriptions">
+  <p-dialog header="חיוב נוסף חד־פעמי" [visible]="oneOffSubscriptionId() !== null" [modal]="true"
+    [draggable]="false" [resizable]="false" [style]="{ width: 'min(520px, 95vw)' }"
+    (onHide)="closeOneOffCharge()">
+    <div class="one-off-charge-form" dir="rtl">
+      <p>הסכום שיוזן כולל מע״מ. החיוב אינו משנה סטטוס, תוכנית או מועדי מנוי.</p>
+      <label>סכום כולל מע״מ (₪)
+        <input type="number" min="1" step="0.01" [value]="oneOffAmountShekels()"
+          (input)="oneOffAmountShekels.set($any($event.target).value)" />
+      </label>
+      <label>תיאור שיופיע באסמכתה
+        <input type="text" maxlength="200" [value]="oneOffDescription()"
+          (input)="oneOffDescription.set($any($event.target).value)" />
+      </label>
+      <label>אסמכתת הסכמת הלקוח
+        <textarea rows="4" maxlength="500" [value]="oneOffConsentEvidence()"
+          placeholder="למשל: אישור במייל מתאריך..."
+          (input)="oneOffConsentEvidence.set($any($event.target).value)"></textarea>
+      </label>
+      <small>אין להזין מספר כרטיס, CVV או מידע סודי.</small>
+    </div>
+    <ng-template pTemplate="footer">
+      <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="chargingSubscriptionId() !== null" (onButtonClicked)="closeOneOffCharge()" />
+      <app-p-button [buttonText]="'ביצוע חיוב חד־פעמי'" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="chargingSubscriptionId() !== null" [disabled]="chargingSubscriptionId() !== null"
+        (onButtonClicked)="submitOneOffCharge()" />
+    </ng-template>
+  </p-dialog>
   @if (refundSub(); as sub) {
     <app-billing-refund-dialog [subscriptionId]="sub.subscriptionId" [userName]="sub.userName ?? sub.userEmail ?? ''"
       (closed)="refundSub.set(null)" />
@@ -212,6 +240,18 @@
               <span class="detail-label">סיבה</span>
                 <span class="detail-value">{{ failureCategoryLabels[attempt.failureCategory] }}</span>
                 }
+              @if (attempt.status === 'DECLINED') {
+                <span class="detail-label">סיבת כשל</span>
+                <span class="detail-value">{{ failureCategoryLabels[attempt.failureCategory] }}</span>
+              }
+              @if (attempt.providerResponseCode != null) {
+                <span class="detail-label">קוד תשובת קארדקום</span>
+                <span class="detail-value">{{ attempt.providerResponseCode }}</span>
+              }
+              @if (attempt.providerDescription) {
+                <span class="detail-label">תשובת קארדקום</span>
+                <span class="detail-value">{{ attempt.providerDescription }}</span>
+              }
               @if (attempt.cardcomTransactionId) {
                 <span class="detail-label">מזהה עסקה</span>
                 <span class="detail-value detail-value--mono">{{ attempt.cardcomTransactionId }}</span>

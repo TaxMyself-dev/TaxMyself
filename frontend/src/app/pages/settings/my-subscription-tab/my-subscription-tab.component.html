@@ -179,6 +179,47 @@
   <app-change-payment-method-dialog [(visible)]="changePmDialogOpen" />
   }
 
+  @if (!isComplimentary() && !billingStateServiceOverride()) {
+  <section class="sub-card">
+    <div class="subsection-header">
+      <span class="subsection-icon"><i class="pi pi-user-edit"></i></span>
+      <h3 class="subsection-title">פרטי המשלם</h3>
+    </div>
+    <p class="payer-profile-note">הפרטים נשלחים לקארדקום ומופיעים בעסקאות עתידיות. שינוי כאן אינו משנה חיובים שכבר בוצעו.</p>
+    @if (payerProfileLoading()) {
+      <div class="card-loading"><i class="pi pi-spin pi-spinner"></i><span>טוען...</span></div>
+    } @else {
+      <div class="payer-profile-grid" dir="rtl">
+        <label>שם מלא
+          <input type="text" autocomplete="name" maxlength="255" required [value]="payerProfile().fullName"
+            (input)="updatePayerField('fullName', $any($event.target).value)" />
+        </label>
+        <label>תעודת זהות
+          <input type="text" inputmode="numeric" maxlength="32" required [value]="payerProfile().identityNumber"
+            (input)="updatePayerField('identityNumber', $any($event.target).value)" />
+        </label>
+        <label>אימייל
+          <input type="email" autocomplete="email" maxlength="255" required [value]="payerProfile().email"
+            (input)="updatePayerField('email', $any($event.target).value)" />
+        </label>
+        <label>טלפון
+          <input type="tel" autocomplete="tel" maxlength="32" required [value]="payerProfile().phone"
+            (input)="updatePayerField('phone', $any($event.target).value)" />
+        </label>
+        <label>מספר עסק
+          <input type="text" inputmode="numeric" maxlength="32" required [value]="payerProfile().businessNumber"
+            (input)="updatePayerField('businessNumber', $any($event.target).value)" />
+        </label>
+      </div>
+      <div class="card-actions">
+        <app-p-button [buttonText]="'שמירת פרטי משלם'" [buttonColor]="buttonColor.WHITE_BORDER"
+          [buttonSize]="buttonSize.SMALL" [isLoading]="payerProfileSaving()" [disabled]="payerProfileSaving()"
+          (onButtonClicked)="savePayerProfile()" />
+      </div>
+    }
+  </section>
+  }
+
   <!-- ─── 3. Payment history ─── -->
   <section class="sub-card">
     <div class="subsection-header">

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
@@ -23,7 +23,7 @@ import { BillingEventService } from './billing-event.service';
 import { BillingReceiptService } from './billing-receipt.service';
 import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { PricingService } from './pricing.service';
-import { BillingAccessMode, BillingAttemptStatus, BillingEventType, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingAttemptStatus, BillingAttemptTrigger, BillingChargeMode, BillingEventType, BillingObligationKind, SubscriptionStatus } from '../enums/billing.enums';
 import {
   AdminBillingExceptionAction,
   AdminBillingExceptionFailureCategory,
@@ -35,6 +35,11 @@ import {
   BillingPreSubmissionFailureReason,
   preSubmissionFailureCategory,
 } from './billing-attempt-orchestration.service';
+import { BillingAttemptOrchestrationService } from './billing-attempt-orchestration.service';
+import { BillingProviderRuntimeService } from './billing-provider-runtime.service';
+import { BillingDebtService } from './billing-debt.service';
+import { BillingLifecycleService } from './billing-lifecycle.service';
+import { VAT_RATES } from 'src/enum';
 
 /** Attempts that block a subscription's obligation and need admin visibility. */
 const UNRESOLVED_ATTEMPT_STATUSES: AdminUnresolvedAttemptStatus[] = [
@@ -73,6 +78,9 @@ export function classifyUnresolvedAttempt(
   failureCategory: AdminBillingExceptionFailureCategory;
   requiredAction: AdminBillingExceptionAction;
 } {
+  if (status === BillingAttemptStatus.DECLINED) {
+    return { failureCategory: 'PROVIDER_DECLINED', requiredAction: 'CUSTOMER_PAYMENT_METHOD' };
+  }
   if (persistedCategory === 'HOSTED_CREATE_UNCERTAIN' || persistedCategory === 'HOSTED_CREATE_REJECTED') {
     return { failureCategory: 'HOSTED_CREATION_FAILED', requiredAction: 'INTERNAL_REVIEW' };
   }
@@ -199,7 +207,184 @@ export class AdminBillingService {
     private readonly billingReceiptService: BillingReceiptService,
     private readonly billingIssuerConfigService: BillingIssuerConfigService,
     private readonly pricingService: PricingService,
+    @Optional() private readonly debtService?: BillingDebtService,
+    @Optional() private readonly orchestration?: BillingAttemptOrchestrationService,
+    @Optional() private readonly providerRuntime?: BillingProviderRuntimeService,
+    @Optional() private readonly billingLifecycle?: BillingLifecycleService,
   ) {}
+
+  async previewDebtSettlement(subscriptionId: number) {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    if (subscription.status !== SubscriptionStatus.PAST_DUE) {
+      throw new ConflictException('גביית חוב ידנית מותרת רק למנוי בסטטוס PAST_DUE');
+    }
+    return this.debtService!.preview({
+      actorFirebaseId: subscription.firebaseId,
+      subjectFirebaseId: subscription.firebaseId,
+    }, subscriptionId);
+  }
+
+  async settleDebtWithSavedCard(
+    subscriptionId: number,
+    adminFirebaseId: string,
+    expectedIds: number[],
+    expectedQuote: string,
+  ) {
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    if (subscription.status !== SubscriptionStatus.PAST_DUE) {
+      throw new ConflictException('גביית חוב ידנית מותרת רק למנוי בסטטוס PAST_DUE');
+    }
+    const actor = {
+      actorFirebaseId: subscription.firebaseId,
+      subjectFirebaseId: subscription.firebaseId,
+    };
+    const opened = await this.orchestration!.createRecoveryCollection(
+      actor,
+      subscriptionId,
+      expectedIds,
+      expectedQuote,
+      BillingChargeMode.TOKEN_TRANSACTION,
+      adminFirebaseId,
+    );
+    const submission = await this.providerRuntime!.submitCharge({
+      actor,
+      attemptId: opened.attempt.id,
+      expectedStateVersion: opened.attempt.stateVersion,
+      leaseOwner: `admin-debt-${opened.attempt.id}`,
+      subscriptionId,
+    });
+    if (submission.kind === 'NOT_CLAIMED') {
+      return { status: 'PENDING', attemptId: opened.attempt.id };
+    }
+    if (submission.kind === 'LOCAL_FAILURE') {
+      return {
+        status: 'PAYMENT_METHOD_REQUIRED',
+        attemptId: opened.attempt.id,
+        reason: submission.reason,
+      };
+    }
+    const outcome = submission.outcome;
+    if (outcome.kind === 'DECLINED') {
+      return {
+        status: 'DECLINED', attemptId: opened.attempt.id,
+        providerResponseCode: outcome.providerResponseCode ?? null,
+        providerDescription: outcome.providerDescription ?? null,
+      };
+    }
+    if (outcome.kind === 'UNKNOWN') {
+      return { status: 'UNKNOWN', attemptId: opened.attempt.id };
+    }
+    const completion = await this.subscriptionRenewalService.completeCapturedAttempt(opened.attempt.id);
+    return { status: completion === 'COMPLETED' || completion === 'ALREADY_COMPLETED'
+      ? 'SETTLED' : 'CAPTURED_PENDING_COMPLETION', attemptId: opened.attempt.id, completion };
+  }
+
+  async createOneOffCharge(
+    subscriptionId: number,
+    adminFirebaseId: string,
+    input: { requestId: string; amountAgorot: number; description: string; consentEvidence: string },
+  ) {
+    const existing = await this.dataSource.manager.findOne(BillingAttempt, {
+      where: { requestId: input.requestId },
+    });
+    if (existing) return this.oneOffExistingResult(existing);
+
+    const subscription = await this.subscriptionRepo.findOneBy({ id: subscriptionId });
+    if (!subscription) throw new NotFoundException(`מנוי ${subscriptionId} לא נמצא`);
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL ||
+      ![SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE].includes(subscription.status) ||
+      !subscription.planId) {
+      throw new ConflictException('חיוב נוסף מותר רק למנוי משלם פעיל או בפיגור עם תוכנית');
+    }
+    const plan = await this.planRepo.findOneBy({ id: subscription.planId });
+    if (!plan) throw new ConflictException('תוכנית המנוי אינה זמינה');
+
+    const vatRate = VAT_RATES[new Date().getFullYear()] ?? 0.18;
+    const amountBeforeVatAgorot = Math.round(input.amountAgorot / (1 + vatRate));
+    const vatAmountAgorot = input.amountAgorot - amountBeforeVatAgorot;
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrowDate = new Date(`${today}T00:00:00.000Z`);
+    tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+    const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+    const actor = { actorFirebaseId: subscription.firebaseId, subjectFirebaseId: subscription.firebaseId };
+    const opened = await this.orchestration!.createOrGetAttempt({
+      actor,
+      subscriptionId,
+      kind: BillingObligationKind.MANUAL_ONE_OFF,
+      trigger: BillingAttemptTrigger.MANUAL_ONE_OFF,
+      chargeMode: BillingChargeMode.TOKEN_TRANSACTION,
+      planId: plan.id,
+      periodStart: today,
+      periodEnd: tomorrow,
+      amountAgorot: input.amountAgorot,
+      amountBeforeVatAgorot,
+      vatAmountAgorot,
+      currency: 'ILS',
+      obligationKeyOverride: `subscription:${subscriptionId}:manual:${input.requestId}`,
+      requestId: input.requestId,
+      requestedByFirebaseId: adminFirebaseId,
+      auditMetadata: {
+        kind: 'MANUAL_ONE_OFF',
+        requestId: input.requestId,
+        actorFirebaseId: adminFirebaseId,
+        description: input.description.trim(),
+        consentEvidence: input.consentEvidence.trim(),
+        amountIncludesVat: true,
+        vatRate,
+      },
+    });
+    if (!opened.created) return this.oneOffExistingResult(opened.attempt);
+    const submission = await this.providerRuntime!.submitCharge({
+      actor,
+      attemptId: opened.attempt.id,
+      expectedStateVersion: opened.attempt.stateVersion,
+      leaseOwner: `admin-one-off-${opened.attempt.id}`,
+      subscriptionId,
+    });
+    if (submission.kind === 'NOT_CLAIMED') return { status: 'PENDING', attemptId: opened.attempt.id };
+    if (submission.kind === 'LOCAL_FAILURE') return {
+      status: 'PAYMENT_METHOD_REQUIRED', attemptId: opened.attempt.id, reason: submission.reason,
+    };
+    if (submission.outcome.kind === 'DECLINED') return {
+      status: 'DECLINED', attemptId: opened.attempt.id,
+      providerResponseCode: submission.outcome.providerResponseCode ?? null,
+      providerDescription: submission.outcome.providerDescription ?? null,
+    };
+    if (submission.outcome.kind === 'UNKNOWN') return { status: 'UNKNOWN', attemptId: opened.attempt.id };
+
+    const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
+    const completion = await this.billingLifecycle!.resumeCapturedAttempt({
+      actor,
+      attemptId: opened.attempt.id,
+      leaseOwner: `admin-one-off-complete-${opened.attempt.id}`,
+      receipt: { createReceipt: (attempt, outcome) => this.billingReceiptService.ensureReceiptForCapturedAttempt({
+        issuer,
+        eventType: BillingEventType.PAYMENT_SUCCESS,
+        attempt: attempt as BillingAttempt,
+        firebaseId: subscription.firebaseId,
+        subscriptionId,
+        planName: input.description.trim(),
+        periodStart: new Date(`${today}T00:00:00.000Z`),
+        periodEnd: tomorrowDate,
+        eventMetadata: { kind: 'MANUAL_ONE_OFF', requestId: input.requestId,
+          actorFirebaseId: adminFirebaseId, description: input.description.trim() },
+      }) },
+    });
+    return { status: ['COMPLETED', 'ALREADY_COMPLETED'].includes(completion.status)
+      ? 'CHARGED' : 'CAPTURED_PENDING_COMPLETION', attemptId: opened.attempt.id,
+      completion: completion.status };
+  }
+
+  private oneOffExistingResult(attempt: BillingAttempt) {
+    const status = attempt.status === BillingAttemptStatus.COMPLETED ? 'CHARGED'
+      : attempt.status === BillingAttemptStatus.DECLINED ? 'DECLINED'
+      : [BillingAttemptStatus.UNKNOWN, BillingAttemptStatus.MANUAL_REVIEW].includes(attempt.status)
+        ? 'UNKNOWN' : 'PENDING';
+    return { status, attemptId: attempt.id, providerResponseCode: attempt.providerResponseCode,
+      providerDescription: attempt.providerDescription };
+  }
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
 
@@ -464,6 +649,8 @@ export class AdminBillingService {
       .addSelect('a.reconciliationAttempts', 'reconciliationAttempts')
       .addSelect('a.lastReconciledAt', 'lastReconciledAt')
       .addSelect('a.nextActionAt', 'nextActionAt')
+      .addSelect('a.providerResponseCode', 'providerResponseCode')
+      .addSelect('a.providerDescription', 'providerDescription')
       .addSelect('a.failureCategory', 'failureCategory')
       .addSelect('a.cardcomTransactionId', 'cardcomTransactionId')
       .addSelect('a.cardcomLowProfileId', 'cardcomLowProfileId')
@@ -520,6 +707,9 @@ export class AdminBillingService {
         reconciliationAttempts: Number(r.reconciliationAttempts),
         lastReconciledAt: r.lastReconciledAt ?? null,
         nextActionAt: r.nextActionAt ?? null,
+        providerResponseCode:
+          r.providerResponseCode == null ? null : Number(r.providerResponseCode),
+        providerDescription: r.providerDescription ?? null,
         failureCategory,
         requiredAction,
         cardcomTransactionId: r.cardcomTransactionId ?? null,

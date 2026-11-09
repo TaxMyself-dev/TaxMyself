@@ -28,7 +28,8 @@ export type AdminBillingExceptionFailureCategory =
   | 'MISSING_OR_EXPIRED_PAYMENT_METHOD'
   | 'TOKEN_DECRYPTION_FAILED'
   | 'RECONCILIATION_EXHAUSTED'
-  | 'PROVIDER_OUTCOME_UNKNOWN';
+  | 'PROVIDER_OUTCOME_UNKNOWN'
+  | 'PROVIDER_DECLINED';
 
 /**
  * Who has to act: the customer (payment method), an internal reviewer, or
@@ -64,6 +65,8 @@ export interface AdminUnresolvedBillingAttemptResponse {
   reconciliationAttempts: number;
   lastReconciledAt: Date | null;
   nextActionAt: Date | null;
+  providerResponseCode: number | null;
+  providerDescription: string | null;
   failureCategory: AdminBillingExceptionFailureCategory;
   requiredAction: AdminBillingExceptionAction;
   cardcomTransactionId: string | null;

@@ -72,7 +72,28 @@ BILLING_TASKS_TARGET_URL=https://YOUR_DEV_BACKEND/internal/billing/completion
 BILLING_TASKS_AUDIENCE=https://YOUR_DEV_BACKEND
 BILLING_TASKS_SERVICE_ACCOUNT=billing-worker@YOUR_DEV_PROJECT_ID.iam.gserviceaccount.com
 BILLING_TASKS_EXPECTED_DATABASE=keepintax-dev
+BILLING_CHARGE_TASKS_ENABLED=false
+BILLING_CHARGE_TASKS_QUEUE=billing-charge-dev
+BILLING_CHARGE_TASKS_TARGET_URL=https://YOUR_DEV_BACKEND/internal/billing/charge
+BILLING_CHARGE_TASKS_AUDIENCE=https://YOUR_DEV_BACKEND
 ```
+
+The charge queue is a separate, explicit opt-in. When enabled, a definitive
+renewal decline commits its next attempt time first and then enqueues exactly
+one task for that subscription and DB generation, scheduled thirty minutes
+later. The worker reloads the subscription and rechecks status, attempt count,
+period and due time before any provider call. The initial attempt plus two
+thirty-minute retries is the maximum; UNKNOWN and MANUAL_REVIEW are never charge
+tasks.
+
+Configure Cloud Scheduler to POST `/internal/billing/charge-repair` every five
+minutes with the charge audience/identity. It only republishes missing due tasks
+for ACTIVE/STANDARD subscriptions with renewalAttempts 1–2; it never calls
+CardCom. Configure a separate five-minute POST to `/internal/billing/reconcile`
+with the completion audience/identity. Reconciliation performs read-only
+CardCom lookups, including hosted checkouts stale for one hour. These schedules
+are required to repair DB-commit/enqueue gaps and ambiguous provider outcomes;
+they do not broaden the three-attempt limit.
 
 When enabled, incomplete configuration, HTTP URLs, a wrong completion path or a
 mismatched actual database fail startup. For Cloud Run IAM, audience normally uses

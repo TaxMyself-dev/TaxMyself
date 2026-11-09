@@ -78,6 +78,37 @@ export interface AdminSubscription {
   mostSevereUnresolvedAttemptStatus: AdminUnresolvedAttemptStatus | null;
 }
 
+export interface AdminDebtSettlementPreview {
+  recoveryQuote: string;
+  obligationIds: number[];
+  planId: number;
+  finalAmountAgorot: number;
+  amountBeforeVatAgorot: number;
+  vatAmountAgorot: number;
+  currency: string;
+  periods: Array<{ periodStart: string; periodEnd: string; amountAgorot: number }>;
+}
+
+export interface AdminDebtSettlementResult {
+  status: 'SETTLED' | 'CAPTURED_PENDING_COMPLETION' | 'DECLINED' |
+    'PAYMENT_METHOD_REQUIRED' | 'UNKNOWN' | 'PENDING';
+  attemptId: number;
+  providerResponseCode?: number | null;
+  providerDescription?: string | null;
+  reason?: string;
+  completion?: string;
+}
+
+export interface AdminOneOffChargeResult {
+  status: 'CHARGED' | 'CAPTURED_PENDING_COMPLETION' | 'DECLINED' |
+    'PAYMENT_METHOD_REQUIRED' | 'UNKNOWN' | 'PENDING';
+  attemptId: number;
+  providerResponseCode?: number | null;
+  providerDescription?: string | null;
+  reason?: string;
+  completion?: string;
+}
+
 // ─── Billing exceptions (read-only) ─────────────────────────────────────────
 
 export type AdminUnresolvedAttemptStatus = 'CREATED' | 'AWAITING_CUSTOMER' | 'PROCESSING' | 'CAPTURED' | 'UNKNOWN' | 'MANUAL_REVIEW' | 'COMPLETED' | 'DECLINED' | 'CANCELED' | 'EXPIRED';
@@ -90,7 +121,8 @@ export type AdminBillingExceptionFailureCategory =
   | 'MISSING_OR_EXPIRED_PAYMENT_METHOD'
   | 'TOKEN_DECRYPTION_FAILED'
   | 'RECONCILIATION_EXHAUSTED'
-  | 'PROVIDER_OUTCOME_UNKNOWN';
+  | 'PROVIDER_OUTCOME_UNKNOWN'
+  | 'PROVIDER_DECLINED';
 
 export type AdminBillingExceptionAction =
   | 'CUSTOMER_PAYMENT_METHOD'
@@ -112,6 +144,8 @@ export interface AdminUnresolvedBillingAttempt {
   reconciliationAttempts: number;
   lastReconciledAt: string | null;
   nextActionAt: string | null;
+  providerResponseCode: number | null;
+  providerDescription: string | null;
   failureCategory: AdminBillingExceptionFailureCategory;
   requiredAction: AdminBillingExceptionAction;
   cardcomTransactionId: string | null;
@@ -345,6 +379,28 @@ export class AdminBillingService {
   /** Manual test trigger for the renewal cron's charge-by-token flow, for one subscription. */
   triggerSubscriptionRenewal(id: number): Observable<RenewalResult> {
     return this.http.post<RenewalResult>(`${this.base}/subscriptions/${id}/renew`, {});
+  }
+
+  getDebtSettlementPreview(id: number): Observable<AdminDebtSettlementPreview> {
+    return this.http.get<AdminDebtSettlementPreview>(`${this.base}/subscriptions/${id}/debt-settlement`);
+  }
+
+  settleDebtWithSavedCard(
+    id: number,
+    preview: Pick<AdminDebtSettlementPreview, 'obligationIds' | 'recoveryQuote'>,
+  ): Observable<AdminDebtSettlementResult> {
+    return this.http.post<AdminDebtSettlementResult>(
+      `${this.base}/subscriptions/${id}/debt-settlement/saved-card`,
+      preview,
+    );
+  }
+
+  createOneOffCharge(id: number, payload: {
+    requestId: string; amountAgorot: number; description: string; consentEvidence: string;
+  }): Observable<AdminOneOffChargeResult> {
+    return this.http.post<AdminOneOffChargeResult>(
+      `${this.base}/subscriptions/${id}/one-off-charge`, payload,
+    );
   }
 
   /** Manual test trigger for the full daily renewal batch — same logic as the 03:00 cron. */

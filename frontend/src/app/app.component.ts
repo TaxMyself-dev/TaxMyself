@@ -65,13 +65,16 @@ export class AppComponent implements OnInit {
       return false;
     }
     const status = this.billingStateService.effectiveStatus();
-    return !!status && BILLING_BLOCKING_STATUSES.includes(status);
+    return this.billingStateService.isPaymentRequired() ||
+      (!!status && BILLING_BLOCKING_STATUSES.includes(status));
   });
 
   // Dialog copy — driven by the effective status (subscription.status, or the
   // synthetic SUBSCRIPTION_MISSING top-level status) returned from the backend.
   protected readonly billingDialogContent = computed(() => {
     const status = this.billingStateService.effectiveStatus();
+    const paymentBlockReason =
+      this.billingStateService.billingState()?.access?.paymentBlockReason;
     const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' }> = {
       SUBSCRIPTION_MISSING: {
         title: 'תקלה בחשבון',
@@ -98,6 +101,14 @@ export class AppComponent implements OnInit {
         action: 'NAVIGATE_TO_PLANS',
       },
     };
+    if (paymentBlockReason === 'ACTIVE_OVERDUE') {
+      return {
+        title: 'קיימת בעיה בתשלום',
+        message: 'החיוב האחרון לא הושלם. יש להסדיר את התשלום כדי להמשיך להשתמש במערכת.',
+        buttonLabel: 'הסדרת התשלום',
+        action: 'RECOVER_PAYMENT' as const,
+      };
+    }
     return map[status!] ?? { title: '', message: '', buttonLabel: '', action: 'NAVIGATE_TO_PLANS' as const };
   });
 

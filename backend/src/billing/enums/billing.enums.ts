@@ -60,12 +60,14 @@ export enum BillingEventType {
   REFUND_SUCCESS = 'REFUND_SUCCESS',
   REFUND_FAILED = 'REFUND_FAILED',
   REFUND_RESOLUTION = 'REFUND_RESOLUTION',
+  MANUAL_CHARGE_REQUESTED = 'MANUAL_CHARGE_REQUESTED',
 }
 
 /** A canonical debt. Recovery never creates a second obligation. */
 export enum BillingObligationKind {
   CHECKOUT = 'CHECKOUT',
   RECURRING_PERIOD = 'RECURRING_PERIOD',
+  MANUAL_ONE_OFF = 'MANUAL_ONE_OFF',
 }
 
 export enum BillingObligationStatus {
@@ -82,6 +84,7 @@ export enum BillingAttemptTrigger {
   RECOVERY = 'RECOVERY',
   MANUAL_RETRY = 'MANUAL_RETRY',
   REFUND = 'REFUND',
+  MANUAL_ONE_OFF = 'MANUAL_ONE_OFF',
 }
 
 export enum BillingChargeMode {

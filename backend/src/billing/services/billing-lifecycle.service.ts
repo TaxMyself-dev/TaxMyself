@@ -37,6 +37,7 @@ export interface BillingProviderPort {
     attemptId: number;
     expectedStateVersion: number;
     leaseOwner: string;
+    subscriptionId?: number;
   }): Promise<SubmittedChargeResult>;
 }
 
@@ -454,6 +455,7 @@ export class BillingLifecycleService {
           attemptId: opened.attempt.id,
           expectedStateVersion: opened.attempt.stateVersion,
           leaseOwner,
+          subscriptionId: input.subscriptionId,
         });
         if (
           submitted.kind !== 'APPLIED' ||

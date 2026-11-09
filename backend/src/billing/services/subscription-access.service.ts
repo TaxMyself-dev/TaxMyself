@@ -15,6 +15,11 @@ import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
  */
 const ACTIVE_BILLING_GRACE_DAYS = 3;
 
+export type PaymentBlockReason =
+  | 'TRIAL_EXPIRED'
+  | 'PAST_DUE'
+  | 'ACTIVE_OVERDUE';
+
 @Injectable()
 export class SubscriptionAccessService {
   /**
@@ -116,11 +121,26 @@ export class SubscriptionAccessService {
    * recovery and payment-method endpoints remain available separately.
    */
   isPaymentRequired(subscription: Subscription): boolean {
-    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) return false;
-    return (
-      subscription.status === SubscriptionStatus.TRIAL_EXPIRED ||
-      subscription.status === SubscriptionStatus.PAST_DUE
-    );
+    return this.paymentBlockReason(subscription) !== null;
+  }
+
+  paymentBlockReason(subscription: Subscription): PaymentBlockReason | null {
+    if (subscription.billingAccessMode === BillingAccessMode.COMPLIMENTARY_FULL) {
+      return null;
+    }
+    if (subscription.status === SubscriptionStatus.TRIAL_EXPIRED) {
+      return 'TRIAL_EXPIRED';
+    }
+    if (subscription.status === SubscriptionStatus.PAST_DUE) {
+      return 'PAST_DUE';
+    }
+    if (subscription.status !== SubscriptionStatus.ACTIVE) return null;
+
+    const dueDate = subscription.nextBillingDate ?? subscription.currentPeriodEnd;
+    if (!dueDate) return null;
+    const graceLimit = new Date(dueDate);
+    graceLimit.setDate(graceLimit.getDate() + ACTIVE_BILLING_GRACE_DAYS);
+    return graceLimit < new Date() ? 'ACTIVE_OVERDUE' : null;
   }
 
   gracePeriodActive(_subscription: Subscription): boolean {

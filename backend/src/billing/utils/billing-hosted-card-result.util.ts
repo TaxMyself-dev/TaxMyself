@@ -8,6 +8,13 @@ export interface CardcomWebhookPayload {
   TranzactionId?: number;
   ReturnValue?: string;
   Operation?: string;
+  UIValues?: {
+    CardOwnerEmail?: string;
+    CardOwnerName?: string;
+    CardOwnerPhone?: string;
+    CardOwnerIdentityNumber?: string;
+    CustomFields?: Array<{ Id?: number; Value?: string }>;
+  };
   DocumentInfo?: {
     ResponseCode?: number;
     DocumentType?: string;
@@ -34,6 +41,11 @@ export interface CardcomWebhookPayload {
     Brand?: string;
     CardMonth?: number;
     CardYear?: number;
+    CardOwnerName?: string;
+    CardOwnerPhone?: string;
+    CardOwnerEmail?: string;
+    CardOwnerIdentityNumber?: string;
+    CustomFields?: Array<{ Id?: number; Value?: string }>;
     DocumentNumber?: number;
     DocumentType?: string;
     DocumentUrl?: string;

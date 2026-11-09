@@ -2825,3 +2825,75 @@ SELECT id, categoryId, name, systemKey, isPrivate, accountId, isActive
 FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT';
 SELECT COUNT(*) AS opted_in_users FROM `user`
 WHERE excludeDirectCardBankTransactionsFromCashflow=1;
+
+
+-- KT-105 billing payer identity and provider diagnostics (2026-11-09)
+-- Additive and rerunnable. No charges, status transitions or data backfill.
+CREATE TABLE IF NOT EXISTS `billing_payer_profile` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `subscription_id` int NOT NULL,
+  `full_name` varchar(255) NULL,
+  `identity_number` varchar(32) NULL,
+  `email` varchar(255) NULL,
+  `phone` varchar(32) NULL,
+  `business_number` varchar(32) NULL,
+  `version` int NOT NULL DEFAULT 1,
+  `verified_at` datetime NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_billing_payer_profile_subscription` (`subscription_id`),
+  CONSTRAINT `fk_billing_payer_profile_subscription`
+    FOREIGN KEY (`subscription_id`) REFERENCES `subscription` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='provider_description')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN provider_description varchar(500) NULL AFTER provider_response_code',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='payer_profile_version')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN payer_profile_version int NULL AFTER provider_description',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='payer_profile_snapshot')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN payer_profile_snapshot json NULL AFTER payer_profile_version',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND
+ ((TABLE_NAME='billing_payer_profile' AND COLUMN_NAME IN
+   ('subscription_id','full_name','identity_number','email','phone','business_number','version','verified_at'))
+  OR (TABLE_NAME='billing_attempt' AND COLUMN_NAME IN
+   ('provider_description','payer_profile_version','payer_profile_snapshot')))
+ORDER BY TABLE_NAME,COLUMN_NAME;
+
+-- KT-105 explicit one-off admin charge enum values (additive, rerunnable).
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_obligation' AND COLUMN_NAME='kind');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_ONE_OFF'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_obligation MODIFY COLUMN kind ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_ONE_OFF'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt' AND COLUMN_NAME='trigger');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_ONE_OFF'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_attempt MODIFY COLUMN `trigger` ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_ONE_OFF'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_CHARGE_REQUESTED'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_event MODIFY COLUMN event_type ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_CHARGE_REQUESTED'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;

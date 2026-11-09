@@ -34,6 +34,7 @@ import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
+import { BillingPayerProfileService } from './billing-payer-profile.service';
 
 /**
  * Routing context echoed back from CardCom in ReturnValue.
@@ -76,6 +77,8 @@ export class CardcomWebhookService implements OnModuleInit {
     private readonly billingLifecycleService?: BillingLifecycleService,
     @Optional()
     private readonly hostedCompletion?: BillingHostedCompletionService,
+    @Optional()
+    private readonly payerProfiles?: BillingPayerProfileService,
   ) {}
 
   // ─── Startup validation ───────────────────────────────────────────────────
@@ -259,6 +262,10 @@ export class CardcomWebhookService implements OnModuleInit {
       topLevelOk && txOk && verifiedReturnMatch && transactionId == null;
 
     if (topLevelOk && txOk && verifiedReturnMatch && transactionId != null) {
+      await this.payerProfiles?.saveVerified(
+        subscriptionId,
+        verified.UIValues ?? verified.TranzactionInfo,
+      );
       if (parsedReturn.billingAttemptId && this.billingLifecycleService) {
         const attempt = await this.dataSource.manager.findOne(BillingAttempt, {
           where: { id: parsedReturn.billingAttemptId },

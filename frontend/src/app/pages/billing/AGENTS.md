@@ -61,6 +61,10 @@ Standalone pricing/plans page where a user views available subscription plans an
   Node types required by existing card-dialog transitive imports.
 - On init, `GET {apiUrl}billing/plans` and render plan cards with computed shekel pricing (`effectivePriceMonthlyAgorot`, resolved server-side per the user's billing business type).
 - `checkout(planId)` calls `POST {apiUrl}billing/checkout`, then redirects the browser to the returned Cardcom `paymentUrl`.
+- Checkout does not open CardCom until the owner has completed the required
+  billing payer profile. `BILLING_PAYER_PROFILE_INCOMPLETE` shows payment-detail
+  guidance and routes to the subscription settings tab; it is not presented as
+  a plan eligibility or upgrade failure.
 
 ## Plan changes (KT-051)
 

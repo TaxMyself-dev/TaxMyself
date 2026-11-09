@@ -1,4 +1,27 @@
 ## Purpose
+KT-105 billing reliability (2026-11-09): payment-required access now carries an
+explicit reason, including overdue ACTIVE rows, so guards open payment recovery
+instead of the plan-upgrade dialog. A definitive token decline gets two durable
+Cloud Tasks retries thirty minutes apart; UNKNOWN is read-only reconciliation
+and is never resubmitted. The charge queue is independently opt-in with
+`BILLING_CHARGE_TASKS_ENABLED=true`, a dedicated queue/target/audience and a
+repair endpoint that only republishes DB-authoritative schedules.
+
+Every charge attempt freezes a versioned payer profile. Hosted checkout sends
+visible payer fields and requires the locally saved name, identity number,
+email, phone and business number before creating a payable page. Verified
+CardCom UI values update the profile; owner settings edits affect future
+attempts only. Provider logs distinguish prepared, HTTP dispatch, response,
+definite not-sent and ambiguous outcomes without token/card/payer data.
+
+Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
+shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
+card exactly once, and activates only after verified capture plus completion.
+The independent MANUAL_ONE_OFF obligation requires a VAT-inclusive amount,
+description, consent evidence and UUID request key, produces its own receipt,
+and never changes subscription status, dates, plan or renewal counters.
+CANCELED subscriptions are never reactivated by either path.
+
 Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
 PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)
 and validates explicit queue/project/HTTPS audience/service-account/database binding
@@ -721,3 +744,11 @@ Controlled dev PDF/mail retry acceptance passed on existing invoice 30000 on
 2026-11-02. Optional BILLING_DEV_RECOVERY_PROBE_CONFIG installs strictly scoped
 local adapters only in the isolated dev profile; normal startup installs none.
 See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.
+
+## Billing reliability and manual collection (KT-105)
+
+The additive payer-profile/provider-diagnostics schema in the KT-105 section of
+`docs/redesign/cutover.sql` was applied and verified on `keepintax-dev` on
+2026-11-09. Production execution is not authorized. The dedicated raw-mysql
+runner `scripts/migrations/2026-11-09_apply-billing-reliability-dev.js` refuses
+any database other than `keepintax-dev` and supports explicit review/apply modes.

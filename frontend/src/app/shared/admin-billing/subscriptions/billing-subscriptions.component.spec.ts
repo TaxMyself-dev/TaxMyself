@@ -91,6 +91,8 @@ const attempt = (
   reconciliationAttempts: 5,
   lastReconciledAt: '2026-09-02T08:05:00.000Z',
   nextActionAt: null,
+  providerResponseCode: null,
+  providerDescription: null,
   failureCategory: 'RECONCILIATION_EXHAUSTED',
   requiredAction: 'INTERNAL_REVIEW',
   cardcomTransactionId: null,

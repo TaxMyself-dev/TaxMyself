@@ -10,6 +10,7 @@ import {
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
 import { BillingPreSubmissionFailureReason } from './billing-attempt-orchestration.service';
 import { CardcomService } from './cardcom.service';
+import { sanitizeCardcomDescription } from '../utils/cardcom-description';
 import {
   BillingCardComExecutor,
   BillingPreSubmissionError,
@@ -110,6 +111,8 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
       ).slice(-2)}`,
       amountAgorot: request.amountAgorot,
       externalUniqTranId: request.externalUniqTranId,
+      subscriptionId: request.subscriptionId,
+      payer: request.payerProfile,
     });
     return {
       success: response.ResponseCode === 0,
@@ -118,6 +121,9 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
         response.TranzactionId == null ? null : String(response.TranzactionId),
       terminalRef: response.ApprovalNumber ?? null,
       failureCategory: response.ResponseCode === 0 ? null : 'PROVIDER_DECLINED',
+      ...(sanitizeCardcomDescription(response.Description)
+        ? { providerDescription: sanitizeCardcomDescription(response.Description) }
+        : {}),
     };
   }
 

@@ -44,6 +44,7 @@ import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { Documents } from '../../documents/documents.entity';
+import { BillingPayerProfile } from '../entities/billing-payer-profile.entity';
 import { BillingEventType } from '../enums/billing.enums';
 import { ResolveBillingAttemptDto } from '../dtos/admin/resolve-billing-attempt.dto';
 import {
@@ -201,6 +202,10 @@ export interface OpenBillingAttemptInput {
   enforceInitialPurchase?: boolean;
   enforceUpgrade?: boolean;
   planChangeSnapshot?: PlanChangeSnapshot;
+  obligationKeyOverride?: string;
+  requestId?: string;
+  requestedByFirebaseId?: string;
+  auditMetadata?: Record<string, unknown>;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -251,15 +256,18 @@ export type NormalizedChargeOutcome =
       cardcomTransactionId: string;
       providerTerminalRef?: string | null;
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
     }
   | {
       kind: 'DECLINED';
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
       failureCategory?: string | null;
     }
   | {
       kind: 'UNKNOWN';
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
       failureCategory?: string | null;
     };
 
@@ -290,13 +298,36 @@ export class BillingAttemptOrchestrationService {
     await this.tasks?.enqueue('CAPTURE', attempt.id, due, String(attempt.stateVersion)).catch(() => undefined);
   }
 
+  private async enqueueRenewalRetry(attempt?: BillingAttempt): Promise<void> {
+    if (!this.tasks || attempt?.operation !== 'CHARGE' ||
+      attempt.status !== BillingAttemptStatus.DECLINED ||
+      attempt.trigger !== BillingAttemptTrigger.RENEWAL) return;
+    const obligation = await this.dataSource.manager.findOne(BillingObligation, {
+      where: { id: attempt.obligationId! },
+    });
+    if (!obligation) return;
+    const subscription = await this.dataSource.manager.findOne(Subscription, {
+      where: { id: obligation.subscriptionId },
+    });
+    if (!subscription || subscription.status !== SubscriptionStatus.ACTIVE ||
+      subscription.renewalAttempts < 1 || subscription.renewalAttempts >= 3 ||
+      !subscription.nextBillingDate) return;
+    await this.tasks.enqueueCharge(
+      subscription.id,
+      subscription.nextBillingDate,
+      `${obligation.id}:${subscription.renewalAttempts}`,
+    ).catch(() => undefined);
+  }
+
   assertOwnerMutation(context: BillingMutationActorContext): void {
     assertBillingOwnerMutation(context);
   }
 
   /** Reserve the entire reviewed balance before any hosted provider I/O. */
   async createRecoveryCollection(actor: BillingMutationActorContext, subscriptionId: number,
-    expectedIds: number[], expectedQuote?: string): Promise<OpenBillingAttemptResult> {
+    expectedIds: number[], expectedQuote?: string,
+    chargeMode: BillingChargeMode = BillingChargeMode.LOW_PROFILE_HOSTED,
+    requestedByFirebaseId: string | null = null): Promise<OpenBillingAttemptResult> {
     this.assertOwnerMutation(actor);
     return this.inTransaction(async manager => {
       const subscription = await manager.findOne(Subscription, {
@@ -333,14 +364,17 @@ export class BillingAttemptOrchestrationService {
         debts.reduce((total, debt) => total + debt[key], 0);
       const input: OpenBillingAttemptInput = {
         actor, subscriptionId, kind: first.kind, planId: first.planId,
-        trigger: BillingAttemptTrigger.RECOVERY, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        trigger: BillingAttemptTrigger.RECOVERY, chargeMode,
         periodStart: first.periodStart, periodEnd: first.periodEnd, currency: first.currency,
         amountAgorot: sum('amountAgorot'), amountBeforeVatAgorot: sum('amountBeforeVatAgorot'),
         vatAmountAgorot: sum('vatAmountAgorot'),
       };
       this.validateOpenInput(input);
+      const paymentMethodId = await this.resolvePaymentMethodId(manager, subscription, input);
       const attempt = await this.saveAttemptWithUniqueProviderKey(manager, first,
-        (latest?.attemptNumber ?? 0) + 1, input, null);
+        (latest?.attemptNumber ?? 0) + 1, input, paymentMethodId);
+      attempt.requestedByFirebaseId = requestedByFirebaseId;
+      if (requestedByFirebaseId) await manager.save(BillingAttempt, attempt);
       for (const debt of debts) {
         await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
           attemptId: attempt.id, obligationId: debt.id,
@@ -434,6 +468,7 @@ export class BillingAttemptOrchestrationService {
       return attempt;
     });
     await this.enqueueCompletion(result);
+    await this.enqueueRenewalRetry(result);
     return result;
   }
 
@@ -577,7 +612,7 @@ export class BillingAttemptOrchestrationService {
         input,
       );
 
-      const obligationKey = input.planChangeSnapshot
+      const obligationKey = input.obligationKeyOverride ?? (input.planChangeSnapshot
         ? `subscription:${input.subscriptionId}:prorated:${input.planChangeSnapshot.sourcePlanId}:${new Date(input.planChangeSnapshot.sourcePeriodStart).getTime()}:${new Date(input.planChangeSnapshot.sourcePeriodEnd).getTime()}:to:${input.planId}:at:${new Date(input.planChangeSnapshot.quotedAt).getTime()}`
         : input.enforceUpgrade
         ? upgradeKey(subscription, input.planId, input.amountAgorot)
@@ -586,7 +621,7 @@ export class BillingAttemptOrchestrationService {
         : this.buildObligationKey(
         input.subscriptionId,
         input.periodStart,
-      );
+      ));
       const obligation = await this.createOrLockObligation(
         manager,
         obligationKey,
@@ -638,6 +673,20 @@ export class BillingAttemptOrchestrationService {
       await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
         attemptId: attempt.id, obligationId: obligation.id,
       }));
+      if (input.auditMetadata) {
+        await manager.save(BillingEvent, manager.create(BillingEvent, {
+          firebaseId: subscription.firebaseId,
+          subscriptionId: subscription.id,
+          billingAttemptId: attempt.id,
+          billingObligationId: obligation.id,
+          eventType: BillingEventType.MANUAL_CHARGE_REQUESTED,
+          amountAgorot: attempt.amountAgorot,
+          amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
+          vatAmountAgorot: attempt.vatAmountAgorot,
+          currency: attempt.currency,
+          metadata: input.auditMetadata,
+        }));
+      }
       if (input.planChangeSnapshot) {
         await manager.save(BillingEvent, manager.create(BillingEvent, {
           firebaseId: subscription.firebaseId, subscriptionId: subscription.id,
@@ -796,6 +845,7 @@ export class BillingAttemptOrchestrationService {
       assertBillingAttemptTransition(attempt.status, targetStatus);
       attempt.status = targetStatus;
       attempt.providerResponseCode = outcome.providerResponseCode ?? null;
+      attempt.providerDescription = outcome.providerDescription ?? null;
       attempt.failureCategory =
         outcome.kind === 'CAPTURED' ? null : outcome.failureCategory ?? null;
       attempt.lastReconciledAt = wasReconciliation
@@ -1055,6 +1105,50 @@ export class BillingAttemptOrchestrationService {
         }),
       ),
     );
+  }
+
+  async findStaleHostedCheckouts(
+    createdBefore: Date,
+    limit: number,
+  ): Promise<ReconciliationCandidate[]> {
+    return this.inTransaction(async manager =>
+      this.withOwners(
+        manager,
+        await manager.find(BillingAttempt, {
+          where: {
+            status: BillingAttemptStatus.AWAITING_CUSTOMER,
+            operation: 'CHARGE',
+            chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+            createdAt: LessThanOrEqual(createdBefore),
+          },
+          order: { createdAt: 'ASC' },
+          take: limit,
+        }),
+      ),
+    );
+  }
+
+  async markStaleHostedCheckoutUnknown(
+    attemptId: number,
+    createdBefore: Date,
+    now = new Date(),
+  ): Promise<BillingAttempt> {
+    return this.inTransaction(async manager => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (attempt.status !== BillingAttemptStatus.AWAITING_CUSTOMER ||
+        attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+        attempt.createdAt > createdBefore) return attempt;
+      assertBillingAttemptTransition(
+        attempt.status,
+        BillingAttemptStatus.UNKNOWN,
+      );
+      attempt.status = BillingAttemptStatus.UNKNOWN;
+      attempt.unknownSince = now;
+      attempt.nextActionAt = now;
+      attempt.failureCategory = 'HOSTED_CHECKOUT_TIMEOUT';
+      attempt.stateVersion += 1;
+      return manager.save(BillingAttempt, attempt);
+    });
   }
 
   /**
@@ -1525,6 +1619,9 @@ export class BillingAttemptOrchestrationService {
     input: OpenBillingAttemptInput,
     paymentMethodId: number | null,
   ): Promise<BillingAttempt> {
+    const payerProfile = await manager.findOne(BillingPayerProfile, {
+      where: { subscriptionId: obligation.subscriptionId },
+    });
     let lastCollision: unknown;
     for (
       let keyAttempt = 0;
@@ -1545,6 +1642,17 @@ export class BillingAttemptOrchestrationService {
         providerTerminalRef: null,
         cardcomTransactionId: null,
         providerResponseCode: null,
+        providerDescription: null,
+        payerProfileVersion: payerProfile?.version ?? null,
+        payerProfileSnapshot: payerProfile
+          ? {
+              fullName: payerProfile.fullName,
+              identityNumber: payerProfile.identityNumber,
+              email: payerProfile.email,
+              phone: payerProfile.phone,
+              businessNumber: payerProfile.businessNumber,
+            }
+          : null,
         failureCategory: null,
         planId: input.planId,
         amountAgorot: input.amountAgorot,
@@ -1552,6 +1660,8 @@ export class BillingAttemptOrchestrationService {
         vatAmountAgorot: input.vatAmountAgorot,
         currency: input.currency ?? 'ILS',
         receiptDocId: null,
+        requestId: input.requestId ?? null,
+        requestedByFirebaseId: input.requestedByFirebaseId ?? null,
         leaseOwner: null,
         leaseExpiresAt: null,
         stateVersion: 0,
@@ -1630,6 +1740,11 @@ export class BillingAttemptOrchestrationService {
   }
 
   private validateOpenInput(input: OpenBillingAttemptInput): void {
+    if (input.obligationKeyOverride &&
+      (!/^subscription:\d+:manual:[0-9a-f-]{36}$/.test(input.obligationKeyOverride) ||
+        input.obligationKeyOverride.length > 191)) {
+      throw new BadRequestException('Invalid manual billing obligation key');
+    }
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(input.periodStart) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(input.periodEnd)

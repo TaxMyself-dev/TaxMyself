@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Logger,
   NotFoundException,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -27,13 +29,45 @@ import { BillingMutationActorContext } from './services/billing-attempt-orchestr
 import { OpenBankingEnrollmentService } from './services/open-banking-enrollment.service';
 import { OpenBankingEnrollmentDto, CancelOpenBankingEnrollmentDto } from './dtos/open-banking-enrollment.dto';
 import { Optional } from '@nestjs/common';
+import { BillingPayerProfileService } from './services/billing-payer-profile.service';
+import { UpdateBillingPayerProfileDto } from './dtos/billing-payer-profile.dto';
 
 @Controller('billing')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
   constructor(private readonly billingService: BillingService,
-    @Optional() private readonly enrollment?: OpenBankingEnrollmentService) {}
+    @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly payerProfiles?: BillingPayerProfileService) {}
+
+  @Get('payer-profile')
+  @UseGuards(FirebaseAuthGuard)
+  async getPayerProfile(@Req() request: AuthenticatedRequest) {
+    const actor = this.assertDirectOwner(request);
+    return this.payerProfiles!.getForOwner(actor.subjectFirebaseId);
+  }
+
+  @Patch('payer-profile')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updatePayerProfile(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateBillingPayerProfileDto,
+  ) {
+    const actor = this.assertDirectOwner(request);
+    return this.payerProfiles!.updateForOwner(actor.subjectFirebaseId, dto);
+  }
+
+  private assertDirectOwner(request: AuthenticatedRequest): BillingMutationActorContext {
+    const actor = this.buildOwnerMutationActor(request);
+    if (
+      actor.isDelegatedAccess || actor.isAdminImpersonation ||
+      !actor.actorFirebaseId || actor.actorFirebaseId !== actor.subjectFirebaseId
+    ) {
+      throw new ForbiddenException('Billing payer details may be changed only by the account owner');
+    }
+    return actor;
+  }
 
   @Get('open-banking/enrollment')
   @UseGuards(FirebaseAuthGuard)

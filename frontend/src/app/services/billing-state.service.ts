@@ -57,6 +57,7 @@ export interface BillingAccess {
   modulesAccess: string[];
   isTrialActive: boolean;
   isPaymentRequired: boolean;
+  paymentBlockReason: 'TRIAL_EXPIRED' | 'PAST_DUE' | 'ACTIVE_OVERDUE' | null;
   isPastDue: boolean;
   gracePeriodActive: boolean;
 }
@@ -73,6 +74,24 @@ export interface BillingPaymentMethod {
   cardholderName?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BillingPayerProfile {
+  fullName: string | null;
+  identityNumber: string | null;
+  email: string | null;
+  phone: string | null;
+  businessNumber: string | null;
+  version: number;
+  verifiedAt: string | null;
+}
+
+export interface BillingPayerProfileUpdate {
+  fullName: string;
+  identityNumber: string;
+  email: string;
+  phone: string;
+  businessNumber: string;
 }
 
 /** Active/scheduled subscription discount, mirrored from the backend PricingService. */
@@ -188,6 +207,14 @@ export interface BillingStateResponse {
 @Injectable({ providedIn: 'root' })
 export class BillingStateService {
   private readonly http = inject(HttpClient);
+
+  getPayerProfile(): Promise<BillingPayerProfile> {
+    return firstValueFrom(this.http.get<BillingPayerProfile>(`${environment.apiUrl}billing/payer-profile`));
+  }
+
+  updatePayerProfile(payload: BillingPayerProfileUpdate): Promise<BillingPayerProfile> {
+    return firstValueFrom(this.http.patch<BillingPayerProfile>(`${environment.apiUrl}billing/payer-profile`, payload));
+  }
 
   async cancelSubscription(expectedStatus: SubscriptionStatus, expectedPeriodEnd: string | null): Promise<void> {
     await firstValueFrom(this.http.post(`${environment.apiUrl}billing/subscription/cancel`, { expectedStatus, expectedPeriodEnd }));
