@@ -51,6 +51,8 @@ healthy recurring subscription.
   never changes subscription status, dates, plan or retry counters.
 - [x] Saved-card admin attempts happen once; a decline requires a secure hosted
   CardCom link for a new payment method. Admins never receive raw card details.
+- [x] The dedicated billing QA profile is visible in admin subscriptions so the
+  two manual charge actions can be exercised; every other demo stays excluded.
 - [ ] Focused backend/frontend tests, backend build and frontend production build
   pass, and billing documentation plus cumulative cutover SQL are updated.
 

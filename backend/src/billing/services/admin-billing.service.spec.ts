@@ -269,7 +269,7 @@ describe('AdminBillingService.findAllSubscriptions', () => {
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
   });
 
-  it('excludes registered demo-profile users from the subscription list', async () => {
+  it('excludes ordinary demo users but includes the dedicated billing QA profile', async () => {
     const subscriptionQuery = queryBuilder([
       {
         subscriptionId: 41,
@@ -291,6 +291,16 @@ describe('AdminBillingService.findAllSubscriptions', () => {
         createdAt: new Date('2026-09-02T00:00:00.000Z'),
         cardLast4: null,
       },
+      {
+        subscriptionId: 43,
+        firebaseId: 'billing-qa-client',
+        status: SubscriptionStatus.ACTIVE,
+        billingAccessMode: BillingAccessMode.STANDARD,
+        planId: null,
+        nextBillingDate: null,
+        createdAt: new Date('2026-09-03T00:00:00.000Z'),
+        cardLast4: '1234',
+      },
     ]);
     const userQuery = queryBuilder([
       {
@@ -300,6 +310,10 @@ describe('AdminBillingService.findAllSubscriptions', () => {
       {
         firebaseId: 'demo-client', userId: 8, fName: 'Demo', lName: 'User',
         email: 'demo+single-licensed@taxmyself.local', hasOpenBanking: 0, lastLoginAt: null,
+      },
+      {
+        firebaseId: 'billing-qa-client', userId: 9, fName: 'Billing', lName: 'QA',
+        email: 'demo+billing-qa@taxmyself.local', hasOpenBanking: 0, lastLoginAt: null,
       },
     ]);
     const businessQuery = queryBuilder([]);
@@ -315,7 +329,10 @@ describe('AdminBillingService.findAllSubscriptions', () => {
 
     const result = await service.findAllSubscriptions();
 
-    expect(result.map(subscription => subscription.firebaseId)).toEqual(['real-client']);
+    expect(result.map(subscription => subscription.firebaseId)).toEqual([
+      'real-client',
+      'billing-qa-client',
+    ]);
   });
 });
 

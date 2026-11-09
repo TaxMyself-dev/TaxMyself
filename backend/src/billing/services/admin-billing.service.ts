@@ -12,6 +12,7 @@ import { DocumentType } from 'src/enum';
 import { User } from 'src/users/user.entity';
 import { Business } from 'src/business/business.entity';
 import { isDemoEmail } from 'src/demo-data/profiles';
+import { BILLING_QA_PROFILE } from 'src/demo-data/profiles/billing-qa.profile';
 import { CreatePlanDto } from '../dtos/admin/create-plan.dto';
 import { UpdatePlanDto } from '../dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from '../dtos/admin/update-subscription-discount.dto';
@@ -511,7 +512,14 @@ export class AdminBillingService {
     // Q4: one grouped query for every subscription's unresolved-attempt indicator
     const indicatorMap = await this.loadUnresolvedAttemptIndicators();
 
-    const nonDemoSubscriptions = raw.filter(r => !isDemoEmail(userMap.get(r.firebaseId)?.email));
+    // Ordinary demo profiles stay out of billing operations. The dedicated
+    // billing QA profile is the single intentional exception: its purpose is
+    // to exercise these admin actions end-to-end against the test terminal.
+    const nonDemoSubscriptions = raw.filter(r => {
+      const email = userMap.get(r.firebaseId)?.email;
+      return !isDemoEmail(email) ||
+        email?.toLowerCase() === BILLING_QA_PROFILE.email.toLowerCase();
+    });
 
     return nonDemoSubscriptions.map((r): AdminSubscriptionResponse => {
       const user = userMap.get(r.firebaseId);
