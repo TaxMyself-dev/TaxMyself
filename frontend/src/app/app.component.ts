@@ -85,8 +85,8 @@ export class AppComponent implements OnInit {
         action: 'NAVIGATE_TO_PLANS',
       },
       PAST_DUE: {
-        title: 'קיימת בעיה בתשלום',
-        message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nניתן לשלם את החוב ולשמור את הכרטיס לחיובים הבאים.',
+        title: 'נדרש להסדיר את התשלום',
+        message: 'כדי להמשיך להשתמש במערכת יש להסדיר את התשלום.',
         buttonLabel: 'הסדרת התשלום',
         action: 'RECOVER_PAYMENT',
       },
@@ -99,8 +99,8 @@ export class AppComponent implements OnInit {
     };
     if (paymentBlockReason === 'ACTIVE_OVERDUE') {
       return {
-        title: 'קיימת בעיה בתשלום',
-        message: 'החיוב האחרון לא הושלם. יש להסדיר את התשלום כדי להמשיך להשתמש במערכת.',
+        title: 'נדרש להסדיר את התשלום',
+        message: 'כדי להמשיך להשתמש במערכת יש להסדיר את התשלום.',
         buttonLabel: 'הסדרת התשלום',
         action: 'PREPARE_OVERDUE_RECOVERY' as const,
       };

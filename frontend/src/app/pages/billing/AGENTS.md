@@ -60,7 +60,10 @@ Standalone pricing/plans page where a user views available subscription plans an
   `pageshow` clears the pre-redirect submitting state and reloads the server
   preview, so the resumable state shows only an enabled "return to payment"
   action without operational or duplicate-charge explanation.
-- The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
+- The app's PAST_DUE and ACTIVE_OVERDUE dialogs use the neutral title "נדרש
+  להסדיר את התשלום", the single sentence "כדי להמשיך להשתמש במערכת יש להסדיר
+  את התשלום.", and the action label "הסדרת התשלום". They do not mention a
+  failed card charge, future card storage or other operational details.
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts
   --ts-config=tsconfig.billing.spec.json`. This config isolates recovery specs
