@@ -3,49 +3,112 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { BillingStateService } from '../../services/billing-state.service';
-import { ChangePaymentMethodDialogComponent } from '../../components/change-payment-method-dialog/change-payment-method-dialog.component';
+import { ButtonComponent } from '../../components/button/button.component';
+import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 
 @Component({
   standalone: true,
   selector: 'app-billing-recovery',
-  imports: [ChangePaymentMethodDialogComponent],
+  imports: [ButtonComponent],
   template: `
-    <main dir="rtl" class="recovery">
-      <h1>הסדרת התשלום</h1>
-      @if (loading()) { <p role="status">טוענים את פרטי החוב…</p> }
-      @else if (error()) { <p role="alert">{{ error() }}</p> }
-      @else {
-        <p>תשלום החוב עבור תוכנית {{ billing.billingState()?.plan?.name }}</p>
-        <ul>
-          @for (period of periods(); track period.periodStart) {
-            <li>{{ period.periodStart }} עד {{ period.periodEnd }} (לא כולל יום הסיום): {{ (period.amountAgorot / 100).toFixed(2) }} ₪</li>
+    <main dir="rtl" class="recovery-shell">
+      <section class="recovery-card">
+        <header class="recovery-header">
+          <span class="recovery-icon" aria-hidden="true">₪</span>
+          <h1>הסדרת תשלום</h1>
+          <p>להמשך השימוש במערכת יש להסדיר את יתרת החוב.</p>
+        </header>
+
+        @if (loading()) {
+          <div class="recovery-state" role="status">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            <span>טוענים את פרטי התשלום…</span>
+          </div>
+        } @else if (error()) {
+          <div class="recovery-error" role="alert">{{ error() }}</div>
+        } @else {
+          <div class="debt-summary">
+            <div class="summary-row plan-row">
+              <span>תוכנית</span>
+              <strong>{{ billing.billingState()?.plan?.name }}</strong>
+            </div>
+
+            <div class="periods" aria-label="תקופות לתשלום">
+              @for (period of periods(); track period.periodStart) {
+                <div class="period-row">
+                  <span>{{ formatDate(period.periodStart) }}–{{ formatDate(period.periodEnd) }}</span>
+                  <strong>{{ (period.amountAgorot / 100).toFixed(2) }} ₪</strong>
+                </div>
+              }
+            </div>
+
+            <div class="summary-row total-row">
+              <span>סה״כ לתשלום</span>
+              <strong>{{ amountLabel() }} ₪</strong>
+            </div>
+            <div class="vat-note">הסכום כולל מע״מ</div>
+          </div>
+
+          @if (isCanceled()) {
+            <p class="canceled-note">התשלום מסדיר את החוב בלבד ואינו מפעיל מחדש מנוי שבוטל.</p>
           }
-        </ul>
-        <p>סכום לתשלום: <strong>{{ amountLabel() }} ₪ כולל מע״מ</strong></p>
-        <p>הכרטיס שבו תשלמו יישמר לחיובי המנוי הבאים ויחליף את הכרטיס הקודם.</p>
-        <p>התשלום יתבצע במסך המאובטח של CardCom. תופק חשבונית אחת עם פירוט התקופות. תשלום חוב של מנוי שבוטל אינו מפעיל אותו מחדש.</p>
-        <button type="button" [disabled]="submitting()" (click)="pay()">
-          {{ submitting() ? 'פותחים מסך תשלום…' : 'לתשלום החוב ושמירת הכרטיס' }}
-        </button>
-      }
-      @if (canChangeCard()) {
-        <p>אפשר גם להחליף כרטיס בלבד. החלפת הכרטיס אינה משלמת את החוב ואינה מסירה את החסימה.</p>
-        <button type="button" [disabled]="submitting()" (click)="openCardChange()">החלפת כרטיס בלבד</button>
-      }
-      @if (changeCardDialogOpen) {
-        <app-change-payment-method-dialog [(visible)]="changeCardDialogOpen" />
-      }
+
+          <div class="secure-note">
+            <i class="pi pi-lock" aria-hidden="true"></i>
+            <span>התשלום מתבצע באופן מאובטח באמצעות CardCom</span>
+          </div>
+
+          <div class="recovery-action">
+            <app-p-button
+              [buttonText]="'מעבר לתשלום'"
+              [buttonColor]="buttonColor.BLACK"
+              [buttonSize]="buttonSize.BIG"
+              [isLoading]="submitting()"
+              [disabled]="submitting()"
+              (onButtonClicked)="pay()" />
+          </div>
+        }
+      </section>
     </main>`,
-  styles: [`.recovery { max-width: 560px; margin: 48px auto; padding: 24px; }
-    button { padding: 12px 20px; cursor: pointer; }`],
+  styles: [`
+    :host { display: block; min-height: 100%; background: #f7f8fa; }
+    .recovery-shell { min-height: calc(100vh - 72px); padding: 48px 20px; display: grid; place-items: start center; }
+    .recovery-card { width: min(100%, 620px); padding: 36px; background: #fff; border: 1px solid #e4e7ec;
+      border-radius: 24px; box-shadow: 0 14px 40px rgba(16, 24, 40, .08); color: #182230; }
+    .recovery-header { text-align: center; }
+    .recovery-icon { width: 52px; height: 52px; margin: 0 auto 16px; display: grid; place-items: center;
+      border-radius: 16px; background: #fff7df; color: #9a6700; font-size: 25px; font-weight: 700; }
+    h1 { margin: 0; font-size: clamp(26px, 4vw, 34px); line-height: 1.2; }
+    .recovery-header p { margin: 10px 0 0; color: #667085; font-size: 16px; }
+    .recovery-state { min-height: 180px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #667085; }
+    .recovery-error { margin-top: 28px; padding: 16px; border-radius: 12px; background: #fef3f2; color: #b42318; text-align: center; }
+    .debt-summary { margin-top: 30px; padding: 22px; border: 1px solid #e4e7ec; border-radius: 16px; background: #fcfcfd; }
+    .summary-row, .period-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .plan-row { padding-bottom: 18px; border-bottom: 1px solid #eaecf0; color: #475467; }
+    .plan-row strong { color: #182230; }
+    .periods { display: grid; gap: 12px; padding: 18px 0; color: #475467; }
+    .period-row strong { color: #344054; white-space: nowrap; }
+    .total-row { padding-top: 18px; border-top: 1px solid #d0d5dd; font-size: 18px; }
+    .total-row strong { font-size: 24px; color: #101828; }
+    .vat-note { margin-top: 5px; color: #667085; font-size: 13px; }
+    .canceled-note { margin: 18px 0 0; padding: 12px 14px; border-radius: 10px; background: #fffaeb; color: #7a2e0e; }
+    .secure-note { margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #667085; font-size: 14px; }
+    .recovery-action { margin-top: 22px; display: flex; justify-content: center; }
+    @media (max-width: 600px) {
+      .recovery-shell { padding: 20px 12px; }
+      .recovery-card { padding: 24px 18px; border-radius: 18px; }
+      .debt-summary { padding: 18px 16px; }
+      .period-row { align-items: flex-start; flex-direction: column; gap: 4px; }
+    }
+  `],
 })
 export class BillingRecoveryPage implements OnInit {
   readonly billing = inject(BillingStateService);
   private readonly http = inject(HttpClient);
+  readonly buttonColor = ButtonColor;
+  readonly buttonSize = ButtonSize;
   readonly loading = signal(true);
   readonly submitting = signal(false);
-  readonly canChangeCard = signal(false);
-  changeCardDialogOpen = false;
   readonly error = signal('');
   readonly amountLabel = signal('');
   readonly periods = signal<Array<{ periodStart: string; periodEnd: string; amountAgorot: number }>>([]);
@@ -63,7 +126,6 @@ export class BillingRecoveryPage implements OnInit {
         return;
       }
       this.planId = state.plan.id;
-      this.canChangeCard.set(state.subscription.status === 'PAST_DUE');
       const preview = await firstValueFrom(this.http.post<{ finalAmountAgorot: number; currency: string;
         recoveryQuote: string; periods: Array<{ periodStart: string; periodEnd: string; amountAgorot: number }> }>(
         `${environment.apiUrl}billing/checkout/preview`, { planId: this.planId },
@@ -79,8 +141,11 @@ export class BillingRecoveryPage implements OnInit {
     finally { this.loading.set(false); }
   }
 
-  openCardChange(): void {
-    if (this.canChangeCard() && !this.submitting()) this.changeCardDialogOpen = true;
+  readonly isCanceled = () => this.billing.billingState()?.subscription?.status === 'CANCELED';
+
+  formatDate(date: string): string {
+    const [year, month, day] = date.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : date;
   }
 
   async pay(): Promise<void> {

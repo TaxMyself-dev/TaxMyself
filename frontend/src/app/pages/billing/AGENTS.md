@@ -40,15 +40,12 @@ Standalone pricing/plans page where a user views available subscription plans an
 - Local billing worktree runs with `npm run start:billing` from frontend on
   localhost:4200; environment.ts points to backend localhost:3000. Production
   and cloud-dev environment replacements retain their existing endpoints.
-- PAST_DUE owners can open the existing card-change dialog directly from
-  recovery, including when debt preview needs review. The page explains that
-  replacing a card alone neither pays the debt nor removes the block. The
-  dialog is instantiated only when opened. Overrides cannot open it; canceled
-  card changes remain unsupported by the existing backend.
 - `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE/CANCELED state,
-  previews every unpaid subscription period and the server debt total, discloses one invoice and card replacement for future
-  renewals before submitting the existing checkout endpoint. It does not offer
-  plan selection. Canceled debt payment explicitly leaves the subscription canceled. The plans page links to recovery for both debt states. Overrides, missing/unsupported state and preview failures
+  previews every unpaid subscription period and the server debt total in a
+  single clean payment card, then offers one primary action to continue to the
+  secured CardCom checkout. It contains no card-management action, plan
+  selection or long-form operational explanation. Canceled debt payment
+  explicitly leaves the subscription canceled. The plans page links to recovery for both debt states. Overrides, missing/unsupported state and preview failures
   cannot submit; double-clicks are suppressed and checkout errors require
   review rather than offering an immediate second submission.
 - Submission requires ILS, nonempty period lines and the server recoveryQuote;
