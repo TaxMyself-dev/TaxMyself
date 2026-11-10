@@ -125,7 +125,8 @@ describe('Admin resolution runtime and authorization', () => {
     const ds = { manager: { findOneByOrFail: jest.fn(async entity => entity === BillingAttempt ? row
       : entity === BillingObligation ? debt : { id: 5, name: 'Plan' }) }, transaction: async callback => callback(tx) };
     const cardcom = { chargeByToken: jest.fn() };
-    const lifecycle = { resumeCapturedAttempt: jest.fn(async input => {
+    const lifecycle = { findAttemptObligations: jest.fn().mockResolvedValue([debt]),
+      resumeCapturedAttempt: jest.fn(async input => {
       await input.activate(row); await input.receipt.createReceipt(row, { kind: 'CAPTURED', cardcomTransactionId: 'verified-tx' });
       return { status: 'COMPLETED' };
     }) };

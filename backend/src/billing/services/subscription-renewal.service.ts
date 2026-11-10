@@ -599,8 +599,8 @@ export class SubscriptionRenewalService {
   /**
    * The charge failed locally BEFORE any provider request (no usable payment
    * method), so it is neither a decline nor an uncertain charge and never uses
-   * the 3/7-day retry policy. The orchestration service already applied the
-   * transition atomically: CUSTOMER_ACTION left the subscription PAST_DUE (the
+   * the two-retries-at-30-minute-intervals policy. The orchestration service
+   * already applied the transition atomically: CUSTOMER_ACTION left the subscription PAST_DUE (the
    * hosted recovery flow collects it), SYSTEM_ACTION left the attempt in
    * MANUAL_REVIEW with the subscription unchanged. Only sanitized category
    * strings are logged or stored — never the token, key or a raw exception.

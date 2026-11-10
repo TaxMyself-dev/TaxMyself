@@ -61,7 +61,7 @@ healthy recurring subscription.
   the durable attempt read-only. Capture proceeds without redirect, a verified
   final decline may open one new page, and every unknown/pending result resumes
   the exact saved CardCom URL without creating a second charge attempt.
-- [ ] Focused backend/frontend tests, backend build and frontend production build
+- [x] Focused backend/frontend tests, backend build and frontend production build
   pass, and billing documentation plus cumulative cutover SQL are updated.
 
 ## Scope and constraints
@@ -89,12 +89,15 @@ healthy recurring subscription.
 - Changed files: billing backend/domain/task/CardCom/admin services and DTOs;
   customer settings, billing guards and admin subscription UI; schema runners,
   cutover SQL, focused tests and topic/feature documentation.
-- Tests and exact results: backend focused suite 6 suites / 59 tests passed;
-  frontend focused ChromeHeadless suite 10/10 passed; backend and frontend
-  TypeScript compilation passed; Nest build passed; Angular development build
-  passed; migration runner syntax and post-apply schema verification passed.
-- Known pre-existing failures: Angular production build remains to be recorded;
-  this repository has existing unrelated component-style budget failures.
+- Tests and exact results: backend focused billing suite 4 suites / 97 tests
+  passed; full backend suite 232 suites / 2,416 tests passed on Node 22.22.2;
+  frontend focused ChromeHeadless suite 10/10 passed; Nest build passed;
+  Angular production build passed on Node 20.11.1 with existing non-fatal
+  component/initial-bundle budget and CommonJS warnings; migration runner syntax
+  and post-apply dev-schema verification passed.
+- Known pre-existing failures: none in the executed release gates. Dependency
+  audit findings and non-fatal Angular budget/CommonJS warnings remain separate
+  follow-up work and were not auto-fixed during release verification.
 - Schema / production / security / accounting / external impact: additive
   keepintax-dev DDL applied only. Production remains untouched. No CardCom calls,
   charges, receipts or subscription transitions were executed during validation.

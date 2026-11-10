@@ -908,8 +908,8 @@ export class BillingAttemptOrchestrationService {
   /**
    * Terminates a claimed token attempt whose local pre-flight failed BEFORE any
    * provider request, in one transaction. No charge can have been made, so it
-   * is never UNKNOWN, never reconciled and never consumes the 3/7-day
-   * provider-decline policy (`renewalAttempts` is not touched).
+   * is never UNKNOWN, never reconciled and never consumes the provider-decline
+   * policy's two retries at 30-minute intervals (`renewalAttempts` is not touched).
    * - CUSTOMER_ACTION: PROCESSING -> DECLINED (sanitized local category), the
    *   obligation's active pointer is cleared so the hosted recovery flow may
    *   open a new attempt, and an ACTIVE subscription still collecting this

@@ -266,8 +266,8 @@ accrual. Stored debts remain intact; no new payment/debt is opened while exempt.
 Elazar approved immediate direct module blocking on 2026-10-06: PAST_DUE
 always resolves to no modules, even with a future stored gracePeriodEndsAt.
 access.gracePeriodActive is always false. The first two confirmed renewal
-declines keep the existing +3/+7-day retries; the third enters PAST_DUE and
-blocks immediately. Existing local unusable-card transitions to PAST_DUE are
+declines schedule retries thirty minutes after the preceding decline; the third
+enters PAST_DUE and blocks immediately. Existing local unusable-card transitions to PAST_DUE are
 unchanged and also block by status. Verified delegation/admin impersonation
 overrides remain intact. Legacy grace dates are retained for compatibility,
 not access. Auth-only owner billing checkout/card-change routes stay reachable;
@@ -550,7 +550,7 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   locally recovered one (`BillingHostedCompletionService.activateSubscription`)
   and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
   `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
-  the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
+  the next cycle starts a fresh 30-minute / 30-minute / `PAST_DUE` sequence. The
   webhook resets only when the row it locked was `PAST_DUE`.
 ### Read-only reconciliation (KT-038 Task 5A2)
 
@@ -586,7 +586,7 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   `applyPreSubmissionFailure` applies one atomic transition (sanitized
   `LOCAL_<REASON>` category, no token/key/raw error stored or logged):
   customer action (no payment method, no token, missing/expired expiry) ends the
-  attempt `DECLINED` without the 3/7-day policy (`renewalAttempts` untouched)
+  attempt `DECLINED` without the 30-minute retry policy (`renewalAttempts` untouched)
   and moves an ACTIVE subscription to `PAST_DUE` with the legacy grace date (no access under KT-041),
   so hosted recovery/change-payment-method can collect; system action (token
   decryption failure) ends `MANUAL_REVIEW` with the subscription unchanged and
