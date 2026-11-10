@@ -14,6 +14,15 @@ CardCom UI values update the profile; owner settings edits affect future
 attempts only. Provider logs distinguish prepared, HTTP dispatch, response,
 definite not-sent and ambiguous outcomes without token/card/payer data.
 
+Hosted debt recovery persists the exact CardCom LowProfile URL on the canonical
+attempt before returning it to the browser. `POST /billing/checkout/continue`
+first performs a read-only `GetLpResult` lookup: verified capture continues
+completion, a provider-proven final decline releases the old attempt and may
+open one fresh page, and an unknown/pending result returns the same saved URL.
+Time, a missing transaction, a transport error, or an unavailable provider is
+never treated as proof that a new charge is safe. Only HTTPS URLs on
+`secure.cardcom.solutions` are stored or returned.
+
 Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
 shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
 card exactly once, and activates only after verified capture plus completion.
@@ -753,7 +762,8 @@ See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.
 
 The additive payer-profile/provider-diagnostics schema in the KT-105 section of
 `docs/redesign/cutover.sql` was applied and verified on `keepintax-dev` on
-2026-11-09. Production execution is not authorized. The dedicated raw-mysql
+2026-11-10, including the durable hosted-payment URL. Production execution is
+not authorized. The dedicated raw-mysql
 runner `scripts/migrations/2026-11-09_apply-billing-reliability-dev.js` refuses
 any database other than `keepintax-dev` and supports explicit review/apply modes.
 

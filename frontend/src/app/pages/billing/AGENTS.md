@@ -50,10 +50,12 @@ Standalone pricing/plans page where a user views available subscription plans an
   review rather than offering an immediate second submission.
 - Submission requires ILS, nonempty period lines and the server recoveryQuote;
   checkout sends that quote with recoveryOnly so stale totals cannot be charged.
-- The tab stores the returned hosted checkout URL together with its LowProfile
-  id. If the same reserved attempt is still pending, recovery offers one
-  "return to payment" action for that exact CardCom page instead of creating a
-  second checkout. A mismatched or missing local URL is never opened.
+- The hosted checkout URL is owned by the backend attempt, not browser storage.
+  If the reserved attempt is still pending, recovery offers one "return to
+  payment" action. It calls `POST billing/checkout/continue`, which checks
+  CardCom read-only before returning the same saved page, reporting capture
+  processing, or opening a new page after a verified final decline. The browser
+  never chooses or reconstructs a CardCom URL.
 - The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts
@@ -86,10 +88,10 @@ recovery, billing-state and admin-subscriptions spec includes.
 
 ## Pending payment status
 
-- Reserved debt previews use the typed BILLING_PAYMENT_PENDING response. The
-  active LowProfile id may resume only the matching tab-local CardCom URL;
-  otherwise concise support guidance is shown. No second payment attempt or
-  card-only action is offered while the reservation remains unresolved.
+- Reserved debt previews use the typed BILLING_PAYMENT_PENDING response and a
+  server-authoritative `canResume` flag. No second payment attempt or card-only
+  action is offered while the reservation remains unresolved; legacy rows that
+  lack a durable URL fail closed to concise support guidance.
 
 ## Related topics
 - Backend `billing` module (`GET billing/plans`, `POST billing/checkout` — Cardcom integration).

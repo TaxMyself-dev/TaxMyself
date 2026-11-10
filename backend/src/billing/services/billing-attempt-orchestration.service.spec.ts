@@ -13,6 +13,7 @@ import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
+import { BillingPayerProfile } from '../entities/billing-payer-profile.entity';
 import { Documents } from '../../documents/documents.entity';
 import { PLAN_CHANGE_POLICY, PlanChangeSnapshot } from '../domain/billing-plan-change';
 import {
@@ -492,6 +493,7 @@ describe('BillingAttemptOrchestrationService', () => {
             if (entity === PaymentMethod) return paymentMethod();
             if (entity === BillingObligation) return storedObligation;
             if (entity === BillingAttempt) return storedAttempt;
+            if (entity === BillingPayerProfile) return null;
             throw new Error(
               `Unexpected entity ${String(entity)} ${String(options)}`,
             );
@@ -914,6 +916,28 @@ describe('BillingAttemptOrchestrationService', () => {
       await expect(
         service.recordHostedLowProfileId(row.id, 'lp-2', 'other-owner'),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('stores the immutable hosted LowProfile id and CardCom URL as one pair', async () => {
+      const row = attempt({
+        status: BillingAttemptStatus.CREATED,
+        chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        cardcomLowProfileId: null,
+        hostedPaymentUrl: null,
+      });
+      serveByEntity(row, obligation({ activeAttemptId: row.id }));
+      const url = 'https://secure.cardcom.solutions/EA/pay/lp-1';
+
+      await expect(service.recordHostedCheckout(row.id, 'lp-1', url, 'owner-1'))
+        .resolves.toEqual({ recorded: true });
+      expect(row).toEqual(expect.objectContaining({
+        status: BillingAttemptStatus.AWAITING_CUSTOMER,
+        cardcomLowProfileId: 'lp-1', hostedPaymentUrl: url,
+      }));
+      await expect(service.recordHostedCheckout(row.id, 'lp-other', url, 'owner-1'))
+        .resolves.toEqual({ recorded: false, reason: 'NOT_ELIGIBLE' });
+      await expect(service.recordHostedCheckout(row.id, 'lp-1', 'https://evil.example/pay', 'owner-1'))
+        .resolves.toEqual({ recorded: false, reason: 'NOT_ELIGIBLE' });
     });
 
     it('a live lease blocks a concurrent run even when it carries the SAME owner label', async () => {

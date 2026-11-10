@@ -29,7 +29,7 @@ import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
             <i class="pi pi-info-circle" aria-hidden="true"></i>
             <p>{{ error() }}</p>
           </div>
-          @if (resumePaymentUrl()) {
+          @if (canResumePayment()) {
             <div class="recovery-action">
               <app-p-button
                 [buttonText]="'חזרה לתשלום'"
@@ -131,7 +131,7 @@ export class BillingRecoveryPage implements OnInit {
   readonly loading = signal(true);
   readonly submitting = signal(false);
   readonly pendingPayment = signal(false);
-  readonly resumePaymentUrl = signal('');
+  readonly canResumePayment = signal(false);
   readonly error = signal('');
   readonly amountLabel = signal('');
   readonly periods = signal<Array<{ periodStart: string; periodEnd: string; amountAgorot: number }>>([]);
@@ -154,7 +154,6 @@ export class BillingRecoveryPage implements OnInit {
         `${environment.apiUrl}billing/checkout/preview`, { planId: this.planId },
       ));
       if (preview.currency !== 'ILS' || !preview.recoveryQuote || !preview.periods?.length) throw new Error('Invalid debt preview');
-      sessionStorage.removeItem('tm.checkoutResume');
       this.recoveryQuote = preview.recoveryQuote;
       this.periods.set(preview.periods);
       this.amountLabel.set((preview.finalAmountAgorot / 100).toLocaleString('he-IL', { minimumFractionDigits: 2 }));
@@ -162,8 +161,7 @@ export class BillingRecoveryPage implements OnInit {
       if (err?.error?.code === 'BILLING_PAYMENT_PENDING') {
         this.pendingPayment.set(true);
         this.error.set(err.error.message);
-        const saved = this.readCheckoutResume();
-        if (saved?.lowProfileId === err.error.lowProfileId) this.resumePaymentUrl.set(saved.paymentUrl);
+        this.canResumePayment.set(err.error.canResume === true);
       } else {
         this.error.set('לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.');
       }
@@ -178,20 +176,27 @@ export class BillingRecoveryPage implements OnInit {
     return year && month && day ? `${day}/${month}/${year}` : date;
   }
 
-  resumePayment(): void {
-    const paymentUrl = this.resumePaymentUrl();
-    if (paymentUrl) window.location.href = paymentUrl;
-  }
-
-  private readCheckoutResume(): { lowProfileId: string; paymentUrl: string } | null {
+  async resumePayment(): Promise<void> {
+    if (!this.canResumePayment() || this.submitting()) return;
+    this.submitting.set(true);
     try {
-      const raw = sessionStorage.getItem('tm.checkoutResume');
-      if (!raw) return null;
-      const value = JSON.parse(raw);
-      if (typeof value?.lowProfileId !== 'string' || typeof value?.paymentUrl !== 'string') return null;
-      const paymentUrl = new URL(value.paymentUrl);
-      return paymentUrl.protocol === 'https:' && paymentUrl.hostname === 'secure.cardcom.solutions' ? value : null;
-    } catch { return null; }
+      const result = await firstValueFrom(this.http.post<{
+        status: 'REDIRECT' | 'PROCESSING' | 'COMPLETED'; paymentUrl?: string;
+      }>(`${environment.apiUrl}billing/checkout/continue`, {}));
+      if (result.status === 'REDIRECT' && result.paymentUrl) {
+        window.location.href = result.paymentUrl;
+        return;
+      }
+      this.canResumePayment.set(false);
+      this.error.set(result.status === 'COMPLETED'
+        ? 'התשלום הושלם. מעדכנים את החשבון…'
+        : 'התשלום התקבל ונמצא בתהליך השלמה. אין לבצע תשלום נוסף.');
+      await this.billing.refreshBillingState();
+      if (result.status === 'COMPLETED') window.location.href = '/my-account';
+    } catch (err: any) {
+      this.error.set(err?.error?.message ?? 'לא ניתן לבדוק כרגע את מצב התשלום. יש לנסות שוב בעוד מספר דקות.');
+      this.submitting.set(false);
+    }
   }
 
   async pay(): Promise<void> {
@@ -203,11 +208,6 @@ export class BillingRecoveryPage implements OnInit {
       ));
       sessionStorage.removeItem('tm.checkoutLowProfileId');
       if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
-      if (result.lowProfileId && result.paymentUrl) {
-        sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
-          lowProfileId: result.lowProfileId, paymentUrl: result.paymentUrl,
-        }));
-      }
       window.location.href = result.paymentUrl;
     } catch (err: any) {
       this.error.set(err?.error?.message ?? 'לא ניתן לפתוח תשלום. יש לפנות לתמיכה לפני ניסיון נוסף.');

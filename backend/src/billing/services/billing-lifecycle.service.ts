@@ -252,6 +252,34 @@ export class BillingLifecycleService {
     );
   }
 
+  recordHostedCheckout(
+    actor: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    lowProfileId: string,
+    paymentUrl: string,
+  ) {
+    this.orchestration.assertOwnerMutation(actor);
+    return this.orchestration.recordHostedCheckout(
+      attemptId,
+      lowProfileId,
+      paymentUrl,
+      actor.subjectFirebaseId,
+    );
+  }
+
+  inspectHostedCheckout(
+    actor: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    subscriptionId: number,
+  ) {
+    return this.provider.inspectHostedCheckout({
+      actor,
+      attemptId,
+      subscriptionId,
+      leaseOwner: `customer-hosted-check-${attemptId}`,
+    });
+  }
+
   finalizeAfterReceipt(attemptId: number, receiptDocId: number) {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
   }

@@ -741,23 +741,20 @@ export class BillingService {
       );
     }
 
-    // Best-effort: lets a later CAPTURED payment be looked up (read-only) to
-    // recover its card token. Never overwrites the attempt's first LowProfile
-    // id and never fails the checkout the customer is about to pay on.
+    // Persist the exact hosted identity before exposing its URL to the browser.
+    // If this write cannot be proven, the reserved attempt stays blocking: a
+    // second LowProfile page must never be opened for the same debt.
     if (recoveryAttemptId != null && this.billingLifecycleService) {
-      await this.billingLifecycleService
-        .recordHostedLowProfileId(
-          actor,
-          recoveryAttemptId,
-          cardcomResult.lowProfileId,
-        )
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Could not record LowProfile id on attempt #${recoveryAttemptId}: ${
-              (error as Error)?.message ?? 'unknown error'
-            }`,
-          ),
-        );
+      const stored = await this.billingLifecycleService.recordHostedCheckout(
+        actor,
+        recoveryAttemptId,
+        cardcomResult.lowProfileId,
+        cardcomResult.paymentUrl,
+      );
+      if (!stored.recorded && stored.reason !== 'ALREADY_SET') {
+        this.logger.error(`Hosted checkout persistence failed for attempt #${recoveryAttemptId}: ${stored.reason}`);
+        throw new BadGatewayException('Payment page could not be saved safely. Please try again later.');
+      }
     }
 
     await this.billingEventService.logEvent({
@@ -789,6 +786,74 @@ export class BillingService {
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
     };
+  }
+
+  async continueRecoveryCheckout(actor: BillingMutationActorContext): Promise<{
+    status: 'REDIRECT' | 'PROCESSING' | 'COMPLETED';
+    paymentUrl?: string;
+  }> {
+    assertBillingOwnerMutation(actor);
+    if (!this.debtService || !this.billingLifecycleService) {
+      throw new ConflictException('Billing recovery is not configured');
+    }
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId: actor.subjectFirebaseId },
+    });
+    if (!subscription || ![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
+      throw new ConflictException('No outstanding recovery payment');
+    }
+    const active = await this.debtService.findPendingRecoveryAttempt(actor, subscription.id);
+    if (!active) return this.openFreshRecoveryCheckout(actor);
+    if (active.status === BillingAttemptStatus.COMPLETED) return { status: 'COMPLETED' };
+    if (active.status === BillingAttemptStatus.CAPTURED) return { status: 'PROCESSING' };
+    if (!active.cardcomLowProfileId || !this.isSafeHostedPaymentUrl(active.hostedPaymentUrl)) {
+      throw new ConflictException('The existing payment page requires support review');
+    }
+
+    const inspected = await this.billingLifecycleService.inspectHostedCheckout(
+      actor,
+      active.id,
+      subscription.id,
+    );
+    const current = inspected.attempt as BillingAttempt;
+    if (current.status === BillingAttemptStatus.COMPLETED) return { status: 'COMPLETED' };
+    if (current.status === BillingAttemptStatus.CAPTURED ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'CAPTURED')) {
+      return { status: 'PROCESSING' };
+    }
+    if ([BillingAttemptStatus.DECLINED, BillingAttemptStatus.CANCELED].includes(current.status) ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'DECLINED')) {
+      return this.openFreshRecoveryCheckout(actor);
+    }
+    if (!this.isSafeHostedPaymentUrl(current.hostedPaymentUrl)) {
+      throw new ConflictException('The existing payment page requires support review');
+    }
+    return { status: 'REDIRECT', paymentUrl: current.hostedPaymentUrl! };
+  }
+
+  private async openFreshRecoveryCheckout(actor: BillingMutationActorContext): Promise<{
+    status: 'REDIRECT'; paymentUrl: string;
+  }> {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId: actor.subjectFirebaseId } });
+    if (!subscription || !this.debtService) throw new ConflictException('No outstanding recovery payment');
+    const preview = await this.debtService.preview(actor, subscription.id);
+    const checkout = await this.createCheckout(actor, {
+      planId: preview.planId,
+      recoveryOnly: true,
+      recoveryQuote: preview.recoveryQuote,
+    });
+    if (!checkout.paymentUrl || !this.isSafeHostedPaymentUrl(checkout.paymentUrl)) {
+      throw new BadGatewayException('Payment gateway returned an invalid payment page');
+    }
+    return { status: 'REDIRECT', paymentUrl: checkout.paymentUrl };
+  }
+
+  private isSafeHostedPaymentUrl(value: string | null | undefined): boolean {
+    if (!value) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && url.hostname === 'secure.cardcom.solutions';
+    } catch { return false; }
   }
 
   // ─── Referral-plan upgrade (customer-facing, scoped) ─────────────────────────

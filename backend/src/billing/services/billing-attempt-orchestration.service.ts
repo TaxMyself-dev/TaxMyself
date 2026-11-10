@@ -1263,6 +1263,55 @@ export class BillingAttemptOrchestrationService {
   }
 
   /**
+   * Persists the complete hosted checkout identity before its URL is returned
+   * to the customer. The first LowProfile id and URL are immutable as a pair;
+   * a later caller may confirm the same values but can never replace either.
+   */
+  async recordHostedCheckout(
+    attemptId: number,
+    lowProfileId: string,
+    paymentUrl: string,
+    subjectFirebaseId: string,
+  ): Promise<{ recorded: boolean; reason?: 'ALREADY_SET' | 'NOT_ELIGIBLE' | 'LOW_PROFILE_IN_USE' }> {
+    if (!lowProfileId || lowProfileId.length > 255 || paymentUrl.length > 2048) {
+      return { recorded: false, reason: 'NOT_ELIGIBLE' };
+    }
+    let parsed: URL;
+    try { parsed = new URL(paymentUrl); }
+    catch { return { recorded: false, reason: 'NOT_ELIGIBLE' }; }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'secure.cardcom.solutions') {
+      return { recorded: false, reason: 'NOT_ELIGIBLE' };
+    }
+    try {
+      return await this.inTransaction(async manager => {
+        const attempt = await this.lockAttempt(manager, attemptId);
+        const obligation = await this.lockObligation(manager, attempt.obligationId);
+        if (obligation.firebaseIdSnapshot !== subjectFirebaseId) {
+          throw new ForbiddenException('Billing mutation subject does not own the billing attempt');
+        }
+        if (attempt.cardcomLowProfileId != null || attempt.hostedPaymentUrl != null) {
+          return attempt.cardcomLowProfileId === lowProfileId && attempt.hostedPaymentUrl === paymentUrl
+            ? { recorded: false, reason: 'ALREADY_SET' as const }
+            : { recorded: false, reason: 'NOT_ELIGIBLE' as const };
+        }
+        if (attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+          ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER].includes(attempt.status)) {
+          return { recorded: false, reason: 'NOT_ELIGIBLE' as const };
+        }
+        attempt.cardcomLowProfileId = lowProfileId;
+        attempt.hostedPaymentUrl = paymentUrl;
+        if (attempt.status === BillingAttemptStatus.CREATED) attempt.status = BillingAttemptStatus.AWAITING_CUSTOMER;
+        attempt.stateVersion += 1;
+        await manager.save(BillingAttempt, attempt);
+        return { recorded: true };
+      });
+    } catch (error) {
+      if (this.isDuplicateEntry(error)) return { recorded: false, reason: 'LOW_PROFILE_IN_USE' };
+      throw error;
+    }
+  }
+
+  /**
    * Exclusive lease for the post-capture phase (receipt, journal, completion)
    * of an already-CAPTURED attempt. It never touches the provider and never
    * changes the attempt status; it only serializes concurrent recovery runs.

@@ -140,6 +140,16 @@ export class BillingAttempt {
   })
   cardcomLowProfileId: string | null;
 
+  /** Exact CardCom-hosted URL returned for this LowProfile attempt. */
+  @Column({
+    name: 'hosted_payment_url',
+    type: 'varchar',
+    length: 2048,
+    nullable: true,
+    default: null,
+  })
+  hostedPaymentUrl: string | null;
+
   /** Provider terminal context; pairs with transaction id during reconciliation. */
   @Column({
     name: 'provider_terminal_ref',

@@ -12,9 +12,9 @@ describe('BillingRecoveryPage', () => {
   let state: any;
 
   beforeEach(() => {
-    sessionStorage.removeItem('tm.checkoutResume');
     state = { billingState: signal({ subscription: { status: 'PAST_DUE' }, plan: { id: 3, name: 'Basic' } }),
-      loadBillingState: jasmine.createSpy().and.resolveTo(), hasBillingOverride: () => false };
+      loadBillingState: jasmine.createSpy().and.resolveTo(), refreshBillingState: jasmine.createSpy().and.resolveTo(),
+      hasBillingOverride: () => false };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
       { provide: BillingStateService, useValue: state }] });
     http = TestBed.inject(HttpTestingController);
@@ -22,7 +22,6 @@ describe('BillingRecoveryPage', () => {
   });
 
   afterEach(() => {
-    sessionStorage.removeItem('tm.checkoutResume');
     http.verify();
   });
 
@@ -61,34 +60,39 @@ describe('BillingRecoveryPage', () => {
     expect(page.error()).toBeTruthy();
   });
 
-  it('resumes only the exact pending CardCom checkout saved by this tab', async () => {
-    sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
-      lowProfileId: 'lp-current', paymentUrl: 'https://secure.cardcom.solutions/pay/current',
-    }));
+  it('offers server-owned continuation for a resumable pending CardCom checkout', async () => {
     page.ngOnInit();
     await Promise.resolve();
     http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
-      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', lowProfileId: 'lp-current',
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: true,
     }, { status: 409, statusText: 'Conflict' });
     await Promise.resolve();
     expect(page.pendingPayment()).toBeTrue();
-    expect(page.resumePaymentUrl()).toBe('https://secure.cardcom.solutions/pay/current');
+    expect(page.canResumePayment()).toBeTrue();
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout`);
   });
 
-  it('does not open a saved checkout whose LowProfile id differs from the active attempt', async () => {
-    sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
-      lowProfileId: 'lp-old', paymentUrl: 'https://secure.cardcom.solutions/pay/old',
-    }));
+  it('does not offer continuation when the active checkout has no durable URL', async () => {
     page.ngOnInit();
     await Promise.resolve();
     http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
-      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', lowProfileId: 'lp-current',
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: false,
     }, { status: 409, statusText: 'Conflict' });
     await Promise.resolve();
     expect(page.pendingPayment()).toBeTrue();
-    expect(page.resumePaymentUrl()).toBe('');
+    expect(page.canResumePayment()).toBeFalse();
+  });
+
+  it('checks the provider before continuing and reports captured processing without another checkout', async () => {
+    page.canResumePayment.set(true);
+    const pending = page.resumePayment();
+    http.expectOne(`${environment.apiUrl}billing/checkout/continue`).flush({ status: 'PROCESSING' });
+    await pending;
+    expect(page.canResumePayment()).toBeFalse();
+    expect(page.error()).toContain('בתהליך השלמה');
+    expect(state.refreshBillingState).toHaveBeenCalled();
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
   });
 
   it('formats service periods for the payment summary', () => {

@@ -17,7 +17,8 @@ describe('debt accrual without app usage', () => {
       currency: 'ILS', activeAttemptId: null, satisfiedAttemptId: null }];
     const manager = {
       findOne: jest.fn(async (entity: any) => entity === Subscription ? sub
-        : entity === BillingAttempt ? { id: 21, cardcomLowProfileId: 'lp-21' } : null),
+        : entity === BillingAttempt ? { id: 21, cardcomLowProfileId: 'lp-21',
+          hostedPaymentUrl: 'https://secure.cardcom.solutions/pay' } : null),
       find: jest.fn(async () => [...debts]),
       create: jest.fn((_entity: any, value: any) => value),
       save: jest.fn(async (entity: any, value: any) => {
@@ -96,7 +97,7 @@ describe('debt accrual without app usage', () => {
     debts[0].activeAttemptId = 21;
     await expect(service.preview({ actorFirebaseId: 'owner', subjectFirebaseId: 'owner' }, 7))
       .rejects.toMatchObject({ response: expect.objectContaining({
-        code: 'BILLING_PAYMENT_PENDING', lowProfileId: 'lp-21',
+        code: 'BILLING_PAYMENT_PENDING', canResume: true,
       }) });
   });
 });

@@ -230,6 +230,15 @@ export class BillingController {
     );
   }
 
+  /** Re-checks and resumes the one existing hosted debt checkout. */
+  @Post('checkout/continue')
+  @UseGuards(FirebaseAuthGuard)
+  continueCheckout(@Req() request: AuthenticatedRequest) {
+    return this.billingService.continueRecoveryCheckout(
+      this.buildOwnerMutationActor(request),
+    );
+  }
+
   @Post('subscription/cancel')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

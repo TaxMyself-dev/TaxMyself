@@ -1991,6 +1991,7 @@ CREATE TABLE IF NOT EXISTS `billing_attempt` (
   `payment_method_id` int NULL DEFAULT NULL,
   `cardcom_external_uniq_tran_id` varchar(25) NOT NULL,
   `cardcom_low_profile_id` varchar(255) NULL DEFAULT NULL,
+  `hosted_payment_url` varchar(2048) NULL DEFAULT NULL,
   `provider_terminal_ref` varchar(100) NULL DEFAULT NULL,
   `cardcom_transaction_id` varchar(128) NULL DEFAULT NULL,
   `provider_response_code` int NULL DEFAULT NULL,
@@ -2869,13 +2870,20 @@ SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
   'SELECT 1');
 PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
 
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='hosted_payment_url')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN hosted_payment_url varchar(2048) NULL AFTER cardcom_low_profile_id',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
 SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA=DATABASE() AND
  ((TABLE_NAME='billing_payer_profile' AND COLUMN_NAME IN
    ('subscription_id','full_name','identity_number','email','phone','business_number','version','verified_at'))
   OR (TABLE_NAME='billing_attempt' AND COLUMN_NAME IN
-   ('provider_description','payer_profile_version','payer_profile_snapshot')))
+   ('provider_description','payer_profile_version','payer_profile_snapshot','hosted_payment_url')))
 ORDER BY TABLE_NAME,COLUMN_NAME;
 
 -- KT-105 explicit one-off admin charge enum values (additive, rerunnable).

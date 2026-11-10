@@ -57,9 +57,10 @@ healthy recurring subscription.
   edit action labeled accurately and aligned to the visual left in the RTL card.
 - [x] Customer debt recovery is a focused, branded payment page with one payment
   action; card-only replacement and verbose operational copy are removed.
-- [x] Returning from an unfinished hosted checkout resumes the exact existing
-  CardCom page when its tab-local LowProfile id matches; it never opens a second
-  charge attempt while the first remains reserved.
+- [x] Returning from an unfinished hosted checkout asks the backend to inspect
+  the durable attempt read-only. Capture proceeds without redirect, a verified
+  final decline may open one new page, and every unknown/pending result resumes
+  the exact saved CardCom URL without creating a second charge attempt.
 - [ ] Focused backend/frontend tests, backend build and frontend production build
   pass, and billing documentation plus cumulative cutover SQL are updated.
 
@@ -81,7 +82,8 @@ healthy recurring subscription.
 ## Handoff
 
 - Result: Feature implementation complete and ready for final review/manual dev
-  acceptance. The keepintax-dev schema was applied and verified on 2026-11-09;
+  acceptance. The keepintax-dev schema was applied and verified on 2026-11-10,
+  including durable hosted checkout URLs;
   no provider request or customer charge was made.
 - Commit hash(es):
 - Changed files: billing backend/domain/task/CardCom/admin services and DTOs;

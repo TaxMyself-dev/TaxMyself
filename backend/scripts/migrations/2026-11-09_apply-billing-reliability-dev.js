@@ -76,6 +76,9 @@ async function inspect(connection) {
     payerProfileSnapshot: Boolean(
       await column(connection, 'billing_attempt', 'payer_profile_snapshot'),
     ),
+    hostedPaymentUrl: Boolean(
+      await column(connection, 'billing_attempt', 'hosted_payment_url'),
+    ),
     obligationKind: (await column(connection, 'billing_obligation', 'kind'))
       ?.COLUMN_TYPE,
     attemptTrigger: (await column(connection, 'billing_attempt', 'trigger'))
@@ -157,6 +160,12 @@ async function main() {
       'payer_profile_snapshot',
       'json NULL AFTER `payer_profile_version`',
     );
+    await ensureColumn(
+      connection,
+      'billing_attempt',
+      'hosted_payment_url',
+      'varchar(2048) NULL AFTER `cardcom_low_profile_id`',
+    );
     await ensureEnumValue(
       connection,
       'billing_obligation',
@@ -191,6 +200,7 @@ async function main() {
         after.providerDescription &&
         after.payerProfileVersion &&
         after.payerProfileSnapshot &&
+        after.hostedPaymentUrl &&
         after.obligationKind?.includes("'MANUAL_ONE_OFF'") &&
         after.attemptTrigger?.includes("'MANUAL_ONE_OFF'") &&
         after.eventType?.includes("'MANUAL_CHARGE_REQUESTED'") &&

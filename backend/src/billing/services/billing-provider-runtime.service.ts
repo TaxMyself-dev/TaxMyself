@@ -183,7 +183,7 @@ export class BillingProviderRuntimeService {
    */
   private applyOutcome(
     attempt: BillingAttempt,
-    input: ProviderRuntimeInput,
+    input: Pick<ProviderRuntimeInput, 'leaseOwner'>,
     outcome: NormalizedChargeOutcome,
   ) {
     if (
@@ -239,6 +239,45 @@ export class BillingProviderRuntimeService {
       outcome = normalizeCardComReconciliation(
         await this.executor.reconcileCharge(request),
       );
+    } catch {
+      outcome = { kind: 'UNKNOWN', failureCategory: 'RECONCILIATION_ERROR' };
+    }
+    const attempt = await this.applyOutcome(lease.attempt, input, outcome);
+    return { kind: 'APPLIED', outcome, attempt };
+  }
+
+  /**
+   * Customer-triggered, read-only lookup of an existing hosted checkout. It
+   * can claim AWAITING_CUSTOMER as well as UNKNOWN, but never submits a charge
+   * or creates another LowProfile page.
+   */
+  async inspectHostedCheckout(
+    input: Omit<ProviderRuntimeInput, 'expectedStateVersion'>,
+  ): Promise<ProviderRuntimeResult> {
+    this.orchestration.assertOwnerMutation(input.actor);
+    const lease = await this.orchestration.claimForHostedOutcome(
+      input.attemptId,
+      input.leaseOwner,
+      input.actor.subjectFirebaseId,
+    );
+    if (!lease.claimed) {
+      return { kind: 'NOT_CLAIMED', reason: lease.reason, attempt: lease.attempt };
+    }
+    const request: CardComChargeRequest = {
+      attemptId: lease.attempt.id,
+      paymentMethodId: lease.attempt.paymentMethodId,
+      externalUniqTranId: lease.attempt.cardcomExternalUniqTranId,
+      amountAgorot: lease.attempt.amountAgorot,
+      currency: lease.attempt.currency,
+      chargeMode: lease.attempt.chargeMode,
+      lowProfileId: lease.attempt.cardcomLowProfileId,
+      planId: lease.attempt.planId,
+      firebaseId: input.actor.subjectFirebaseId,
+      subscriptionId: input.subscriptionId ?? null,
+    };
+    let outcome: NormalizedChargeOutcome;
+    try {
+      outcome = normalizeCardComReconciliation(await this.executor.reconcileCharge(request));
     } catch {
       outcome = { kind: 'UNKNOWN', failureCategory: 'RECONCILIATION_ERROR' };
     }
