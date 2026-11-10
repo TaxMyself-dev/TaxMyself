@@ -57,6 +57,9 @@ healthy recurring subscription.
   edit action labeled accurately and aligned to the visual left in the RTL card.
 - [x] Customer debt recovery is a focused, branded payment page with one payment
   action; card-only replacement and verbose operational copy are removed.
+- [x] Returning from an unfinished hosted checkout resumes the exact existing
+  CardCom page when its tab-local LowProfile id matches; it never opens a second
+  charge attempt while the first remains reserved.
 - [ ] Focused backend/frontend tests, backend build and frontend production build
   pass, and billing documentation plus cumulative cutover SQL are updated.
 

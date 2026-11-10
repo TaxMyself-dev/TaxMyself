@@ -281,6 +281,10 @@ I/O. Unresolved reservations block another checkout. One ChargeAndCreateToken
 collects the total; verified card storage follows existing best-effort behavior
 and protects a newer card. A definite decline releases all reservations but
 keeps membership history; UNKNOWN never permits a replay.
+When a hosted reservation is already active, the typed pending response may
+include its LowProfile id. The customer UI uses it only to match a tab-local
+URL previously returned by CardCom and resume that exact page; it never derives
+a provider URL or opens another attempt from the identifier.
 
 Captured completion issues one existing invoice/receipt with one line per
 frozen period and atomically satisfies all members after document completion.

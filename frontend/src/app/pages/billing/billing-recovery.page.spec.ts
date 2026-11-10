@@ -12,6 +12,7 @@ describe('BillingRecoveryPage', () => {
   let state: any;
 
   beforeEach(() => {
+    sessionStorage.removeItem('tm.checkoutResume');
     state = { billingState: signal({ subscription: { status: 'PAST_DUE' }, plan: { id: 3, name: 'Basic' } }),
       loadBillingState: jasmine.createSpy().and.resolveTo(), hasBillingOverride: () => false };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
@@ -20,7 +21,10 @@ describe('BillingRecoveryPage', () => {
     page = TestBed.runInInjectionContext(() => new BillingRecoveryPage());
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    sessionStorage.removeItem('tm.checkoutResume');
+    http.verify();
+  });
 
   async function loadDebt() {
     page.ngOnInit();
@@ -57,16 +61,34 @@ describe('BillingRecoveryPage', () => {
     expect(page.error()).toBeTruthy();
   });
 
-  it('explains a pending payment instead of reporting a debt-loading failure', async () => {
+  it('resumes only the exact pending CardCom checkout saved by this tab', async () => {
+    sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
+      lowProfileId: 'lp-current', paymentUrl: 'https://secure.cardcom.solutions/pay/current',
+    }));
     page.ngOnInit();
     await Promise.resolve();
     http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
-      code: 'BILLING_PAYMENT_PENDING', message: 'התשלום ממתין לבדיקת תמיכה',
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', lowProfileId: 'lp-current',
     }, { status: 409, statusText: 'Conflict' });
     await Promise.resolve();
-    expect(page.error()).toBe('התשלום ממתין לבדיקת תמיכה');
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.resumePaymentUrl()).toBe('https://secure.cardcom.solutions/pay/current');
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
+
+  it('does not open a saved checkout whose LowProfile id differs from the active attempt', async () => {
+    sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
+      lowProfileId: 'lp-old', paymentUrl: 'https://secure.cardcom.solutions/pay/old',
+    }));
+    page.ngOnInit();
+    await Promise.resolve();
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', lowProfileId: 'lp-current',
+    }, { status: 409, statusText: 'Conflict' });
+    await Promise.resolve();
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.resumePaymentUrl()).toBe('');
   });
 
   it('formats service periods for the payment summary', () => {

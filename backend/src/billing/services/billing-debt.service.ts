@@ -4,6 +4,7 @@ import { billingBoundary, billingDate, nextBillingPeriod } from '../domain/billi
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { BillingObligation } from '../entities/billing-obligation.entity';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingAccessMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { assertBillingOwnerMutation, BillingMutationActorContext } from './billing-attempt-orchestration.service';
@@ -74,9 +75,17 @@ export class BillingDebtService {
     if (!sub || sub.firebaseId !== actor.subjectFirebaseId) throw new ForbiddenException('Subscription owner mismatch');
     const debts = await this.accrue(subscriptionId);
     if (!debts.length) throw new ConflictException('No outstanding subscription debt');
-    if (debts.some(debt => debt.activeAttemptId != null || debt.currency !== 'ILS')) {
+    if (debts.some(debt => debt.currency !== 'ILS')) {
+      throw new ConflictException('Debt currency requires support review');
+    }
+    const activeAttemptIds = [...new Set(debts.flatMap(debt => debt.activeAttemptId == null ? [] : [debt.activeAttemptId]))];
+    if (activeAttemptIds.length) {
+      const activeAttempt = activeAttemptIds.length === 1
+        ? await this.dataSource.manager.findOne(BillingAttempt, { where: { id: activeAttemptIds[0] } })
+        : null;
       throw new ConflictException({ code: 'BILLING_PAYMENT_PENDING',
-        message: 'קיים ניסיון תשלום שממתין להשלמה או לבדיקת התמיכה. אין לשלם שוב עד שהבדיקה תסתיים. אפשר לפנות לתמיכה לבירור מצב התשלום.' });
+        message: 'כבר נפתח עבורך עמוד תשלום. אפשר להמשיך בו מבלי ליצור ניסיון חיוב נוסף.',
+        ...(activeAttempt?.cardcomLowProfileId ? { lowProfileId: activeAttempt.cardcomLowProfileId } : {}) });
     }
     const quote = billingDebtQuote(debts);
     return {

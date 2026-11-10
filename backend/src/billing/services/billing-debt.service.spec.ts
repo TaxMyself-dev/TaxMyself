@@ -1,6 +1,7 @@
 import { BillingDebtService } from './billing-debt.service';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingAccessMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { billingBoundary } from '../domain/billing-debt-periods';
 
@@ -15,7 +16,8 @@ describe('debt accrual without app usage', () => {
       amountAgorot: 11800, amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800,
       currency: 'ILS', activeAttemptId: null, satisfiedAttemptId: null }];
     const manager = {
-      findOne: jest.fn(async (entity: any) => entity === Subscription ? sub : null),
+      findOne: jest.fn(async (entity: any) => entity === Subscription ? sub
+        : entity === BillingAttempt ? { id: 21, cardcomLowProfileId: 'lp-21' } : null),
       find: jest.fn(async () => [...debts]),
       create: jest.fn((_entity: any, value: any) => value),
       save: jest.fn(async (entity: any, value: any) => {
@@ -92,6 +94,9 @@ describe('debt accrual without app usage', () => {
   it('previews only open debts and refuses an unresolved payment', async () => {
     const { service, debts } = make();
     debts[0].activeAttemptId = 21;
-    await expect(service.preview({ actorFirebaseId: 'owner', subjectFirebaseId: 'owner' }, 7)).rejects.toThrow('קיים ניסיון תשלום');
+    await expect(service.preview({ actorFirebaseId: 'owner', subjectFirebaseId: 'owner' }, 7))
+      .rejects.toMatchObject({ response: expect.objectContaining({
+        code: 'BILLING_PAYMENT_PENDING', lowProfileId: 'lp-21',
+      }) });
   });
 });

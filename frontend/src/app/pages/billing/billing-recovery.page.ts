@@ -24,6 +24,22 @@ import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
             <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
             <span>טוענים את פרטי התשלום…</span>
           </div>
+        } @else if (pendingPayment()) {
+          <div class="pending-payment" role="status">
+            <i class="pi pi-info-circle" aria-hidden="true"></i>
+            <p>{{ error() }}</p>
+          </div>
+          @if (resumePaymentUrl()) {
+            <div class="recovery-action">
+              <app-p-button
+                [buttonText]="'חזרה לתשלום'"
+                [buttonColor]="buttonColor.BLACK"
+                [buttonSize]="buttonSize.BIG"
+                (onButtonClicked)="resumePayment()" />
+            </div>
+          } @else {
+            <p class="pending-help">אם עמוד התשלום נסגר, יש לפנות לתמיכה לפני ניסיון נוסף.</p>
+          }
         } @else if (error()) {
           <div class="recovery-error" role="alert">{{ error() }}</div>
         } @else {
@@ -82,6 +98,11 @@ import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
     .recovery-header p { margin: 10px 0 0; color: #667085; font-size: 16px; }
     .recovery-state { min-height: 180px; display: flex; align-items: center; justify-content: center; gap: 10px; color: #667085; }
     .recovery-error { margin-top: 28px; padding: 16px; border-radius: 12px; background: #fef3f2; color: #b42318; text-align: center; }
+    .pending-payment { margin-top: 28px; padding: 18px; display: flex; align-items: flex-start; justify-content: center; gap: 10px;
+      border-radius: 14px; background: #f2f4f7; color: #344054; text-align: right; }
+    .pending-payment p { margin: 0; }
+    .pending-payment i { margin-top: 3px; color: #667085; }
+    .pending-help { margin: 16px 0 0; color: #667085; text-align: center; font-size: 14px; }
     .debt-summary { margin-top: 30px; padding: 22px; border: 1px solid #e4e7ec; border-radius: 16px; background: #fcfcfd; }
     .summary-row, .period-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
     .plan-row { padding-bottom: 18px; border-bottom: 1px solid #eaecf0; color: #475467; }
@@ -109,6 +130,8 @@ export class BillingRecoveryPage implements OnInit {
   readonly buttonSize = ButtonSize;
   readonly loading = signal(true);
   readonly submitting = signal(false);
+  readonly pendingPayment = signal(false);
+  readonly resumePaymentUrl = signal('');
   readonly error = signal('');
   readonly amountLabel = signal('');
   readonly periods = signal<Array<{ periodStart: string; periodEnd: string; amountAgorot: number }>>([]);
@@ -131,12 +154,19 @@ export class BillingRecoveryPage implements OnInit {
         `${environment.apiUrl}billing/checkout/preview`, { planId: this.planId },
       ));
       if (preview.currency !== 'ILS' || !preview.recoveryQuote || !preview.periods?.length) throw new Error('Invalid debt preview');
+      sessionStorage.removeItem('tm.checkoutResume');
       this.recoveryQuote = preview.recoveryQuote;
       this.periods.set(preview.periods);
       this.amountLabel.set((preview.finalAmountAgorot / 100).toLocaleString('he-IL', { minimumFractionDigits: 2 }));
     } catch (err: any) {
-      this.error.set(err?.error?.code === 'BILLING_PAYMENT_PENDING' ? err.error.message
-        : 'לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.');
+      if (err?.error?.code === 'BILLING_PAYMENT_PENDING') {
+        this.pendingPayment.set(true);
+        this.error.set(err.error.message);
+        const saved = this.readCheckoutResume();
+        if (saved?.lowProfileId === err.error.lowProfileId) this.resumePaymentUrl.set(saved.paymentUrl);
+      } else {
+        this.error.set('לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.');
+      }
     }
     finally { this.loading.set(false); }
   }
@@ -148,6 +178,22 @@ export class BillingRecoveryPage implements OnInit {
     return year && month && day ? `${day}/${month}/${year}` : date;
   }
 
+  resumePayment(): void {
+    const paymentUrl = this.resumePaymentUrl();
+    if (paymentUrl) window.location.href = paymentUrl;
+  }
+
+  private readCheckoutResume(): { lowProfileId: string; paymentUrl: string } | null {
+    try {
+      const raw = sessionStorage.getItem('tm.checkoutResume');
+      if (!raw) return null;
+      const value = JSON.parse(raw);
+      if (typeof value?.lowProfileId !== 'string' || typeof value?.paymentUrl !== 'string') return null;
+      const paymentUrl = new URL(value.paymentUrl);
+      return paymentUrl.protocol === 'https:' && paymentUrl.hostname === 'secure.cardcom.solutions' ? value : null;
+    } catch { return null; }
+  }
+
   async pay(): Promise<void> {
     if (this.submitting() || this.loading() || this.error() || !this.planId) return;
     this.submitting.set(true);
@@ -157,6 +203,11 @@ export class BillingRecoveryPage implements OnInit {
       ));
       sessionStorage.removeItem('tm.checkoutLowProfileId');
       if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
+      if (result.lowProfileId && result.paymentUrl) {
+        sessionStorage.setItem('tm.checkoutResume', JSON.stringify({
+          lowProfileId: result.lowProfileId, paymentUrl: result.paymentUrl,
+        }));
+      }
       window.location.href = result.paymentUrl;
     } catch (err: any) {
       this.error.set(err?.error?.message ?? 'לא ניתן לפתוח תשלום. יש לפנות לתמיכה לפני ניסיון נוסף.');
