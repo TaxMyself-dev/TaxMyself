@@ -12,6 +12,9 @@ OCR endpoint is unchanged. Integrated commit `6ba1c4af`; focused verification
 on integrated `main` passed 4 suites / 19 tests and the Nest build. No schema,
 production, authentication, accounting or external-provider operation was
 performed; normal backend deployment is still required for production effect.
+Delivery `97451bff` was pushed to `origin/main` and
+`origin/codex/integration-kt107`; the final task-state commit records remote
+verification only.
 
 ## Direct-card cashflow — local main integration, 2026-11-05
 
