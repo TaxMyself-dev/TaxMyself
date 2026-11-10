@@ -242,3 +242,29 @@ and leaves queue/Scheduler paused for normal-worker restart and explicit resume.
 Keep the private snapshot until restoration succeeds; never commit it. The
 fixture intentionally supports only the verified existing dev records and fails
 closed when their prerequisites differ. It is not a legacy data migration.
+
+## Paused production charge-retry infrastructure (2026-11-10)
+
+The following resources were provisioned in project `taxmyself-prod` as a
+fail-closed release prerequisite. They are intentionally paused and cannot yet
+dispatch charge work:
+
+- Cloud Tasks queue `billing-charge-prod` in `europe-west1`, state `PAUSED`,
+  with at most 2 concurrent dispatches and 1 dispatch per second. Its retry
+  policy is 100 attempts over 7 days with 60-second minimum and 3600-second
+  maximum backoff.
+- The Cloud Run runtime service account has queue-scoped
+  `roles/cloudtasks.enqueuer` on that queue.
+- Scheduler jobs `billing-charge-repair-prod` and
+  `billing-reconciliation-prod`, both state `PAUSED`, scheduled for minute 10
+  of every hour in `Asia/Jerusalem`. They target
+  `/internal/billing/charge-repair` and `/internal/billing/reconcile`
+  respectively, using the existing billing worker OIDC identity and the Cloud
+  Run service URL as audience.
+
+The charge-task environment variables are not configured, the feature code and
+schema have not been deployed to production, and the production schema has not
+yet been verified or changed. No task was dispatched and no CardCom request,
+payment, receipt or subscription transition occurred during provisioning. The
+existing completion queue and its daily repair Scheduler remained unchanged and
+were re-verified separately.

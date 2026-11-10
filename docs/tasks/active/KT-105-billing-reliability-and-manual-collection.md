@@ -76,8 +76,10 @@ healthy recurring subscription.
   `docs/coordination/WORKFLOW.md`, `AUTHORITY.md`, `QUALITY_GATES.md`;
   official CardCom LowProfile result and direct token-charge documentation.
 - Approval boundaries: Elazar explicitly approved the business behavior, schema
-  additions and cumulative cutover SQL on 2026-11-09. Production/external calls
-  remain prohibited.
+  additions and cumulative cutover SQL on 2026-11-09, and the paused production
+  retry infrastructure on 2026-11-10. Provider calls, charges, schema changes,
+  application deployment and activation of the paused resources still require
+  separate authorization.
 
 ## Handoff
 
@@ -99,8 +101,14 @@ healthy recurring subscription.
   audit findings and non-fatal Angular budget/CommonJS warnings remain separate
   follow-up work and were not auto-fixed during release verification.
 - Schema / production / security / accounting / external impact: additive
-  keepintax-dev DDL applied only. Production remains untouched. No CardCom calls,
-  charges, receipts or subscription transitions were executed during validation.
+  keepintax-dev DDL applied. Production now has the paused `billing-charge-prod`
+  queue and paused hourly `billing-charge-repair-prod` and
+  `billing-reconciliation-prod` Scheduler jobs. The runtime identity received
+  queue-scoped enqueue permission. Production application code, environment and
+  schema remain unchanged; no task was dispatched and no CardCom call, charge,
+  receipt or subscription transition occurred during provisioning. Local DB
+  credentials cannot see `keepintax-prod`, so its KT-105 schema is not yet
+  verified.
 - Risks and manual checks: exercise hosted payer details, decline retry timing,
   payment-required routing, provider diagnostics, PAST_DUE settlement and
   independent one-off charging with CardCom test credentials before release.
@@ -109,6 +117,10 @@ healthy recurring subscription.
   the fixture is provider-free; direct login is required for access-block UI.
 - Documentation updated: backend billing, admin billing, settings, guards,
   Cloud Tasks feature guide, cumulative migration and production cutover SQL.
+- Production next steps: obtain an authorized production DB path, take/confirm a
+  fresh backup, verify and apply only the additive KT-105 DDL, configure the
+  charge-task Cloud Run environment during the guarded release, then activate
+  the queue and Scheduler jobs only after deployment smoke checks pass.
 
 ## Integration
 
