@@ -194,7 +194,9 @@ const smallCountMax = 10;
 const numbersIn = (text: string) =>
   new Set(
     (text.match(answerNumberPattern) ?? []).map((number) =>
-      number.replaceAll(",", "")
+      number
+        .replaceAll(",", "")
+        .replace(/(?<fraction>\.\d*?[1-9])0+$|\.0+$/u, "$<fraction>")
     )
   );
 

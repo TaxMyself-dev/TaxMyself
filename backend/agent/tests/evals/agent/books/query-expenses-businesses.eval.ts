@@ -57,7 +57,7 @@ describe.concurrent("query expenses, across businesses", () => {
     });
 
     const run = await runAgentConversation(books, [
-      "כמה הוצאתי על דלק השנה בשני העסקים שלי ביחד?",
+      "כמה הוצאתי על דלק השנה בכל עסק בנפרד, וכמה בשניהם ביחד?",
     ]);
 
     expect(calledToolNames(run)).toContain("queryExpenses");
@@ -75,6 +75,24 @@ describe.concurrent("query expenses, across businesses", () => {
         "`test_case.actual_output` says that some fuel expenses still wait for review (or approval) and are not counted.",
       ]),
     ]);
+  });
+
+  it("gives the combined total only when asked for just that", async ({
+    expect,
+  }) => {
+    const { scenario: books, queries } = scenario({
+      active: evalDesignerBusiness.number,
+    });
+
+    const run = await runAgentConversation(books, [
+      "מה סך הוצאות הדלק השנה בשני העסקים שלי ביחד? תן רק את הסכום הכולל.",
+    ]);
+
+    expect(queries.some(coversBoth)).toBe(true);
+    expect(mentionsAmount(run.answer, "2093.15")).toBe(true);
+    expect(mentionsAmount(run.answer, "1662")).toBe(false);
+    expect(mentionsAmount(run.answer, "431.15")).toBe(false);
+    expect(answerNumbersNotFromTools(run)).toEqual([]);
   });
 
   it("answers a question that names no business for the active one, and says which", async ({
