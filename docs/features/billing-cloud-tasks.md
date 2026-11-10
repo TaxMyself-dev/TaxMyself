@@ -262,9 +262,12 @@ dispatch charge work:
   respectively, using the existing billing worker OIDC identity and the Cloud
   Run service URL as audience.
 
-The charge-task environment variables are not configured, the feature code and
-schema have not been deployed to production, and the production schema has not
-yet been verified or changed. No task was dispatched and no CardCom request,
-payment, receipt or subscription transition occurred during provisioning. The
-existing completion queue and its daily repair Scheduler remained unchanged and
-were re-verified separately.
+The charge-task environment variables are not configured and the feature code
+has not been deployed to production. After a fresh operator-managed backup, the
+additive KT-105 schema was applied and verified on `keepintax-prod`: all payer
+profile and attempt columns exist, all four enum additions are present, and the
+new payer-profile table contains zero rows as expected before application
+deployment. No data backfill is required. No task was dispatched and no CardCom
+request, payment, receipt or subscription transition occurred during
+provisioning. The existing completion queue and its daily repair Scheduler
+remained unchanged and were re-verified separately.

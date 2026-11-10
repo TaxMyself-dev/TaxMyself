@@ -104,11 +104,12 @@ healthy recurring subscription.
   keepintax-dev DDL applied. Production now has the paused `billing-charge-prod`
   queue and paused hourly `billing-charge-repair-prod` and
   `billing-reconciliation-prod` Scheduler jobs. The runtime identity received
-  queue-scoped enqueue permission. Production application code, environment and
-  schema remain unchanged; no task was dispatched and no CardCom call, charge,
-  receipt or subscription transition occurred during provisioning. Local DB
-  credentials cannot see `keepintax-prod`, so its KT-105 schema is not yet
-  verified.
+  queue-scoped enqueue permission. After a fresh operator-managed backup, the
+  additive KT-105 production schema was applied and verified on 2026-11-10:
+  all expected columns and enum values exist and `billing_payer_profile` has
+  zero rows, so no backfill is required. Production application code and
+  environment remain unchanged; no task was dispatched and no CardCom call,
+  charge, receipt or subscription transition occurred during provisioning.
 - Risks and manual checks: exercise hosted payer details, decline retry timing,
   payment-required routing, provider diagnostics, PAST_DUE settlement and
   independent one-off charging with CardCom test credentials before release.
@@ -117,10 +118,9 @@ healthy recurring subscription.
   the fixture is provider-free; direct login is required for access-block UI.
 - Documentation updated: backend billing, admin billing, settings, guards,
   Cloud Tasks feature guide, cumulative migration and production cutover SQL.
-- Production next steps: obtain an authorized production DB path, take/confirm a
-  fresh backup, verify and apply only the additive KT-105 DDL, configure the
-  charge-task Cloud Run environment during the guarded release, then activate
-  the queue and Scheduler jobs only after deployment smoke checks pass.
+- Production next steps: run the guarded release, configure the charge-task
+  Cloud Run environment while the queue and Scheduler jobs remain paused, then
+  activate those resources only after deployment smoke checks pass.
 
 ## Integration
 
