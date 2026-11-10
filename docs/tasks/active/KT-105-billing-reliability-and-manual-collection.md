@@ -83,10 +83,11 @@ healthy recurring subscription.
 
 ## Handoff
 
-- Result: Feature implementation complete and ready for final review/manual dev
-  acceptance. The keepintax-dev schema was applied and verified on 2026-11-10,
-  including durable hosted checkout URLs;
-  no provider request or customer charge was made.
+- Result: Feature implementation, dev acceptance and guarded production rollout
+  complete. The keepintax-dev and keepintax-prod schemas were applied and
+  verified, including durable hosted checkout URLs. Production release
+  `r20261110-183344-0017` passed its full smoke suite; the charge-task revision
+  passed candidate and public readiness before controlled activation.
 - Commit hash(es):
 - Changed files: billing backend/domain/task/CardCom/admin services and DTOs;
   customer settings, billing guards and admin subscription UI; schema runners,
@@ -100,16 +101,15 @@ healthy recurring subscription.
 - Known pre-existing failures: none in the executed release gates. Dependency
   audit findings and non-fatal Angular budget/CommonJS warnings remain separate
   follow-up work and were not auto-fixed during release verification.
-- Schema / production / security / accounting / external impact: additive
-  keepintax-dev DDL applied. Production now has the paused `billing-charge-prod`
-  queue and paused hourly `billing-charge-repair-prod` and
-  `billing-reconciliation-prod` Scheduler jobs. The runtime identity received
-  queue-scoped enqueue permission. After a fresh operator-managed backup, the
-  additive KT-105 production schema was applied and verified on 2026-11-10:
-  all expected columns and enum values exist and `billing_payer_profile` has
-  zero rows, so no backfill is required. Production application code and
-  environment remain unchanged; no task was dispatched and no CardCom call,
-  charge, receipt or subscription transition occurred during provisioning.
+- Schema / production / security / accounting / external impact: additive DDL
+  applied in dev and production. All 11 production subscriptions with a stored
+  payment method received an unverified version-1 payer profile; coverage is
+  complete, one legacy profile lacks a source phone number, and no value was
+  fabricated. `billing-charge-prod` is RUNNING and the hourly charge-repair and
+  reconciliation jobs are ENABLED at minute 10 in `Asia/Jerusalem`. Revision
+  `taxmys16elf-prod-00334-xzq` has 100% traffic with the charge-task environment.
+  No task was dispatched and no CardCom call, charge, receipt or subscription
+  transition occurred during provisioning or activation.
 - Risks and manual checks: exercise hosted payer details, decline retry timing,
   payment-required routing, provider diagnostics, PAST_DUE settlement and
   independent one-off charging with CardCom test credentials before release.
@@ -118,14 +118,16 @@ healthy recurring subscription.
   the fixture is provider-free; direct login is required for access-block UI.
 - Documentation updated: backend billing, admin billing, settings, guards,
   Cloud Tasks feature guide, cumulative migration and production cutover SQL.
-- Production next steps: run the guarded release, configure the charge-task
-  Cloud Run environment while the queue and Scheduler jobs remain paused, then
-  activate those resources only after deployment smoke checks pass.
+- Production next steps: observe the first hourly repair/reconciliation run and
+  normal renewal outcomes; have the one legacy customer complete the missing
+  phone through billing settings when practical.
 
 ## Integration
 
 - Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
+- Integrated commit: `032a169c` before production release; this rollout record
+  follows as documentation-only integration.
+- Combined verification: full release smoke, candidate readiness, public
+  readiness, zero Cloud Run ERROR logs, empty charge queue before activation.
+- `origin/main` verification: release source `032a169c` matched `origin/main`.
 - User-visible run instructions:

@@ -243,31 +243,37 @@ Keep the private snapshot until restoration succeeds; never commit it. The
 fixture intentionally supports only the verified existing dev records and fails
 closed when their prerequisites differ. It is not a legacy data migration.
 
-## Paused production charge-retry infrastructure (2026-11-10)
+## Production charge-retry rollout (2026-11-10)
 
 The following resources were provisioned in project `taxmyself-prod` as a
-fail-closed release prerequisite. They are intentionally paused and cannot yet
-dispatch charge work:
+fail-closed release prerequisite and activated only after schema, deployment
+and readiness verification:
 
-- Cloud Tasks queue `billing-charge-prod` in `europe-west1`, state `PAUSED`,
+- Cloud Tasks queue `billing-charge-prod` in `europe-west1`, state `RUNNING`,
   with at most 2 concurrent dispatches and 1 dispatch per second. Its retry
   policy is 100 attempts over 7 days with 60-second minimum and 3600-second
   maximum backoff.
 - The Cloud Run runtime service account has queue-scoped
   `roles/cloudtasks.enqueuer` on that queue.
 - Scheduler jobs `billing-charge-repair-prod` and
-  `billing-reconciliation-prod`, both state `PAUSED`, scheduled for minute 10
+  `billing-reconciliation-prod`, both state `ENABLED`, scheduled for minute 10
   of every hour in `Asia/Jerusalem`. They target
   `/internal/billing/charge-repair` and `/internal/billing/reconcile`
   respectively, using the existing billing worker OIDC identity and the Cloud
   Run service URL as audience.
 
-The charge-task environment variables are not configured and the feature code
-has not been deployed to production. After a fresh operator-managed backup, the
-additive KT-105 schema was applied and verified on `keepintax-prod`: all payer
-profile and attempt columns exist, all four enum additions are present, and the
-new payer-profile table contains zero rows as expected before application
-deployment. No data backfill is required. No task was dispatched and no CardCom
-request, payment, receipt or subscription transition occurred during
-provisioning. The existing completion queue and its daily repair Scheduler
-remained unchanged and were re-verified separately.
+After a fresh operator-managed backup, the additive KT-105 schema was applied
+and verified on `keepintax-prod`: all payer-profile and attempt columns exist
+and all four enum additions are present. The 11 subscriptions with a stored
+payment method were backfilled with version-1 unverified payer profiles; all
+are covered, one lacks a source phone number, and no value was fabricated.
+
+Guarded release `r20261110-183344-0017` passed the full signup/login/cleanup
+smoke. The charge environment was then added on a separate zero-traffic
+revision, candidate readiness passed, and revision
+`taxmys16elf-prod-00334-xzq` was promoted to 100%. Public readiness passed,
+there were no ERROR logs, and the empty queue plus both hourly Scheduler jobs
+were activated. No task was dispatched and no CardCom request, payment,
+receipt or subscription transition occurred during provisioning or activation.
+The existing completion queue and its daily repair Scheduler remained unchanged
+and were re-verified separately.
