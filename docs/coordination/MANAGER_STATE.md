@@ -1,5 +1,18 @@
 # Primary manager state
 
+## KT-107 Drive OCR at-most-once — 2026-11-10
+
+Drive-backed OCR now persists a unique `PROCESSING` claim before Claude is
+called. Every live row and content checksum is a permanent automatic-processing
+claim, including provider/parser failures and rejected documents; same-batch
+duplicates are claimed before the first result is known. Failed files move to
+`processed/` and cron, report navigation, immediate upload, WhatsApp and email
+intake cannot call Claude for them again. The explicit stateless form-prefill
+OCR endpoint is unchanged. Integrated commit `6ba1c4af`; focused verification
+on integrated `main` passed 4 suites / 19 tests and the Nest build. No schema,
+production, authentication, accounting or external-provider operation was
+performed; normal backend deployment is still required for production effect.
+
 ## Direct-card cashflow — local main integration, 2026-11-05
 
 Elazar authorized local integration for personal main testing and explicitly
