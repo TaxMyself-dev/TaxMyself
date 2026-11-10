@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from 'src/environments/environment';
@@ -25,19 +25,21 @@ import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
             <span>טוענים את פרטי התשלום…</span>
           </div>
         } @else if (pendingPayment()) {
-          <div class="pending-payment" role="status">
-            <i class="pi pi-info-circle" aria-hidden="true"></i>
-            <p>{{ error() }}</p>
-          </div>
           @if (canResumePayment()) {
             <div class="recovery-action">
               <app-p-button
                 [buttonText]="'חזרה לתשלום'"
                 [buttonColor]="buttonColor.BLACK"
                 [buttonSize]="buttonSize.BIG"
+                [isLoading]="submitting()"
+                [disabled]="submitting()"
                 (onButtonClicked)="resumePayment()" />
             </div>
           } @else {
+            <div class="pending-payment" role="status">
+              <i class="pi pi-info-circle" aria-hidden="true"></i>
+              <p>{{ error() }}</p>
+            </div>
             <p class="pending-help">אם עמוד התשלום נסגר, יש לפנות לתמיכה לפני ניסיון נוסף.</p>
           }
         } @else if (error()) {
@@ -140,7 +142,19 @@ export class BillingRecoveryPage implements OnInit {
 
   ngOnInit(): void { void this.load(); }
 
+  /** Browser Back may restore this component with its pre-redirect loading state. */
+  @HostListener('window:pageshow', ['$event'])
+  onPageShow(event: PageTransitionEvent): void {
+    if (!event.persisted) return;
+    this.submitting.set(false);
+    void this.load();
+  }
+
   private async load(): Promise<void> {
+    this.loading.set(true);
+    this.pendingPayment.set(false);
+    this.canResumePayment.set(false);
+    this.error.set('');
     try {
       await this.billing.loadBillingState();
       const state = this.billing.billingState();
@@ -160,8 +174,9 @@ export class BillingRecoveryPage implements OnInit {
     } catch (err: any) {
       if (err?.error?.code === 'BILLING_PAYMENT_PENDING') {
         this.pendingPayment.set(true);
-        this.error.set(err.error.message);
-        this.canResumePayment.set(err.error.canResume === true);
+        const canResume = err.error.canResume === true;
+        this.canResumePayment.set(canResume);
+        this.error.set(canResume ? '' : err.error.message);
       } else {
         this.error.set('לא ניתן לטעון את פרטי החוב. יש לרענן את העמוד או לפנות לתמיכה.');
       }

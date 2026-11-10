@@ -56,6 +56,10 @@ Standalone pricing/plans page where a user views available subscription plans an
   CardCom read-only before returning the same saved page, reporting capture
   processing, or opening a new page after a verified final decline. The browser
   never chooses or reconstructs a CardCom URL.
+- Browser Back from CardCom may restore the page from BFCache. A persisted
+  `pageshow` clears the pre-redirect submitting state and reloads the server
+  preview, so the resumable state shows only an enabled "return to payment"
+  action without operational or duplicate-charge explanation.
 - The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts

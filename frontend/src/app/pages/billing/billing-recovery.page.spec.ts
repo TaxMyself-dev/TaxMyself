@@ -69,8 +69,27 @@ describe('BillingRecoveryPage', () => {
     await Promise.resolve();
     expect(page.pendingPayment()).toBeTrue();
     expect(page.canResumePayment()).toBeTrue();
+    expect(page.error()).toBe('');
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
+
+  it('clears a restored redirect spinner and reloads the pending checkout after browser Back', async () => {
+    await loadDebt();
+    page.submitting.set(true);
+
+    page.onPageShow({ persisted: true } as PageTransitionEvent);
+    await Promise.resolve();
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: true,
+    }, { status: 409, statusText: 'Conflict' });
+    await Promise.resolve();
+
+    expect(page.submitting()).toBeFalse();
+    expect(page.loading()).toBeFalse();
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.canResumePayment()).toBeTrue();
+    expect(page.error()).toBe('');
   });
 
   it('does not offer continuation when the active checkout has no durable URL', async () => {
