@@ -9,6 +9,10 @@ import {
 import { DocumentKind, ReportPeriodLabel, RecordSource } from 'src/enum';
 
 export enum ExtractedDocStatus {
+  /** Durable at-most-once claim written before the first Claude call. If the
+   *  process dies mid-call, future inbox sweeps treat this row as handled and
+   *  move the file to processed/ without calling Claude again. */
+  PROCESSING = 'processing',
   /** OCR succeeded, awaiting user review in the report-page modal. */
   PENDING_REVIEW = 'pending_review',
   /** User confirmed the row → became an Expense; file already in processed/. */
@@ -28,7 +32,8 @@ export enum ExtractedDocStatus {
    *  status filter. When the primary is approved/archived/rejected, the
    *  cascade also updates this row to match. Unpair reverts both halves. */
   PAIRED = 'paired',
-  /** OCR failed on the file; row exists for diagnostics, file stays in inbox/. */
+  /** OCR failed on the file; row exists for diagnostics and the file is moved
+   *  to processed/ so automatic intake can never parse it again. */
   ERROR = 'error',
   /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
    *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes

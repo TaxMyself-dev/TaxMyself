@@ -3008,11 +3008,9 @@ ${finalOwnerName}`;
     // Byte-identical dedup setup. A file re-uploaded to inbox gets a fresh
     // driveFileId, so the driveFileId check above can't see it — but its
     // md5Checksum matches a prior row. Look up which content hashes are
-    // already represented by a LIVE row for this business. Excluded:
-    //   - ERROR    — retried, so not "already handled".
-    //   - REJECTED — the content was explicitly discarded (user junk or a
-    //     prior auto-dedup); a deliberate re-upload should get another OCR
-    //     pass, not be silently re-rejected forever.
+    // already represented by ANY live row for this business. Every status,
+    // including PROCESSING, ERROR, and REJECTED, counts as handled: the same
+    // bytes must never reach Claude again under a new Drive file id.
     // Map md5 → the original's driveFileId for the duplicate row's audit trail.
     const batchMd5s = Array.from(
       new Set(files.map(f => f.md5Checksum).filter((m): m is string => !!m)),
@@ -3023,7 +3021,6 @@ ${finalOwnerName}`;
           userId: user.index,
           businessNumber,
           driveFileMd5: In(batchMd5s),
-          status: Not(In([ExtractedDocStatus.ERROR, ExtractedDocStatus.REJECTED])),
           deletedAt: IsNull(),
         },
       })
@@ -3069,10 +3066,12 @@ ${finalOwnerName}`;
       const priorRows = existingByDriveId.get(file.id) ?? [];
       const activePriorRows = priorRows.filter(row => row.deletedAt == null);
       const deletedPriorRows = priorRows.filter(row => row.deletedAt != null);
-      // Any non-error row means we've handled this file already. Move it to
-      // processed/ if it's still hanging out in inbox (recovery from a prior
-      // run that crashed between save+move).
-      const alreadyHandled = activePriorRows.some(r => r.status !== ExtractedDocStatus.ERROR);
+      // Any live row is a durable record that OCR was already claimed for this
+      // Drive file. This includes PROCESSING (the process may have died during
+      // Claude), ERROR (the provider/parser failed), and every terminal/success
+      // state. Never delete the row and retry: at-most-once is more important
+      // than automatic recovery from an ambiguous paid-provider outcome.
+      const alreadyHandled = activePriorRows.length > 0;
       if (alreadyHandled) {
         skipped++;
         await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
@@ -3151,13 +3150,20 @@ ${finalOwnerName}`;
         continue;
       }
 
-      // Wipe any prior `error` rows for this file before retrying.
-      if (priorRows.length > 0) {
-        await this.extractedDocRepo.remove(priorRows);
-      }
-
+      let ocrClaim: ExtractedDocument | null = null;
       try {
         const buffer = await this.googleDriveService.downloadFile(file.id);
+        // Persist the unique (drive_file_id, sub_index=0) claim BEFORE the
+        // paid provider call. A crash or unknown provider outcome therefore
+        // leaves a row that every future sweep treats as already handled.
+        ocrClaim = await this.claimOcrAttempt(
+          user.index,
+          businessNumber,
+          file,
+          uploadDate,
+          recordSource,
+        );
+        if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
         const { invoices, rawResponse } = await this.documentProcessor.extract(
           buffer,
           file.mimeType,
@@ -3165,29 +3171,25 @@ ${finalOwnerName}`;
         );
 
         if (!invoices) {
-          await this.saveErrorRow(
-            user.index,
-            businessNumber,
-            file,
-            uploadDate,
-            rawResponse,
-            recordSource,
-          );
+          await this.finalizeOcrClaimAsError(ocrClaim, rawResponse);
+          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
           failed++;
           continue;
         }
         if (invoices.length === 0) {
-          await this.saveErrorRow(
-            user.index, businessNumber, file, uploadDate,
+          await this.finalizeOcrClaimAsError(
+            ocrClaim,
             rawResponse || 'Claude returned 0 invoices for this file',
-            recordSource,
           );
+          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
           failed++;
           continue;
         }
 
         // One row per invoice. Raw Claude response saved only on the first
-        // row to avoid duplicating a potentially-large blob.
+        // row to avoid duplicating a potentially-large blob. The first row
+        // updates the durable claim in place; it is never removed/reinserted.
+        const extractedRows: ExtractedDocument[] = [];
         for (let i = 0; i < invoices.length; i++) {
           const inv = invoices[i];
           const normalizedDocumentType = this.normalizeDocumentType(inv.document_type);
@@ -3207,8 +3209,7 @@ ${finalOwnerName}`;
             fxResolved != null && inv.amount != null
               ? Number((Number(inv.amount) * fxResolved).toFixed(2))
               : null;
-          await this.extractedDocRepo.save(
-            this.extractedDocRepo.create({
+          const values = {
               userId: user.index,
               businessNumber,
               driveFileId: file.id,
@@ -3247,28 +3248,31 @@ ${finalOwnerName}`;
               status: ExtractedDocStatus.PENDING_REVIEW,
               source: recordSource,
               rawResponse: i === 0 ? rawResponse : null,
-            }),
+          };
+          extractedRows.push(
+            i === 0
+              ? Object.assign(ocrClaim, values)
+              : this.extractedDocRepo.create(values),
           );
         }
+        await this.extractedDocRepo.save(extractedRows);
         // OCR succeeded → move the file out of inbox so a repeat pass
         // doesn't re-pick-it-up. Best-effort: a move failure is logged but
         // doesn't undo the saved rows (dedup catches it next run).
         await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-
-        // Claim this content hash so a later copy in the same batch dedups
-        // against it (cross-run copies are caught via the stored column).
-        if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
 
         processed++;
         this.logger.log(
           `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
         );
       } catch (err: any) {
-        await this.saveErrorRow(
-          user.index, businessNumber, file, uploadDate,
-          err?.message ?? String(err),
-          recordSource,
-        );
+        if (ocrClaim) {
+          await this.finalizeOcrClaimAsError(
+            ocrClaim,
+            err?.message ?? String(err),
+          );
+          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        }
         failed++;
         this.logger.error(
           `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
@@ -3640,23 +3644,48 @@ ${finalOwnerName}`;
       mimeType,
     );
 
-    // 2) Run Claude on the buffer (no need to re-download from Drive).
-    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
-    const { invoices, rawResponse } = await this.documentProcessor.extract(
-      fileBuffer,
-      mimeType,
-      catalog,
-    );
     const uploadDate = new Date();
+    const directFile = {
+      id: driveFileId,
+      name: originalName,
+      md5Checksum: createHash('md5').update(fileBuffer).digest('hex'),
+    };
+
+    // 2) Claim the Drive file before calling Claude. This closes the race
+    //    with the periodic inbox sweep and makes an ambiguous provider outcome
+    //    non-retryable just like the ordinary inbox path.
+    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    const ocrClaim = await this.claimOcrAttempt(
+      user.index,
+      businessNumber,
+      directFile,
+      uploadDate,
+      RecordSource.DRIVE,
+    );
+    let invoices: any[] | null = null;
+    let rawResponse = '';
+    try {
+      ({ invoices, rawResponse } = await this.documentProcessor.extract(
+        fileBuffer,
+        mimeType,
+        catalog,
+      ));
+    } catch (error: any) {
+      await this.finalizeOcrClaimAsError(
+        ocrClaim,
+        error?.message ?? String(error),
+      );
+      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
+      throw error;
+    }
     if (!invoices || invoices.length === 0) {
       // Persist an error row so admin diagnostics still see the file, but
       // raise so the caller can surface "OCR didn't find an invoice".
-      await this.saveErrorRow(
-        user.index, businessNumber,
-        { id: driveFileId, name: originalName },
-        uploadDate,
+      await this.finalizeOcrClaimAsError(
+        ocrClaim,
         rawResponse || 'Claude returned 0 invoices for this upload',
       );
+      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
       throw new BadRequestException('לא נמצאה חשבונית במסמך שהועלה');
     }
 
@@ -3664,7 +3693,7 @@ ${finalOwnerName}`;
     //    (kept inline rather than factored out so the read-path comments
     //    in that loop stay self-contained). Multi-invoice files get N
     //    sibling rows sharing the same driveFileId.
-    const savedRows: ExtractedDocument[] = [];
+    const rowsToSave: ExtractedDocument[] = [];
     for (let i = 0; i < invoices.length; i++) {
       const inv = invoices[i];
       const normalizedCurrency = this.normalizeCurrency(inv.currency);
@@ -3676,12 +3705,12 @@ ${finalOwnerName}`;
         fxResolved != null && inv.amount != null
           ? Number((Number(inv.amount) * fxResolved).toFixed(2))
           : null;
-      const saved = await this.extractedDocRepo.save(
-        this.extractedDocRepo.create({
+      const values = {
           userId: user.index,
           businessNumber,
           driveFileId,
           driveFileName: originalName,
+          driveFileMd5: directFile.md5Checksum,
           month: this.deriveMonthFromExtraction(inv.date, uploadDate),
           subIndex: i,
           documentType: this.normalizeDocumentType(inv.document_type),
@@ -3709,10 +3738,25 @@ ${finalOwnerName}`;
           isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
           description: inv.description ?? null,
           status: ExtractedDocStatus.PENDING_REVIEW,
+          source: RecordSource.DRIVE,
           rawResponse: i === 0 ? rawResponse : null,
-        }),
+      };
+      rowsToSave.push(
+        i === 0
+          ? Object.assign(ocrClaim, values)
+          : this.extractedDocRepo.create(values),
       );
-      savedRows.push(saved);
+    }
+    let savedRows: ExtractedDocument[];
+    try {
+      savedRows = await this.extractedDocRepo.save(rowsToSave);
+    } catch (error: any) {
+      await this.finalizeOcrClaimAsError(
+        ocrClaim,
+        error?.message ?? String(error),
+      );
+      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
+      throw error;
     }
 
     // 4) Move the file out of inbox/ now that OCR succeeded. Best-effort —
@@ -3868,31 +3912,44 @@ ${finalOwnerName}`;
     return (exact ?? bySubName[0]).subCategoryId ?? null;
   }
 
-  private async saveErrorRow(
+  /**
+   * Reserve sub_index=0 before the paid OCR call. The existing unique index on
+   * (drive_file_id, sub_index) is the durable at-most-once boundary; no schema
+   * change is required. PROCESSING remains as evidence if the process dies.
+   */
+  private async claimOcrAttempt(
     userIndex: number,
     businessNumber: string,
-    file: { id: string; name: string },
+    file: { id: string; name: string; md5Checksum?: string | null },
     uploadDate: Date | null,
-    rawResponse: string,
     source: RecordSource = RecordSource.DRIVE,
-  ): Promise<void> {
+  ): Promise<ExtractedDocument> {
     const fallbackMonth = (uploadDate ?? new Date());
-    await this.extractedDocRepo.save(
+    return this.extractedDocRepo.save(
       this.extractedDocRepo.create({
         userId: userIndex,
         businessNumber,
         driveFileId: file.id,
         driveFileName: file.name,
-        // Legacy NOT NULL column — error rows have no OCR'd date so we use
-        // the upload month as the bucket.
+        driveFileMd5: file.md5Checksum ?? null,
+        // Legacy NOT NULL column — the pre-provider claim has no OCR'd date,
+        // so use the upload month as the bucket.
         month: `${fallbackMonth.getFullYear()}-${String(fallbackMonth.getMonth() + 1).padStart(2, '0')}`,
         subIndex: 0,
         uploadDate,
-        status: ExtractedDocStatus.ERROR,
+        status: ExtractedDocStatus.PROCESSING,
         source,
-        rawResponse,
       }),
     );
+  }
+
+  private async finalizeOcrClaimAsError(
+    claim: ExtractedDocument,
+    rawResponse: string,
+  ): Promise<void> {
+    claim.status = ExtractedDocStatus.ERROR;
+    claim.rawResponse = rawResponse;
+    await this.extractedDocRepo.save(claim);
   }
 
   /** Records a byte-identical re-upload as a REJECTED row (reason:
