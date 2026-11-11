@@ -134,3 +134,15 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Billing payer profile (2026-11-09)
+
+The subscription tab reads and edits the authenticated owner's billing payer
+profile: full name, identity number, email, phone and business number. Defaults
+come from existing user/business data. The backend rejects delegated/admin
+impersonation, validates lengths/formats and versions every save. Changes apply
+only to future attempts; the immutable snapshot on an existing attempt is not
+rewritten. No card number or CVV is collected here. Once the profile is loaded,
+the secondary action is labeled "עריכת פרטי תשלום" and sits on the visual left
+of the RTL card; it updates the saved profile rather than creating another
+payment method.

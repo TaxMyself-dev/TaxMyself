@@ -56,6 +56,10 @@ export class ModuleAccessGuard {
       return true;
     }
 
+    if (this.billingState.isPaymentRequired()) {
+      return this.router.createUrlTree([FALLBACK_ROUTE]);
+    }
+
     // Authoritative denial — successful /billing/me confirmed the module is missing.
     const { blockedBehavior, displayName } = ROUTE_ACCESS_CONFIG[appRoute];
     if (blockedBehavior === BlockedBehavior.UPGRADE_POPUP) {

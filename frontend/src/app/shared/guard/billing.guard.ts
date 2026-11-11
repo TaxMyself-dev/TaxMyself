@@ -58,7 +58,10 @@ export class BillingGuard {
 
     const status = this.billingStateService.effectiveStatus();
 
-    if (!status || !BILLING_BLOCKING_STATUSES.includes(status)) {
+    if (
+      !this.billingStateService.isPaymentRequired() &&
+      (!status || !BILLING_BLOCKING_STATUSES.includes(status))
+    ) {
       return true;
     }
 

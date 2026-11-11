@@ -83,6 +83,10 @@ No live Meta webhook, phone-linking flow, new tables or production integration y
 
 Document intake uses existing API_IMPORT source; do not extend the database enum
 without the schema approval required by docs/coordination/AUTHORITY.md.
+The OCR projection maps that existing source to `RecordSource.WHATSAPP`, and
+the durable Lychee worker triggers the shared inbox processor after import so
+the archive does not depend on report navigation. The minute sweep remains the
+recovery path if immediate OCR fails.
 The sandbox uses DocumentImportService with fake repository and Drive boundaries.
 Only the normal application's development module uses real DocumentImportModule.
 Event dedup is bounded in-memory state for this checkpoint, not a production queue.

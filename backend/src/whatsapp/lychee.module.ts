@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { Business } from '../business/business.entity';
 import { DocumentImportModule } from '../document-import/document-import.module';
+import { DocumentsModule } from '../documents/documents.module';
 import { LycheeClient } from './lychee-client.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { LycheeIntakeService } from './lychee-intake.service';
@@ -20,7 +21,7 @@ import {
 } from './lychee-prompt.transport';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Business]), DocumentImportModule],
+  imports: [TypeOrmModule.forFeature([User, Business]), DocumentImportModule, DocumentsModule],
   controllers: [LycheeWebhookController],
   providers: [
     LycheeClient,

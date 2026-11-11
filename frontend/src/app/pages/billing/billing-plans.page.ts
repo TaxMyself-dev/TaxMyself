@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { GenericService } from '../../services/generic.service';
 import { ProgressSpinner } from 'primeng/progressspinner';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { BillingStateService } from '../../services/billing-state.service';
 
 interface PlanChangePreview {
@@ -76,6 +76,7 @@ export class BillingPlansPage implements OnInit {
   readonly billing = inject(BillingStateService);
   private readonly http = inject(HttpClient);
   private readonly genericService = inject(GenericService);
+  private readonly router = inject(Router);
 
   private readonly rawPlans = signal<Plan[]>([]);
   readonly isLoading = signal(true);
@@ -160,6 +161,12 @@ export class BillingPlansPage implements OnInit {
       if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
       window.location.href = result.paymentUrl;
     } catch (err: any) {
+      if (err?.error?.code === 'BILLING_PAYER_PROFILE_INCOMPLETE') {
+        this.genericService.showToast('יש להשלים את פרטי המשלם לפני המעבר לתשלום.', 'error');
+        this.checkingOutPlanId.set(null);
+        await this.router.navigate(['/settings'], { queryParams: { tab: 'subscription' } });
+        return;
+      }
       this.genericService.showToast(
         err?.error?.message ?? 'שגיאה בתהליך התשלום. נסה שוב.',
         'error',

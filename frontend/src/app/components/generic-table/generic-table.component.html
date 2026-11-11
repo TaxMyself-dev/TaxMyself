@@ -350,6 +350,16 @@
                   }
                 </span>
               }
+              @else if (col.cellRenderer === ICellRenderer.SOURCE_BADGE) {
+                <span class="generic-source-badge">
+                  @if (row.sourceIconUrl) {
+                    <img class="generic-source-badge__image" [src]="row.sourceIconUrl" alt="" aria-hidden="true" />
+                  } @else if (row.sourceIconClass) {
+                    <i class="generic-source-badge__icon {{ row.sourceIconClass }}" aria-hidden="true"></i>
+                  }
+                  <span>{{ row[col.name] }}</span>
+                </span>
+              }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}

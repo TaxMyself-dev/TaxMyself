@@ -1,7 +1,8 @@
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
-import { Component, OnInit, computed, signal, inject } from '@angular/core';
-import { of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { Component, DestroyRef, OnInit, computed, signal, inject } from '@angular/core';
+import { of, timer } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ArchiveDocumentClassification, DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData, ISelectItem } from 'src/app/shared/interface';
@@ -32,8 +33,16 @@ export const RECORD_SOURCE_LABELS: Record<RecordSource, string> = {
   DRIVE: 'דרייב',
   EMAIL: 'מייל',
   MANUAL: 'ידני',
-  OPEN_BANKING: 'בנקאות פתוחה',
-  WHATSAPP: 'ווטסאפ',
+  OPEN_BANKING: 'תנועה',
+  WHATSAPP: 'וואטסאפ',
+};
+
+export const RECORD_SOURCE_ICONS: Record<RecordSource, { iconClass?: string; iconUrl?: string }> = {
+  DRIVE: { iconUrl: 'assets/google-drive-mark.svg' },
+  EMAIL: { iconClass: 'pi pi-envelope' },
+  MANUAL: { iconClass: 'pi pi-pencil' },
+  OPEN_BANKING: { iconClass: 'pi pi-arrow-right-arrow-left' },
+  WHATSAPP: { iconClass: 'pi pi-whatsapp' },
 };
 
 /** Hebrew labels for `ExtractedDocumentType` (see backend `extracted-document.entity.ts`). */
@@ -76,6 +85,7 @@ export class ArchivedDocumentsPage implements OnInit {
   private dialogService = inject(DialogService);
   private expenseDataService = inject(ExpenseDataService);
   private reportReviewService = inject(ReportReviewService);
+  private destroyRef = inject(DestroyRef);
 
   // ===========================
   // Global state
@@ -93,6 +103,7 @@ export class ArchivedDocumentsPage implements OnInit {
   rawItems = signal<ArchivedItem[]>([]);
   selectedStatus = signal<string>('ACTIVE');
   selectedDocumentType = signal<string>('');
+  selectedSource = signal<string>('');
   fileActions = signal<IGenericTableAction[]>([]);
   approvalDialogItem = signal<ArchivedItem | null>(null);
   classificationDialogItem = signal<ArchivedItem | null>(null);
@@ -119,7 +130,7 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT, cellRenderer: ICellRenderer.STATUS_BADGE },
     { name: 'documentDate', value: 'תאריך מסמך', type: FormTypes.DATE },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
-    { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
+    { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT, cellRenderer: ICellRenderer.SOURCE_BADGE },
   ]);
 
   readonly archiveSearchColumns = [
@@ -137,6 +148,7 @@ export class ArchivedDocumentsPage implements OnInit {
   readonly filteredItems = computed(() => {
     const status = this.selectedStatus();
     const docType = this.selectedDocumentType();
+    const source = this.selectedSource();
     const selectedBusiness = this.gs.businesses().find(
       business => business.businessNumber === this.selectedBusinessNumber(),
     );
@@ -155,13 +167,23 @@ export class ArchivedDocumentsPage implements OnInit {
         if (item.status === 'DELETED') return false;
         return status === 'ACTIVE' || item.status === status;
       })
-      .filter(item => !docType || (item.documentType ?? TRANSACTION_TYPE_VALUE) === docType)
-      .map(item => ({
-        ...item,
+      .filter(item => !docType || (
+        item.documentType
+          ?? (item.itemType === 'DOCUMENT' ? 'unknown' : TRANSACTION_TYPE_VALUE)
+      ) === docType)
+      .filter(item => !source || item.source === source)
+      .map(item => {
+        const sourceIcon = RECORD_SOURCE_ICONS[item.source];
+        return {
+          ...item,
         documentTypeLabel: item.documentType
           ? (DOCUMENT_TYPE_LABELS[item.documentType] ?? item.documentType)
-          : TRANSACTION_TYPE_LABEL,
+            : item.itemType === 'DOCUMENT'
+              ? DOCUMENT_TYPE_LABELS.unknown
+              : TRANSACTION_TYPE_LABEL,
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
+        sourceIconClass: sourceIcon?.iconClass ?? null,
+        sourceIconUrl: sourceIcon?.iconUrl ?? null,
         statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
@@ -175,7 +197,8 @@ export class ArchivedDocumentsPage implements OnInit {
             : null,
         documentDate: item.documentDate ? item.documentDate.slice(0, 10) : '-',
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
-      }));
+        };
+      });
   });
 
   // ===========================
@@ -199,6 +222,15 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'הכל', value: '' },
     ...Object.entries(DOCUMENT_TYPE_LABELS).map(([value, name]) => ({ name, value })),
     { name: TRANSACTION_TYPE_LABEL, value: TRANSACTION_TYPE_VALUE },
+  ];
+
+  private readonly sourceOptions: ISelectItem[] = [
+    { name: 'הכל', value: '' },
+    { name: RECORD_SOURCE_LABELS.OPEN_BANKING, value: 'OPEN_BANKING' },
+    { name: RECORD_SOURCE_LABELS.DRIVE, value: 'DRIVE' },
+    { name: RECORD_SOURCE_LABELS.EMAIL, value: 'EMAIL' },
+    { name: RECORD_SOURCE_LABELS.WHATSAPP, value: 'WHATSAPP' },
+    { name: RECORD_SOURCE_LABELS.MANUAL, value: 'MANUAL' },
   ];
 
   // ===========================
@@ -228,6 +260,7 @@ export class ArchivedDocumentsPage implements OnInit {
       businessNumber: [this.selectedBusinessNumber()],
       status: ['ACTIVE'],
       documentType: [''],
+      source: [''],
     });
 
     this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
@@ -245,6 +278,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.form.get('status')?.valueChanges.subscribe(value => this.selectedStatus.set(value ?? 'ACTIVE'));
     this.form.get('documentType')?.valueChanges.subscribe(value => this.selectedDocumentType.set(value ?? ''));
+    this.form.get('source')?.valueChanges.subscribe(value => this.selectedSource.set(value ?? ''));
 
     this.filterConfig = [
       ...(this.businessOptions.length > 1 ? [{
@@ -269,9 +303,28 @@ export class ArchivedDocumentsPage implements OnInit {
         options: this.documentTypeOptions,
         defaultValue: '',
       },
+      {
+        type: 'select',
+        controlName: 'source',
+        label: 'מקור העלאה',
+        options: this.sourceOptions,
+        defaultValue: '',
+      },
     ];
 
     this.fetchArchivedItems(this.selectedBusinessNumber());
+    // Keep an already-open archive in sync with background Drive/WhatsApp OCR
+    // without showing a full-table loading state on every refresh.
+    timer(10000, 10000)
+      .pipe(
+        switchMap(() => this.driveDocsService
+          .getArchivedItems(this.selectedBusinessNumber())
+          .pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(items => {
+        if (items) this.rawItems.set(items);
+      });
   }
 
   // ===========================
@@ -291,6 +344,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.selectedStatus.set(formValues.status ?? 'ACTIVE');
     this.selectedDocumentType.set(formValues.documentType ?? '');
+    this.selectedSource.set(formValues.source ?? '');
   }
 
   // ===========================

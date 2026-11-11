@@ -172,6 +172,8 @@ const plusDays = (from: Date, days: number): Date => {
   result.setDate(result.getDate() + days);
   return result;
 };
+const plusMinutes = (from: Date, minutes: number): Date =>
+  new Date(from.getTime() + minutes * 60_000);
 const plusMonth = (from: Date): Date => {
   const result = new Date(from);
   result.setMonth(result.getMonth() + 1);
@@ -403,7 +405,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
     rows.filter((row) => row.eventType === type);
 
   describe('confirmed declines', () => {
-    it('1st decline schedules the first retry (+3 days), keeps the subscription ACTIVE and the period unchanged', async () => {
+    it('1st decline schedules the first retry (+30 minutes), keeps the subscription ACTIVE and the period unchanged', async () => {
       const { service, executor, subscription, db, eventRows } = build();
 
       const result = await service.processSubscriptionById(7);
@@ -413,10 +415,10 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       expect(result.attemptNumber).toBe(1);
       expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(subscription.renewalAttempts).toBe(1);
-      expect(subscription.nextBillingDate).toEqual(plusDays(DAY0, 3));
+      expect(subscription.nextBillingDate).toEqual(plusMinutes(DAY0, 30));
       // The billing period itself is untouched: only the retry date moved.
       expect(subscription.currentPeriodEnd).toEqual(DUE);
-      expect(result.nextBillingDate).toEqual(plusDays(DAY0, 3));
+      expect(result.nextBillingDate).toEqual(plusMinutes(DAY0, 30));
       expect(db.rows(BillingAttempt)[0].status).toBe(
         BillingAttemptStatus.DECLINED,
       );
@@ -428,7 +430,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
           attemptNumber: 1,
           maxAttempts: 3,
           cardcomResponseCode: 51,
-          retryScheduledFor: plusDays(DAY0, 3).toISOString(),
+          retryScheduledFor: plusMinutes(DAY0, 30).toISOString(),
         }),
       );
     });
@@ -449,15 +451,13 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       const snapshot = JSON.stringify(subscription);
       const attemptRows = db.rows(BillingAttempt).length;
 
-      for (const day of [1, 2]) {
-        at(plusDays(DAY0, day));
-        const batch = await service.processDueRenewals();
-        expect(batch.totalDue).toBe(0); // not even selected
-        // Even a forced/stale call is a no-op skip, before anything is opened.
-        const forced = await service.processSubscriptionById(7);
-        expect(forced.outcome).toBe('skipped');
-      }
-      at(new Date(plusDays(DAY0, 3).getTime() - 1)); // 1 ms before the retry
+      at(plusMinutes(DAY0, 15));
+      const batch = await service.processDueRenewals();
+      expect(batch.totalDue).toBe(0); // not even selected
+      // Even a forced/stale call is a no-op skip, before anything is opened.
+      const forced = await service.processSubscriptionById(7);
+      expect(forced.outcome).toBe('skipped');
+      at(new Date(plusMinutes(DAY0, 30).getTime() - 1)); // 1 ms before the retry
       expect((await service.processSubscriptionById(7)).outcome).toBe(
         'skipped',
       );
@@ -469,7 +469,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       expect(db.rows(BillingAttempt)).toHaveLength(attemptRows);
     });
 
-    it('runs the full 3 / 7 day schedule, goes PAST_DUE exactly once, and never charges again', async () => {
+    it('runs two 30-minute retries, goes PAST_DUE exactly once, and never charges again', async () => {
       const {
         service,
         executor,
@@ -481,21 +481,21 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
 
       // Attempt 1 — first cron after the due date.
       expect((await service.processDueRenewals()).retryScheduled).toBe(1);
-      const retry1At = plusDays(DAY0, 3);
+      const retry1At = plusMinutes(DAY0, 30);
       expect(subscription.nextBillingDate).toEqual(retry1At);
 
-      // Attempt 2 — only when the first retry date is due (+3 days).
+      // Attempt 2 — only when the first retry date is due (+30 minutes).
       at(retry1At);
       const second = await service.processDueRenewals();
       expect(second.totalDue).toBe(1);
       expect(second.retryScheduled).toBe(1);
       expect(executor.executeCharge).toHaveBeenCalledTimes(2);
-      const retry2At = plusDays(retry1At, 7);
+      const retry2At = plusMinutes(retry1At, 30);
       expect(subscription.renewalAttempts).toBe(2);
       expect(subscription.nextBillingDate).toEqual(retry2At);
       expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
 
-      // Not before the second retry date (+7 days).
+      // Not before the second retry date (+30 minutes).
       at(new Date(retry2At.getTime() - 1));
       expect((await service.processDueRenewals()).totalDue).toBe(0);
       expect(executor.executeCharge).toHaveBeenCalledTimes(2);
@@ -934,7 +934,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       ).toHaveLength(1);
       expect(db.rows(BillingAttempt)).toHaveLength(1);
       expect(subscription.renewalAttempts).toBe(1);
-      expect(subscription.nextBillingDate).toEqual(plusDays(DAY0, 3));
+      expect(subscription.nextBillingDate).toEqual(plusMinutes(DAY0, 30));
       expect(
         eventsOf(eventRows, BillingEventType.RETRY_SCHEDULED),
       ).toHaveLength(1);
@@ -948,7 +948,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
         await new Promise((resolve) => setImmediate(resolve));
         return DECLINE;
       });
-      at(plusDays(DAY0, 3));
+      at(plusMinutes(DAY0, 30));
 
       await Promise.all([
         service.processSubscriptionById(7),
@@ -960,7 +960,7 @@ describe('SubscriptionRenewalService — bounded renewal-decline policy', () => 
       expect(subscription.renewalAttempts).toBe(2);
       expect(subscription.status).toBe(SubscriptionStatus.ACTIVE);
       expect(subscription.nextBillingDate).toEqual(
-        plusDays(plusDays(DAY0, 3), 7),
+        plusMinutes(plusMinutes(DAY0, 30), 30),
       );
     });
 

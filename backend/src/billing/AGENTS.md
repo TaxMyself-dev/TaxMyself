@@ -1,4 +1,36 @@
 ## Purpose
+KT-105 billing reliability (2026-11-09): payment-required access now carries an
+explicit reason, including overdue ACTIVE rows, so guards open payment recovery
+instead of the plan-upgrade dialog. A definitive token decline gets two durable
+Cloud Tasks retries thirty minutes apart; UNKNOWN is read-only reconciliation
+and is never resubmitted. The charge queue is independently opt-in with
+`BILLING_CHARGE_TASKS_ENABLED=true`, a dedicated queue/target/audience and a
+repair endpoint that only republishes DB-authoritative schedules.
+
+Every charge attempt freezes a versioned payer profile. Hosted checkout sends
+visible payer fields and requires the locally saved name, identity number,
+email, phone and business number before creating a payable page. Verified
+CardCom UI values update the profile; owner settings edits affect future
+attempts only. Provider logs distinguish prepared, HTTP dispatch, response,
+definite not-sent and ambiguous outcomes without token/card/payer data.
+
+Hosted debt recovery persists the exact CardCom LowProfile URL on the canonical
+attempt before returning it to the browser. `POST /billing/checkout/continue`
+first performs a read-only `GetLpResult` lookup: verified capture continues
+completion, a provider-proven final decline releases the old attempt and may
+open one fresh page, and an unknown/pending result returns the same saved URL.
+Time, a missing transaction, a transport error, or an unavailable provider is
+never treated as proof that a new charge is safe. Only HTTPS URLs on
+`secure.cardcom.solutions` are stored or returned.
+
+Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
+shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
+card exactly once, and activates only after verified capture plus completion.
+The independent MANUAL_ONE_OFF obligation requires a VAT-inclusive amount,
+description, consent evidence and UUID request key, produces its own receipt,
+and never changes subscription status, dates, plan or renewal counters.
+CANCELED subscriptions are never reactivated by either path.
+
 Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
 PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)
 and validates explicit queue/project/HTTPS audience/service-account/database binding
@@ -234,8 +266,8 @@ accrual. Stored debts remain intact; no new payment/debt is opened while exempt.
 Elazar approved immediate direct module blocking on 2026-10-06: PAST_DUE
 always resolves to no modules, even with a future stored gracePeriodEndsAt.
 access.gracePeriodActive is always false. The first two confirmed renewal
-declines keep the existing +3/+7-day retries; the third enters PAST_DUE and
-blocks immediately. Existing local unusable-card transitions to PAST_DUE are
+declines schedule retries thirty minutes after the preceding decline; the third
+enters PAST_DUE and blocks immediately. Existing local unusable-card transitions to PAST_DUE are
 unchanged and also block by status. Verified delegation/admin impersonation
 overrides remain intact. Legacy grace dates are retained for compatibility,
 not access. Auth-only owner billing checkout/card-change routes stay reachable;
@@ -258,6 +290,10 @@ I/O. Unresolved reservations block another checkout. One ChargeAndCreateToken
 collects the total; verified card storage follows existing best-effort behavior
 and protects a newer card. A definite decline releases all reservations but
 keeps membership history; UNKNOWN never permits a replay.
+When a hosted reservation is already active, the typed pending response may
+include its LowProfile id. The customer UI uses it only to match a tab-local
+URL previously returned by CardCom and resume that exact page; it never derives
+a provider URL or opens another attempt from the identifier.
 
 Captured completion issues one existing invoice/receipt with one line per
 frozen period and atomically satisfies all members after document completion.
@@ -514,7 +550,7 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   locally recovered one (`BillingHostedCompletionService.activateSubscription`)
   and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
   `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
-  the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
+  the next cycle starts a fresh 30-minute / 30-minute / `PAST_DUE` sequence. The
   webhook resets only when the row it locked was `PAST_DUE`.
 ### Read-only reconciliation (KT-038 Task 5A2)
 
@@ -550,7 +586,7 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   `applyPreSubmissionFailure` applies one atomic transition (sanitized
   `LOCAL_<REASON>` category, no token/key/raw error stored or logged):
   customer action (no payment method, no token, missing/expired expiry) ends the
-  attempt `DECLINED` without the 3/7-day policy (`renewalAttempts` untouched)
+  attempt `DECLINED` without the 30-minute retry policy (`renewalAttempts` untouched)
   and moves an ACTIVE subscription to `PAST_DUE` with the legacy grace date (no access under KT-041),
   so hosted recovery/change-payment-method can collect; system action (token
   decryption failure) ends `MANUAL_REVIEW` with the subscription unchanged and
@@ -721,3 +757,19 @@ Controlled dev PDF/mail retry acceptance passed on existing invoice 30000 on
 2026-11-02. Optional BILLING_DEV_RECOVERY_PROBE_CONFIG installs strictly scoped
 local adapters only in the isolated dev profile; normal startup installs none.
 See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.
+
+## Billing reliability and manual collection (KT-105)
+
+The additive payer-profile/provider-diagnostics schema in the KT-105 section of
+`docs/redesign/cutover.sql` was applied and verified on `keepintax-dev` on
+2026-11-10, including the durable hosted-payment URL. Production execution is
+not authorized. The dedicated raw-mysql
+runner `scripts/migrations/2026-11-09_apply-billing-reliability-dev.js` refuses
+any database other than `keepintax-dev` and supports explicit review/apply modes.
+
+An `ACTIVE_OVERDUE` owner must call `POST /billing/overdue/prepare` before
+opening recovery. The endpoint locks the subscription, freezes the first unpaid
+period as one `RECURRING_PERIOD` obligation, records `OVERDUE_DEBT_CREATED`, and
+changes only `ACTIVE` to `PAST_DUE`. It creates no billing attempt and makes no
+CardCom call; the existing recovery flow performs the later customer-approved
+payment. Repeated calls return the existing open debt.

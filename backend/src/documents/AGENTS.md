@@ -83,13 +83,23 @@ allocation, retries perform local work only and never call SHAAM again.
   descriptions, recipient/issuer identifiers, amounts, allocation numbers or
   upstream response bodies. Operational logs may include status/error codes and
   template identifiers only.
-- `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files.
+- `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files. Before Claude is called it persists a unique `PROCESSING` row for `(driveFileId, subIndex=0)` and claims the checksum in the current batch; every live row in every status is a permanent automatic-processing claim. A provider/parser failure is finalized as `ERROR` and moved to `processed/`, never deleted or retried by cron/report navigation. Byte-identical content represented by any live row also dedupes under a new Drive file id. This is intentionally at-most-once: an ambiguous crash may leave `PROCESSING`, but cannot create a second paid Claude call.
+- Provisioned Drive inboxes are also scanned automatically every minute by
+  `InboxOcrCronService`, independently of report navigation. Browser Drive
+  uploads and WhatsApp intake trigger the same locked processor immediately;
+  the periodic sweep is the recovery path and detects files dropped directly
+  into Drive. No separate processing lifecycle is exposed in the archive:
+  successful OCR rows enter as `PENDING_REVIEW`.
+- The archive also projects unrepresented files still present in the Drive
+  inbox as the existing `PENDING`/"waiting for approval" state. These rows
+  are previewable but not approvable until OCR persists the corresponding
+  `ExtractedDocument`; no additional user-facing processing status exists.
 - Byte-identical live duplicates are recorded as `REJECTED` without another OCR
   pass and persist the user-facing rejection reason `קובץ כפול`; the diagnostic
   `rawResponse` retains the original Drive file id. Archive projection also
   recognizes that diagnostic on older duplicate rows whose persisted reason is
   null, so existing records display the same reason without a data rewrite.
-- `POST /documents/me/ocr-file` — OCR a single uploaded file on demand.
+- `POST /documents/me/ocr-file` — stateless OCR of a single uploaded file on demand for form prefill; it is not a Drive-backed archive item and is outside the durable at-most-once claim boundary.
 - `GET /documents/me/catalog`, `GET /documents/me/review` — build the review UI's list of extracted/matched documents.
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
 - `GET /documents/me/archived`, `DELETE /documents/me/archived/:documentId`, `PATCH /documents/me/archived/:documentId/restore` — unified archive list plus file-scoped soft delete/restore. The list preserves distinct user-facing states for approved expenses, annual filings, archived/rejected/error rows and exposes `canResolve` only for visible `PENDING_REVIEW` documents. Delete sets `deletedAt` without changing lifecycle status or removing the Drive file/accounting links; operational review, pairing and matching queries exclude deleted rows.

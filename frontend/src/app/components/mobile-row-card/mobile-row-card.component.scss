@@ -93,6 +93,28 @@
   color: #2e7d32;
 }
 
+.mrc__source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.mrc__source-icon,
+.mrc__source-image {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  object-fit: contain;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mrc__source-icon.pi-whatsapp { color: #25d366; }
+.mrc__source-icon.pi-envelope { color: #2563eb; }
+.mrc__source-icon.pi-arrow-right-arrow-left { color: #7c3aed; }
+.mrc__source-icon.pi-pencil { color: #f59e0b; }
+
 // ─── Detail rows (summary + expanded) ────────────────────────────────────────
 
 .mrc__fields {

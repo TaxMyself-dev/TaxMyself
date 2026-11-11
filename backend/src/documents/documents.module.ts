@@ -41,6 +41,7 @@ import { DocumentPdfClient } from './pdf/document-pdf-client';
 import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
 import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
+import { InboxOcrCronService } from './inbox-ocr-cron.service';
 
 
 @Module({
@@ -67,6 +68,7 @@ import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-a
     BusinessService,
     DocumentProcessorService,
     DocumentPairingService,
+    InboxOcrCronService,
   ],
   exports: [DocumentsService, DocumentProcessorService, DocumentPairingService], // Export for use in other modules
 })

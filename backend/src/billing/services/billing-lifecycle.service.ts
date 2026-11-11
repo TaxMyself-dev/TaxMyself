@@ -37,6 +37,7 @@ export interface BillingProviderPort {
     attemptId: number;
     expectedStateVersion: number;
     leaseOwner: string;
+    subscriptionId?: number;
   }): Promise<SubmittedChargeResult>;
 }
 
@@ -251,6 +252,34 @@ export class BillingLifecycleService {
     );
   }
 
+  recordHostedCheckout(
+    actor: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    lowProfileId: string,
+    paymentUrl: string,
+  ) {
+    this.orchestration.assertOwnerMutation(actor);
+    return this.orchestration.recordHostedCheckout(
+      attemptId,
+      lowProfileId,
+      paymentUrl,
+      actor.subjectFirebaseId,
+    );
+  }
+
+  inspectHostedCheckout(
+    actor: CanonicalBillingPeriodInput['actor'],
+    attemptId: number,
+    subscriptionId: number,
+  ) {
+    return this.provider.inspectHostedCheckout({
+      actor,
+      attemptId,
+      subscriptionId,
+      leaseOwner: `customer-hosted-check-${attemptId}`,
+    });
+  }
+
   finalizeAfterReceipt(attemptId: number, receiptDocId: number) {
     return this.orchestration.finalizeCapturedAttempt(attemptId, receiptDocId);
   }
@@ -454,6 +483,7 @@ export class BillingLifecycleService {
           attemptId: opened.attempt.id,
           expectedStateVersion: opened.attempt.stateVersion,
           leaseOwner,
+          subscriptionId: input.subscriptionId,
         });
         if (
           submitted.kind !== 'APPLIED' ||

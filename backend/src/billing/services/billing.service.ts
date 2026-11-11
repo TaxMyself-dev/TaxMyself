@@ -46,6 +46,7 @@ import {
 } from './billing-attempt-orchestration.service';
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 import { billingDate, nextBillingPeriod } from '../domain/billing-debt-periods';
+import { BillingPayerProfileService } from './billing-payer-profile.service';
 
 /** One row of the user-facing payment history (GET /billing/payments). */
 export interface PaymentHistoryRow {
@@ -117,6 +118,7 @@ export class BillingService {
     @Optional() private readonly planChangeService?: BillingPlanChangeService,
     @Optional() private readonly cancellationService?: BillingCancellationService,
     @Optional() private readonly openBankingEnrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly payerProfiles?: BillingPayerProfileService,
   ) {}
 
   // ─── Plans ──────────────────────────────────────────────────────────────────
@@ -591,6 +593,29 @@ export class BillingService {
     // gets a canonical recurring-period obligation before CardCom I/O. The
     // webhook carries the attempt id so later migration can apply its result
     // idempotently without allocating a second debt.
+    const fallbackUser = await this.userRepo.findOne({ where: { firebaseId } });
+    const payerProfile = this.payerProfiles
+      ? await this.payerProfiles.ensureDraft(subscription.id, firebaseId)
+      : {
+          email: fallbackUser?.email ?? null,
+          fullName: fallbackUser?.fName
+            ? `${fallbackUser.fName} ${fallbackUser.lName ?? ''}`.trim()
+            : null,
+          phone: fallbackUser?.phone ?? null,
+          identityNumber: fallbackUser?.id ?? null,
+          businessNumber: null,
+        };
+    if (this.payerProfiles) {
+      const missingPayerFields = (['fullName', 'identityNumber', 'email', 'phone', 'businessNumber'] as const)
+        .filter(field => !payerProfile[field]?.trim());
+      if (missingPayerFields.length) {
+        throw new BadRequestException({
+          message: 'יש להשלים את פרטי המשלם לפני פתיחת עמוד התשלום',
+          code: 'BILLING_PAYER_PROFILE_INCOMPLETE',
+          missingFields: missingPayerFields,
+        });
+      }
+    }
     let recoveryAttemptId: number | null = null;
     const isInitialPurchase = [SubscriptionStatus.TRIAL, SubscriptionStatus.TRIAL_EXPIRED].includes(subscription.status);
     const isUpgrade = subscription.status === SubscriptionStatus.ACTIVE;
@@ -653,10 +678,6 @@ export class BillingService {
     }
 
     // Fetch user profile for customer info (best-effort — optional fields).
-    const user = await this.userRepo
-      .findOne({ where: { firebaseId } })
-      .catch(() => null);
-
     let cardcomResult: {
       lowProfileId: string;
       paymentUrl: string;
@@ -677,11 +698,11 @@ export class BillingService {
           subscriptionId: subscription.id,
           billingAttemptId: recoveryAttemptId,
         }),
-        customerEmail: user?.email ?? null,
-        customerName: user?.fName
-          ? `${user.fName} ${user.lName ?? ''}`.trim()
-          : null,
-        customerPhone: user?.phone ?? null,
+        customerEmail: payerProfile.email,
+        customerName: payerProfile.fullName,
+        customerPhone: payerProfile.phone,
+        customerIdentityNumber: payerProfile.identityNumber,
+        businessNumber: payerProfile.businessNumber,
       });
     } catch (err) {
       if (recoveryAttemptId != null && this.billingLifecycleService) {
@@ -720,23 +741,20 @@ export class BillingService {
       );
     }
 
-    // Best-effort: lets a later CAPTURED payment be looked up (read-only) to
-    // recover its card token. Never overwrites the attempt's first LowProfile
-    // id and never fails the checkout the customer is about to pay on.
+    // Persist the exact hosted identity before exposing its URL to the browser.
+    // If this write cannot be proven, the reserved attempt stays blocking: a
+    // second LowProfile page must never be opened for the same debt.
     if (recoveryAttemptId != null && this.billingLifecycleService) {
-      await this.billingLifecycleService
-        .recordHostedLowProfileId(
-          actor,
-          recoveryAttemptId,
-          cardcomResult.lowProfileId,
-        )
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Could not record LowProfile id on attempt #${recoveryAttemptId}: ${
-              (error as Error)?.message ?? 'unknown error'
-            }`,
-          ),
-        );
+      const stored = await this.billingLifecycleService.recordHostedCheckout(
+        actor,
+        recoveryAttemptId,
+        cardcomResult.lowProfileId,
+        cardcomResult.paymentUrl,
+      );
+      if (!stored.recorded && stored.reason !== 'ALREADY_SET') {
+        this.logger.error(`Hosted checkout persistence failed for attempt #${recoveryAttemptId}: ${stored.reason}`);
+        throw new BadGatewayException('Payment page could not be saved safely. Please try again later.');
+      }
     }
 
     await this.billingEventService.logEvent({
@@ -768,6 +786,74 @@ export class BillingService {
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
     };
+  }
+
+  async continueRecoveryCheckout(actor: BillingMutationActorContext): Promise<{
+    status: 'REDIRECT' | 'PROCESSING' | 'COMPLETED';
+    paymentUrl?: string;
+  }> {
+    assertBillingOwnerMutation(actor);
+    if (!this.debtService || !this.billingLifecycleService) {
+      throw new ConflictException('Billing recovery is not configured');
+    }
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { firebaseId: actor.subjectFirebaseId },
+    });
+    if (!subscription || ![SubscriptionStatus.PAST_DUE, SubscriptionStatus.CANCELED].includes(subscription.status)) {
+      throw new ConflictException('No outstanding recovery payment');
+    }
+    const active = await this.debtService.findPendingRecoveryAttempt(actor, subscription.id);
+    if (!active) return this.openFreshRecoveryCheckout(actor);
+    if (active.status === BillingAttemptStatus.COMPLETED) return { status: 'COMPLETED' };
+    if (active.status === BillingAttemptStatus.CAPTURED) return { status: 'PROCESSING' };
+    if (!active.cardcomLowProfileId || !this.isSafeHostedPaymentUrl(active.hostedPaymentUrl)) {
+      throw new ConflictException('The existing payment page requires support review');
+    }
+
+    const inspected = await this.billingLifecycleService.inspectHostedCheckout(
+      actor,
+      active.id,
+      subscription.id,
+    );
+    const current = inspected.attempt as BillingAttempt;
+    if (current.status === BillingAttemptStatus.COMPLETED) return { status: 'COMPLETED' };
+    if (current.status === BillingAttemptStatus.CAPTURED ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'CAPTURED')) {
+      return { status: 'PROCESSING' };
+    }
+    if ([BillingAttemptStatus.DECLINED, BillingAttemptStatus.CANCELED].includes(current.status) ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'DECLINED')) {
+      return this.openFreshRecoveryCheckout(actor);
+    }
+    if (!this.isSafeHostedPaymentUrl(current.hostedPaymentUrl)) {
+      throw new ConflictException('The existing payment page requires support review');
+    }
+    return { status: 'REDIRECT', paymentUrl: current.hostedPaymentUrl! };
+  }
+
+  private async openFreshRecoveryCheckout(actor: BillingMutationActorContext): Promise<{
+    status: 'REDIRECT'; paymentUrl: string;
+  }> {
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId: actor.subjectFirebaseId } });
+    if (!subscription || !this.debtService) throw new ConflictException('No outstanding recovery payment');
+    const preview = await this.debtService.preview(actor, subscription.id);
+    const checkout = await this.createCheckout(actor, {
+      planId: preview.planId,
+      recoveryOnly: true,
+      recoveryQuote: preview.recoveryQuote,
+    });
+    if (!checkout.paymentUrl || !this.isSafeHostedPaymentUrl(checkout.paymentUrl)) {
+      throw new BadGatewayException('Payment gateway returned an invalid payment page');
+    }
+    return { status: 'REDIRECT', paymentUrl: checkout.paymentUrl };
+  }
+
+  private isSafeHostedPaymentUrl(value: string | null | undefined): boolean {
+    if (!value) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && url.hostname === 'secure.cardcom.solutions';
+    } catch { return false; }
   }
 
   // ─── Referral-plan upgrade (customer-facing, scoped) ─────────────────────────
@@ -1505,6 +1591,8 @@ export class BillingService {
           this.subscriptionAccessService.isTrialActive(subscription),
         isPaymentRequired:
           this.subscriptionAccessService.isPaymentRequired(subscription),
+        paymentBlockReason:
+          this.subscriptionAccessService.paymentBlockReason(subscription),
         isPastDue: subscription.status === SubscriptionStatus.PAST_DUE,
         gracePeriodActive:
           this.subscriptionAccessService.gracePeriodActive(subscription),

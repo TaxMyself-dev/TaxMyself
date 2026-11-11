@@ -32,3 +32,12 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Billing QA profile (KT-105)
+
+The billing QA demo card exposes provider-free buttons for active-overdue,
+past-due debt, and a declined attempt. The success toast reports the synthetic
+subscription/attempt IDs and confirms no CardCom request occurred. The card
+instructs testers to sign in directly with its synthetic credentials for the
+access-block UI; entering through admin impersonation bypasses billing
+restrictions by design.

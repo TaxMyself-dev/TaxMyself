@@ -67,3 +67,19 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Billing QA profile (KT-105)
+
+`profiles/billing-qa.profile.ts` defines the local synthetic user
+`demo+billing-qa@taxmyself.local`. Initial seed creates an ACTIVE paid
+subscription whose due date is four days old, a complete payer profile, and an
+encrypted deliberately-invalid demo token. Admin-only scenario actions replace
+its billing rows with `ACTIVE_OVERDUE`, `PAST_DUE`, or `DECLINED` state without
+calling CardCom. The declined state includes synthetic provider code and
+description for admin presentation testing. Direct owner login is required to
+see access blocking because admin impersonation intentionally bypasses it.
+
+`POST /demo-data/profiles/:id/billing-scenario/:state` is restricted to admins
+and to profiles declaring `billingQaScenario`. Creating or switching the
+fixture never submits a charge. Reset removes the fixture billing aggregate
+before deleting its demo identity.

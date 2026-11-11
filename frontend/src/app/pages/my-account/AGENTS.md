@@ -8,6 +8,11 @@ also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
+Layout-only invariant: `app-direct-card-notice` and `app-open-banking-error`
+are behavior/overlay hosts and must remain outside `.page-wrapper`. Empty custom
+element hosts inside that column flex container consume its 70px `row-gap` even
+when they render no visible content.
+
 ## Key entities/files
 
 - DirectCardNoticeComponent offers the exclusion checkbox only for server-detected

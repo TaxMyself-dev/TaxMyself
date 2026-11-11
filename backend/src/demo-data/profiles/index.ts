@@ -9,6 +9,7 @@ import { DIRECT_CARD_DEMO_PROFILE } from './direct-card-demo.profile';
 import { SHAAM_ALLOCATION_TEST_PROFILE } from './shaam-allocation-test.profile';
 import { DESIGNER_SANDBOX_PROFILE } from './designer-sandbox.profile';
 import { PARTNER_CANDIDATE_COUPLE_PROFILE } from './partner-candidate-couple.profile';
+import { BILLING_QA_PROFILE } from './billing-qa.profile';
 
 /**
  * Registry of available demo profiles. To add a new profile:
@@ -27,6 +28,7 @@ export const DEMO_PROFILES: readonly DemoProfile[] = [
   SHAAM_ALLOCATION_TEST_PROFILE,
   DESIGNER_SANDBOX_PROFILE,
   PARTNER_CANDIDATE_COUPLE_PROFILE,
+  BILLING_QA_PROFILE,
 ];
 
 /**

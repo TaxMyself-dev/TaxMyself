@@ -8,7 +8,7 @@
  * override logic is covered by subscription-access.service.spec.ts; this
  * test only verifies BillingService correctly forwards the flag end-to-end.
  */
-import { BillingAccessMode, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingAttemptStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { BillingService } from './billing.service';
 import { CardcomApiError } from './cardcom.service';
 import { ModuleName } from 'src/enum';
@@ -16,7 +16,7 @@ import { ModuleName } from 'src/enum';
 describe('BillingService.getMyBillingState — professional-access overrides', () => {
   let service: BillingService;
   let subscriptionRepo: { findOne: jest.Mock };
-  let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; gracePeriodActive: jest.Mock };
+  let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; paymentBlockReason: jest.Mock; gracePeriodActive: jest.Mock };
   let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveSubscriptionDiscount: jest.Mock };
   let billingEventService: { findLatestPaymentResultEvent: jest.Mock; findLatestPaymentMethodUpdateResultEvent: jest.Mock };
 
@@ -42,6 +42,7 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
       resolveModulesAccess: jest.fn().mockReturnValue(['EXPENSES', 'ACCOUNTANT']),
       isTrialActive: jest.fn().mockReturnValue(false),
       isPaymentRequired: jest.fn().mockReturnValue(true),
+      paymentBlockReason: jest.fn().mockReturnValue('TRIAL_EXPIRED'),
       gracePeriodActive: jest.fn().mockReturnValue(false),
     };
     pricingService = {
@@ -436,6 +437,10 @@ describe('BillingService — owner-mutation authorization', () => {
       recordHostedLowProfileId: jest.fn().mockResolvedValue({
         recorded: true,
       }),
+      recordHostedCheckout: jest.fn().mockResolvedValue({
+        recorded: true,
+      }),
+      inspectHostedCheckout: jest.fn(),
       recordHostedCreationFailure: jest.fn().mockResolvedValue(undefined),
     };
     const planChangeService = {
@@ -623,14 +628,14 @@ describe('BillingService — owner-mutation authorization', () => {
       });
       cardcomService.createLowProfileCheckout.mockResolvedValue({
         lowProfileId: 'lp-1',
-        paymentUrl: 'https://cardcom.example/pay',
+        paymentUrl: 'https://secure.cardcom.solutions/pay',
         rawResponse: {},
       });
 
       const result = await service.createCheckout(OWNER, { planId: 1 } as any);
 
       expect(subscriptionRepo.findOne).toHaveBeenCalled();
-      expect(result.paymentUrl).toBe('https://cardcom.example/pay');
+      expect(result.paymentUrl).toBe('https://secure.cardcom.solutions/pay');
     });
 
     it('opens the initial canonical attempt before provider I/O and returns its checkout identity', async () => {
@@ -758,7 +763,7 @@ describe('BillingService — owner-mutation authorization', () => {
       });
       cardcomService.createLowProfileCheckout.mockResolvedValue({
         lowProfileId: 'lp-1',
-        paymentUrl: 'https://cardcom.example/pay',
+        paymentUrl: 'https://secure.cardcom.solutions/pay',
         rawResponse: {},
       });
 
@@ -769,8 +774,8 @@ describe('BillingService — owner-mutation authorization', () => {
         expect.anything(),
       );
       expect(
-        billingLifecycleService.recordHostedLowProfileId,
-      ).toHaveBeenCalledWith(OWNER, 7, 'lp-1');
+        billingLifecycleService.recordHostedCheckout,
+      ).toHaveBeenCalledWith(OWNER, 7, 'lp-1', 'https://secure.cardcom.solutions/pay');
     });
 
     // KT-038 Task 3: money was already taken for this period; a second hosted
@@ -850,6 +855,53 @@ describe('BillingService — owner-mutation authorization', () => {
       expect(billingLifecycleService.openPastDueRecovery).toHaveBeenCalledWith(expect.objectContaining({
         periodStart: '2026-09-01', periodEnd: '2026-10-01', amountAgorot: 11800 }), expect.anything());
       expect(cardcomService.createLowProfileCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountAgorot: 11800, operation: 'ChargeAndCreateToken' }));
+    });
+  });
+
+  describe('continueRecoveryCheckout', () => {
+    const url = 'https://secure.cardcom.solutions/EA/pay/lp-7';
+    const active = { id: 7, status: BillingAttemptStatus.AWAITING_CUSTOMER,
+      cardcomLowProfileId: 'lp-7', hostedPaymentUrl: url };
+
+    it('returns the same durable page while CardCom has no final outcome', async () => {
+      const debtService = { findPendingRecoveryAttempt: jest.fn().mockResolvedValue(active) };
+      const lifecycle = { inspectPeriod: jest.fn(), recordHostedCheckout: jest.fn(),
+        inspectHostedCheckout: jest.fn().mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'UNKNOWN' },
+          attempt: { ...active, status: BillingAttemptStatus.UNKNOWN } }) };
+      const f = makeService({ debtService, billingLifecycleService: lifecycle });
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: SubscriptionStatus.PAST_DUE });
+
+      await expect(f.service.continueRecoveryCheckout(OWNER)).resolves.toEqual({ status: 'REDIRECT', paymentUrl: url });
+      expect(lifecycle.inspectHostedCheckout).toHaveBeenCalledWith(OWNER, 7, 1);
+    });
+
+    it('creates a new page only after CardCom proves a definitive decline', async () => {
+      const debtService = { findPendingRecoveryAttempt: jest.fn().mockResolvedValue(active),
+        preview: jest.fn().mockResolvedValue({ planId: 3, recoveryQuote: 'q'.repeat(64) }) };
+      const lifecycle = { inspectPeriod: jest.fn(), recordHostedCheckout: jest.fn(),
+        inspectHostedCheckout: jest.fn().mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'DECLINED' },
+          attempt: { ...active, status: BillingAttemptStatus.DECLINED } }) };
+      const f = makeService({ debtService, billingLifecycleService: lifecycle });
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: SubscriptionStatus.PAST_DUE });
+      jest.spyOn(f.service, 'createCheckout').mockResolvedValue({ paymentUrl: 'https://secure.cardcom.solutions/EA/pay/new' });
+
+      await expect(f.service.continueRecoveryCheckout(OWNER)).resolves.toEqual({
+        status: 'REDIRECT', paymentUrl: 'https://secure.cardcom.solutions/EA/pay/new',
+      });
+      expect(f.service.createCheckout).toHaveBeenCalledWith(OWNER, expect.objectContaining({ recoveryOnly: true }));
+    });
+
+    it('never redirects or creates another page after a verified capture', async () => {
+      const debtService = { findPendingRecoveryAttempt: jest.fn().mockResolvedValue(active) };
+      const lifecycle = { inspectPeriod: jest.fn(), recordHostedCheckout: jest.fn(),
+        inspectHostedCheckout: jest.fn().mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'CAPTURED' },
+          attempt: { ...active, status: BillingAttemptStatus.CAPTURED } }) };
+      const f = makeService({ debtService, billingLifecycleService: lifecycle });
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: SubscriptionStatus.PAST_DUE });
+      const create = jest.spyOn(f.service, 'createCheckout');
+
+      await expect(f.service.continueRecoveryCheckout(OWNER)).resolves.toEqual({ status: 'PROCESSING' });
+      expect(create).not.toHaveBeenCalled();
     });
   });
 

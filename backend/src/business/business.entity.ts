@@ -146,7 +146,7 @@ export class Business {
   // Two fixed sub-folders under driveFolderId. Populated by
   // UsersService.provisionDriveStructure() on signup/business-create, and by
   // the admin backfill endpoint for existing businesses. Files dropped into
-  // `inbox/` get OCR'd on the next report-page visit; OK files move to
+  // `inbox/` are picked up by the automatic OCR sweep; OK files move to
   // `processed/`.
   @Column({ name: 'drive_inbox_folder_id', type: 'varchar', length: 255, nullable: true, default: null })
   driveInboxFolderId: string | null;

@@ -9,6 +9,8 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import {
   AdminPanelService,
+  BillingQaScenarioState,
+  DemoBillingQaScenarioResult,
   DemoProfileListItem,
   DemoResetResult,
   DemoScenarioResult,
@@ -164,6 +166,49 @@ export class DemoDataComponent implements OnInit {
         `${result.bankRows} תנועות בנק, ${result.cardRows} תנועות כרטיס` +
         (isLegacy ? '' : ' (הכפילויות הוסרו)') +
         (result.seededUser ? ' • המשתמש נוצר כעת' : ''),
+      life: 8000,
+      key: 'br',
+    });
+  }
+
+  onApplyBillingScenario(
+    profile: DemoProfileListItem,
+    state: BillingQaScenarioState,
+  ): void {
+    if (this.busyProfileId()) return;
+    const labels: Record<BillingQaScenarioState, string> = {
+      ACTIVE_OVERDUE: 'פעיל שמועד החיוב שלו עבר',
+      PAST_DUE: 'חוב בפיגור',
+      DECLINED: 'חיוב שנדחה עם סיבת כישלון',
+    };
+    const ok = window.confirm(
+      `להעביר את "${profile.label}" למצב "${labels[state]}"?\n` +
+        'הפעולה מחליפה רק נתוני דמו מקומיים ואינה פונה לקארדקום.',
+    );
+    if (!ok) return;
+
+    this.busyProfileId.set(profile.id);
+    this.adminPanelService
+      .applyDemoBillingScenario(profile.id, state)
+      .pipe(
+        finalize(() => this.busyProfileId.set(null)),
+        catchError((err) => {
+          this.toastError(err, 'החלפת תרחיש החיוב נכשלה');
+          return EMPTY;
+        }),
+      )
+      .subscribe((result) => this.onBillingScenarioSuccess(result));
+  }
+
+  private onBillingScenarioSuccess(result: DemoBillingQaScenarioResult): void {
+    this.refresh();
+    this.messageService.add({
+      severity: 'success',
+      summary: 'תרחיש החיוב הוכן',
+      detail:
+        `${result.state} • מנוי ${result.subscriptionId}` +
+        (result.attemptId ? ` • ניסיון ${result.attemptId}` : '') +
+        ' • לא בוצעה פנייה לקארדקום',
       life: 8000,
       key: 'br',
     });

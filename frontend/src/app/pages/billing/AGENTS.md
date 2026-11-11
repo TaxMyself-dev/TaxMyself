@@ -40,20 +40,30 @@ Standalone pricing/plans page where a user views available subscription plans an
 - Local billing worktree runs with `npm run start:billing` from frontend on
   localhost:4200; environment.ts points to backend localhost:3000. Production
   and cloud-dev environment replacements retain their existing endpoints.
-- PAST_DUE owners can open the existing card-change dialog directly from
-  recovery, including when debt preview needs review. The page explains that
-  replacing a card alone neither pays the debt nor removes the block. The
-  dialog is instantiated only when opened. Overrides cannot open it; canceled
-  card changes remain unsupported by the existing backend.
 - `/billing/recovery` renders `BillingRecoveryPage` for owner PAST_DUE/CANCELED state,
-  previews every unpaid subscription period and the server debt total, discloses one invoice and card replacement for future
-  renewals before submitting the existing checkout endpoint. It does not offer
-  plan selection. Canceled debt payment explicitly leaves the subscription canceled. The plans page links to recovery for both debt states. Overrides, missing/unsupported state and preview failures
+  previews every unpaid subscription period and the server debt total in a
+  single clean payment card, then offers one primary action to continue to the
+  secured CardCom checkout. It contains no card-management action, plan
+  selection or long-form operational explanation. Canceled debt payment
+  explicitly leaves the subscription canceled. The plans page links to recovery for both debt states. Overrides, missing/unsupported state and preview failures
   cannot submit; double-clicks are suppressed and checkout errors require
   review rather than offering an immediate second submission.
 - Submission requires ILS, nonempty period lines and the server recoveryQuote;
   checkout sends that quote with recoveryOnly so stale totals cannot be charged.
-- The app's PAST_DUE dialog opens debt settlement with the label הסדרת התשלום.
+- The hosted checkout URL is owned by the backend attempt, not browser storage.
+  If the reserved attempt is still pending, recovery offers one "return to
+  payment" action. It calls `POST billing/checkout/continue`, which checks
+  CardCom read-only before returning the same saved page, reporting capture
+  processing, or opening a new page after a verified final decline. The browser
+  never chooses or reconstructs a CardCom URL.
+- Browser Back from CardCom may restore the page from BFCache. A persisted
+  `pageshow` clears the pre-redirect submitting state and reloads the server
+  preview, so the resumable state shows only an enabled "return to payment"
+  action without operational or duplicate-charge explanation.
+- The app's PAST_DUE and ACTIVE_OVERDUE dialogs use the neutral title "נדרש
+  להסדיר את התשלום", the single sentence "כדי להמשיך להשתמש במערכת יש להסדיר
+  את התשלום.", and the action label "הסדרת התשלום". They do not mention a
+  failed card charge, future card storage or other operational details.
 - Focused verification from frontend: `npm run ng -- test --watch=false
   --browsers=ChromeHeadless --include=src/app/pages/billing/billing-recovery.page.spec.ts
   --ts-config=tsconfig.billing.spec.json`. This config isolates recovery specs
@@ -61,6 +71,10 @@ Standalone pricing/plans page where a user views available subscription plans an
   Node types required by existing card-dialog transitive imports.
 - On init, `GET {apiUrl}billing/plans` and render plan cards with computed shekel pricing (`effectivePriceMonthlyAgorot`, resolved server-side per the user's billing business type).
 - `checkout(planId)` calls `POST {apiUrl}billing/checkout`, then redirects the browser to the returned Cardcom `paymentUrl`.
+- Checkout does not open CardCom until the owner has completed the required
+  billing payer profile. `BILLING_PAYER_PROFILE_INCOMPLETE` shows payment-detail
+  guidance and routes to the subscription settings tab; it is not presented as
+  a plan eligibility or upgrade failure.
 
 ## Plan changes (KT-051)
 
@@ -81,9 +95,10 @@ recovery, billing-state and admin-subscriptions spec includes.
 
 ## Pending payment status
 
-- Reserved debt previews use the typed BILLING_PAYMENT_PENDING error and show
-  support/review guidance instead of the generic debt-loading failure. Payment
-  stays disabled while unresolved; the existing card-only route stays reachable.
+- Reserved debt previews use the typed BILLING_PAYMENT_PENDING response and a
+  server-authoritative `canResume` flag. No second payment attempt or card-only
+  action is offered while the reservation remains unresolved; legacy rows that
+  lack a durable URL fail closed to concise support guidance.
 
 ## Related topics
 - Backend `billing` module (`GET billing/plans`, `POST billing/checkout` — Cardcom integration).

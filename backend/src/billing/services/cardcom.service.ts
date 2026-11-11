@@ -30,6 +30,8 @@ export interface CardcomLowProfileInput {
   customerName?: string | null;
   customerEmail?: string | null;
   customerPhone?: string | null;
+  customerIdentityNumber?: string | null;
+  businessNumber?: string | null;
 }
 
 export interface CardcomLowProfileResult {
@@ -47,6 +49,14 @@ export interface CardcomChargeByTokenInput {
   amountAgorot: number;
   /** Idempotency key sent to CardCom as ExternalUniqTranId, e.g. "renewal:123:2026-07". */
   externalUniqTranId: string;
+  subscriptionId?: number | null;
+  payer?: {
+    fullName: string | null;
+    identityNumber: string | null;
+    email: string | null;
+    phone: string | null;
+    businessNumber: string | null;
+  } | null;
 }
 
 /**
@@ -233,13 +243,25 @@ export class CardcomService implements OnModuleInit {
     
 
     // Fix 7: Customer fields are not top-level. They go inside UIDefinition.
-    const uiDefinition: Record<string, string> = {};
+    const uiDefinition: Record<string, any> = {
+      IsHideCardOwnerName: false,
+      IsHideCardOwnerPhone: false,
+      IsCardOwnerPhoneRequired: true,
+      IsHideCardOwnerEmail: false,
+      IsCardOwnerEmailRequired: true,
+      IsHideCardOwnerIdentityNumber: false,
+    };
     if (input.customerEmail) uiDefinition['CardOwnerEmailValue'] = input.customerEmail;
     if (input.customerName) uiDefinition['CardOwnerNameValue'] = input.customerName;
     if (input.customerPhone) uiDefinition['CardOwnerPhoneValue'] = input.customerPhone;
-    if (Object.keys(uiDefinition).length > 0) {
-      payload['UIDefinition'] = uiDefinition;
-    }
+    if (input.customerIdentityNumber) uiDefinition['CardOwnerIdValue'] = input.customerIdentityNumber;
+    uiDefinition['CustomFields'] = [
+      ...(input.businessNumber
+        ? [{ Id: 1, Value: input.businessNumber.slice(0, 50) }]
+        : []),
+      { Id: 2, Value: String(input.subscriptionId).slice(0, 50) },
+    ];
+    payload['UIDefinition'] = uiDefinition;
 
     // Log safe fields only — credentials and customer PII never appear here.
     this.logger.log(
@@ -380,11 +402,27 @@ export class CardcomService implements OnModuleInit {
       ExternalUniqTranId: input.externalUniqTranId,
       ExternalUniqUniqTranIdResponse: true,
     };
+    if (input.payer) {
+      payload.CardOwnerInformation = {
+        ...(input.payer.phone ? { Phone: input.payer.phone } : {}),
+        ...(input.payer.fullName ? { FullName: input.payer.fullName } : {}),
+        ...(input.payer.identityNumber
+          ? { IdentityNumber: input.payer.identityNumber }
+          : {}),
+        ...(input.payer.email ? { CardOwnerEmail: input.payer.email } : {}),
+      };
+      payload.CustomFields = [
+        { Id: 1, Value: (input.payer.businessNumber ?? '').slice(0, 50) },
+        { Id: 2, Value: String(input.subscriptionId ?? '').slice(0, 50) },
+      ];
+    }
 
-    this.logger.log(
-      `CardCom Transactions/Transaction → externalUniqTranId=${input.externalUniqTranId} ` +
-        `amount=${amountNis} NIS terminal=***${this.terminalNumber.slice(-4)}`,
-    );
+    this.logger.log(JSON.stringify({
+      event: 'BILLING_PROVIDER_HTTP_DISPATCH', operation: 'TOKEN_CHARGE',
+      externalUniqTranId: input.externalUniqTranId,
+      subscriptionId: input.subscriptionId ?? null,
+      amountAgorot: input.amountAgorot, currency: 'ILS',
+    }));
 
     let rawResponse: Record<string, any>;
 
@@ -397,20 +435,24 @@ export class CardcomService implements OnModuleInit {
       );
       rawResponse = response.data ?? {};
     } catch (err: any) {
-      const detail: string = err?.response?.data
-        ? JSON.stringify(err.response.data).slice(0, 500)
-        : (err?.message ?? 'HTTP request failed');
-      this.logger.error(
-        `CardCom Transaction HTTP error for externalUniqTranId=${input.externalUniqTranId}: ${detail}`,
-      );
-      throw new CardcomApiError(`CardCom Transaction HTTP request failed: ${detail}`);
+      const responseCode = Number.isInteger(err?.response?.data?.ResponseCode)
+        ? err.response.data.ResponseCode : null;
+      const description = sanitizeCardcomDescription(err?.response?.data?.Description);
+      this.logger.error(JSON.stringify({
+        event: 'BILLING_PROVIDER_HTTP_ERROR', operation: 'TOKEN_CHARGE',
+        externalUniqTranId: input.externalUniqTranId,
+        responseCode, description: description ?? null,
+      }));
+      throw new CardcomApiError('CardCom Transaction HTTP request failed',
+        responseCode ?? undefined, description ?? undefined);
     }
 
     const responseCode: number = rawResponse['ResponseCode'] ?? -1;
-    this.logger.log(
-      `CardCom Transaction result: externalUniqTranId=${input.externalUniqTranId} ` +
-        `responseCode=${responseCode} tranzactionId=${rawResponse['TranzactionId'] ?? 'none'}`,
-    );
+    this.logger.log(JSON.stringify({
+      event: 'BILLING_PROVIDER_HTTP_RESPONSE', operation: 'TOKEN_CHARGE',
+      externalUniqTranId: input.externalUniqTranId, responseCode,
+      hasTransactionId: rawResponse['TranzactionId'] != null,
+    }));
 
     return rawResponse as CardcomTransactionInfo;
   }

@@ -45,6 +45,23 @@ describe('Cloud Tasks transport and verified identity', () => {
     transport.create.mockRejectedValueOnce(new Error('transport unavailable'));
     expect(await service.enqueue('MAIL', 108)).toBe(false);
   });
+  it('uses a separately enabled deterministic queue for the scheduled charge retry', async () => {
+    Object.assign(process.env, {
+      BILLING_CHARGE_TASKS_ENABLED: 'true',
+      BILLING_CHARGE_TASKS_QUEUE: 'billing-charge-dev',
+      BILLING_CHARGE_TASKS_TARGET_URL: 'https://dev.example.com/internal/billing/charge',
+      BILLING_CHARGE_TASKS_AUDIENCE: 'https://dev.example.com/charge-worker',
+    });
+    const { service, transport } = fixture();
+    service.onModuleInit();
+    const due = new Date('2026-11-02T10:30:00Z');
+    expect(await service.enqueueCharge(7, due, 'obligation:1')).toBe(true);
+    const [parent, task] = transport.create.mock.calls[0];
+    expect(parent).toBe('projects/keepintax-dev/locations/me-west1/queues/billing-charge-dev');
+    expect(task.scheduleTime).toBe(due.toISOString());
+    expect(JSON.parse(Buffer.from(task.httpRequest.body, 'base64').toString())).toEqual({ subscriptionId: 7 });
+    expect(task.httpRequest.oidcToken.audience).toBe('https://dev.example.com/charge-worker');
+  });
   it('does not contact Google until explicitly enabled', async () => {
     const { service, transport } = fixture(); process.env.BILLING_TASKS_ENABLED = 'false';
     service.onModuleInit();
