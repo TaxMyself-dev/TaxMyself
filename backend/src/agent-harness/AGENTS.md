@@ -28,6 +28,13 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
 
 ## Invariants
 
+- `AgentBooksService` binds the nine additional Phase 3 read tools to the
+  verified data owner and an owned numbered business. Access is checked
+  before reading and again before returning; a revoked read returns no
+  previously read result. It calls existing services without their writing
+  preparation/generation paths. `queryExpenses` keeps its existing service
+  and semantics. See `backend/agent/GUIDE.md` for source/amount contracts.
+
 - `main.ts` leaves `/api/agent/` bodies unparsed: the agent reads its body as
   a stream with its own size limit.
 - Using the agent counts as DOCUMENTS_READ in delegation terms: it writes only

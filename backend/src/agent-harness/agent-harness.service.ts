@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
+import { AgentBooksService } from './agent-books.service';
 import { AgentDomainService } from './agent-domain.service';
 import type { AgentDomain } from './agent-domain.types';
 
@@ -83,7 +84,10 @@ export class AgentHarnessService implements OnModuleDestroy {
   private readonly logger = new Logger(AgentHarnessService.name);
   private bundle: Promise<AgentHarnessBundle> | null = null;
 
-  constructor(private readonly agentDomain: AgentDomainService) {}
+  constructor(
+    private readonly agentDomain: AgentDomainService,
+    private readonly agentBooks: AgentBooksService,
+  ) {}
 
   private bundlePath() {
     return (
@@ -119,7 +123,10 @@ export class AgentHarnessService implements OnModuleDestroy {
     return await bundle.handleAgentHttpRequest(
       request,
       user,
-      this.agentDomain.forUser(user),
+      {
+        ...this.agentDomain.forUser(user),
+        ...this.agentBooks.forUser(user),
+      },
     );
   }
 

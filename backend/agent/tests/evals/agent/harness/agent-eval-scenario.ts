@@ -23,6 +23,7 @@ import { appRuntime } from "@/server/runtime/app-runtime.server";
 import { readStoredUserSettings } from "@/server/user-data/user-settings-storage.server";
 
 import { agentEvalHarness } from "../../harnessing/agent-harness-tree";
+import { unusedEvalBooks } from "./agent-eval-books";
 import { createAgentEvalDatabase } from "./agent-eval-database";
 import type { AgentEvalData, AgentEvalWrite } from "./agent-eval-fixtures";
 import { evalConversationId, evalUserId } from "./agent-eval-fixtures";
@@ -50,8 +51,8 @@ export interface AgentEvalScenario {
   webSearch?: WebSearch;
   // Fixed answers for sendEmail; without them, sending fails the case.
   email?: EmailSender;
-  // Fixed answers for KeepInTax's books (queryExpenses); without them, a
-  // query fails the case.
+  // Fixed answers for KeepInTax's books and reports (evalBooks); without
+  // them, any read fails the case.
   books?: KeepInTaxBooks;
   settings?: UserSettings;
   memories?: AgentMemory[];
@@ -76,9 +77,7 @@ const unreachableWebSearch: WebSearch = { search: unreachable("WEB_SEARCH") };
 
 const unreachableEmail: EmailSender = { send: unreachable("EMAIL") };
 
-const unreachableBooks: KeepInTaxBooks = {
-  queryExpenses: unreachable("BOOKS"),
-};
+const unreachableBooks: KeepInTaxBooks = unusedEvalBooks(unreachable("BOOKS"));
 
 /**
  * The user's tracking tasks in memory: the case's starting tasks, changed by

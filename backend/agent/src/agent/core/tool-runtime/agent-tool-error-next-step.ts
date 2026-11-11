@@ -47,6 +47,14 @@ const agentToolErrorNextSteps = new Map([
     "The range is not valid: from must be on or before to, and the range at most 10 years. Fix the dates and query again.",
   ],
   [
+    "RANGE_INVALID",
+    "The range is not valid: real dates, from on or before to, at most 10 years. Fix the dates and read again.",
+  ],
+  [
+    "MODULE_NOT_INCLUDED",
+    "The user's plan does not include this part of KeepInTax, so it cannot be read. Tell the user in one line, without any figure from it.",
+  ],
+  [
     "TRACKING_TASK_NOT_FOUND",
     "That task no longer exists. Call listTrackingTasks and work from the tasks that exist.",
   ],

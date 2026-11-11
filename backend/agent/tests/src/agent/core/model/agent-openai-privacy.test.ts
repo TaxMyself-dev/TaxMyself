@@ -5,6 +5,7 @@ import { Effect, Schema } from "effect";
 import { createAppAgent } from "../../../../../src/agent/core/agent/app-agent";
 import { fakeFetchBodyText } from "../../../../backend/shared/fixtures/fake-fetch-request";
 import { makeUnusedSupabaseClient } from "../../../../backend/shared/fixtures/fake-supabase-client";
+import { unusedEvalBooks } from "../../../../evals/agent/harness/agent-eval-books";
 import {
   createEvalOpportunityStore,
   createEvalTaskStore,
@@ -51,7 +52,7 @@ describe("agent openai privacy", () => {
       opportunities: createEvalOpportunityStore([], []),
       webSearch: { search: () => Effect.die(new Error("unused")) },
       email: { send: () => Effect.die(new Error("unused")) },
-      books: { queryExpenses: () => Effect.die(new Error("unused")) },
+      books: unusedEvalBooks(() => Effect.die(new Error("unused"))),
     });
 
     try {

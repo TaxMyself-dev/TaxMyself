@@ -23,6 +23,10 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 - Schema changes: a new SQL script under `backend/scripts/migrations/` and the gateway's table registry (`mysql-agent-tables.ts`); never `synchronize`.
 - Checks: `npm run typecheck`, `npm run check`, `npm test` (with `AGENT_TEST_DATABASE_URL` for the MySQL integration tests), `npm run build`.
 
+## Phase 3 domain extension
+
+The existing `queryExpenses` is joined by nine read-only books/report tools over `KeepInTaxBooks` and the verified-user Nest `AgentBooksService`. Additional books tools and reports are deferred by namespace; expenses stay loaded. See GUIDE.md "Books and reports reads" for service sources, periods, currencies, exclusions and limits. Numeric evidence is restricted to successful books/report results from the same turn; discovery schemas, memory/web results and failed calls are not evidence. These are explicit KeepInTax extensions to the template, including the answer check and Hebrew instructions. Tests/evals use fixed fake ports; Phase 3 adds no SQL migrations.
+
 ## Related topics
 
 - [agent-harness](../src/agent-harness/AGENTS.md) — the Nest edge.

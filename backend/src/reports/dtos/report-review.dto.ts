@@ -86,6 +86,12 @@ export interface ReviewTxSummary {
    *  "$X (₪Y)" for non-ILS transactions; ILS rows just show `amount`. */
   originalAmount: number | null;
   originalCurrency: string | null;
+  /** Additive provenance for `amount` (KT-089 agent readiness): true when it
+   *  is a ₪ figure — an ILS transaction, or a foreign one whose cache row
+   *  carries a stamped ilsAmount. False for a foreign transaction without
+   *  one, where `amount` falls back to the foreign amount. Optional: the
+   *  review modal does not read it; amount itself is unchanged. */
+  ilsConversionRecorded?: boolean;
   /** True when the transaction's merchant name matches (case-insensitive,
    *  trimmed) a row in the user's Supplier table. A raw bank transaction
    *  has no supplierId, so unlike ReviewDocSummary.matchedSupplierKnown

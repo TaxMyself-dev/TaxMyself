@@ -4,6 +4,10 @@ import {
   ToolCall,
   Turn,
 } from "deepeval/test-case";
+import { Schema } from "effect";
+
+import { agentToolReturnsBookNumbers } from "@/agent/core/tool-runtime/agent-tool-traits";
+import { agentAnswerUnbackedNumbers } from "@/agent/core/turn/agent-answer-check-rules";
 
 import type { AgentEvalWrite } from "./agent-eval-fixtures";
 import type { AgentEvalRun } from "./agent-eval-harness";
@@ -222,6 +226,30 @@ export const answerNumbersNotFromTools = (run: AgentEvalRun) => {
     (number) => !given.has(number) && Number(number) > smallCountMax
   );
 };
+
+// A failed call's output, as agentEvalToolCalls records it: { error }.
+const isFailedCall = Schema.is(Schema.Struct({ error: Schema.String }));
+
+/**
+ * The numbers in the answer that no successful books or reports read of the
+ * run returned: the strict Phase 3 provenance, as the answer check applies it
+ * (agentBookEvidenceOutputs): no allowance for small counts; the user's
+ * message, a failed call, and other tools' outputs (toolSearch's schemas,
+ * memory, web) back nothing. For one-turn runs.
+ *
+ * @param run - The eval run.
+ * @returns The unbacked numbers, as the answer wrote them.
+ */
+export const answerNumbersNotFromSuccessfulTools = (run: AgentEvalRun) =>
+  agentAnswerUnbackedNumbers(
+    run.answer,
+    run.toolCalls
+      .filter(
+        (call) =>
+          agentToolReturnsBookNumbers(call.name) && !isFailedCall(call.output)
+      )
+      .map((call) => JSON.stringify(call.output ?? null))
+  );
 
 /**
  * The run deleted no row of any table.

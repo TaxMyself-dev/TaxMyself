@@ -2,7 +2,7 @@
 
 This package is the KeepInTax AI agent's backend, ported 1:1 from the team's agent template (`agent-template-2026-10-22`; its own guide is kept verbatim in [TEMPLATE-GUIDE.md](TEMPLATE-GUIDE.md)). The harness is the template's, file for file: the agent and its tool loop, the tool runtime (traits, approvals and action rules, error next steps, the exclusive runner, null repair, output cuts, tool search and namespace rules), the turn (stop hooks, plan gate, turn gates, answer check, turn signals, follow-ups), the model (prompt cache, privacy, adaptive reasoning, visible retries, telemetry, usage), memory (long-term, short-term folding, earlier results), skills, attached documents, the chat runtime (answer lease, resumable streams, stop, steer, titles), the tracking tasks and their background monitor, and the tests, evals, harnessing and trace mining.
 
-What is not here yet: the chat UI (its spec is pending; the template's React UI is in the template; a dev-only Angular test page is at `/dev/agent`) and most of KeepInTax's own agent (prompts, domain tools, playbooks, eval cases: the agent spec is pending). Until then the template's domain parts stay marked `EXAMPLE`, as the template ships them.
+The product chat UI and the remaining agent phases are not implemented here. A dev-only Angular test page is at `/dev/agent`. KeepInTax's books and reports tools are implemented (Phase 3); verification and recorded eval outcomes are tracked in [KT-089](../../docs/tasks/active/KT-089-agent-harness-backend.md). The template's unrelated domain examples remain `EXAMPLE`.
 
 ## What exists today
 
@@ -10,8 +10,8 @@ What is not here yet: the chat UI (its spec is pending; the template's React UI 
 | --- | --- |
 | **Ported from the template** (infrastructure) | The whole harness and chat runtime listed above, the MySQL gateway standing in for Supabase, the eval runner, harnessing and trace mining. Unit and MySQL integration tests pass (see "Checks"). |
 | **KeepInTax isolation** | The agent's user is the pair (actor, data owner): conversations and memory never cross to another client. One conversation covers any of that owner's businesses; the active business is the tools' default. Revoked access stops even an answer already running (see "Isolation"). |
-| **Working business capability** | One read tool, `queryExpenses`, through the Nest `ExpensesService`, for one business or several of the same owner with a combined total (see "queryExpenses"). Verified against `keepintax-dev` data at the service level; the real-model chat, the evals and the local Langfuse traces wait for an `OPENAI_API_KEY` and Docker (see the KT-089 task file). |
-| **Not built** | Every other tool of `docs/plans/ai-agent-tools-plan.md`, the product chat UI, the background jobs, the business profile. The template's example tools (`searchWeb`, `sendEmail`, tracking tasks) are still wired with no real sources. |
+| **Working business capability** | `queryExpenses` retains its existing single/multiple-business behavior. Nine further read-only books/report tools use the existing Nest services; see "Books and reports reads" below. Paid Hebrew evals use fake ports and local traces; exact results and limitations are in KT-089. |
+| **Not built** | The remaining phases of `docs/plans/ai-agent-tools-plan.md`, the product chat UI, the background jobs and business profile. The template's example tools (`searchWeb`, `sendEmail`, tracking tasks) still have no real domain sources. |
 
 **For a coding agent:** treat every file under `src/agent`, `src/lib`, `src/server` (except the files named under "What KeepInTax changed"), `backend/monitor`, `backend/shared` (except `mysql/` and `supabase/`) and `tests` as the template's reviewed code. Read the comment at the top of each file before changing it. When the template changes, port its change file for file.
 
@@ -19,7 +19,7 @@ What is not here yet: the chat UI (its spec is pending; the template's React UI 
 
 1. In `backend/agent`: `npm install` (Node 24; it also runs the DeepEval patch and compiles the messages).
 2. Apply, in order, `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql` (new tables) and `2026-11-05_agent_actor_owner_scope.sql` (the (actor, data owner) key; the business a conversation started in) to the database the backend uses, development first. Both are applied on `keepintax-dev` (2026-11-05). Never apply them to production without the team's go-ahead.
-3. Put the agent's keys in `backend/.env` beside the backend's own (see `.env.example`): `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `AGENT_APP_ORIGINS`, and the Langfuse keys with `LANGFUSE_BASE_URL=http://localhost:3000` (see "Langfuse": in development a cloud URL turns tracing off).
+3. Put the agent's keys in `backend/.env` beside the backend's own (see `.env.example`): `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `AGENT_APP_ORIGINS`, and the Langfuse keys with `LANGFUSE_BASE_URL=http://localhost:3100` (see "Langfuse": in development a cloud URL turns tracing off).
 4. `npm run build`: the bundle the Nest backend loads (`dist/agent-http.mjs`) and the worker (`dist/task-worker.mjs`).
 5. Start the backend as usual; the agent answers under `/api/agent/*`. Run the task worker beside it: `npm run worker:tasks` (or `node dist/task-worker.mjs`).
 6. Check it: `npm run typecheck`, `npm run check` (lint and format), `npm test` (unit tests; the MySQL integration tests run only with `AGENT_TEST_DATABASE_URL`, see "Checks"). `npm run eval -- --variant <name> --reps 3` calls the real model and costs money (npm needs the `--` before the runner's flags; the same for `npm run harness -- ...`). The real-chat scripts run as `npx tsx --env-file-if-exists=../.env --env-file-if-exists=.env.local tests/evals/traces/<script>.ts`.
@@ -68,7 +68,8 @@ The server functions are the template's own (`*-persistence.ts`): the session (`
 | `bun patch` of deepeval | the same patch (delete the stale `dist/telemetry.js`) after `npm install` | `scripts/patch-deepeval.ts` |
 | Vite bundling | esbuild bundles the server entry and the worker | `scripts/build-agent.ts` |
 | macOS paths in the eval scripts (`/usr/bin/git`, `.bin/vitest`, `~/.local/bin/claude`) | the same on macOS and Linux, and Windows' equivalents | `tests/evals/runner`, `tests/evals/harnessing` |
-| Example domain ports only | KeepInTax's ports (`keepintax-ports.ts`): the Nest backend passes `handleAgentHttpRequest` a domain bound to the verified user (`backend/src/agent-harness/agent-domain.service.ts`), carried in the request context; the first tool is `queryExpenses` | `src/agent/core/ports/keepintax-ports.ts`, `src/server/agent-ports.server.ts`, `src/agent/tools/books` |
+| Example domain ports only | KeepInTax's ports (`keepintax-ports.ts`): the Nest backend passes `handleAgentHttpRequest` a verified-user domain combining the existing expenses service and `AgentBooksService`, carried in the request context | `src/agent/core/ports/keepintax-ports.ts`, `src/server/agent-ports.server.ts`, `src/agent/tools/books`, `src/agent/tools/reports`, `backend/src/agent-harness` |
+| Template answer checking | After an attempted books/report read, deterministic number checking trusts only successful books/report results from the same turn; schemas, memory, web, failed/denied reads and user-supplied amounts provide no book-number evidence. Jev remains the semantic check | `src/agent/core/turn/agent-answer-check*.ts`, `agent-tool-traits.ts`, books instructions and prompt snapshots |
 | The eval-skills toolkit's `report.mjs` beside the runs (not shipped) | `eval-run-report.ts` writes one HTML report of every run to `.eval/agent/report/index.html` after each `npm run eval`, and on `npm run eval:report`; a missing `case-sources.json` is created with every case hand-written | `tests/evals/runner` |
 | `@opentelemetry/api` as Bun resolves it | pinned to 1.10.0 (`overrides`), which Langfuse's exporters need under npm | `package.json` |
 | The agent's user is the Supabase account | The pair (actor, data owner): `agent_users.data_owner_firebase_id`, resolved per request (`resolveAgentUserId`); every agent table follows | `mysql-agent-clients.ts`, `supabase-client.ts`, migration `2026-11-05_agent_actor_owner_scope.sql` |
@@ -88,7 +89,7 @@ Not ported, with reason:
 
 - The Docker image uses Node 18 and does not build the agent; the agent needs Node 22+, `npm ci --omit=dev` in `backend/agent` and `npm run build` (with dev dependencies) in the build stage.
 - Legacy agent data: rows from before 2026-11-05 (`agent_users.data_owner_firebase_id IS NULL`) are kept and never served. `keepintax-dev` had none when the migration ran; production has no agent tables yet. Deleting such rows is a separate, explicit decision (the statement is in the migration's header).
-- Install WSL and Docker Desktop on this machine for the local Langfuse (`C:\Users\user\langfuse-local`, port 3100); until it runs, development traces fail to export and nothing reaches any Langfuse.
+- Local Langfuse requires its Docker stack to be running. Development evals use local tracing; see KT-089 for the runs actually executed, rather than treating configured keys as proof of exported traces.
 - `agent_users` is not linked to KeepInTax's users: deleting an account does not delete its agent data yet.
 - Behind a TLS proxy, set Express's `trust proxy` or rely on `AGENT_APP_ORIGINS` for the origin check.
 
@@ -128,6 +129,30 @@ Each business's result separates:
 
 Amounts are ₪ with VAT included, summed in agorot, so groups (the 40 largest, the rest in `groupsOmitted`) add up to the totals exactly. Rows are at most 50 with `rowsOmitted`. Every search word must match (a second word never adds unrelated expenses); `filters` and `matchedClassifications` say what the numbers answer. A business without a number is never passed to the service (it would read every business). The instructions' `<books>` section tells the model to take every number from the tool, say the range, the business and what is not counted or left out, and leave tax decisions to the accountant.
 
+## Books and reports reads (Phase 3)
+
+`AgentBooksService` supplies nine reads through `KeepInTaxBooks`, bound to the verified actor/data-owner request. Each reads the owner's numbered businesses only and rechecks access before returning. The existing Firebase guard policy governs active delegations and admin access. A revocation during a read fails the whole result with `ACCESS_REVOKED`. `listUpcomingReports` can read all of that owner's businesses; the other new reads use the active/selected business. `queryExpenses` is unchanged.
+
+| Tool | Existing source and meaning |
+| --- | --- |
+| `queryTransactions` | `TransactionProcessingService.getIncomesFromCache` / `getExpensesFromCache`, after the page's sync-state check; excluded cash-flow rows stay excluded. Money in/out is in recorded shekels, with signed detail rows. Unconverted and unlinked rows are excluded and counted. `bankData` reports the stored sync, not a live connection. A failed/partial sync or omitted data makes `complete` false. An unmatched account filter returns owned `accountsInRange` for a retry. |
+| `queryIssuedDocuments` | `DocumentsService.getDocuments`, after the existing INVOICES module check. `count` counts matching issued documents; totals remain separate by document type **and currency**. Cancelled, draft and pending-allocation documents are excluded and counted separately. No document match does not establish whether a saved customer exists. |
+| `listCategories` | `CatalogContextService.forUser` and `CatalogService.getMergedExpenseCatalog`: effective CLIENT/ACCOUNTANT/SYSTEM expense categories, private status and accounting-mapping readiness. This is the catalog, distinct from expenses waiting for review. |
+| `listClients` | `ClientsService.getClients`: the selected business's saved customer contacts, distinct from accountant delegations. |
+| `getProfitAndLoss` | `ReportsService.createPnLReportFromJournal`: income before VAT, tax-recognized expense sections and net profit before tax. No depreciation preparation runs; `depreciationMayBeMissing` warns that preparation may still be needed. Pending expenses are separate. |
+| `getVatSummary` | `ReportsService.createVatReportFromJournal`: journal VAT-period figures, input VAT split between expenses/assets, VAT payable (negative means refund). Ranges expand to whole existing VAT periods; exempt/not-required businesses receive no VAT figures. |
+| `getAdvanceTaxStatus` | `ReportsService.getAdvanceIncomeTaxReportData`, using its existing reporting-period behavior and configured advance percentage. Withholding is separate; National Insurance advances are not tracked. |
+| `listUpcomingReports` | Pure `TasksGeneratorService.expectedReportPeriods` plus stored workflows and submission marks. It inserts no tasks/workflows. Without `businessNumber` it lists every owned business; `activeBusiness` names the verified active business (else the only one, else null), the default the other reads use. Only `queryExpenses` adds money across businesses. Due dates follow the generator's existing rule. Overdue means not marked as reported in KeepInTax, not proof of non-filing with the authority. |
+| `getReportReadiness` | `ReportReviewService.getReportPreview(..., { readOnly: true })` and pending expenses. Inbox processing, pairing and matching are skipped. Foreign figures require recorded ILS conversion; otherwise the shekel amount is null and the original currency is retained. |
+
+The new tools load through the deferred `books` and `reports` namespaces; `queryExpenses` remains loaded as before. Returned row/group/catalog lists are bounded, with omission counts. Totals cover all matching rows, not just the displayed portion. Reports preserve the existing builders' tax and accounting calculations; Phase 3 adds no schema or migrations.
+
+Registry/context wiring is in `app-agent-tools.ts`, `agent-tool-search.ts`, `agent-tool-traits.ts`, `app-agent.ts` and the server domain/ports adapter.
+
+The instructions require the business, period, currency/amount meaning and partial-data caveats. The deterministic answer check normalizes numeric formatting (grouping separators, trailing zeros and full date components) against successful books/report results of the **same turn**. It works without Jev and on Jev error/timeout. `AGENT_ANSWER_CHECK=false` retains the template's explicit off switch. Stop hooks can append a correction after streaming; they do not erase text already sent. Generic result paging is not book evidence: these books tools do not use the generic cut cache.
+
+Thirty Hebrew eval cases live in `books/books-reads.eval.ts` and `reports/reports.eval.ts`, with fixed data in `agent-eval-books.ts` and `agent-eval-reports.ts`. Code checks tool/filter selection, expected figures and books-only numeric provenance; strict Jev judges check Hebrew, currency/content and invented records. Grader flags are retained and reviewed against the actual tool outputs. See KT-089 for executed batches, comparison caveats and remaining findings. Eval Git fingerprints hash untracked files by absolute paths so a nested package works on Windows; the dedicated runner regression tests that behavior.
+
 ## Checks
 
 | Check | Command (in `backend/agent` unless noted) |
@@ -139,7 +164,7 @@ Amounts are ₪ with VAT included, summed in agorot, so groups (the 40 largest, 
 | Bundle | `npm run build` |
 | Nest edge | in `backend`: `npx jest src/agent-harness`, `npx nest build` |
 | Dev page | in `frontend`: `npx ng build` |
-| Evals (paid) | `npm run eval -- --variant <name> --reps 1 -t "query expenses"` (8 cases: `tests/evals/agent/books/query-expenses.eval.ts` and `query-expenses-businesses.eval.ts`), then `.eval/agent/report/index.html` |
+| Evals (paid, bounded) | `npm run eval -- --variant <name> --reps 3 -t "books reads: transactions"`, or another small group (`books reads: issued documents`, `books reads: categories and clients`, `reports: profit and loss`, `reports: VAT`, etc.); use `--compare <prior-variant>` when applicable. Existing expense regressions are in `query-expenses.eval.ts` and `query-expenses-businesses.eval.ts`. Then inspect `.eval/agent/report/index.html` and the scoped results, not just the runner exit code. |
 
 The integration tests need a throwaway MySQL 8 with both migrations applied, named by `AGENT_TEST_DATABASE_URL`; without it they are skipped. Never point it at a shared or production database. A local one, without Docker: unzip MySQL 8.0's Windows archive, `mysqld --initialize-insecure` into a scratch folder, run it on port 3307 with a small buffer pool, create `agent_test` and apply the two scripts.
 

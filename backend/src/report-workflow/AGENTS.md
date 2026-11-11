@@ -8,6 +8,10 @@ Tracks the client-facing "report obligation" lifecycle (VAT report / advance inc
 - `dtos/list-workflows.dto.ts`, `dtos/set-reported.dto.ts`.
 
 ## Main flows
+- `listStoredForClient(clientFirebaseId, businessNumber)` is the agent's
+  read-only stored-workflow list, including dismissal state. It does not
+  call the on-demand generator used by `listForClient`; `AgentBooksService`
+  supplies the verified owner/business and rechecks authorization.
 - `GET /report-workflows/me` — client lists their own workflows; triggers `TasksGeneratorService.generateForUser` first so the list reflects freshly generated periods.
 - `POST /:id/confirm` — client confirms all docs uploaded → `WAITING_FOR_CLIENT` → `READY_TO_PREPARE`.
 - `PATCH /:id/reported` — accountant (or a self-served client with no active delegation) marks/unmarks `REPORTED`; on mark: locks matching `SlimTransaction`/`FullTransactionCache` rows to the period (`vatReportingDate` + `isLocked=true`), syncs matching `AccountantTask` rows, sends a notification, and (VAT only) snapshots the rendered VAT report PDF to Firebase Storage. On unmark: reverses the lock and clears the stale snapshot.

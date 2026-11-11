@@ -10,7 +10,7 @@ import { ExpensesService } from 'src/expenses/expenses.service';
 import { User } from 'src/users/user.entity';
 import type { AgentHarnessUser } from './agent-harness.service';
 import {
-  AgentDomain,
+  AgentExpensesDomain,
   ExpenseQueryAnswer,
   ExpensesAcrossBusinessesResult,
   ExpenseGrouping,
@@ -250,10 +250,31 @@ export class AgentDomainService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  forUser(user: AgentHarnessUser): AgentDomain {
+  forUser(user: AgentHarnessUser): AgentExpensesDomain {
     return {
       queryExpenses: (query) => this.queryExpenses(user, query),
     };
+  }
+
+  /**
+   * For the other domain reads (AgentBooksService): checks the access still
+   * holds, then picks one of the data owner's numbered businesses the same
+   * way queryExpenses does — the one asked for, else the request's active
+   * one, else the owner's only one (BUSINESS_REQUIRED / BUSINESS_NOT_FOUND
+   * otherwise).
+   */
+  async resolveBusiness(
+    user: AgentHarnessUser,
+    asked: string | undefined,
+  ): Promise<{ business: Business & { businessNumber: string }; businesses: (Business & { businessNumber: string })[] }> {
+    const businesses = await this.ownerBusinesses(user);
+    return { business: this.chooseBusiness(user, businesses, asked), businesses };
+  }
+
+  /** The data owner's numbered businesses, after the access check. */
+  async ownerBusinesses(user: AgentHarnessUser): Promise<(Business & { businessNumber: string })[]> {
+    await this.assertAccessStillHolds(user);
+    return numberedBusinesses(await this.businessService.getUserBusinesses(user.firebaseId));
   }
 
   /**

@@ -5,10 +5,13 @@ import { ConfigProvider, Effect, Layer } from "effect";
 import { JevClient } from "../../../../../backend/shared/ai/typesafe-jev-client";
 import {
   agentAnswerCheckNote,
+  agentAnswerNumberViolations,
+  agentBookEvidenceOutputs,
   agentAnswerViolations,
   findAgentAnswerViolations,
 } from "../../../../../src/agent/core/turn/agent-answer-check";
 import type { AgentAnswerCheckInput } from "../../../../../src/agent/core/turn/agent-answer-check";
+import { agentAnswerUnbackedNumbers } from "../../../../../src/agent/core/turn/agent-answer-check-rules";
 import {
   agentTurnToolOutcomes,
   agentUnreadCutResults,
@@ -42,6 +45,13 @@ const userMessage: ModelMessage = {
 };
 
 const ending = (text: string) => ({ text, toolCalls: [] });
+
+// The number-provenance violations of an answer after the messages' turn.
+const check = (answer: string, messages: readonly ModelMessage[]) =>
+  agentAnswerNumberViolations({
+    answer,
+    outcomes: agentTurnToolOutcomes(messages),
+  });
 
 const noAnswers = {
   sent_message: { noul: 0 },
@@ -257,6 +267,217 @@ describe("agent answer check", () => {
     ]);
   });
 
+  describe("number provenance after a books read", () => {
+    const fuel = toolResult("q", "queryExpenses", {
+      type: "json",
+      value: {
+        from: "2026-01-01",
+        to: "2026-10-04",
+        totals: { count: 4, sum: 1662.4 },
+        pending: { count: 1, sum: 299.9 },
+      },
+    });
+
+    const fuelQuestion: ModelMessage = {
+      role: "user",
+      content: "כמה הוצאתי על דלק השנה?",
+    };
+
+    const fuelTurn = (...more: ModelMessage[]) => [
+      fuelQuestion,
+      toolCall("q", "queryExpenses"),
+      fuel,
+      ...more,
+    ];
+
+    it("accepts the tool's figures however the answer formats them, and its range's dates", () => {
+      assert.deepStrictEqual(
+        check(
+          "מ-1.1.2026 עד 4.10.2026 הוצאתם 1,662.40 ₪ על דלק (4 הוצאות), ועוד אחת של 299.90 ₪ ממתינה לבדיקה.",
+          fuelTurn()
+        ),
+        []
+      );
+    });
+
+    it("rejects a rounded figure: 299 is not the tool's 299.9", () => {
+      assert.deepStrictEqual(
+        agentAnswerUnbackedNumbers("ממתינה הוצאה של 299 ₪.", ['{"sum":299.9}']),
+        ["299"]
+      );
+      assert.lengthOf(check("סך הכל כ-1,662 ₪.", fuelTurn()), 1);
+    });
+
+    it("rejects an amount the user typed: the user's message is no evidence of the books", () => {
+      const violations = agentAnswerNumberViolations({
+        answer: "נכון, הוצאתם 2,500 ₪ על דלק.",
+        outcomes: agentTurnToolOutcomes([
+          {
+            role: "user",
+            content: "הוצאתי 2,500 ₪ על דלק השנה, נכון?",
+          },
+          toolCall("q", "queryExpenses"),
+          fuel,
+        ]),
+      });
+
+      assert.lengthOf(violations, 1);
+      assert.include(violations[0], "2,500");
+    });
+
+    it("rejects small counts the tool did not return: no allowance for counts", () => {
+      assert.deepStrictEqual(
+        agentAnswerUnbackedNumbers("יש לכם 3 הוצאות דלק.", ['{"count":4}']),
+        ["3"]
+      );
+    });
+
+    it("a failed books read backs nothing, and its answer is still checked", () => {
+      const failedOnly = [
+        userMessage,
+        toolCall("q", "getVatSummary"),
+        toolResult("q", "getVatSummary", {
+          type: "error-text",
+          value:
+            "ACCESS_REVOKED: the access to this client's data was revoked 2026 770.8",
+        }),
+      ];
+
+      assert.lengthOf(check("המע״מ לתשלום הוא 770.80 ₪.", failedOnly), 1);
+      assert.deepStrictEqual(
+        check("אין לי יותר גישה לספרים של העסק.", failedOnly),
+        []
+      );
+    });
+
+    it("a denied books read backs nothing, and its answer is still checked", () => {
+      const deniedOnly = [
+        userMessage,
+        toolCall("q", "getProfitAndLoss"),
+        toolResult("q", "getProfitAndLoss", { type: executionDenied }),
+      ];
+
+      assert.lengthOf(check("הרווח השנה הוא 8,499.80 ₪.", deniedOnly), 1);
+    });
+
+    it("a figure from an earlier turn's read backs nothing now", () => {
+      const phoneQuestion: ModelMessage = {
+        role: "user",
+        content: "ומה עם הפלאפון?",
+      };
+
+      const earlier = [
+        ...fuelTurn(),
+        phoneQuestion,
+        toolCall("p", "queryExpenses"),
+        toolResult("p", "queryExpenses", {
+          type: "json",
+          value: { totals: { count: 6, sum: 539.4 } },
+        }),
+      ];
+
+      assert.deepStrictEqual(check("על הפלאפון 539.40 ₪.", earlier), []);
+      assert.lengthOf(
+        check("על הפלאפון 539.40 ₪, ועל דלק 1,662.40 ₪.", earlier),
+        1
+      );
+    });
+
+    it("a tool schema's digits back nothing: toolSearch's pattern holds 3, the books read returned none", () => {
+      const turn = [
+        userMessage,
+        toolCall("s", "toolSearch"),
+        toolResult("s", "toolSearch", {
+          type: "json",
+          value: {
+            tools: [{ parameters: { pattern: "^(?:0[1-9]|[12]\\d|3[01])$" } }],
+          },
+        }),
+        toolCall("q", "queryIssuedDocuments"),
+        toolResult("q", "queryIssuedDocuments", {
+          type: "json",
+          value: { count: 0, byType: [] },
+        }),
+      ];
+
+      assert.deepStrictEqual(
+        agentBookEvidenceOutputs(agentTurnToolOutcomes(turn)),
+        ['{"count":0,"byType":[]}']
+      );
+      assert.lengthOf(check("הוצאתם 3 חשבוניות.", turn), 1);
+    });
+
+    it("memory, web results and paging of other results are no evidence of the books", () => {
+      const turn = [
+        userMessage,
+        toolCall("m", "saveAgentMemory"),
+        toolResult("m", "saveAgentMemory", {
+          type: "json",
+          value: { saved: "pays 1,250 a month for WeWork" },
+        }),
+        toolCall("w", "searchWeb"),
+        toolResult("w", "searchWeb", {
+          type: "json",
+          value: { results: [{ price: 640 }] },
+        }),
+        toolCall("r", "readToolResultItems"),
+        toolResult("r", "readToolResultItems", {
+          type: "json",
+          value: { items: [{ amount: 299.9 }] },
+        }),
+        toolCall("q", "queryTransactions"),
+        toolResult("q", "queryTransactions", {
+          type: "json",
+          value: { moneyOut: { count: 2, sum: 1453.46 } },
+        }),
+      ];
+
+      assert.deepStrictEqual(
+        check("בכרטיס יצאו 1,453.46 ₪ ב-2 תשלומים.", turn),
+        []
+      );
+
+      const unbacked = check(
+        "יצאו 1,250 ₪ ל-WeWork, 640 ₪ באתר ו-299.90 ₪ נוספים.",
+        turn
+      );
+
+      assert.lengthOf(unbacked, 1);
+
+      for (const number of ["1,250", "640", "299.90"]) {
+        assert.include(unbacked[0], number);
+      }
+    });
+
+    it("a turn without any books read is not number-checked", () => {
+      assert.deepStrictEqual(
+        check("יש לכם 3 משימות.", [
+          userMessage,
+          toolCall("a", "listTrackingTasks"),
+          toolResult("a", "listTrackingTasks", { type: "json", value: [] }),
+        ]),
+        []
+      );
+    });
+
+    it("an answer after a books read reaches the check, which names the unbacked numbers", async () => {
+      let asked = false;
+
+      const note = await agentAnswerCheckNote(
+        async (input) => {
+          asked = true;
+
+          return await Promise.resolve(agentAnswerNumberViolations(input));
+        },
+        [ending("הוצאתם 1,800 ₪ על דלק.")],
+        fuelTurn()
+      );
+
+      assert.isTrue(asked);
+      assert.include(JSON.stringify(note), "1,800");
+    });
+  });
+
   const checkInput: AgentAnswerCheckInput = {
     userMessage: "Delete the accountant task",
     answer: "I deleted the task.",
@@ -300,6 +521,33 @@ describe("agent answer check", () => {
         ),
         []
       );
+    })
+  );
+
+  it.effect("number provenance holds without Jev, and when Jev times out", () =>
+    Effect.gen(function* provenanceWithoutJev() {
+      const booksInput: AgentAnswerCheckInput = {
+        userMessage: "כמה הוצאתי על דלק?",
+        answer: "הוצאתם 1,700 ₪ על דלק.",
+        outcomes: [
+          {
+            toolName: "queryExpenses",
+            outcome: "done",
+            output: '{"totals":{"sum":1662}}',
+          },
+        ],
+        unreadCuts: [],
+      };
+
+      const withoutJev = yield* findAgentAnswerViolations(booksInput);
+      assert.lengthOf(withoutJev, 1);
+      assert.include(withoutJev[0], "1,700");
+
+      const timedOut = yield* findAgentAnswerViolations(booksInput).pipe(
+        Effect.provide(timedOutJevClient)
+      );
+
+      assert.deepStrictEqual(timedOut, withoutJev);
     })
   );
 

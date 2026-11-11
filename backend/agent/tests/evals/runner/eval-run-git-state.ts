@@ -39,10 +39,21 @@ export const evalGitState = (projectRoot: string) => {
       (file) => file !== "" && lstatSync(path.join(projectRoot, file)).isFile()
     );
 
+  // ls-files names the files relative to projectRoot, while hash-object
+  // --stdin-paths may read its paths from the repository's top level (Git
+  // for Windows does), which differs when the project is nested in the
+  // repository (backend/agent): it is given absolute paths, and the
+  // fingerprint keeps the relative names.
   const untracked = `${untrackedFiles.join("\n")}\n${execFileSync(
     gitExecutable,
     ["hash-object", "--stdin-paths"],
-    { cwd: projectRoot, encoding: "utf-8", input: untrackedFiles.join("\n") }
+    {
+      cwd: projectRoot,
+      encoding: "utf-8",
+      input: untrackedFiles
+        .map((file) => path.resolve(projectRoot, file))
+        .join("\n"),
+    }
   )}`;
 
   return {

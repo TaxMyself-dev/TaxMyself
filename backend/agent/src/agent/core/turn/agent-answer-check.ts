@@ -10,6 +10,8 @@ import {
   agentAnswerRuleBroken,
   agentAnswerRules,
   agentAnswerToolResultsMaxLength,
+  agentAnswerUnbackedNumbers,
+  agentUnbackedNumbersViolation,
   agentWholeResultQuestion,
   agentWholeResultViolation,
 } from "@/agent/core/turn/agent-answer-check-rules";
@@ -33,7 +35,10 @@ import {
   jevNewestModel,
 } from "../../../../backend/shared/ai/typesafe-jev-client";
 import { countAgentAnswerCheck } from "../model/agent-telemetry";
-import { agentToolNeedsAnswerCheck } from "../tool-runtime/agent-tool-traits";
+import {
+  agentToolNeedsAnswerCheck,
+  agentToolReturnsBookNumbers,
+} from "../tool-runtime/agent-tool-traits";
 import { agentNoteList } from "./agent-note-list";
 
 // The answer check, one of the stop hooks (agent-stop-hooks.ts): when an
@@ -61,10 +66,65 @@ import { agentNoteList } from "./agent-note-list";
 // runner (unit tests), or when Jev is slow or failing, the answer ends as
 // it would without it (AGENT_ANSWER_CHECK_FAILED).
 
+// KeepInTax (Phase 3): a turn that read the user's books or reports is
+// checked too — Jev's invented_fact, and in code the number provenance:
+// every number of the answer must come from a tool result that returned in
+// this turn (agentAnswerUnbackedNumbers). The provenance check needs no Jev,
+// so it holds when Jev is missing, slow or failing; the switch
+// (AGENT_ANSWER_CHECK=false) turns it off with the rest.
+
+// Whether the turn tried to read the user's books or reports, whatever came
+// of it: after a failed, denied or revoked read (ACCESS_REVOKED) the answer
+// must still state no number, since only a returned result backs one.
+const agentTurnReadBooks = (outcomes: readonly AgentTurnToolOutcome[]) =>
+  outcomes.some(({ toolName }) => agentToolReturnsBookNumbers(toolName));
+
 // Whether the turn's tools call for the check: it wrote, asked for approval,
-// or read an outside service.
+// read an outside service, or read the user's books.
 const agentAnswerNeedsCheck = (outcomes: readonly AgentTurnToolOutcome[]) =>
-  outcomes.some(({ toolName }) => agentToolNeedsAnswerCheck(toolName));
+  outcomes.some(({ toolName }) => agentToolNeedsAnswerCheck(toolName)) ||
+  agentTurnReadBooks(outcomes);
+
+/**
+ * The evidence a number about the books may come from: the outputs of this
+ * turn's books and reports reads that returned. Nothing else is evidence of
+ * the books, though it may hold digits: toolSearch's tool schemas (their
+ * patterns), memory, settings, web results, a page of another result
+ * (readToolResultItems: no books read is cut today), failed or denied calls,
+ * the user's message.
+ *
+ * @param outcomes - The turn's tool calls.
+ * @returns The outputs that count as evidence.
+ */
+export const agentBookEvidenceOutputs = (
+  outcomes: readonly AgentTurnToolOutcome[]
+) =>
+  outcomes.flatMap(({ toolName, outcome, output }) =>
+    outcome === "done" && agentToolReturnsBookNumbers(toolName) ? [output] : []
+  );
+
+/**
+ * The number-provenance violation of an answer after any attempted books
+ * read: its numbers that no books read returned in this turn
+ * (agentBookEvidenceOutputs). None when the turn tried no books read.
+ *
+ * @param input - The answer and the turn's tool calls.
+ * @returns The violations (zero or one).
+ */
+export const agentAnswerNumberViolations = (
+  input: Pick<AgentAnswerCheckInput, "answer" | "outcomes">
+) => {
+  if (!agentTurnReadBooks(input.outcomes)) {
+    return [];
+  }
+
+  const unbacked = agentAnswerUnbackedNumbers(
+    input.answer,
+    agentBookEvidenceOutputs(input.outcomes)
+  );
+
+  return unbacked.length === 0 ? [] : [agentUnbackedNumbersViolation(unbacked)];
+};
 
 /**
  * The rules Jev's answers break, given what the tools returned.
@@ -135,8 +195,15 @@ export const findAgentAnswerViolations = Effect.fn("findAgentAnswerViolations")(
 
     const jev = yield* Effect.serviceOption(JevClient);
 
-    if (switchedOff || Option.isNone(jev) || input.answer.trim() === "") {
+    if (switchedOff || input.answer.trim() === "") {
       return [];
+    }
+
+    // In code, before Jev: it holds whatever Jev does.
+    const numberViolations = agentAnswerNumberViolations(input);
+
+    if (Option.isNone(jev)) {
+      return numberViolations;
     }
 
     const said = {
@@ -186,14 +253,17 @@ export const findAgentAnswerViolations = Effect.fn("findAgentAnswerViolations")(
           onNone: () =>
             Effect.logWarning("AGENT_ANSWER_CHECK_FAILED", "timeout").pipe(
               Effect.andThen(countAgentAnswerCheck("failed")),
-              Effect.as([])
+              Effect.as(numberViolations)
             ),
           onSome: ({ answers }) => {
-            const violations = agentAnswerViolations(
-              answers,
-              input.outcomes,
-              input.unreadCuts
-            );
+            const violations = [
+              ...numberViolations,
+              ...agentAnswerViolations(
+                answers,
+                input.outcomes,
+                input.unreadCuts
+              ),
+            ];
 
             return Effect.logInfo("AGENT_ANSWER_CHECK", {
               answers,
@@ -211,7 +281,7 @@ export const findAgentAnswerViolations = Effect.fn("findAgentAnswerViolations")(
         onFailure: (error) =>
           Effect.logWarning("AGENT_ANSWER_CHECK_FAILED", error.message).pipe(
             Effect.andThen(countAgentAnswerCheck("failed")),
-            Effect.as([])
+            Effect.as(numberViolations)
           ),
         onSuccess: Effect.succeed,
       })

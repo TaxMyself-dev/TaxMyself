@@ -1,16 +1,23 @@
-import type {
-  ExpenseQuery,
-  ExpenseQueryAnswer,
-} from "@/agent/core/ports/keepintax-ports";
+import type { Effect } from "effect";
+
+import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
+
+// A books read's query and answer, as the Effect port types them.
+type PromiseOf<Read> = Read extends (
+  query: infer Query
+) => Effect.Effect<infer Answer, Error>
+  ? (query: Query) => Promise<Answer>
+  : never;
 
 /**
  * KeepInTax's side of the agent's domain ports, as the Nest backend gives it
- * with each request (backend/src/agent-harness/agent-domain.service.ts),
- * already bound to the request's verified user: a method cannot reach
- * another owner's data whatever it is asked. Plain promises, since the
- * backend has no Effect; agent-ports.server.ts turns them into the ports.
- * A failure is an Error whose message starts with its CODE:.
+ * with each request (backend/src/agent-harness/agent-domain.service.ts and
+ * agent-books.service.ts), already bound to the request's verified user: a
+ * method cannot reach another owner's data whatever it is asked. Plain
+ * promises, since the backend has no Effect; agent-ports.server.ts turns
+ * them into the ports. A failure is an Error whose message starts with its
+ * CODE:.
  */
-export interface AgentDomain {
-  queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryAnswer>;
-}
+export type AgentDomain = {
+  [Read in keyof KeepInTaxBooks]: PromiseOf<KeepInTaxBooks[Read]>;
+};

@@ -6,6 +6,7 @@ import type {
   TaskOpportunityStore,
   TrackingTaskStore,
 } from "@/agent/core/ports/tracking-task-ports";
+import type { AgentDomain } from "@/server/runtime/agent-domain";
 import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
 import {
@@ -111,26 +112,40 @@ const keepInTaxFailure = (message: string) =>
 export const createKeepInTaxBooks = (): KeepInTaxBooks => {
   const domain = currentAgentDomain();
 
-  if (domain === undefined) {
-    return {
-      queryExpenses: () =>
-        Effect.fail(
+  // Every read the same way: the domain's promise as an Effect failing with
+  // the ports' contract, an Error whose message starts with its CODE:
+  // (keepintax-ports.ts); none without the backend.
+  const read =
+    <Query, Answer>(
+      pick: (backend: AgentDomain) => (query: Query) => Promise<Answer>
+    ) =>
+    (query: Query): Effect.Effect<Answer, Error> => {
+      if (domain === undefined) {
+        return Effect.fail(
           keepInTaxFailure("the agent runs without KeepInTax's backend")
-        ),
-    };
-  }
+        );
+      }
 
-  return {
-    queryExpenses: (query) =>
-      // The ports' contract: an Error whose message starts with its CODE:
-      // (keepintax-ports.ts).
       // @effect-diagnostics-next-line globalErrorInEffectCatch:off
-      Effect.tryPromise({
-        try: async () => await domain.queryExpenses(query),
+      return Effect.tryPromise({
+        try: async () => await pick(domain)(query),
         catch: (error) =>
           keepInTaxFailure(
             error instanceof Error ? error.message : String(error)
           ),
-      }),
+      });
+    };
+
+  return {
+    queryExpenses: read((backend) => backend.queryExpenses),
+    queryTransactions: read((backend) => backend.queryTransactions),
+    queryIssuedDocuments: read((backend) => backend.queryIssuedDocuments),
+    listCategories: read((backend) => backend.listCategories),
+    listClients: read((backend) => backend.listClients),
+    getProfitAndLoss: read((backend) => backend.getProfitAndLoss),
+    getVatSummary: read((backend) => backend.getVatSummary),
+    getAdvanceTaxStatus: read((backend) => backend.getAdvanceTaxStatus),
+    listUpcomingReports: read((backend) => backend.listUpcomingReports),
+    getReportReadiness: read((backend) => backend.getReportReadiness),
   };
 };

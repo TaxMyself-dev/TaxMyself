@@ -143,6 +143,51 @@ export const agentToolFaithfulnessJudge = (threshold = 0.7) =>
   });
 
 /**
+ * The Phase 3 books and reports judge: the answer is in Hebrew, every figure
+ * comes from a tool that returned in this answer (strict: as returned or
+ * only reformatted, never computed, rounded, or taken from the user's
+ * message, the agentToolFaithfulnessJudge's allowance being too loose for
+ * money), nothing is named that no tool returned, and the case's own
+ * statements hold. It reads the tool outputs; code checks the same figures
+ * deterministically (answerNumbersNotFromSuccessfulTools).
+ *
+ * @param name - The judge's name.
+ * @param statements - The case's own statements about the answer.
+ * @returns The judge.
+ */
+export const booksAnswerJudge = (name: string, statements: string[]) =>
+  new JevEval({
+    name,
+    evaluationParams: [
+      SingleTurnParams.INPUT,
+      SingleTurnParams.ACTUAL_OUTPUT,
+      SingleTurnParams.TOOLS_CALLED,
+    ],
+    questions: [
+      new Noul({
+        statement: "`test_case.actual_output` is written in Hebrew.",
+      }),
+      new Noul({
+        statement:
+          "Every amount, count, percent and date in `test_case.actual_output` appears in the output of a call in `test_case.tools_called` that returned a result (not an error), as written there or only reformatted (thousands separators, trailing zeros, a date written another way; a year, month or day taken from a returned date counts, such as 2026 from 2026-09-01). No amount is added up, rounded, estimated or taken from `test_case.input`.",
+      }),
+      new Noul({
+        statement:
+          "Every transaction, document, client, category, business and report period that `test_case.actual_output` names appears in the output of a call in `test_case.tools_called`.",
+      }),
+      new Noul({
+        statement:
+          "`test_case.actual_output` gives every amount with its currency as the tool output gives it, and never presents an amount in another currency as shekels.",
+      }),
+      ...statements.map((statement) => new Noul({ statement })),
+    ],
+    // Every statement must hold on its own (agentRuleJudge's strict mode):
+    // Hebrew or provenance failing cannot average out.
+    strictMode: true,
+    systemOneModel: agentEvalJudgeModel,
+  });
+
+/**
  * Statements about `turns` (each with its role, content and tool calls), for
  * cases where the order matters: what was asked before what was done.
  *

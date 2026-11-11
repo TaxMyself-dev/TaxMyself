@@ -1,6 +1,6 @@
 # KT-089 - Agent harness backend (template port)
 
-- Status: `WORKER_COMPLETE`
+- Status: `WORKER_COMPLETE` (Phase 3 implemented and verified locally; manager review of the local commit pending; earlier template port complete)
 - Task manager: Shoval Harel
 - Worker: Claude Code (single-agent execution)
 - Worktree: `C:\Users\user\Keepintax\TaxMyself-new-ai-assistant`
@@ -271,6 +271,173 @@ in. Until then, the domain parts stay marked `EXAMPLE`, as in the template.
   not rerun): 4 apparent number-origin false positives (`299.9` vs
   `299.90`); 1 answer with the correct combined total but without the
   required per-business subtotals.
+
+## Phase 3 follow-up — 2026-11-11 (verified locally)
+
+This is the existing feature, continued on `new-ai-assistant` from
+`8d249ff6`, in the existing worktree. Phase 3 is authorized; other unbuilt
+phases of `docs/plans/ai-agent-tools-plan.md` are not included. The status
+of the template port above does not mean Phase 3 verification is complete.
+
+### Implemented scope
+
+- Nine read-only ports and tools: `queryTransactions`,
+  `queryIssuedDocuments`, `listCategories`, `listClients`,
+  `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`,
+  `listUpcomingReports`, `getReportReadiness`.
+- The Nest implementation uses the existing services, the verified data
+  owner and an owned business. Active delegation/admin authorization is
+  checked before reading and again before returning a result. Issued
+  documents retain the existing INVOICES module check.
+- Reports use their existing builders and period rules. The agent does
+  not run depreciation preparation, inbox processing, document pairing,
+  matching, workflow generation or task insertion. Readiness describes
+  rows already available, not unprocessed Drive files.
+- Issued documents are separated by type and currency. A foreign amount
+  is never presented as shekels without a recorded conversion. Unlinked
+  transactions, unsuccessful syncs and missing conversions make bank
+  totals partial. An unmatched account filter returns owned account names
+  for a narrower retry.
+- No database schema, tax rule or accounting calculation is changed.
+  The existing `queryExpenses` implementation and query semantics remain
+  unchanged.
+
+### Independently executed verification
+
+The manager reviewed the implementation diff and the actual results,
+including the read-only service paths, ownership/revocation checks,
+currency semantics, periods and numeric-source checks.
+
+- Baseline on `8d249ff6`: full backend Jest, 229/230 suites and
+  2,433/2,434 tests passed. The sole failure was
+  `Admin resolution runtime and authorization resumes only local token
+  completion for a ACTIVE subscription`: the fixture period ended on
+  2026-11-05, so the current clock yields PAST_DUE instead of ACTIVE.
+- Full backend verification after the currency/account corrections:
+  233/234 suites and 2,477/2,478 tests passed, 489.522 seconds. JSON
+  comparison with the baseline confirms the same single failure and
+  **44 additional passing tests**, with no new failure.
+- Nest build after those corrections: exit 0. Focused AgentBooksService
+  verification: 37/37 tests and scoped ESLint exit 0.
+- After the last two additive result fields (issued-document `count`;
+  `listUpcomingReports.activeBusiness`, the verified active business):
+  focused AgentBooksService 38/38 tests, scoped ESLint exit 0, and Nest
+  build exit 0 (`phase3-backend-active-context-build.log`). The full
+  backend Jest run above was **not** repeated after these two fields.
+- Final agent verification on the current code (after the routing,
+  active-default and `activeBusiness` changes), started 18:07:36: 61/61
+  files, 325/325 tests, zero skipped, 27.57 seconds
+  (`phase3-agent-active-context-unit.log`); typecheck, Ultracite check and
+  build all exit 0. This supersedes the earlier 325-test runs.
+  Tests used a dedicated local disposable MySQL on 127.0.0.1:3318 with
+  the two existing agent migrations. No application schema was added.
+- `git diff --check` and the staged equivalent passed. Only the intended
+  instructions/tools prompt snapshots changed; original prompt budgets
+  remain unchanged. The frontend was not modified or rebuilt in this
+  follow-up.
+
+The full backend run precedes the additive issued-document `count` and
+`listUpcomingReports.activeBusiness` fields; focused service checks and
+the Nest build were rerun after both fields.
+The agent counts above include the final evidence correction: discovery
+schemas and unrelated tool results cannot back book numbers. It is not a
+change to financial calculations.
+
+### Evaluation status
+
+Thirty new Hebrew cases are written, with fixed fake ports and strict
+numeric checks, plus Hebrew/content/currency judges. Paid runs use small
+filtered batches with three repetitions per case, not the entire indexed
+template dataset.
+
+- Transaction baseline: 11/15 combined passes. An account-name mismatch
+  and an unclear exclusion caveat were corrected.
+- Transaction follow-up: 15/15 code checks, 12/15 combined passes. The
+  three partial-sync judge failures were inspected against the returned
+  account subtotal and found to be false alarms. The updated case also
+  requires the actual Visa subtotal, which the baseline case omitted.
+  Judge wording was clarified for date components and unconverted items;
+  pass thresholds were not lowered. This is not an unchanged-grader
+  comparison. The recorded train/test deltas are within noise.
+- Issued-document baseline: 15/15 code checks, 13/15 combined passes.
+  Review found that a discovery schema could supply incidental digits to
+  the numeric check, and that an empty document search must not establish
+  whether a saved customer exists. Both corrections are implemented.
+- Issued-document follow-up: 15/15 strict books-only code checks and
+  13/15 combined passes. The currency case passes all three repetitions
+  with an explicit service count. The Omega answers no longer infer saved
+  customer absence from a document search. Two judge flags remain: a
+  correct date range, and cancelled/draft documents explicitly listed
+  separately from the count of issued documents. The returned figures
+  match the answers; these flags remain in the saved report.
+- Categories/clients baseline (`phase3-b3-catalog`): 8/9 code checks and
+  8/9 combined. The failure was a **real routing
+  error**: "categories waiting for the accountant" answered from pending
+  expenses (`queryExpenses`), without `listCategories`.
+- P&L/VAT baseline (`phase3-b4-pnl-vat`): 19/24 combined. Real defects:
+  first-quarter income read from issued documents and added across types
+  (3/3; the number check forced a correction); an answer that overrode the
+  active business with the first one of a list (exempt case, 1/3). One
+  year-profit answer named the settings fixture's business ("Northwind
+  Bookkeeping") instead of the result's `business.name`: an attribution
+  defect the deliberately mismatched fixtures expose.
+- Remaining reports baseline (`phase3-b5-reports-rest`, 9 cases): 23/27
+  combined. Real defect: the readiness-count case asked which business
+  after `listUpcomingReports` instead of using the active one (2/3).
+  False alarms on source review: revoked access (explicit no access, no
+  figure) and the before-report currency statement (no shekel figure for
+  Canva; confidence 0.02).
+- Corrections: a compact routing rule in `<books>` (P&L for booked income,
+  expenses or profit; transactions for bank/card money; issued documents;
+  categories and mapping; expenses), the active-default and business-name
+  rules, and — after the readiness rerun still asked in 2 of 3 repetitions —
+  the missing read context itself: `listUpcomingReports` now returns `activeBusiness`
+  and its selector says truthfully that leaving it out lists all
+  businesses. The exempt case now asserts every VAT read leaves the
+  business out or names the workshop. No threshold was lowered.
+- Reruns on the corrected code: categories/clients
+  (`phase3-b3-catalog-v2`) 9/9; P&L, VAT and readiness count
+  (`phase3-b4b5-reports-v2`, 9 cases) 24/27 combined, first-quarter income
+  3/3, exempt 3/3, readiness count still 1/3 before `activeBusiness`;
+  active-business subset (`phase3-active-v3`: readiness count, exempt VAT,
+  3 upcoming-reports cases) 15/15. The refund flag in
+  `phase3-b4b5-reports-v2` is a judge false alarm on the sign
+  (`vatToPay: -649.8` stated as a refund of
+  649.80 ₪; deterministic check passed).
+- `queryExpenses` regression (`phase3-expenses-regression`, the 5 cases of
+  `query-expenses.eval.ts`, 3 repetitions): 15/15 combined, against 3/5 in
+  `expenses-local-1` (1 repetition). No regression.
+- Latest recorded result per case and repetition across the ordered runs
+  B1v2, B2v2, B3v2, B5rest, B4B5v2 and active-v3 (a later run overrides
+  the same case and repetition): 30 cases, 90 slots, **90/90 code checks
+  and 82/90 combined**. This is a union across bounded revisions, not one
+  90-slot run of the final revision. The 8 remaining flags: partial sync
+  (3, judge false alarms: every figure in the results), the empty-client
+  case (1, a correct date read as unsupported), the September documents
+  case (1, a **real minor wording gap**: cancelled and draft documents are
+  listed apart but not said to be excluded), the VAT refund (1, sign),
+  revoked access (1) and the readiness currency statement (1); the last
+  three are false alarms on source review.
+- Open items, not fixed in Phase 3: the September exclusion wording; the
+  judge's numeric statement still misreads a subtotal the tool returned
+  and a sign rendered as a refund (no threshold or wording change was made
+  to pass them); the Hebrew voice slip "שהוצאת" (singular) seen once.
+- Independent offline re-audit of the recorded answers, using the actual
+  numeric normalizer and **only successful books/report outputs** as
+  evidence: transaction follow-up 15/15; document baseline 12/15. All
+  three document misses are the currency case's count `3`, which was
+  present only in the discovery schema, not the document result. This
+  confirms the evidence defect and the need for an explicit service count.
+  This audit is not a new model run and does not rewrite the saved grades.
+
+### Delivery boundary
+
+No feature changes have been integrated into local main, pushed, deployed
+or run against production. Local commits are permitted after review and
+documentation updates. Main integration and GitHub push require Elazar's
+separate explicit approvals. The three pre-existing untracked files
+(`backend/journey-timings.local` and the two agent conversation plans)
+remain outside the change.
 
 ## Integration
 

@@ -17,6 +17,29 @@ import type { AppAgentToolName } from "./app-agent-tools";
 // high-level description of when it is needed.
 const agentToolNamespaces = [
   {
+    name: "books",
+    description:
+      "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers.",
+    tools: [
+      "queryTransactions",
+      "queryIssuedDocuments",
+      "listCategories",
+      "listClients",
+    ],
+  },
+  {
+    name: "reports",
+    description:
+      "The user's tax and accounting reports from their books: profit and loss, the VAT report, income-tax advances, the VAT and advance reports coming up and their due dates, and what still needs review before a report.",
+    tools: [
+      "getProfitAndLoss",
+      "getVatSummary",
+      "getAdvanceTaxStatus",
+      "listUpcomingReports",
+      "getReportReadiness",
+    ],
+  },
+  {
     name: "email",
     description:
       "Email in the user's name: write and send an email to someone the user chose.",

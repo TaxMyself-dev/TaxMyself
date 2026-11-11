@@ -27,8 +27,18 @@ const agentToolEffects = {
   suggestTrackingTasks: "ui",
   listTaskOpportunities: "read",
   changeTaskOpportunityStatus: "write",
-  // KeepInTax's books: reads what the expenses page reads.
+  // KeepInTax's books and reports: each reads what its app screen reads,
+  // and changes nothing.
   queryExpenses: "read",
+  queryTransactions: "read",
+  queryIssuedDocuments: "read",
+  listCategories: "read",
+  listClients: "read",
+  getProfitAndLoss: "read",
+  getVatSummary: "read",
+  getAdvanceTaxStatus: "read",
+  listUpcomingReports: "read",
+  getReportReadiness: "read",
   // EXAMPLE domain tools: give each of yours its effect here.
   searchWeb: "external",
   sendEmail: "approval",
@@ -103,6 +113,32 @@ export const agentToolRunsAlone = (toolName: string) =>
  */
 export const agentToolNeedsAnswerCheck = (toolName: string) =>
   ["write", "approval", "external"].includes(agentToolEffect(toolName));
+
+// The reads whose results carry the user's money and dates: an answer after
+// one of them may state only numbers this turn's tools returned (the answer
+// check's number provenance, agent-answer-check-rules.ts).
+const agentBookNumberTools: ReadonlySet<string> = new Set<AppAgentToolName>([
+  "queryExpenses",
+  "queryTransactions",
+  "queryIssuedDocuments",
+  "listCategories",
+  "listClients",
+  "getProfitAndLoss",
+  "getVatSummary",
+  "getAdvanceTaxStatus",
+  "listUpcomingReports",
+  "getReportReadiness",
+]);
+
+/**
+ * Returns the user's money or dates from KeepInTax's books: an answer after
+ * it is checked so every number comes from this turn's tool results.
+ *
+ * @param toolName - The tool's name.
+ * @returns Whether the tool returns book numbers.
+ */
+export const agentToolReturnsBookNumbers = (toolName: string) =>
+  agentBookNumberTools.has(toolName);
 
 /**
  * Only shows something in the chat (a plan, a question): text

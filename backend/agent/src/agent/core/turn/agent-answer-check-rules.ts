@@ -145,6 +145,76 @@ const agentCutReadCall = ({ resultId, from }: AgentCutResult) =>
 export const agentWholeResultViolation = (cuts: readonly AgentCutResult[]) =>
   `Your answer speaks about a whole result, but part of it was cut and you did not read it: ${cuts.map(agentCutReadCall).join("; ")}. Read the rest now, then correct the answer.`;
 
+// ─── Number provenance (KeepInTax books, Phase 3) ──────────────────────────
+// After a books or reports read (agentToolReturnsBookNumbers), every number
+// in the answer must appear in the result of a tool call that returned
+// successfully in the same turn. Code decides it, not Jev: invented_fact
+// missed small number slips in calibration (above). Strict: no allowance for
+// small counts, none for rounding (a tool's 299.9 does not back 299), the
+// user's message backs nothing (an amount the user typed is no evidence of
+// the books), and neither does a failed, denied or earlier-turn call. Amounts
+// compare by value ("1,662.40", "1662.4" and "₪1,662.40" are one number);
+// dates by their parts ("31.12.2025" needs 31, 12 and 2025, as "2025-12-31"
+// gives), which the reads return as their range (from, to, range).
+
+const answerNumberToken = /\d+(?:[.,]\d+)*/gu;
+
+// "1,662.40" → 1662.4, "1,662" → 1662, "299.90" → 299.9; a d.m.yyyy date
+// gives its parts.
+const numbersOfToken = (token: string): number[] => {
+  if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/u.test(token)) {
+    return token.split(".").map(Number);
+  }
+
+  const value = Number(
+    /^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(token)
+      ? token.replaceAll(",", "")
+      : token.replace(",", ".")
+  );
+
+  return Number.isFinite(value) ? [value] : [];
+};
+
+const numbersIn = (text: string) =>
+  (text.match(answerNumberToken) ?? []).flatMap((token) =>
+    numbersOfToken(token).map((value) => ({ token, value }))
+  );
+
+/**
+ * The numbers of the answer that no successful tool result of this turn
+ * holds, as the answer wrote them.
+ *
+ * @param answer - The answer's text.
+ * @param successfulToolOutputs - This turn's results of calls that returned
+ * (outcome "done"), as text.
+ * @returns The unbacked numbers, each once, in order.
+ */
+export const agentAnswerUnbackedNumbers = (
+  answer: string,
+  successfulToolOutputs: readonly string[]
+) => {
+  const backed = new Set(
+    numbersIn(successfulToolOutputs.join(" ")).map(({ value }) => value)
+  );
+
+  return [
+    ...new Set(
+      numbersIn(answer)
+        .filter(({ value }) => !backed.has(value))
+        .map(({ token }) => token)
+    ),
+  ];
+};
+
+/**
+ * The note for an answer with numbers no tool of the turn returned.
+ *
+ * @param numbers - The unbacked numbers, as the answer wrote them.
+ * @returns The note.
+ */
+export const agentUnbackedNumbersViolation = (numbers: readonly string[]) =>
+  `Your answer gives numbers that no tool returned in this answer: ${numbers.join(", ")}. Every number about the user's books must come from this answer's tool results, as they give it: never compute, estimate or carry one over from earlier in the chat. Read it with a tool now, or say it is not available.`;
+
 /**
  * The questions of the rules a tool backs (claims), or of the rule Jev
  * alone decides (facts).

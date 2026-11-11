@@ -1,7 +1,7 @@
 # KeepInTax AI agent: tools and delivery plan
 
-Status: **PROPOSED, not approved.** Implemented so far (2026-11-05): the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7). Everything else is not built.
-Date: 2026-11-03; updated 2026-11-05.
+Status: **PROPOSED, not approved** as a whole. Implemented so far: the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7) (2026-11-05); and **Phase 3** (2026-11-11, KT-089): the rest of §3.3 and §3.4 as read-only tools (`queryTransactions`, `queryIssuedDocuments`, `listCategories`, `listClients`, `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`, `listUpcomingReports`, `getReportReadiness`), the Hebrew prompt on number origins, and the same-turn number check. Where Phase 3 deviates from the tables below, see "Phase 3 as built" under §3.4. Everything else (Phases 4–13, including Phase 8's reminder job and Phase 10's alerts) is not built.
+Date: 2026-11-03; updated 2026-11-11.
 Inputs:
 - the capability spec, `backend/src/AI.features.md`;
 - the agent package, `backend/agent` (KT-089, ported 1:1 from the agent template);
@@ -140,6 +140,18 @@ The `keepintax-onboarding` skill replaces the template's `new-user-setup`. It is
 | `getAdvanceTaxStatus` | read | `reports.getAdvanceIncomeTaxReportData` | user 6 |
 | `listUpcomingReports` | read | `report-workflow.listForClient`, `reports.getReportSubmissionStatus`, `shared` VAT-period math | user 8 |
 | `getReportReadiness` | read | `report-review.getReportPreview`: missing documents and unapproved rows for a period | user 7, 8 |
+
+**Phase 3 as built (2026-11-11, KT-089).** Where it differs from the tables above, and why:
+
+- `queryTransactions` reads the transactions page's cache path (`TransactionProcessingService.getExpensesFromCache` / `getIncomesFromCache` after the sync-state check), not the legacy `getTransactionsByUserID` table. Bank data reports the last sync as recorded; totals are complete only after a successful sync with every row in ₪ and none on an unlinked account.
+- `queryIssuedDocuments` totals per document type **and currency** (documents are stored in their own currency, not converted), with a count across currencies.
+- `listCategories` reads the merged catalog (`CatalogService.getMergedExpenseCatalog` in a delegation-aware context) rather than `getUserCategoriesGrouped`, which lists only the business's own rows.
+- `getProfitAndLoss` uses the read-only `createPnLReportFromJournal`; the screen's depreciation preparation is not run, so the result says depreciation may be missing.
+- `getVatSummary` and `getAdvanceTaxStatus` widen a range to the whole reporting periods the reports count by (a bi-monthly business by two months) and say so.
+- `listUpcomingReports` does not call `listForClient` (it generates workflows): it uses the new read-only `ReportWorkflowService.listStoredForClient` and `TasksGeneratorService.expectedReportPeriods`. National Insurance is not in KeepInTax.
+- `getReportReadiness` calls `getReportPreview` with the new `readOnly` option (no inbox processing, pairing or matching); Drive files not yet read are not included.
+- The books tools load through tool search (namespace `books`; `queryExpenses` stays always loaded), as do the reports tools (namespace `reports`).
+- Each of the new reads is one business, except `listUpcomingReports`, which lists every one of the owner's businesses when none is named (with `activeBusiness`, the default of the other reads). Only `queryExpenses` adds money across businesses.
 
 ### 3.5 Banking — namespace `banking`
 

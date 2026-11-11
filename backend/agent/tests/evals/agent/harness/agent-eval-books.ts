@@ -9,6 +9,10 @@ import type {
   ExpensesAcrossBusinessesResult,
   KeepInTaxBooks,
 } from "@/agent/core/ports/keepintax-ports";
+import type { AgentDomain } from "@/server/runtime/agent-domain";
+
+import { evalReportReads } from "./agent-eval-reports";
+import type { AgentEvalReadQuery } from "./agent-eval-reports";
 
 // KeepInTax's books in memory for the evals (KeepInTaxBooks): a data
 // owner's businesses and their expenses, answered as the Nest backend
@@ -219,7 +223,25 @@ export interface AgentEvalBooksOptions {
   // Businesses whose reads fail (BOOKS_UNAVAILABLE), as a lost connection
   // would.
   readonly failing?: readonly string[];
+  // The other reads (agent-eval-reports.ts) that fail with BOOKS_UNAVAILABLE.
+  readonly failingReads?: readonly string[];
+  // The delegation was revoked: every other read fails with ACCESS_REVOKED.
+  readonly revoked?: boolean;
+  // How the last bank sync ended (queryTransactions); success by default.
+  readonly bankSync?: "success" | "partial" | "none";
 }
+
+/** One call to a books read other than queryExpenses. */
+export interface AgentEvalRead {
+  readonly name: string;
+  readonly query: AgentEvalReadQuery;
+}
+
+// A books read as the backend's promise.
+const promised =
+  <Query, Answer>(read: (query: Query) => Effect.Effect<Answer, Error>) =>
+  async (query: Query) =>
+    await Effect.runPromise(read(query));
 
 /**
  * The books of one data owner with the given expenses, every query
@@ -451,6 +473,27 @@ export const evalBooks = (
       : oneBusiness(query, chooseBusiness(query.businessNumber));
   };
 
+  const reads: AgentEvalRead[] = [];
+
+  // Pending expenses of a business in a range, as queryExpenses counts them.
+  const pendingExpenses = (business: string, from: string, to: string) => {
+    const inRange = expenses.filter(
+      (expense) =>
+        businessOf(expense) === business &&
+        expense.date >= from &&
+        expense.date <= to
+    );
+
+    const pending = inRange.filter((expense) =>
+      ["pending", "mapping"].includes(expense.standing)
+    );
+
+    return {
+      count: pending.length,
+      sum: pending.reduce((sum, expense) => sum + agorot(expense.sum), 0) / 100,
+    };
+  };
+
   const books: KeepInTaxBooks = {
     queryExpenses: (query) =>
       // The ports' contract: an Error whose message starts with its CODE:
@@ -466,10 +509,104 @@ export const evalBooks = (
           // @effect-diagnostics-next-line globalErrorInEffectFailure:off
           error instanceof Error ? error : new Error(String(error)),
       }),
+    ...evalReportReads({
+      businesses,
+      active: businesses.find((business) => business.number === active) ?? null,
+      chooseBusiness,
+      pendingExpenses,
+      bankSync: options.bankSync ?? "success",
+      record: (name, query) => {
+        reads.push({ name, query });
+
+        if (options.revoked === true) {
+          throw refusal(
+            "ACCESS_REVOKED",
+            "the access to this client's data was revoked"
+          );
+        }
+
+        if (options.failingReads?.includes(name) === true) {
+          throw refusal("BOOKS_UNAVAILABLE", "connect ECONNREFUSED");
+        }
+      },
+    }),
   };
 
-  return { books, queries };
+  return { books, queries, reads };
 };
+
+/**
+ * The evals' books as the Nest backend hands them to a request
+ * (AgentDomain, plain promises), for tests of createKeepInTaxBooks.
+ *
+ * @param expenses - The owner's expenses.
+ * @param options - The owner's businesses, the active one, failures.
+ * @returns The domain.
+ */
+export const evalAgentDomain = (
+  expenses: readonly AgentEvalExpense[],
+  options: AgentEvalBooksOptions = {}
+): AgentDomain => {
+  const { books } = evalBooks(expenses, options);
+
+  return {
+    queryExpenses: promised(books.queryExpenses),
+    queryTransactions: promised(books.queryTransactions),
+    queryIssuedDocuments: promised(books.queryIssuedDocuments),
+    listCategories: promised(books.listCategories),
+    listClients: promised(books.listClients),
+    getProfitAndLoss: promised(books.getProfitAndLoss),
+    getVatSummary: promised(books.getVatSummary),
+    getAdvanceTaxStatus: promised(books.getAdvanceTaxStatus),
+    listUpcomingReports: promised(books.listUpcomingReports),
+    getReportReadiness: promised(books.getReportReadiness),
+  };
+};
+
+/**
+ * A domain whose every read fails with the error, as the backend's would.
+ *
+ * @param failure - The error.
+ * @returns The domain.
+ */
+export const failingAgentDomain = (failure: Error): AgentDomain => {
+  const reject = async () => await Promise.reject(failure);
+
+  return {
+    queryExpenses: reject,
+    queryTransactions: reject,
+    queryIssuedDocuments: reject,
+    listCategories: reject,
+    listClients: reject,
+    getProfitAndLoss: reject,
+    getVatSummary: reject,
+    getAdvanceTaxStatus: reject,
+    listUpcomingReports: reject,
+    getReportReadiness: reject,
+  };
+};
+
+/**
+ * Books whose every read fails the test that calls it: for tests and evals
+ * that never read the books.
+ *
+ * @param fail - The failure each read gives.
+ * @returns The books.
+ */
+export const unusedEvalBooks = (
+  fail: () => Effect.Effect<never>
+): KeepInTaxBooks => ({
+  queryExpenses: fail,
+  queryTransactions: fail,
+  queryIssuedDocuments: fail,
+  listCategories: fail,
+  listClients: fail,
+  getProfitAndLoss: fail,
+  getVatSummary: fail,
+  getAdvanceTaxStatus: fail,
+  listUpcomingReports: fail,
+  getReportReadiness: fail,
+});
 
 const car = "רכב";
 const fuel = "דלק";

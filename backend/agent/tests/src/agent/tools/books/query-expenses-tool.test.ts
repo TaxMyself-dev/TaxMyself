@@ -16,11 +16,13 @@ import { createKeepInTaxBooks } from "../../../../../src/server/agent-ports.serv
 import type { AgentDomain } from "../../../../../src/server/runtime/agent-domain";
 import { runInAgentRequest } from "../../../../../src/server/runtime/agent-request-context";
 import {
+  evalAgentDomain,
   evalBooks,
   evalCeramicsBusiness,
   evalDesignerBusiness,
   evalDesignerExpenses,
   evalTwoBusinessExpenses,
+  failingAgentDomain,
 } from "../../../../evals/agent/harness/agent-eval-books";
 
 // queryExpenses reads the user's expenses through KeepInTaxBooks: a read
@@ -73,19 +75,11 @@ const validInput = async (input: SentInput) => {
 };
 
 // The books' answer as the Nest backend gives it, for one query.
-const evalDomain = (): AgentDomain => {
-  const { books } = evalBooks(evalDesignerExpenses);
-
-  return {
-    queryExpenses: async (query) =>
-      await Effect.runPromise(books.queryExpenses(query)),
-  };
-};
+const evalDomain = (): AgentDomain => evalAgentDomain(evalDesignerExpenses);
 
 // A domain whose every query fails with the error.
-const failingDomain = (failure: Error): AgentDomain => ({
-  queryExpenses: async () => await Promise.reject(failure),
-});
+const failingDomain = (failure: Error): AgentDomain =>
+  failingAgentDomain(failure);
 
 // A query through createKeepInTaxBooks, inside a request given the domain.
 const queryInRequest = (domain: AgentDomain, query: ExpenseQuery) =>

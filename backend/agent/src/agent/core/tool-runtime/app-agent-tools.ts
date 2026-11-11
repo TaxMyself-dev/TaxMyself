@@ -1,5 +1,11 @@
 import { openai } from "@ai-sdk/openai";
 
+import {
+  listCategoriesTool,
+  listClientsTool,
+  queryIssuedDocumentsTool,
+  queryTransactionsTool,
+} from "@/agent/tools/books/books-tools";
 import { queryExpensesTool } from "@/agent/tools/books/query-expenses-tool";
 import { setAgentActionRuleTool } from "@/agent/tools/conversation/agent-action-rule-tool";
 import {
@@ -17,6 +23,13 @@ import { readToolResultItemsTool } from "@/agent/tools/conversation/tool-result-
 import { updateUserSettingsTool } from "@/agent/tools/conversation/user-settings-tool";
 import { sendEmailTool } from "@/agent/tools/examples/example-email-tool";
 import { searchWebTool } from "@/agent/tools/examples/example-web-search-tool";
+import {
+  getAdvanceTaxStatusTool,
+  getProfitAndLossTool,
+  getReportReadinessTool,
+  getVatSummaryTool,
+  listUpcomingReportsTool,
+} from "@/agent/tools/reports/report-tools";
 import { suggestTrackingTasksTool } from "@/agent/tools/tasks/suggested-tracking-task-tool";
 import {
   changeTaskOpportunityStatusTool,
@@ -46,6 +59,17 @@ export const appAgentTools = {
   changeTaskOpportunityStatus: changeTaskOpportunityStatusTool,
   // KeepInTax's books (src/agent/tools/books), through KeepInTaxBooks.
   queryExpenses: queryExpensesTool,
+  queryTransactions: queryTransactionsTool,
+  queryIssuedDocuments: queryIssuedDocumentsTool,
+  listCategories: listCategoriesTool,
+  listClients: listClientsTool,
+  // KeepInTax's reports (src/agent/tools/reports), through KeepInTaxBooks;
+  // they load through tool search (namespace "reports").
+  getProfitAndLoss: getProfitAndLossTool,
+  getVatSummary: getVatSummaryTool,
+  getAdvanceTaxStatus: getAdvanceTaxStatusTool,
+  listUpcomingReports: listUpcomingReportsTool,
+  getReportReadiness: getReportReadinessTool,
   // EXAMPLE domain tools (src/agent/tools/examples): replace with yours.
   searchWeb: searchWebTool,
   sendEmail: sendEmailTool,

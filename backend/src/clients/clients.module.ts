@@ -13,5 +13,7 @@ import { User } from 'src/users/user.entity';
   providers: [
     ClientsService,
   ],
+  // The AI agent's listClients reads through the service (agent-harness).
+  exports: [ClientsService],
 })
 export class ClientsModule {}

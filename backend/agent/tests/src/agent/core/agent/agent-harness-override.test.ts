@@ -7,6 +7,7 @@ import { agentInstructions } from "../../../../../src/agent/core/agent/agent-ins
 import { createAppAgent } from "../../../../../src/agent/core/agent/app-agent";
 import { fakeFetchBodyText } from "../../../../backend/shared/fixtures/fake-fetch-request";
 import { makeUnusedSupabaseClient } from "../../../../backend/shared/fixtures/fake-supabase-client";
+import { unusedEvalBooks } from "../../../../evals/agent/harness/agent-eval-books";
 import {
   createEvalOpportunityStore,
   createEvalTaskStore,
@@ -42,7 +43,7 @@ const firstRequestBody = async (harness?: AgentHarnessOverride) => {
     opportunities: createEvalOpportunityStore([], []),
     webSearch: { search: () => Effect.die(new Error("unused")) },
     email: { send: () => Effect.die(new Error("unused")) },
-    books: { queryExpenses: () => Effect.die(new Error("unused")) },
+    books: unusedEvalBooks(() => Effect.die(new Error("unused"))),
     harness,
   });
 
