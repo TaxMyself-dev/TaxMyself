@@ -100,7 +100,7 @@ together with a bounded evidence reference.
 
 - Business-registration slide uses the user-approved title `סוגי רישום העסקים בישראל` as a native heading over the original artwork heading; all other artwork remains unchanged.
 - Switch between top-level tabs; categories and booking cards share one catalog-management tab with a second nested tab bar.
-- `צ׳אט AI` tab (local development only): not a panel. It navigates to the
+- `צ׳אט AI` tab (local development and explicit dev-cloud builds): not a panel. It navigates to the
   existing agent chat at `/dev/agent?from=admin-panel` (its own `AuthGuard`
   and Firebase token; actor/owner isolation stays in the backend) and keeps
   the previous tab selected. A local `?api=` override on `/admin-panel` is

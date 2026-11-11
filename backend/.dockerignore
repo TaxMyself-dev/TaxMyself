@@ -4,6 +4,11 @@ node_modules
 npm-debug.log
 dist
 .env
+.env.*
+**/.env
+**/.env.*
+**/journey-timings.local
+**/.eval
 # The agent package (KT-089) installs and builds its own dependencies.
 agent/node_modules
 agent/dist

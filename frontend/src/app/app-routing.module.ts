@@ -22,7 +22,7 @@ import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agen
  */
 const appRoutes: Routes = [
   // The AI agent's test page (backend/agent), only where the environment
-  // turns it on (local development); never in dev or production builds.
+  // turns it on (local development and dev-cloud); never in production builds.
   // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
   ...(devAgentRouteEnabled()
     ? [{

@@ -13,6 +13,9 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 
 - The Nest module `backend/src/agent-harness` verifies the Firebase token and calls `handleAgentHttpRequest` (`src/server/agent-http.server.ts`) with the verified user; routes and server functions are the template's.
 - The task worker (`npm run worker:tasks`, `dist/task-worker.mjs`) runs beside the backend, never inside a request.
+- Dev-cloud packaging is `backend/Dockerfile.agent-dev` (Node 24, independent
+  installs/builds, production-only agent dependencies in the runtime). It does
+  not start the example task worker. See `docs/operations/dev-ai-assistant.md`.
 
 ## Invariants
 

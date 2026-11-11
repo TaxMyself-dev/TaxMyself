@@ -47,6 +47,9 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
   or missing delegation reaches no agent route.
 - The agent must be built (`npm run build` in `backend/agent`) for these
   routes to answer; the production Dockerfile does not build it yet.
+  `backend/Dockerfile.agent-dev` builds both packages with Node 24 and includes
+  the agent bundle and its runtime dependencies for the dev Cloud Run service.
+  It defaults DISABLE_SYNCHRONIZE=true. See docs/operations/dev-ai-assistant.md.
 
 ## Related topics
 

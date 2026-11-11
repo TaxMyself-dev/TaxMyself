@@ -8,7 +8,7 @@ import { environment } from 'src/environments/environment';
 export const DEV_AGENT_PATH = 'dev/agent';
 
 // The route exists only where the environment turns it on (local
-// development); never in dev-cloud or production builds.
+// development and the explicit dev-cloud build); never in production builds.
 export const devAgentRouteEnabled = (): boolean =>
   (environment as { agentDevPage?: boolean }).agentDevPage === true;
 
