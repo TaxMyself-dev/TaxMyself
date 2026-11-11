@@ -18,6 +18,10 @@ backend directory as context. Node 24 builds Nest and the separate ESM agent
 package; the runtime includes `agent/dist`, its package manifest and production
 dependencies. Do not upload `.env`, local timings, eval outputs or node_modules.
 The production Dockerfile is independent and unchanged.
+Both `.gcloudignore` and `.dockerignore` explicitly exclude legacy tracked
+Firebase service-account JSON and private-key files, as Git tracking alone
+does not make a source file safe for upload. Runtime Firebase uses the dev
+service's existing environment credentials, never the legacy source JSON.
 The dev image pins npm 11.6.2 to match the verified worktree; clean npm installs
 use the completed agent lockfile, including nested optional WASI dependencies.
 The unused invalid dependency named `-` was removed from the backend manifest
