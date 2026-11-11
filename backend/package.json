@@ -30,7 +30,6 @@
     "start:whatsapp:sandbox": "node -r ts-node/register -r tsconfig-paths/register src/whatsapp/whatsapp-sandbox.main.ts"
   },
   "dependencies": {
-    "-": "^0.0.1",
     "@anthropic-ai/sdk": "^0.99.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/cli": "^9.5.0",
