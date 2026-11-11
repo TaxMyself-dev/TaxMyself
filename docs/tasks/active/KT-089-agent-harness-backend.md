@@ -331,6 +331,14 @@ currency semantics, periods and numeric-source checks.
   build all exit 0. This supersedes the earlier 325-test runs.
   Tests used a dedicated local disposable MySQL on 127.0.0.1:3318 with
   the two existing agent migrations. No application schema was added.
+- After the final `queryIssuedDocuments` description change (cancelled
+  and not-issued documents stated as excluded; no service or calculation
+  change): focused agent verification 3/3 files, 35/35 tests, zero
+  skipped, 3.63 seconds at 18:32:37 (`phase3-exclusions-focused-unit.log`),
+  with only the intended tools snapshot updated; typecheck and Ultracite
+  check exit 0; build exit 0 (`phase3-agent-exclusions-build.log`). The
+  full 325-test database run above precedes this description change and
+  was not repeated (the disposable MySQL had been stopped).
 - `git diff --check` and the staged equivalent passed. Only the intended
   instructions/tools prompt snapshots changed; original prompt budgets
   remain unchanged. The frontend was not modified or rebuilt in this
@@ -409,19 +417,30 @@ template dataset.
   `expenses-local-1` (1 repetition). No regression.
 - Latest recorded result per case and repetition across the ordered runs
   B1v2, B2v2, B3v2, B5rest, B4B5v2 and active-v3 (a later run overrides
-  the same case and repetition): 30 cases, 90 slots, **90/90 code checks
-  and 82/90 combined**. This is a union across bounded revisions, not one
-  90-slot run of the final revision. The 8 remaining flags: partial sync
-  (3, judge false alarms: every figure in the results), the empty-client
-  case (1, a correct date read as unsupported), the September documents
-  case (1, a **real minor wording gap**: cancelled and draft documents are
-  listed apart but not said to be excluded), the VAT refund (1, sign),
-  revoked access (1) and the readiness currency statement (1); the last
-  three are false alarms on source review.
-- Open items, not fixed in Phase 3: the September exclusion wording; the
-  judge's numeric statement still misreads a subtotal the tool returned
-  and a sign rendered as a refund (no threshold or wording change was made
-  to pass them); the Hebrew voice slip "שהוצאת" (singular) seen once.
+  the same case and repetition): 30 cases, 90 slots, 90/90 code checks
+  and 82/90 combined. Historical flag: the September documents case (1) was
+  a **real minor wording gap** (cancelled and draft documents listed apart
+  but not said to be excluded).
+- September exclusion wording closed: the `queryIssuedDocuments`
+  description now says cancelled and not-issued documents are excluded
+  from the count and every total, and to say so when either is above
+  zero. Rerun of that case only (`phase3-b2-september-v3`, compared with
+  `phase3-b2-documents-v2`): 3/3, the answers stating the exclusion.
+- Final latest-per-case union, adding September-v3: 30 cases, 90 slots,
+  **90/90 code checks and 83/90 combined**. This is a union across
+  bounded revisions, not one 90-slot run of the final revision. The 7
+  remaining flags are judge false alarms on source review: partial sync
+  (3: every figure in the results), the empty-client case (1: a correct
+  date read as unsupported), the VAT refund (1: the sign rendered as a
+  refund), revoked access (1: explicit no access, no figure) and the
+  readiness currency statement (1: no shekel figure for Canva).
+- Open items, not fixed in Phase 3: the judge's numeric statement still
+  misreads a subtotal the tool returned and a sign rendered as a refund
+  (no threshold or wording change was made to pass them); a residual
+  Hebrew style limitation, singular forms such as "שהוצאת" in more than
+  one answer (not graded).
+- Documentation link check (manager): 10 Markdown files, 9 local links, 0
+  broken. The repository has no root link-check script.
 - Independent offline re-audit of the recorded answers, using the actual
   numeric normalizer and **only successful books/report outputs** as
   evidence: transaction follow-up 15/15; document baseline 12/15. All
