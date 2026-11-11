@@ -128,3 +128,8 @@ together with a bounded evidence reference.
   supported by calculation tests but not selectable in this user-requested UI.
 - Frontend shared: `clients-dashboard`, `category-management`, `booking-account-catalog`, `trans-management`, `demo-data`, `admin-billing`.
 - Backend: `shaam` (invoice approval dialog), `billing` (Cardcom/subscriptions tab), `clients`, `expenses`/`transactions` (via the embedded management components).
+
+- Both admin tab bars enable Ionic scrollable segments for horizontal touch
+  scrolling on mobile; other tab-bar consumers retain their default. The dev
+  chat uses the available route height, a separately scrolling message area,
+  wrapping actions and safe-area padding.
