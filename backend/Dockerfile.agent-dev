@@ -1,14 +1,7 @@
 # Dedicated dev-cloud image; the production release Dockerfile is unchanged.
-FROM node:24-alpine AS base
+FROM node:24-bookworm-slim AS base
 # Match the verified worktree toolchain instead of inheriting npm resolver changes.
 RUN npm install --global npm@11.6.2 --no-audit --no-fund
-
-FROM base AS backend-build
-WORKDIR /usr/src/app
-COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY . .
-RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
 FROM base AS agent-build
 WORKDIR /usr/src/app/agent
@@ -21,8 +14,15 @@ COPY agent/package.json agent/package-lock.json ./
 # Runtime dependencies only; build/postinstall/prepare ran in agent-build.
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 
+FROM base AS backend-build
+WORKDIR /usr/src/app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
 FROM base AS runtime
-RUN apk add --no-cache chromium
+RUN apt-get update && apt-get install -y --no-install-recommends chromium && apt-get clean
 WORKDIR /usr/src/app
 COPY --from=backend-build /usr/src/app/node_modules ./node_modules
 COPY --from=backend-build /usr/src/app/dist ./dist

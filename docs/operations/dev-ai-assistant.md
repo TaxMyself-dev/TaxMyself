@@ -24,6 +24,9 @@ does not make a source file safe for upload. Runtime Firebase uses the dev
 service's existing environment credentials, never the legacy source JSON.
 The dev image pins npm 11.6.2 to match the verified worktree; clean npm installs
 use the completed agent lockfile, including nested optional WASI dependencies.
+Use Debian bookworm, not Alpine: Effect's packaged Oxlint integration used by
+the agent prepare script explicitly does not support Linux musl. The agent
+stage runs before the Nest stage to fail early on agent-toolchain problems.
 The unused invalid dependency named `-` was removed from the backend manifest
 and lockfile: clean installs under the Node 24 image's npm reject that name.
 
