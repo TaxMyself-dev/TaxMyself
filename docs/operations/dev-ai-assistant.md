@@ -18,6 +18,8 @@ backend directory as context. Node 24 builds Nest and the separate ESM agent
 package; the runtime includes `agent/dist`, its package manifest and production
 dependencies. Do not upload `.env`, local timings, eval outputs or node_modules.
 The production Dockerfile is independent and unchanged.
+The dev image pins npm 11.6.2 to match the verified worktree; clean npm installs
+use the completed agent lockfile, including nested optional WASI dependencies.
 The unused invalid dependency named `-` was removed from the backend manifest
 and lockfile: clean installs under the Node 24 image's npm reject that name.
 
