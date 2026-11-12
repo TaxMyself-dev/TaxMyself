@@ -29,6 +29,7 @@ export class ButtonComponent  implements OnInit {
   href = input<string>(null);
   isLoading = input<boolean>(false);
   disabled = input<boolean>(false);
+  type = input<'button' | 'submit' | 'reset'>('button');
 
   buttonClasses: Signal<string> = computed(() => {
     return [

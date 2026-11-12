@@ -1,10 +1,12 @@
-import { Component, ElementRef, HostListener, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, NgZone, inject, input, output, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { IGenericTableAction } from '../generic-table/table-actions';
 
 /** Shared mobile menu. The table resolves visibility for cards and ordinary rows. */
 @Component({
   selector: 'app-table-row-actions-menu',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (actions().length) {
       <button type="button" class="actions-trigger" aria-label="פעולות לשורה"
@@ -51,22 +53,55 @@ export class TableRowActionsMenuComponent {
   });
   private element = inject(ElementRef);
 
-  @HostListener('document:click', ['$event'])
-  @HostListener('document:pointerdown', ['$event'])
-  @HostListener('document:focusin', ['$event'])
-  onOutsideClick(event: Event): void {
-    if (!this.element.nativeElement.contains(event.target)) this.open.set(false);
+  private readonly document = inject(DOCUMENT);
+  private readonly zone = inject(NgZone);
+  private removeOpenListeners: (() => void) | null = null;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.stopListening());
   }
 
-  @HostListener('document:keydown.escape')
-  close(): void { this.open.set(false); }
+  private listenWhileOpen(): void {
+    const view = this.document.defaultView;
+    this.zone.runOutsideAngular(() => {
+      const outside = (event: Event) => {
+        if (!this.element.nativeElement.contains(event.target)) {
+          this.zone.run(() => this.close());
+        }
+      };
+      const escape = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') this.zone.run(() => this.close());
+      };
+      const reposition = () => this.zone.run(() => this.close());
+      for (const type of ['click', 'pointerdown', 'focusin']) this.document.addEventListener(type, outside);
+      this.document.addEventListener('keydown', escape);
+      view?.addEventListener('resize', reposition);
+      view?.addEventListener('scroll', reposition);
+      this.removeOpenListeners = () => {
+        for (const type of ['click', 'pointerdown', 'focusin']) this.document.removeEventListener(type, outside);
+        this.document.removeEventListener('keydown', escape);
+        view?.removeEventListener('resize', reposition);
+        view?.removeEventListener('scroll', reposition);
+      };
+    });
+  }
 
-  @HostListener('window:resize')
-  @HostListener('window:scroll')
-  onResize(): void { this.close(); }
+  private stopListening(): void {
+    this.removeOpenListeners?.();
+    this.removeOpenListeners = null;
+  }
+
+  close(): void {
+    this.stopListening();
+    this.open.set(false);
+  }
 
   toggle(event: Event): void {
     event.stopPropagation();
+    if (this.open()) {
+      this.close();
+      return;
+    }
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     const width = Math.min(260, window.innerWidth - 16);
     const above = rect.bottom > window.innerHeight / 2;
@@ -77,13 +112,14 @@ export class TableRowActionsMenuComponent {
       width,
       maxHeight: Math.max(44, (above ? rect.top : window.innerHeight - rect.bottom) - 12),
     });
-    this.open.update(value => !value);
+    this.open.set(true);
+    this.listenWhileOpen();
   }
 
   select(action: IGenericTableAction, event: Event): void {
     event.stopPropagation();
     if (action.isLoading?.()) return;
-    this.open.set(false);
+    this.close();
     this.actionClicked.emit(action);
   }
 }

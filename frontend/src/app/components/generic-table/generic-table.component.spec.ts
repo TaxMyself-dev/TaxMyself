@@ -246,4 +246,28 @@ describe('GenericTable unified row actions', () => {
     expect(component.showAttachButton({ id: 7, sourceDocumentId: 42 })).toBeFalse();
     expect(component.getActionsForRow({ id: 7, sourceDocumentId: 42 }).map(a => a.name)).toEqual(['preview']);
   });
+
+  it('keeps unchanged action inputs stable without caching mutable row visibility', () => {
+    const mutableRow = { id: 80, allowed: true };
+    const conditional = { ...action, fileRequirement: undefined, showWhen: (target: IRowDataTable) => !!target['allowed'] };
+    fixture.componentRef.setInput('actions', [conditional]);
+    const first = component.getActionsForRow(mutableRow);
+    expect(component.getActionsForRow(mutableRow)).toBe(first);
+    fixture.componentRef.setInput('dataTable', [mutableRow]);
+    const refreshed = component.getActionsForRow(mutableRow);
+    expect(refreshed).not.toBe(first);
+    expect(component.getActionsForRow(mutableRow)).toBe(refreshed);
+    mutableRow.allowed = false;
+    expect(component.getActionsForRow(mutableRow)).toEqual([]);
+    component.executeAction(conditional, mutableRow);
+    expect(callback).not.toHaveBeenCalled();
+    mutableRow.allowed = true;
+    expect(component.getActionsForRow(mutableRow)).toEqual([conditional]);
+    const replacement = { ...conditional, action: jasmine.createSpy('replacement') };
+    fixture.componentRef.setInput('actions', [replacement]);
+    expect(component.getActionsForRow(mutableRow)[0]).toBe(replacement);
+    component.executeAction(conditional, mutableRow);
+    expect(replacement.action).toHaveBeenCalledOnceWith(null, mutableRow);
+  });
+
 });

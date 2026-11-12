@@ -293,13 +293,30 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.mobileTableExpanded.update(v => !v);
   }
 
-  /** A single row-aware list supplies desktop buttons and both mobile layouts. */
+  private readonly rowActionLists = computed(() => {
+    // New source/context inputs must still refresh cards when a consumer reuses row objects.
+    this.dataTable();
+    this.actions();
+    this.fileEditingEnabled();
+    this.fileAttachmentEnabled();
+    this.filesAttached();
+    return new WeakMap<IRowDataTable, IGenericTableAction[]>();
+  });
+
+  /** Recheck mutable rows/predicates, but keep unchanged OnPush child inputs stable. */
   getActionsForRow(row: IRowDataTable): IGenericTableAction[] {
-    return resolveTableActions(this.actions(), row, {
+    const next = resolveTableActions(this.actions(), row, {
       fileEditingEnabled: this.fileEditingEnabled(),
       fileAttachmentEnabled: this.fileAttachmentEnabled(),
       filesAttached: this.filesAttached(),
     }, target => this.triggerFileInput(target));
+    if (!row) return next;
+    const previous = this.rowActionLists().get(row);
+    if (previous && previous.length === next.length && previous.every((action, index) => action === next[index])) {
+      return previous;
+    }
+    this.rowActionLists().set(row, next);
+    return next;
   }
 
   needsFileInput = computed(() => this.fileEditingEnabled()
