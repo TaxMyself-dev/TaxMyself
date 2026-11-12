@@ -1,6 +1,6 @@
 # Mobile interaction performance on POCO F6
 
-- Status: `READY_FOR_PHONE_TEST`
+- Status: `PHONE_PERFORMANCE_VERIFIED`
 - Task manager / worker: Codex (single agent)
 - Worktree: C:/Users/user/Keepintax/TaxMyself-mobile-interaction-performance
 - Branch: codex/mobile-interaction-performance
@@ -26,7 +26,7 @@ Home buttons respond promptly on the physical POCO F6 with many mobile transacti
 
 ## Handoff
 
-- Result: implementation and automated verification complete, local USB site ready; physical response comparison awaits user login.
+- Result: implementation and automated verification complete, local USB site ready; physical response comparison completed below.
 - Risks/manual checks: physical-phone response comparison and DEV login on localhost.
 
 
@@ -90,3 +90,44 @@ Home buttons respond promptly on the physical POCO F6 with many mobile transacti
   Home add-expense menu and create-document navigation with the same transaction
   list. No document issuance, save or production mutation is required.
 - Temporary server is intentionally left running for the requested manual test.
+
+
+## Physical-phone comparison after fix
+
+- Tested executable commit: f8b4e5d7 (following commit updates evidence only).
+- Phone: same POCO F6, model 24069PC21G, Chrome 157, viewport 388x751.
+- CDP confirmed visible/focused local tab 4012 at http://localhost:4201/my-account,
+  main.158045e3a2d8778f.js, with 480 mobile cards and 480 row menus at recording start.
+- Recorded Console, Network, devtools timeline and Performance metrics with the
+  same tracing categories as the before capture. Stopped only after user said done.
+- Command: node .codex-remote-attachments/compare-poco.cjs (diagnostic helper in
+  primary checkout, not tracked application code). Evidence remains local in
+  .codex-remote-attachments/poco-after-fix/trace.json and comparison.json.
+
+| Metric (renderer main thread) | Before | After |
+| --- | ---: | ---: |
+| Trace duration | 120.84 s | 41.48 s |
+| Recorded click handlers | 38 | 13 |
+| Longest main-thread task | 15989.466 ms | 146.032 ms |
+| Longest click handler | 4554.885 ms | 76.424 ms |
+| Tasks longer than 1 second | 10 | 0 |
+| Minor GC count | 1047 | 16 |
+| Minor GC per trace second | 8.66 | 0.39 |
+
+- The multi-second stalls did not recur in this after-fix sample. There were
+  still 15 tasks above 50 ms (maximum 146 ms); the three longest processed
+  get-trans-to-classify responses. This is residual short work, not zero latency.
+- No new JavaScript exceptions or HTTP 4xx/5xx responses during the capture.
+  Nine requests were explicitly canceled while navigating. A buffered console
+  500 for feezback/consent-link was timestamped 20:24:45 UTC, before monitoring
+  began at 20:26:19 UTC, and is excluded from new capture errors.
+- Minor GC frequency decreased about 22-fold after normalizing capture lengths.
+  This supports reduced allocation churn; it does not establish reduced retained
+  memory or absence of leaks. Sampled heap peaks: before 60.6 MB, after 79.3 MB;
+  page navigation/GC timing differ, so retained-memory reduction is not claimed.
+- This is a practical same-device before/after reproduction, not a controlled
+  identical-input benchmark: different duration, 38 vs 13 recorded clicks, remote
+  DEV frontend vs local optimized DEV frontend. Both use DEV backend. The vendor
+  and polyfills hashes match the original captured DEV assets.
+- No new application changes, main integration, push, deployment or production
+  mutations were performed for this comparison. USB server remains available.
