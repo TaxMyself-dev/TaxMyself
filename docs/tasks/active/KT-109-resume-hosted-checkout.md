@@ -1,6 +1,6 @@
 # KT-109 - Resume existing hosted checkout automatically
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex task worker
 - Worktree: `C:/Users/harel/.codex/worktrees/kt109/taxmyself-dev`
@@ -44,7 +44,7 @@ appearing unresponsive or requiring support to locate the old payment page.
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `bb957ca9f9f69c4f4c626c9795c848c5558d0897`
 - Changed files: `billing.service.ts` and spec; billing plans page TS/HTML/SCSS
   and spec; backend/frontend billing `AGENTS.md`; this task file.
 - Tests and exact results: backend focused Jest 70/70 passed; frontend focused
@@ -62,8 +62,16 @@ appearing unresponsive or requiring support to locate the old payment page.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full diff, ownership,
+  duplicate-charge safety, URL allowlist and failure atomicity reviewed.
+- Integrated commit: `bb957ca9f9f69c4f4c626c9795c848c5558d0897`
+- Combined verification: focused backend Jest passed 70/70; focused frontend
+  ChromeHeadless passed 9/9; Nest and Angular production builds passed on the
+  integration branch. Angular emitted only the existing budget/CommonJS
+  warnings.
+- `origin/main` verification: delivery commit verification recorded in the
+  final task report after push.
+- User-visible run instructions: no schema or environment step. Deploy backend
+  and frontend normally, then sign in as subscription 67 and click the plan.
+  The existing attempt 11 should be checked and its saved CardCom page resumed;
+  verify no new attempt or LowProfile row is created.
