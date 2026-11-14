@@ -55,3 +55,12 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
 
 - [backend/agent](../../agent/AGENTS.md) — the agent package.
 - [guards](../guards/AGENTS.md) — FirebaseAuthGuard.
+
+## Background error isolation
+
+Agent import, requests and disposal run in agent-background-context.ts's
+AsyncLocalStorage scope. The rejection guard recognizes that async origin
+even for AggregateError with only node:net frames; it retains the legacy
+agent-stack fallback and rethrows unrelated backend rejections. Do not
+replace this boundary with a global catch-all. Child-process regression
+tests prove both survival of the reported shape and unrelated-error failure.

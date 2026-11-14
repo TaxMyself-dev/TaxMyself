@@ -28,3 +28,6 @@ _prod_dump/
 # Production smoke test dependencies and failure artifacts.
 /smoke-tests/node_modules/
 /smoke-tests/artifacts/
+
+# Local AI development process logs.
+/.local-ai-dev/

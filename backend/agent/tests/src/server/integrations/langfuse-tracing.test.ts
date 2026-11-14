@@ -1,5 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
+import { LangfuseSpanProcessor } from "@langfuse/otel";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ConfigProvider, Effect, Layer } from "effect";
+import { vi } from "vitest";
 
 import {
   LangfuseTracing,
@@ -75,4 +78,47 @@ describe("langfuse tracing target", () => {
       );
     })
   );
+});
+
+// Exercise the actual integration boundaries, not just the shared helper.
+describe("Langfuse failure isolation", () => {
+  it("keeps failed Langfuse flush and shutdown optional", async () => {
+    const flush = vi
+      .spyOn(LangfuseSpanProcessor.prototype, "forceFlush")
+      .mockRejectedValue(
+        new AggregateError([new Error("ECONNREFUSED")], "collector unavailable")
+      );
+
+    const shutdown = vi
+      .spyOn(NodeTracerProvider.prototype, "shutdown")
+      .mockRejectedValue(new Error("collector unavailable"));
+
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* failingCollector() {
+          const tracing = yield* LangfuseTracing;
+          yield* tracing.flush;
+        }).pipe(
+          Effect.provide(
+            LangfuseTracing.layer.pipe(
+              Layer.provide(
+                ConfigProvider.layer(
+                  ConfigProvider.fromUnknown({
+                    ...keys,
+                    LANGFUSE_BASE_URL: "http://localhost:3100",
+                  })
+                )
+              )
+            )
+          ),
+          Effect.scoped
+        )
+      );
+      assert.strictEqual(flush.mock.calls.length, 1);
+      assert.strictEqual(shutdown.mock.calls.length, 1);
+    } finally {
+      flush.mockRestore();
+      shutdown.mockRestore();
+    }
+  });
 });

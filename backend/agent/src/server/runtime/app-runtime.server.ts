@@ -20,6 +20,10 @@ import { AgentMysqlDatabase } from "../../../backend/shared/mysql/mysql-agent-da
 import { appObservabilityLive } from "../../../backend/shared/observability/app-observability";
 import { JourneyTimingLog } from "../../../backend/shared/observability/journey-timing";
 import { SupabaseServiceDatabase } from "../../../backend/shared/supabase/supabase-service-database";
+import {
+  bestEffortTelemetry,
+  observeBackgroundWork,
+} from "./app-telemetry-errors";
 
 // The agent server's long-lived services, built once on first use and shared
 // by every request; add your ports' real implementations here. Services
@@ -70,12 +74,15 @@ export const disposeAppRuntime = async () => {
 // (agent-chat-answer-run.server.ts), whose telemetry outlives its response.
 export const flushAppTelemetry = Effect.all(
   [
-    OtlpExporter.Flusher.use((flusher) => flusher.flush).pipe(
-      Effect.timeoutOption("5 seconds"),
-      Effect.asVoid
+    bestEffortTelemetry(
+      "otlp",
+      OtlpExporter.Flusher.use((flusher) => flusher.flush).pipe(
+        Effect.timeoutOption("5 seconds"),
+        Effect.asVoid
+      )
     ),
-    flushLangfuseTraces,
-    flushProductEvents,
+    bestEffortTelemetry("langfuse", flushLangfuseTraces),
+    bestEffortTelemetry("posthog", flushProductEvents),
   ],
   { concurrency: "unbounded", discard: true }
 );
@@ -90,12 +97,13 @@ const canKeepAppRequestAlive = (
 // Work that runs on after its response and fails is logged: in the Nest
 // backend nothing else awaits it, and an unhandled rejection would stop the
 // whole backend (Nitro logged such failures for the template).
+// Reporting does not need a healthy runtime/database.
+const reportBackgroundFailure = (error: Error) => {
+  console.error("AGENT_BACKGROUND_WORK_FAILED", error);
+};
+
 const logUnfinishedWork = async (work: Promise<unknown>) => {
-  try {
-    await work;
-  } catch (error) {
-    appRuntime.runFork(Effect.logError("AGENT_BACKGROUND_WORK_FAILED", error));
-  }
+  await observeBackgroundWork(work, reportBackgroundFailure);
 };
 
 /**
@@ -111,13 +119,11 @@ export const keepAppRequestAlive = (
   request: Request,
   work: Promise<unknown>
 ) => {
+  const observed = logUnfinishedWork(work);
+
   if (canKeepAppRequestAlive(request)) {
-    request.waitUntil(work);
-
-    return;
+    request.waitUntil(observed);
   }
-
-  void logUnfinishedWork(work);
 };
 
 /**

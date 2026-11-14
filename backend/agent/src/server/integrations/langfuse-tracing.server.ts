@@ -22,6 +22,8 @@ import {
   Schema,
 } from "effect";
 
+import { bestEffortTelemetry } from "../runtime/app-telemetry-errors";
+
 // Langfuse tracing of the app's AI calls (cloud.langfuse.com, EU): each agent
 // answer as a trace of its model calls and tool runs with their full inputs
 // and outputs, grouped by conversation (sessionId) and user (userId); chat
@@ -202,11 +204,13 @@ export class LangfuseTracing extends Context.Service<
       // The answers' own observations (traceLangfuseAgentAnswer) use it too.
       setLangfuseTracerProvider(provider);
       yield* Effect.addFinalizer(() =>
-        Effect.promise(async () => {
-          setLangfuseTracerProvider(null);
-
-          await provider.shutdown();
-        })
+        bestEffortTelemetry(
+          "langfuse-shutdown",
+          Effect.promise(async () => {
+            setLangfuseTracerProvider(null);
+            await provider.shutdown();
+          }).pipe(Effect.timeoutOption("5 seconds"))
+        )
       );
 
       return LangfuseTracing.of({
@@ -215,9 +219,12 @@ export class LangfuseTracing extends Context.Service<
             tracer: provider.getTracer("app-ai"),
           }),
         ],
-        flush: Effect.promise(async () => {
-          await processor.forceFlush();
-        }).pipe(Effect.timeoutOption("5 seconds"), Effect.asVoid),
+        flush: bestEffortTelemetry(
+          "langfuse",
+          Effect.promise(async () => {
+            await processor.forceFlush();
+          }).pipe(Effect.timeoutOption("5 seconds"))
+        ),
       });
     }).pipe(Effect.orDie)
   );
