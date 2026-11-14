@@ -182,6 +182,22 @@ Follow the template's list ([TEMPLATE-GUIDE.md](TEMPLATE-GUIDE.md), "How to adap
 - Hebrew is the users' language: the instructions' Hebrew section and `messages/he.json`.
 - New tables go through a new SQL script under `backend/scripts/migrations/`, never `synchronize`.
 
+## Planned interaction model (approved 2026-11-14; not implemented)
+
+**Planned, not built.** Nothing in this section describes current code. The product owner approved these design decisions on 2026-11-14; the plan is [`docs/plans/ai-agent-tools-plan.md`](../../docs/plans/ai-agent-tools-plan.md), §1 A5.1 and A11–A25, §2.5–§2.10, and Phases 3.1, 3.2, 4, 4.1, 5, 5.1 and 5.2. When each change lands, its row moves to "What KeepInTax changed, and why" above, and this section shrinks.
+
+These are the planned KeepInTax deviations from the template, so that the invariant "template files stay the template's" holds once each is listed:
+
+| Template today | Planned KeepInTax change | Plan |
+| --- | --- | --- |
+| `askUserQuestion` executes and returns `{ asked: true }`; the chosen label arrives as the next user message | The page answers the tool, and the server accepts only an open question's own values, once, continuing the same turn (on the model of `agent-chat-approvals.ts`); options carry values (business numbers for `BUSINESS_REQUIRED`). Stored label-only questions still validate | A18; Phase 3.1, item 3 |
+| `<profile_gaps>` from example settings, `<missing_details>`, the memory rule asking for the user's name, the small-talk hint, the `new-user-setup` and `research-brief` skills | Removed: no profile or onboarding questions inside an ordinary request; onboarding only when the user starts it | §2.10, A19; Phase 3.1, item 1 |
+| `searchWeb` and `sendEmail` offered to the model | No longer offered; kept registered until no stored conversation needs them | A16; Phase 3.1, item 2 |
+| Web-only tracking, suggestion and opportunity tools offered in chat | Hidden from chat; the infrastructure is kept for monitors over the books | A17; Phase 3.1, item 2; Phase 5.1 |
+| Approval by effect and per-user action rules | Confirmation by consequence and by the turn's recorded origin; one setup card to create or resume a monitor; an idempotency key on every write | A21, A25; Phases 3.1 (origin, keys) and 3.2 |
+| Free-text memory, all injected | Provenance fields; personal preferences only (business facts to the business profile, held temporarily as `kind: business_fact`); stable facts the user states saved with a visible notice and undo; a separate store of inferences that expire after 90 days, on by default with a switch that deletes them | A12, A20, A22, A23; Phases 3.1, 4, 4.1 |
+| Notifications for the template monitor only | An inbox of alerts and recommendations with deduplication, dismissal, a separate "not interested", expiry and opening into chat. Background actions only under a recorded standing authorization (A4's inbox linking). No numerical cap on recommendations | A11, A14, A15, A24; Phases 5, 5.2 |
+
 ## Local startup and background failure isolation (2026-11-14)
 
 From this feature worktree run `start-ai.cmd` (PowerShell: `.\start-ai.cmd`). It starts only local Docker Desktop and the existing Langfuse stack, then verifies health. Start the frontend and backend manually. `--check` checks only Docker/Langfuse. See [local development](../../docs/operations/local-ai-development.md).
