@@ -11,7 +11,8 @@
 - Existing DEV Cloud Run and Firebase targets are explicit and fixed.
 - Builds use existing package scripts and frontend cloud DEV configuration.
 - Help and Plan are side-effect free; failures stop with a named stage.
-- Clean feature branches supported; local env files never uploaded.
+- Deploy only from clean test exactly matching freshly fetched origin/test;
+  local env files never uploaded.
 - Focused offline tests and operator documentation included.
 
 ## Scope and constraints
@@ -47,3 +48,18 @@ integration or push. Existing primary checkout changes remain untouched.
   back automatically. Fixed cloud identifiers follow existing repository docs;
   actual cloud access/resources were not inspected.
 - Documentation: scripts/AGENTS.md and docs/operations/test-deployment.md.
+
+## Dedicated test branch follow-up
+
+- User requested test as the test environment source branch, with the same
+  clean/exact-remote deployment gate as production main.
+- Local test branch to be created at the completed feature commit. No remote
+  test branch existed at inspection (`git ls-remote --heads origin test`).
+- Added fresh exact-branch fetch and commit equality initially and before each
+  cloud write. Missing branch/network/auth errors block deployment.
+- Focused verification: `pwsh -NoProfile -File scripts/tests/deploy-test.Tests.ps1`
+  passed 52 checks, including incorrect branch, remote mismatch, fetch failure
+  and remote advancement during builds. Earlier 37-check evidence describes
+  the previous implementation, superseded by this run for the test script.
+- Remote branch creation/push remains unexecuted under the user's push gate;
+  manual testing of current main and explicit push approval are required.

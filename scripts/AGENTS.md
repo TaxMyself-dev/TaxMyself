@@ -95,13 +95,15 @@ and promotion, live compatibility smoke, and frontend rollback.
 ## Shared test deployment
 
 - `deploy-test.cmd` / `deploy-test.ps1` deploy Full, Backend or Frontend from any
-  clean committed branch. `-Plan` and `-Help` have no side effects.
+  clean `test` branch exactly matching freshly fetched `origin/test`. `-Plan` and `-Help` have no side effects.
 - Cloud Run is fixed to `taxmyself-prod/me-west1/taxmys16elf-dev`; Firebase is
   fixed to `taxmyself-5d8a0`, `hosting:app`, using `build:dev`. Do not replace
   these with production targets or reuse production smoke jobs.
 - All selected installs/tests/builds finish before deploying. Backend source is
   archived from the verified commit with local env/secrets excluded. Existing
-  backend runtime settings are preserved. Recheck Git before each cloud write.
+  backend runtime settings are preserved. Recheck branch, cleanliness, initial
+  commit and fresh remote equality before each cloud write. No stale-ref fallback
+  on fetch failure; missing origin/test blocks deployment. Never auto-push or merge.
 - Native errors fail by exit code. Failures name the stage and stop; there is
   no automatic rollback for this shared test environment.
 - `tests/deploy-test.Tests.ps1` verifies plans and mocked orchestration offline.

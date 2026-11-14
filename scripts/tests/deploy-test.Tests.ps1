@@ -50,14 +50,16 @@ $script:calls = [Collections.Generic.List[object]]::new()
 $script:failure = ''
 $script:dirty = $false
 $script:changed = $false
-$script:headReads = 0
+$script:moveRemoteDuringBuild = $false; $script:branch = 'test'; $script:remoteCommit = 'a' * 40; $script:headReads = 0
 $script:sourcePath = $null
 function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Directory) {
   $script:calls.Add([pscustomobject]@{ tool = $Tool; arguments = $Arguments; directory = $Directory })
   if ($Tool -eq 'git') {
     switch ($Arguments[0]) {
       'status' { if ($script:dirty) { ' M changed-file' }; return }
+      'symbolic-ref' { return $script:branch }
       'rev-parse' {
+        if ($Arguments[1] -eq 'refs/remotes/origin/test') { return $script:remoteCommit }
         $script:headReads++
         if ($script:changed -and $script:headReads -gt 1) { 'b' * 40 } else { 'a' * 40 }; return
       }
@@ -70,6 +72,7 @@ function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Direct
       }
     }
   }
+  if ($script:moveRemoteDuringBuild -and $Tool -eq 'npm' -and $Arguments -contains 'build:dev') { $script:remoteCommit = 'c' * 40 }
   if ($Tool -eq 'gcloud' -and $Arguments[1] -eq 'deploy') {
     $script:sourcePath = ($Arguments | Where-Object { $_ -like '--source=*' }).Substring('--source='.Length)
     Assert (Test-Path -LiteralPath (Join-Path $script:sourcePath 'Dockerfile')) 'Deploy uses extracted Git archive'
@@ -80,7 +83,7 @@ function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Direct
 }
 function Reset-Mocks {
   $script:calls.Clear(); $script:failure = ''; $script:dirty = $false
-  $script:changed = $false; $script:headReads = 0; $script:sourcePath = $null
+  $script:changed = $false; $script:moveRemoteDuringBuild = $false; $script:branch = 'test'; $script:remoteCommit = 'a' * 40; $script:headReads = 0; $script:sourcePath = $null
 }
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Invoke-TestDeployment $root $full
@@ -122,6 +125,32 @@ try { Invoke-TestDeployment $root $full; throw 'Expected deploy failure' } catch
 Assert (@($script:calls | Where-Object { $_.tool -eq 'firebase' -and $_.arguments -contains 'deploy' }).Count -eq 0) 'Backend failure stops frontend deployment'
 Assert (!(Test-Path -LiteralPath $script:sourcePath)) 'Temporary snapshot cleaned after cloud failure'
 
+# Reject other branches, detached HEAD, any local/remote mismatch, and fetch errors.
+foreach ($invalidBranch in @('main', 'codex/feature', '')) {
+  Reset-Mocks; $script:branch = $invalidBranch
+  try { Invoke-TestDeployment $root $full; throw 'Expected branch rejection' } catch {
+    Assert ($_.Exception.Message -like '*requires branch test*') 'Only dedicated test branch accepted'
+  }
+  Assert (@($script:calls | Where-Object tool -ne git).Count -eq 0) 'Wrong branch stops before cloud/install calls'
+}
+Reset-Mocks; $script:remoteCommit = 'c' * 40
+try { Invoke-TestDeployment $root $full; throw 'Expected remote mismatch rejection' } catch {
+  Assert ($_.Exception.Message -like '*exactly match origin/test*') 'Nonidentical remote commit rejected'
+}
+Assert (@($script:calls | Where-Object tool -ne git).Count -eq 0) 'Remote mismatch stops before cloud/install calls'
+Reset-Mocks; $script:failure = 'git fetch*'
+try { Invoke-TestDeployment $root $full; throw 'Expected fetch failure' } catch {
+  Assert ($_.Exception.Message -like '*simulated CLI failure*') 'Failed fetch or missing origin/test blocks deployment'
+}
+Assert (@($script:calls | Where-Object tool -ne git).Count -eq 0) 'Fetch failure stops before cloud/install calls'
+Reset-Mocks
+Invoke-TestDeployment $root $full
+Assert (@($script:calls | Where-Object { $_.tool -eq 'git' -and $_.arguments[0] -eq 'fetch' }).Count -eq 3) 'Remote refreshed initially and before each deployment'
+Reset-Mocks; $script:moveRemoteDuringBuild = $true
+try { Invoke-TestDeployment $root $frontend; throw 'Expected changed remote rejection' } catch {
+  Assert ($_.Exception.Message -like '*Deploy test frontend*exactly match origin/test*') 'Remote change during build blocks deployment'
+}
+Assert (@($script:calls | Where-Object { $_.arguments -contains 'deploy' }).Count -eq 0) 'Changed remote is never deployed'
 # Public entrypoints must bypass execution entirely, even in this dirty checkout.
 $planOutput = & $scriptPath frontend -Plan | ConvertFrom-Json
 Assert (@($planOutput).Count -eq 4) 'Public Plan returns frontend-only JSON'

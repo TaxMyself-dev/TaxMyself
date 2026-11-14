@@ -17,7 +17,7 @@ if ($Help) {
 KeepInTax shared test deployment
 Usage: .\scripts\deploy-test [full|backend|frontend] [-SkipLocalTests] [-Plan]
 
-Default: full. Any clean branch may be deployed, including a feature branch.
+Default: full. Deploy only from clean branch test, exactly matching origin/test.
 Backend: taxmyself-prod / me-west1 / taxmys16elf-dev (existing runtime settings).
 Frontend: taxmyself-5d8a0 / hosting:app, built with build:dev.
 This replaces the shared test environment for everyone using it.
@@ -72,14 +72,26 @@ function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Direct
   } finally { Pop-Location }
 }
 
+function Assert-TestDeploymentCheckout([string]$Root, [string]$ExpectedCommit = '') {
+  $dirty = @(Invoke-TestCommand 'git' @('status', '--porcelain', '--untracked-files=normal') $Root)
+  if ($dirty.Count) { throw 'Commit or remove local changes before deploying.' }
+  $branch = (Invoke-TestCommand 'git' @('symbolic-ref', '--quiet', '--short', 'HEAD') $Root | Out-String).Trim()
+  if ($branch -ne 'test') { throw 'Test deployment requires branch test.' }
+  # Fetch the exact remote branch every time: a stale tracking ref is insufficient.
+  # Failure (including a missing remote branch) must block all cloud writes.
+  Invoke-TestCommand 'git' @('fetch', '--no-tags', 'origin', '+refs/heads/test:refs/remotes/origin/test') $Root | Out-Host
+  $commit = (Invoke-TestCommand 'git' @('rev-parse', 'HEAD') $Root | Out-String).Trim()
+  $remoteCommit = (Invoke-TestCommand 'git' @('rev-parse', 'refs/remotes/origin/test') $Root | Out-String).Trim()
+  if ($commit -notmatch '^[a-f0-9]{40}$' -or $remoteCommit -notmatch '^[a-f0-9]{40}$') { throw 'Cannot determine local/remote test commit.' }
+  if ($ExpectedCommit -and $commit -ne $ExpectedCommit) { throw 'Checkout changed during verification; refusing deployment.' }
+  if ($commit -ne $remoteCommit) { throw 'Branch test must exactly match origin/test; ahead, behind or diverged commits cannot be deployed.' }
+  return $commit
+}
 function Invoke-TestDeployment([string]$Root, [object[]]$Steps) {
   $snapshot = $null
   $stage = 'Verify clean Git checkout'
   try {
-    $dirty = @(Invoke-TestCommand 'git' @('status', '--porcelain', '--untracked-files=normal') $Root)
-    if ($dirty.Count) { throw 'Commit or remove local changes before deploying. No files have been deployed.' }
-    $commit = (Invoke-TestCommand 'git' @('rev-parse', 'HEAD') $Root | Out-String).Trim()
-    if ($commit -notmatch '^[a-f0-9]{40}$') { throw 'Cannot determine deployment commit.' }
+    $commit = Assert-TestDeploymentCheckout $Root
     Write-Host "Deploying commit $commit to the shared test environment."
     foreach ($step in $Steps) {
       $stage = $step.stage
@@ -97,9 +109,7 @@ function Invoke-TestDeployment([string]$Root, [object[]]$Steps) {
         $arguments = @($arguments | ForEach-Object { if ($_ -eq '--source=<clean-backend-snapshot>') { "--source=$source" } else { $_ } })
       }
       if ($stage -like 'Deploy test *') {
-        $current = (Invoke-TestCommand 'git' @('rev-parse', 'HEAD') $Root | Out-String).Trim()
-        $dirty = @(Invoke-TestCommand 'git' @('status', '--porcelain', '--untracked-files=normal') $Root)
-        if ($current -ne $commit -or $dirty.Count) { throw 'Checkout changed during verification; refusing deployment.' }
+        $null = Assert-TestDeploymentCheckout $Root $commit
       }
       Invoke-TestCommand $step.tool $arguments (Join-Path $Root $step.directory)
       Write-Host "[COMPLETE] $stage"

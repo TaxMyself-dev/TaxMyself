@@ -1,6 +1,7 @@
 # Shared test deployment
 
-Run from the checkout you want to test (a clean feature branch is supported):
+The dedicated `test` branch is the source of truth for the shared test environment.
+Run from a clean checkout of `test`, after its commit has been published to `origin/test`:
 
 ```powershell
 .\scripts\deploy-test -Plan
@@ -31,7 +32,16 @@ site and production Hosting are not deployed. The resulting application is at
 Every selected package runs its own `npm ci` and build. Backend Jest runs unless
 `-SkipLocalTests` is supplied. All local builds complete before cloud deployment
 starts. `-Plan` and `-Help` do not invoke CLIs or create files. The real deployment
-requires a clean checkout and checks it again before each cloud write.
+requires a clean `test` branch and fetches `origin/test` before checking exact
+commit equality. Local ahead, behind or diverged branches are all rejected.
+The branch, cleanliness, original commit and freshly fetched remote commit are
+checked again before each cloud write. Missing origin/test or fetch failure blocks
+deployment. No automatic merge, reset, pull or push is performed.
+
+Changes reach test by reviewed integration into `test`, followed by an authorized
+push and then deployment. Creating `origin/test` for the first time also requires
+an authorized push; the local branch alone cannot pass the deployment gate.
+The repository push approval policy still applies to this branch.
 
 This replaces the shared test environment, so coordinate with other testers.
 Failures stop immediately and report the stage. There is no automatic rollback;
