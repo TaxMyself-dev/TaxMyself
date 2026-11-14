@@ -24,4 +24,63 @@ describe('Mobile row-action menu', () => {
     document.body.click();
     expect(fixture.componentInstance.open()).toBeFalse();
   });
+
+  it('does not register global dismissal listeners for a list of closed menus', async () => {
+    await TestBed.configureTestingModule({ imports: [TableRowActionsMenuComponent] }).compileComponents();
+    const listen = spyOn(document, 'addEventListener').and.callThrough();
+    const fixtures = Array.from({ length: 40 }, () => {
+      const fixture = TestBed.createComponent(TableRowActionsMenuComponent);
+      fixture.componentRef.setInput('actions', [{ name: 'preview', icon: 'pi pi-eye', action: () => {} }]);
+      fixture.detectChanges();
+      return fixture;
+    });
+    const dismissalTypes = ['click', 'pointerdown', 'focusin', 'keydown'];
+    const registrations = () => listen.calls.allArgs().filter(args => dismissalTypes.includes(args[0]));
+    expect(registrations().length).toBe(0);
+    (fixtures[0].nativeElement.querySelector('.actions-trigger') as HTMLButtonElement).click();
+    expect(registrations().map(args => args[0])).toEqual(dismissalTypes);
+    const remove = spyOn(document, 'removeEventListener').and.callThrough();
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    expect(fixtures[0].componentInstance.open()).toBeFalse();
+    expect(remove.calls.allArgs().filter(args => dismissalTypes.includes(args[0])).length).toBe(4);
+  });
+
+  it('keeps inside interactions open and closes on outside focus, Escape, scroll and resize', async () => {
+    await TestBed.configureTestingModule({ imports: [TableRowActionsMenuComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(TableRowActionsMenuComponent);
+    fixture.componentRef.setInput('actions', [{ name: 'preview', icon: 'pi pi-eye', action: () => {} }]);
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('.actions-trigger') as HTMLButtonElement;
+    trigger.click(); fixture.detectChanges();
+    trigger.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(fixture.componentInstance.open()).toBeTrue();
+    document.body.dispatchEvent(new Event('focusin', { bubbles: true }));
+    expect(fixture.componentInstance.open()).toBeFalse();
+    for (const [target, event] of [
+      [document, new KeyboardEvent('keydown', { key: 'Escape' })],
+      [window, new Event('resize')],
+      [window, new Event('scroll')],
+    ] as const) {
+      trigger.click();
+      expect(fixture.componentInstance.open()).toBeTrue();
+      target.dispatchEvent(event);
+      expect(fixture.componentInstance.open()).toBeFalse();
+    }
+  });
+
+  it('removes open listeners on destruction', async () => {
+    await TestBed.configureTestingModule({ imports: [TableRowActionsMenuComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(TableRowActionsMenuComponent);
+    fixture.componentRef.setInput('actions', [{ name: 'preview', icon: 'pi pi-eye', action: () => {} }]);
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.actions-trigger') as HTMLButtonElement).click();
+    const close = spyOn(fixture.componentInstance, 'close').and.callThrough();
+    fixture.destroy();
+    document.body.click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    window.dispatchEvent(new Event('resize'));
+    expect(close).not.toHaveBeenCalled();
+  });
+
 });

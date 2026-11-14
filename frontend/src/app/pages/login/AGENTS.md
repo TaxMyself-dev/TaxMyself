@@ -19,6 +19,7 @@ email-verification flows.
   Plus aliases and longer suffixes (including the synthetic demo .local address)
   are accepted; do not restore the former 2–3-character-suffix regex. Firebase
   remains responsible for authentication and account existence.
+- Email/password login uses the form's `ngSubmit` and an `app-p-button` with `type="submit"`, so Enter in either credential input and clicking the login button share one path. Invalid forms and an active login are rejected by `login()`. Other shared buttons default to `type="button"`, including password reset.
 - Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data in the current tab's UID-bound session cache → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
 - Email/password and Google login never write authenticated profile/business
   state to shared `localStorage`; this permits different identities in separate

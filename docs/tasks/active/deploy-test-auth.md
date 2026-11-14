@@ -1,6 +1,6 @@
 # Automatic test deployment reauthentication
 
-- Status: `TEST_INTEGRATED`
+- Status: `LOCAL_MAIN_INTEGRATED_TEST_PUSHED`
 - Branch: `codex/deploy-test-auth`
 - Base commit: `7426dd44223a621183799a8d4139616011bcb029`
 
@@ -43,3 +43,13 @@ No actual cloud login or deployment performed.
 ## Documentation
 
 scripts/AGENTS.md and docs/operations/test-deployment.md describe the behavior.
+
+## Delivery result
+
+- test and verified origin/test: 298c5c2590a93b11b5e6f856c46dc2c4187b0e8c.
+- git push origin test: PASS. Main was not pushed.
+- Applied test commit 298c5c25 to local main base 7426dd44 without conflicts.
+- Both documented offline test commands rerun on the integrated main tree:
+  74 checks PASS in PowerShell 5.1; 74 checks PASS in PowerShell 7.
+- git diff --cached --check: PASS. Only documentation changed after these checks.
+- Existing untracked attachments preserved. No actual deployment was executed.

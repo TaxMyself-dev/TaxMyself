@@ -69,3 +69,22 @@ preserveRowsDuringSync retains source data and restores it after refresh failure
 it no longer suppresses effectiveIsLoading. Running syncs and subsequent table
 reads show the existing desktop/mobile loaders even with prior rows. aria-busy
 tracks this state. Feedback belongs to the table and outlives the banking toast.
+
+
+## Mobile interaction performance
+
+- Closed table-row action menus register no global document/window listeners.
+  Opening a menu installs outside click/pointer/focus, Escape, resize and scroll
+  dismissal handlers outside Angular's zone. Only an actual dismissal reenters
+  Angular; closing, selection and destruction remove all of those handlers.
+  Do not restore per-row global HostListeners: a large mobile card list then
+  causes repeated whole-table change detection for unrelated page buttons.
+- Row menus use OnPush. GenericTable keeps unchanged resolved action lists
+  stable per row via a WeakMap, preventing unnecessary mobile-card input changes.
+  New data/action/file-context inputs reset that cache so refreshed collections
+  still update cards when their row objects are reused.
+  Visibility predicates and mutable row state are still evaluated on every
+  resolution; execution still revalidates the current callback/loading state.
+  Generated attachment actions retain their existing dynamic label behavior.
+- Focused tests also cover many closed menus, open-menu dismissal/destruction,
+  stable list identity and mutable action visibility/callback replacement.

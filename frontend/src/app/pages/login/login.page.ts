@@ -197,7 +197,7 @@ export class LoginPage implements OnInit {
   async login(): Promise<void> {
     // A second click while the first login is still running would start a
     // parallel sign-in and a second navigation.
-    if (this.isLoading()) {
+    if (this.loginForm.invalid || this.isLoading()) {
       return;
     }
     if (this.blockIfOffline()) {

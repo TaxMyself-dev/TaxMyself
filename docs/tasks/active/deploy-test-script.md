@@ -1,6 +1,6 @@
 # Test deployment script
 
-- Status: `WORKER_COMPLETE`
+- Status: `LOCAL_MAIN_INTEGRATED_TEST_PUSHED`
 - Worktree: dedicated deploy-test feature checkout
 - Branch: `codex/deploy-test`
 - Base commit: `0b0a4e41d48917d118c844b1b9a6035555edd9f2`
@@ -68,3 +68,19 @@ integration or push. Existing primary checkout changes remain untouched.
 - Main push remains unauthorized. No production or test deployment is requested.
 - Delivery verification: rerun focused script and production deployment tests on
   the locally integrated main revision; retain unrelated untracked attachments.
+
+## Authorized delivery result
+
+- Elazar explicitly approved test push and local main integration in this chat.
+- `test` and verified `origin/test`: f4c1c31cd20b9350f8802d0370c168c0c66d3505.
+- `git push --set-upstream origin test`: PASS; only test was pushed.
+- Main integration started from 97852fcce6ce6bb96ea561308a6c9fc8d6ec5479,
+  with a non-fast-forward merge preserving main's existing changes.
+- Combined verification on the main merge result:
+  `pwsh -NoProfile -File scripts/tests/deploy-test.Tests.ps1`: PASS, 52 checks;
+  `pwsh -NoProfile -File scripts/tests/deploy.Tests.ps1`: PASS, including build
+  reuse checks; `git diff --cached --check`: PASS.
+- No executable changes after combined verification. Application builds were
+  not needed because no application source/configuration changed.
+- Existing untracked .codex-remote-attachments directory preserved.
+- Main was not pushed; no actual cloud deployment was performed.

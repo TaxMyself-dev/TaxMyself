@@ -1,6 +1,6 @@
 # Test deployment Windows PowerShell compatibility
 
-- Status: `TEST_INTEGRATED`
+- Status: `LOCAL_MAIN_INTEGRATED_TEST_PUSHED`
 - Branch: `codex/deploy-test-pscompat`
 - Base commit: `828f4976acc188913884c0602327ea5121820c26`
 
@@ -38,5 +38,14 @@ Reverified on the integrated test tree:
 - pwsh -NoProfile -File scripts/tests/deploy-test.Tests.ps1: PASS, 52 checks.
 - cmd /c scripts\deploy-test.cmd frontend -Plan: PASS.
 No executable changes followed verification; documentation only was updated.
-Main integration remains unauthorized and main was not changed.
+Elazar subsequently explicitly approved local main integration, without main push.
 No actual deployment was run.
+
+## Local main verification
+
+- Applied test fix 31a34cfe to local main base 828f4976 with no conflicts.
+- powershell.exe -NoProfile -File scripts/tests/deploy-test.Tests.ps1: PASS, 52 checks.
+- pwsh -NoProfile -File scripts/tests/deploy-test.Tests.ps1: PASS, 52 checks.
+- git diff --cached --check: PASS.
+- No executable edits after verification; only this delivery record changed.
+- Existing untracked attachments preserved. Main was not pushed; no deployment.
