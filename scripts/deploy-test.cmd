@@ -1,3 +1,3 @@
 @echo off
-pwsh -NoProfile -File "%~dp0deploy-test.ps1" %*
+powershell.exe -NoProfile -File "%~dp0deploy-test.ps1" %*
 exit /b %ERRORLEVEL%

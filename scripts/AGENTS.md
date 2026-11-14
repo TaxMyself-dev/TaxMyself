@@ -111,3 +111,7 @@ and promotion, live compatibility smoke, and frontend rollback.
   no automatic rollback for this shared test environment.
 - `tests/deploy-test.Tests.ps1` verifies plans and mocked orchestration offline.
 - Operator instructions: [test deployment](../docs/operations/test-deployment.md).
+
+- Test deployment supports Windows PowerShell 5.1 and PowerShell 7. Detect Windows
+  through env:OS instead of the PowerShell-7-only IsWindows variable. The CMD
+  launcher uses built-in powershell.exe. Run focused tests under both shells.
