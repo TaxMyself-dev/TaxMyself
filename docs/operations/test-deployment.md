@@ -41,7 +41,12 @@ deployment. No automatic merge, reset, pull or push is performed.
 Changes reach test by reviewed integration into `test`, followed by an authorized
 push and then deployment. Creating `origin/test` for the first time also requires
 an authorized push; the local branch alone cannot pass the deployment gate.
-The repository push approval policy still applies to this branch.
+Every merge/integration into `test` requires Elazar's explicit approval.
+Every push of `test` to GitHub also requires his explicit approval. Neither
+approval may be inferred from a general development request or passing tests.
+For pushes to `test`, personal testing of local main is not required. This is
+an explicit exception only for test; main integration and main push retain
+their separate approval gates, including personal main testing before push.
 
 This replaces the shared test environment, so coordinate with other testers.
 Failures stop immediately and report the stage. There is no automatic rollback;

@@ -61,5 +61,10 @@ integration or push. Existing primary checkout changes remain untouched.
   passed 52 checks, including incorrect branch, remote mismatch, fetch failure
   and remote advancement during builds. Earlier 37-check evidence describes
   the previous implementation, superseded by this run for the test script.
-- Remote branch creation/push remains unexecuted under the user's push gate;
-  manual testing of current main and explicit push approval are required.
+- Initial remote branch creation/push was deferred pending explicit approval.
+- Elazar subsequently explicitly approved publishing test and integrating the
+  script into local main. He exempted test pushes from personal main testing,
+  while requiring explicit approval for every test integration and test push.
+- Main push remains unauthorized. No production or test deployment is requested.
+- Delivery verification: rerun focused script and production deployment tests on
+  the locally integrated main revision; retain unrelated untracked attachments.

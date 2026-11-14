@@ -104,6 +104,9 @@ and promotion, live compatibility smoke, and frontend rollback.
   backend runtime settings are preserved. Recheck branch, cleanliness, initial
   commit and fresh remote equality before each cloud write. No stale-ref fallback
   on fetch failure; missing origin/test blocks deployment. Never auto-push or merge.
+- Integration into `test` and pushing `test` each require Elazar's explicit
+  approval. Test pushes do not require personal testing of main. The separate
+  main integration/push approval gates continue to apply to main.
 - Native errors fail by exit code. Failures name the stage and stop; there is
   no automatic rollback for this shared test environment.
 - `tests/deploy-test.Tests.ps1` verifies plans and mocked orchestration offline.
