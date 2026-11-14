@@ -61,14 +61,20 @@ function Get-TestDeploymentPlan([string]$DeploymentTarget, [bool]$SkipTests) {
 }
 
 function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Directory) {
-  $commandName = if ($IsWindows -and $Tool -in @('npm', 'firebase')) { "$Tool.cmd" } else { $Tool }
+  $commandName = if ($env:OS -eq 'Windows_NT' -and $Tool -in @('npm', 'firebase')) { "$Tool.cmd" } else { $Tool }
   $command = Get-Command $commandName -CommandType Application -ErrorAction Stop | Select-Object -First 1
   Push-Location -LiteralPath $Directory
   try {
     # Native stderr is diagnostic output; only the native exit code indicates failure.
     $PSNativeCommandUseErrorActionPreference = $false
-    & $command.Source @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "$Tool exited with code $LASTEXITCODE" }
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+      # Windows PowerShell 5.1 can surface native stderr as ErrorRecord output.
+      $ErrorActionPreference = 'Continue'
+      & $command.Source @Arguments
+      $nativeExitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $previousErrorActionPreference }
+    if ($nativeExitCode -ne 0) { throw "$Tool exited with code $nativeExitCode" }
   } finally { Pop-Location }
 }
 

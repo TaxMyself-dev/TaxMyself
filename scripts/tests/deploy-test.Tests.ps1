@@ -35,12 +35,14 @@ Assert (($full | Where-Object stage -eq 'Build test frontend').arguments -contai
 # Exercise the native command adapter as well as mocked cloud orchestration.
 $nativeDefinition = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-TestCommand' }, $true)
 . ([scriptblock]::Create($nativeDefinition.Extent.Text.Replace('function Invoke-TestCommand(', 'function Invoke-RealTestCommand(')))
+$shellCommand = (Get-Process -Id $PID).Path
 $beforeLocation = (Get-Location).Path
-$nativeResult = Invoke-RealTestCommand 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("native diagnostic"); Write-Output "native success"; exit 0') $PSScriptRoot | Out-String
+$nativeProbe = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('[Console]::Error.WriteLine("native diagnostic"); Write-Output "native success"; exit 0'))
+$nativeResult = Invoke-RealTestCommand $shellCommand @('-NoProfile', '-EncodedCommand', $nativeProbe) $PSScriptRoot | Out-String
 Assert ($nativeResult -match 'native success') 'Native stderr does not turn exit zero into failure'
 Assert ((Get-Location).Path -eq $beforeLocation) 'Native command restores working directory'
 try {
-  Invoke-RealTestCommand 'pwsh' @('-NoProfile', '-Command', 'exit 7') $PSScriptRoot
+  Invoke-RealTestCommand $shellCommand @('-NoProfile', '-Command', 'exit 7') $PSScriptRoot
   throw 'Expected native nonzero failure'
 } catch { Assert ($_.Exception.Message -like '*exited with code 7*') 'Native nonzero exit fails with code' }
 Assert ((Get-Location).Path -eq $beforeLocation) 'Native failure restores working directory'

@@ -12,7 +12,8 @@ Run from a clean checkout of `test`, after its commit has been published to `ori
 .\scripts\deploy-test -Help
 ```
 
-Requires PowerShell 7, Git, Node/npm, and the relevant globally installed CLIs.
+Supports Windows PowerShell 5.1 and PowerShell 7. The Windows CMD launcher uses
+the built-in powershell.exe. Requires Git, Node/npm and the relevant installed CLIs.
 Authenticate beforehand with `gcloud auth login` for backend and `firebase login`
 for frontend. Missing authentication/access fails before dependency installs.
 The existing backend service must already exist; the script preserves its cloud
