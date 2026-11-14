@@ -49,13 +49,22 @@ Assert ((Get-Location).Path -eq $beforeLocation) 'Native failure restores workin
 
 # Exercise the production orchestration function with deterministic fake CLI output.
 $script:calls = [Collections.Generic.List[object]]::new()
-$script:failure = ''
+$script:accessFailures = @{}; $script:loginFailure = ''; $script:failure = ''
 $script:dirty = $false
 $script:changed = $false
 $script:moveRemoteDuringBuild = $false; $script:branch = 'test'; $script:remoteCommit = 'a' * 40; $script:headReads = 0
 $script:sourcePath = $null
 function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Directory) {
   $script:calls.Add([pscustomobject]@{ tool = $Tool; arguments = $Arguments; directory = $Directory })
+  $isAccessCheck = ($Tool -eq 'firebase' -and $Arguments[0] -eq 'hosting:sites:list') -or
+    ($Tool -eq 'gcloud' -and $Arguments[0] -eq 'run' -and $Arguments[1] -eq 'services')
+  if ($isAccessCheck -and $script:accessFailures.ContainsKey($Tool) -and $script:accessFailures[$Tool] -gt 0) {
+    $script:accessFailures[$Tool]--
+    throw 'simulated expired session'
+  }
+  if ($script:loginFailure -eq $Tool -and ($Arguments[0] -eq 'login' -or $Arguments[0] -eq 'auth')) {
+    throw 'simulated cancelled login'
+  }
   if ($Tool -eq 'git') {
     switch ($Arguments[0]) {
       'status' { if ($script:dirty) { ' M changed-file' }; return }
@@ -84,7 +93,7 @@ function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Direct
   if (($Tool + ' ' + ($Arguments -join ' ')) -like $script:failure -and $script:failure) { throw 'simulated CLI failure' }
 }
 function Reset-Mocks {
-  $script:calls.Clear(); $script:failure = ''; $script:dirty = $false
+  $script:calls.Clear(); $script:accessFailures = @{}; $script:loginFailure = ''; $script:failure = ''; $script:dirty = $false
   $script:changed = $false; $script:moveRemoteDuringBuild = $false; $script:branch = 'test'; $script:remoteCommit = 'a' * 40; $script:headReads = 0; $script:sourcePath = $null
 }
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -153,6 +162,45 @@ try { Invoke-TestDeployment $root $frontend; throw 'Expected changed remote reje
   Assert ($_.Exception.Message -like '*Deploy test frontend*exactly match origin/test*') 'Remote change during build blocks deployment'
 }
 Assert (@($script:calls | Where-Object { $_.arguments -contains 'deploy' }).Count -eq 0) 'Changed remote is never deployed'
+# Valid sessions never trigger login, and each expired provider gets one interactive
+# login followed by the same access check before any install/build/cloud write.
+Reset-Mocks
+foreach ($step in @($full | Where-Object { $_.stage -like 'Check *' })) { Initialize-TestDeploymentAccess $step $root }
+Assert (@($script:calls | Where-Object { $_.arguments[0] -in @('login', 'auth') }).Count -eq 0) 'Valid sessions do not reopen login'
+foreach ($provider in @('firebase', 'gcloud')) {
+  Reset-Mocks; $script:accessFailures[$provider] = 1
+  $step = $full | Where-Object { $_.stage -like 'Check *' -and $_.tool -eq $provider }
+  Initialize-TestDeploymentAccess $step $root
+  Assert ($script:calls.Count -eq 3) 'Expired session runs check, login, recheck once'
+  $login = $script:calls[1]
+  $expectedLogin = if ($provider -eq 'firebase') { 'login --reauth' } else { 'auth login' }
+  Assert (($login.arguments -join ' ') -eq $expectedLogin) 'Provider uses correct interactive login command'
+  Assert ($login.tool -eq $provider) 'Only expired provider gets login'
+  Assert (($script:calls[0].arguments -join ' ') -eq ($script:calls[2].arguments -join ' ')) 'Exact test access checked again after login'
+  Assert ($login.arguments -notcontains '--non-interactive') 'Login permits browser and terminal interaction'
+}
+Reset-Mocks; $script:accessFailures['firebase'] = 1
+Invoke-TestDeployment $root $frontend
+Assert (@($script:calls | Where-Object { $_.tool -eq 'firebase' -and $_.arguments[0] -eq 'login' }).Count -eq 1) 'Frontend deployment recovers Firebase session'
+Assert (@($script:calls | Where-Object tool -eq gcloud).Count -eq 0) 'Frontend recovery never authenticates Google Cloud'
+$accessCalls = @($script:calls | Where-Object { $_.tool -eq 'firebase' -and $_.arguments[0] -eq 'hosting:sites:list' })
+Assert ($accessCalls.Count -eq 2) 'Frontend orchestration rechecks access before proceeding'
+
+Reset-Mocks; $script:accessFailures['firebase'] = 2
+try { Invoke-TestDeployment $root $frontend; throw 'Expected persistent access failure' } catch {
+  Assert ($_.Exception.Message -like '*Check test Hosting access*could not be verified*') 'Persistent access failure reports test stage'
+}
+Assert (@($script:calls | Where-Object tool -eq npm).Count -eq 0) 'Failed access recheck blocks all installs/builds'
+Assert (@($script:calls | Where-Object { $_.arguments -contains 'deploy' }).Count -eq 0) 'Failed access recheck blocks deployment'
+Assert (@($script:calls | Where-Object { $_.arguments[0] -eq 'login' }).Count -eq 1) 'Persistent failure does not loop login'
+
+Reset-Mocks; $script:accessFailures['gcloud'] = 1; $script:loginFailure = 'gcloud'
+try { Invoke-TestDeployment $root $backend; throw 'Expected cancelled login failure' } catch {
+  Assert ($_.Exception.Message -like '*Check existing test backend*cancelled login*') 'Cancelled login preserves stage and reason'
+}
+Assert (@($script:calls | Where-Object tool -eq npm).Count -eq 0) 'Cancelled login prevents local builds'
+Assert (@($script:calls | Where-Object { $_.arguments -contains 'deploy' }).Count -eq 0) 'Cancelled login prevents cloud writes'
+Assert (@($script:calls | Where-Object tool -eq firebase).Count -eq 0) 'Backend-only never opens Firebase login'
 # Public entrypoints must bypass execution entirely, even in this dirty checkout.
 $planOutput = & $scriptPath frontend -Plan | ConvertFrom-Json
 Assert (@($planOutput).Count -eq 4) 'Public Plan returns frontend-only JSON'
