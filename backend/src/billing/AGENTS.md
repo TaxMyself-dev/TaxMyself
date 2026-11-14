@@ -23,6 +23,14 @@ Time, a missing transaction, a transport error, or an unavailable provider is
 never treated as proof that a new charge is safe. Only HTTPS URLs on
 `secure.cardcom.solutions` are stored or returned.
 
+Initial TRIAL/TRIAL_EXPIRED purchases apply the same safety rule directly on a
+repeated `POST /billing/checkout`. If an earlier canonical CHECKOUT has a saved
+LowProfile and safe hosted URL, the backend performs the existing read-only
+CardCom inspection. UNKNOWN/pending state returns that same page, verified
+capture returns processing/completed without another page, and only a
+provider-proven final decline releases the attempt and permits one replacement.
+Missing or unsafe durable checkout identity fails closed for support review.
+
 Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
 shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
 card exactly once, and activates only after verified capture plus completion.
@@ -195,6 +203,11 @@ without another provider lookup; later recovery uses the existing read-only
 lookup and newer-card protection. Receipt/link/finalization and admin recovery
 reuse existing attempt leases. No new schema. Old attempt-less callbacks retain
 their legacy path; ACTIVE plan changes now use KT-049 below.
+
+Leaving the initial CardCom page does not require an operator to find or cancel
+the session. A later plan submission reuses the blocking canonical attempt and
+its stored page after a read-only provider check. It never assumes that an old,
+missing or unreachable page proves no charge occurred.
 
 ### Prorated plan changes (KT-051)
 

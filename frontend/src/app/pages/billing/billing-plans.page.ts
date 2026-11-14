@@ -81,6 +81,7 @@ export class BillingPlansPage implements OnInit {
   private readonly rawPlans = signal<Plan[]>([]);
   readonly isLoading = signal(true);
   readonly checkingOutPlanId = signal<number | null>(null);
+  readonly feedback = signal<{ kind: 'error' | 'info'; text: string } | null>(null);
   readonly planChangePreview = signal<PlanChangePreview | null>(null);
   readonly confirmingChange = signal(false);
   readonly currentPlanId = computed(() => this.billing.billingState()?.plan?.id ?? null);
@@ -127,8 +128,8 @@ export class BillingPlansPage implements OnInit {
         this.http.get<Plan[]>(`${environment.apiUrl}billing/plans`)
       );
       this.rawPlans.set(data);
-    } catch {
-      this.genericService.showToast('שגיאה בטעינת תוכניות המנוי', 'error');
+    } catch (err: any) {
+      this.showError(err?.error?.message ?? 'שגיאה בטעינת תוכניות המנוי');
     } finally {
       this.isLoading.set(false);
     }
@@ -137,6 +138,7 @@ export class BillingPlansPage implements OnInit {
   async checkout(planId: number): Promise<void> {
     if (this.checkingOutPlanId() !== null || this.confirmingChange() || this.billing.billingState()?.pendingCancellation ||
       this.billing.billingState()?.openBankingEnrollment) return;
+    this.feedback.set(null);
     if (this.billing.effectiveStatus() === 'ACTIVE') {
       if (planId === this.currentPlanId() || this.billing.hasBillingOverride()) return;
       this.checkingOutPlanId.set(planId);
@@ -145,34 +147,53 @@ export class BillingPlansPage implements OnInit {
         this.planChangePreview.set(await firstValueFrom(this.http.post<PlanChangePreview>(
           `${environment.apiUrl}billing/checkout/preview`, { planId })));
       } catch (err: any) {
-        this.genericService.showToast(err?.error?.message ?? 'לא ניתן לטעון את פירוט שינוי התוכנית', 'error');
+        this.showError(err?.error?.message ?? 'לא ניתן לטעון את פירוט שינוי התוכנית');
       } finally { this.checkingOutPlanId.set(null); }
       return;
     }
     this.checkingOutPlanId.set(planId);
     try {
       const result = await firstValueFrom(
-        this.http.post<{ paymentUrl: string; lowProfileId?: string }>(
+        this.http.post<{ paymentUrl?: string; lowProfileId?: string; status?: 'REDIRECT' | 'PROCESSING' | 'COMPLETED' }>(
           `${environment.apiUrl}billing/checkout`,
           { planId },
         )
       );
-      sessionStorage.removeItem('tm.checkoutLowProfileId');
-      if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
-      window.location.href = result.paymentUrl;
+      if (result.paymentUrl) {
+        sessionStorage.removeItem('tm.checkoutLowProfileId');
+        if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);
+        window.location.href = result.paymentUrl;
+        return;
+      }
+      if (result.status === 'COMPLETED') {
+        this.checkingOutPlanId.set(null);
+        await this.billing.refreshBillingState();
+        await this.router.navigate(['/my-account']);
+        return;
+      }
+      if (result.status === 'PROCESSING') {
+        this.checkingOutPlanId.set(null);
+        this.feedback.set({ kind: 'info', text: 'התשלום התקבל ונמצא בתהליך השלמה. מצב החשבון יתעדכן בעוד רגע.' });
+        await this.billing.refreshBillingState();
+        return;
+      }
+      this.checkingOutPlanId.set(null);
+      this.showError('לא התקבל עמוד תשלום תקין. יש לנסות שוב.');
     } catch (err: any) {
       if (err?.error?.code === 'BILLING_PAYER_PROFILE_INCOMPLETE') {
-        this.genericService.showToast('יש להשלים את פרטי המשלם לפני המעבר לתשלום.', 'error');
+        this.showError('יש להשלים את פרטי המשלם לפני המעבר לתשלום.');
         this.checkingOutPlanId.set(null);
         await this.router.navigate(['/settings'], { queryParams: { tab: 'subscription' } });
         return;
       }
-      this.genericService.showToast(
-        err?.error?.message ?? 'שגיאה בתהליך התשלום. נסה שוב.',
-        'error',
-      );
+      this.showError(err?.error?.message ?? 'שגיאה בתהליך התשלום. נסה שוב.');
       this.checkingOutPlanId.set(null);
     }
+  }
+
+  private showError(message: string): void {
+    this.feedback.set({ kind: 'error', text: message });
+    this.genericService.showToast(message, 'error');
   }
 
   async confirmPlanChange(): Promise<void> {
@@ -180,7 +201,7 @@ export class BillingPlansPage implements OnInit {
     if (!preview || this.confirmingChange() || this.billing.hasBillingOverride() || this.billing.billingState()?.pendingCancellation) return;
     if (new Date(preview.expiresAt).getTime() <= Date.now()) {
       this.planChangePreview.set(null);
-      this.genericService.showToast('הפירוט פג. יש לבחור שוב את התוכנית לקבלת סכום מעודכן.', 'error');
+      this.showError('הפירוט פג. יש לבחור שוב את התוכנית לקבלת סכום מעודכן.');
       return;
     }
     this.confirmingChange.set(true);
@@ -199,7 +220,7 @@ export class BillingPlansPage implements OnInit {
       } else { throw new Error('Unexpected plan change response'); }
     } catch (err: any) {
       this.planChangePreview.set(null);
-      this.genericService.showToast(err?.error?.message ?? 'לא ניתן להשלים את שינוי התוכנית. יש לרענן את מצב המנוי לפני ניסיון נוסף.', 'error');
+      this.showError(err?.error?.message ?? 'לא ניתן להשלים את שינוי התוכנית. יש לרענן את מצב המנוי לפני ניסיון נוסף.');
     } finally { this.confirmingChange.set(false); }
   }
 
@@ -212,7 +233,7 @@ export class BillingPlansPage implements OnInit {
       this.planChangePreview.set(null);
       await this.billing.refreshBillingState();
       this.genericService.showToast('בקשת השנמוך בוטלה. התוכנית הנוכחית תמשיך בחידוש הבא.', 'success');
-    } catch (err: any) { this.genericService.showToast(err?.error?.message ?? 'לא ניתן לבטל את הבקשה. יש לרענן.', 'error'); }
+    } catch (err: any) { this.showError(err?.error?.message ?? 'לא ניתן לבטל את הבקשה. יש לרענן.'); }
     finally { this.cancelingChange.set(false); }
   }
 }

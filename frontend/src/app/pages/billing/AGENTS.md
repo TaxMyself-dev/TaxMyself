@@ -37,6 +37,14 @@ Standalone pricing/plans page where a user views available subscription plans an
   tab-local sessionStorage before redirect. The dashboard consumes it to scope
   payment-result polling. Legacy checkout responses retain their old handling.
 
+- Repeating an initial TRIAL/TRIAL_EXPIRED purchase may return the previously
+  persisted CardCom page after the backend checks it read-only. The page follows
+  that URL without opening another provider checkout. Captured/completed
+  responses refresh billing state instead of redirecting to a new charge.
+- Checkout and plan-loading failures render an inline, aria-live message on the
+  plans page as well as the legacy toast call, so a backend 4xx/5xx can never
+  look like an inert plan button.
+
 - Local billing worktree runs with `npm run start:billing` from frontend on
   localhost:4200; environment.ts points to backend localhost:3000. Production
   and cloud-dev environment replacements retain their existing endpoints.

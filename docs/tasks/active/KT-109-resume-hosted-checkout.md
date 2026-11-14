@@ -1,11 +1,11 @@
 # KT-109 - Resume existing hosted checkout automatically
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary integration manager
 - Worker: Codex task worker
-- Worktree: pending
+- Worktree: `C:/Users/harel/.codex/worktrees/kt109/taxmyself-dev`
 - Branch: `codex/kt-109-resume-hosted-checkout`
-- Base commit: `eb68742cc9ee1cf5756a9b1f03eb5055f2da9231`
+- Base commit: `62dc3c0acf338e0111e230097c4e1c4d549ee5d5f`
 
 ## Business outcome
 
@@ -15,19 +15,19 @@ appearing unresponsive or requiring support to locate the old payment page.
 
 ## Acceptance criteria
 
-- [ ] A repeated initial-purchase checkout with a persisted CardCom LowProfile
+- [x] A repeated initial-purchase checkout with a persisted CardCom LowProfile
   and safe hosted URL performs the existing read-only provider inspection.
-- [ ] Pending or unknown provider state redirects to the same saved CardCom URL
+- [x] Pending or unknown provider state redirects to the same saved CardCom URL
   and does not create a second billing attempt or provider checkout.
-- [ ] A provider-proven final decline releases the old attempt and permits one
+- [x] A provider-proven final decline releases the old attempt and permits one
   fresh hosted checkout using the current confirmed request.
-- [ ] Captured/completed state never creates another charge and returns a safe
+- [x] Captured/completed state never creates another charge and returns a safe
   processing/completed outcome.
-- [ ] Missing or unsafe persisted checkout context fails closed with a visible
+- [x] Missing or unsafe persisted checkout context fails closed with a visible
   customer-facing error.
-- [ ] Billing page HTTP failures are visibly presented rather than emitted only
+- [x] Billing page HTTP failures are visibly presented rather than emitted only
   through an unconsumed toast stream.
-- [ ] Focused backend/frontend tests and the Nest/Angular builds pass.
+- [x] Focused backend/frontend tests and the Nest/Angular builds pass.
 
 ## Scope and constraints
 
@@ -43,14 +43,22 @@ appearing unresponsive or requiring support to locate the old payment page.
 
 ## Handoff
 
-- Result:
+- Result: complete
 - Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks and manual checks:
-- Documentation updated:
+- Changed files: `billing.service.ts` and spec; billing plans page TS/HTML/SCSS
+  and spec; backend/frontend billing `AGENTS.md`; this task file.
+- Tests and exact results: backend focused Jest 70/70 passed; frontend focused
+  Karma/ChromeHeadless 9/9 passed; Nest build passed; Angular build passed.
+- Known pre-existing failures: none. Angular build retained existing style and
+  initial-bundle budget warnings plus existing CommonJS warnings.
+- Schema / production / security / accounting / external impact: no schema,
+  production-data, authentication, accounting, tax or CardCom contract change.
+  Existing read-only CardCom reconciliation is reused and no provider call is
+  submitted unless the canonical flow safely reserves a new attempt.
+- Risks and manual checks: after deployment, retry subscription 67 from the
+  plans page and verify it redirects to attempt 11's existing CardCom page with
+  no new billing attempt or LowProfile creation.
+- Documentation updated: backend billing and frontend billing topic maps.
 
 ## Integration
 

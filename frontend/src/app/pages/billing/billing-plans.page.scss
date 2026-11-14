@@ -31,6 +31,24 @@
   padding-inline: 2rem;
 }
 
+.plans-feedback {
+  max-width: 760px;
+  margin: 0 auto 24px;
+  padding: 16px 20px;
+  border: 1px solid #b8c3d6;
+  border-radius: 14px;
+  background: #f1f4f8;
+  color: var(--color-primary);
+  text-align: center;
+  font-weight: 600;
+}
+
+.plans-feedback--error {
+  border-color: #e8b9b5;
+  background: #fff1f0;
+  color: #b42318;
+}
+
 .plan-change-panel {
   background: #fff;
   border: 1px solid var(--color-card-border);
