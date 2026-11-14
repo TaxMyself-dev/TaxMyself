@@ -14,8 +14,17 @@ Run from a clean checkout of `test`, after its commit has been published to `ori
 
 Supports Windows PowerShell 5.1 and PowerShell 7. The Windows CMD launcher uses
 the built-in powershell.exe. Requires Git, Node/npm and the relevant installed CLIs.
-Authenticate beforehand with `gcloud auth login` for backend and `firebase login`
-for frontend. Missing authentication/access fails before dependency installs.
+The script first checks existing access for the selected targets. If a check fails,
+it opens `gcloud auth login` for backend or `firebase login --reauth` for frontend
+interactively, so complete the browser/terminal prompts in the same session.
+It then reruns the exact test service/Hosting access check before dependency
+installs. Valid sessions do not reopen login. There is one login attempt per
+failed provider check; cancellation, failed login or missing access after login
+stops the deployment. Network/permission problems may also trigger this one login
+attempt, matching the production script's failed-access recovery policy.
+Authentication uses existing CLI sessions; no password/token parameters or
+repository credential storage are introduced. Backend-only does not require
+Firebase login, and frontend-only does not require gcloud login.
 The existing backend service must already exist; the script preserves its cloud
 runtime environment/secrets and does not upload the checkout's `.env` files.
 

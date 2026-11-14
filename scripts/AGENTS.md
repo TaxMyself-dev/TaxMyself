@@ -115,3 +115,9 @@ and promotion, live compatibility smoke, and frontend rollback.
 - Test deployment supports Windows PowerShell 5.1 and PowerShell 7. Detect Windows
   through env:OS instead of the PowerShell-7-only IsWindows variable. The CMD
   launcher uses built-in powershell.exe. Run focused tests under both shells.
+
+- Test preflight checks existing target access and opens interactive gcloud auth
+  login or Firebase login --reauth only after that provider's check fails.
+  Invoke login directly in the terminal without capture/pipelines; recheck the
+  exact service/Hosting access once before builds. Cancellation or persistent
+  failure stops; no retry loop, credential storage, or unrelated-provider login.

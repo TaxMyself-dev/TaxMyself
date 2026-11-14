@@ -24,7 +24,8 @@ This replaces the shared test environment for everyone using it.
 -SkipLocalTests skips backend Jest only; builds remain required.
 -Plan prints the command plan without Git, login, builds or cloud access.
 -Help, -h prints this help without side effects.
-Requires existing authenticated gcloud and Firebase CLI sessions as applicable.
+Checks existing gcloud/Firebase sessions; opens interactive login when needed.
+After login, project/service access must pass again before builds or deployment.
 No production deployment, schema scripts, smoke jobs or landing deployment.
 A partial failure stops immediately; there is no automatic test rollback.
 "@ | Write-Output
@@ -78,6 +79,24 @@ function Invoke-TestCommand([string]$Tool, [string[]]$Arguments, [string]$Direct
   } finally { Pop-Location }
 }
 
+function Initialize-TestDeploymentAccess([object]$Step, [string]$Root) {
+  try {
+    Invoke-TestCommand $Step.tool $Step.arguments $Root | Out-Host
+    return
+  } catch {
+    Write-Host "$($Step.tool) session/access needs attention; opening interactive login."
+  }
+
+  # Login must inherit the terminal directly so browser login and prompts work.
+  # Try once only; cancellation or persistent access failure stops the deployment.
+  $loginArguments = if ($Step.tool -eq 'firebase') { @('login', '--reauth') } else { @('auth', 'login') }
+  Invoke-TestCommand $Step.tool $loginArguments $Root
+  try {
+    Invoke-TestCommand $Step.tool $Step.arguments $Root | Out-Host
+  } catch {
+    throw "$($Step.tool) login completed but test access could not be verified: $($_.Exception.Message)"
+  }
+}
 function Assert-TestDeploymentCheckout([string]$Root, [string]$ExpectedCommit = '') {
   $dirty = @(Invoke-TestCommand 'git' @('status', '--porcelain', '--untracked-files=normal') $Root)
   if ($dirty.Count) { throw 'Commit or remove local changes before deploying.' }
@@ -117,7 +136,11 @@ function Invoke-TestDeployment([string]$Root, [object[]]$Steps) {
       if ($stage -like 'Deploy test *') {
         $null = Assert-TestDeploymentCheckout $Root $commit
       }
-      Invoke-TestCommand $step.tool $arguments (Join-Path $Root $step.directory)
+      if ($stage -in @('Check existing test backend', 'Check test Hosting access')) {
+        Initialize-TestDeploymentAccess $step $Root
+      } else {
+        Invoke-TestCommand $step.tool $arguments (Join-Path $Root $step.directory)
+      }
       Write-Host "[COMPLETE] $stage"
     }
     Write-Host 'Test deployment completed. Verify the application manually at https://taxmyself-5d8a0.web.app'
