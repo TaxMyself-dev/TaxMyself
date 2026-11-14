@@ -58,3 +58,18 @@
   deployment was performed. Unrelated backend programming failures are
   deliberately not hidden by a global catch-all.
 - Usage and prerequisites: [local AI development](../../operations/local-ai-development.md).
+
+## User-requested launcher scope correction (2026-11-14)
+
+- Supersedes the application-startup instructions and historical launcher
+  behavior above: start-ai.cmd now starts only Docker Desktop and the existing
+  Langfuse stack. The user starts frontend/backend manually. Application build,
+  process management, readiness probes and backend environment reads were removed.
+- --check now checks only Docker/Langfuse; --infrastructure-only remains an alias.
+  Application startup flags are rejected. Existing running apps were not stopped.
+- Verification: node --test scripts/start-ai-dev.test.cjs: 3/3 passed;
+  node scripts/start-ai-dev.cjs --help: exit 0;
+  node scripts/start-ai-dev.cjs: exit 0, existing compose stack healthy;
+  node scripts/start-ai-dev.cjs --check: exit 0, Docker and Langfuse READY.
+- No backend/agent behavior changed; their previous passing checks were not rerun.
+  No main integration, push or deployment.

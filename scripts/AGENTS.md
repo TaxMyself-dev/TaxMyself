@@ -94,13 +94,9 @@ and promotion, live compatibility smoke, and frontend rollback.
 
 ## Local AI development (not deployment)
 
-- Root start-ai.cmd calls start-ai-dev.cjs: local Docker Desktop/Langfuse,
-  agent/Nest builds, then Nest watch and Angular on separate local ports.
-- --check is read-only; --infrastructure-only starts only local tracing.
-- Use the existing per-worktree .env and node_modules. Never generate keys,
-  install dependencies automatically, apply SQL, or stop an existing process.
-- The launcher refuses non-local Docker engines and non-keepintax-dev
-  databases; forces DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true for
-  its backend child. Local logs go under ignored .local-ai-dev/.
-- Safety checks: node --test scripts/start-ai-dev.test.cjs; --help and
-  --check; real infrastructure startup may use --infrastructure-only.
+- Root start-ai.cmd calls start-ai-dev.cjs for local Docker Desktop/Langfuse only.
+- --check is read-only; --infrastructure-only is an alias for default startup.
+- Never start/build/check frontend or backend, read backend/.env, install
+  dependencies, generate keys, apply SQL, or stop an existing process.
+- Use existing local Langfuse compose configuration; refuse remote Docker.
+- Verify with node --test scripts/start-ai-dev.test.cjs, --help and --check.

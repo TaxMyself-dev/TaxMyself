@@ -184,6 +184,6 @@ Follow the template's list ([TEMPLATE-GUIDE.md](TEMPLATE-GUIDE.md), "How to adap
 
 ## Local startup and background failure isolation (2026-11-14)
 
-From this feature worktree run `start-ai.cmd` (PowerShell: `.\start-ai.cmd`). It starts the existing local Docker/Langfuse stack, builds the agent and Nest when starting a backend, starts Nest watch and Angular, and verifies HTTP readiness. `--check` only checks readiness; `--infrastructure-only` starts only Docker/Langfuse. See [local development](../../docs/operations/local-ai-development.md).
+From this feature worktree run `start-ai.cmd` (PowerShell: `.\start-ai.cmd`). It starts only local Docker Desktop and the existing Langfuse stack, then verifies health. Start the frontend and backend manually. `--check` checks only Docker/Langfuse. See [local development](../../docs/operations/local-ai-development.md).
 
 KeepInTax-specific resilience extensions to the template: `src/server/runtime/app-telemetry-errors.ts` contains optional exporter failures, bounds/reduces warnings, and observes detached promises without requiring a healthy app runtime for error reporting. Langfuse flush and shutdown failures do not fail a chat or disposal; each other exporter is isolated too. The Nest edge's `agent-background-context.ts` attributes late SDK rejections by async origin even when the error has only node:net frames. Other backend rejections remain fatal; required data errors are reported, not treated as successful work. This changes no authorization, accounting, schema or agent tool behavior.
