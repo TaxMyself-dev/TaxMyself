@@ -773,3 +773,8 @@ period as one `RECURRING_PERIOD` obligation, records `OVERDUE_DEBT_CREATED`, and
 changes only `ACTIVE` to `PAST_DUE`. It creates no billing attempt and makes no
 CardCom call; the existing recovery flow performs the later customer-approved
 payment. Repeated calls return the existing open debt.
+
+Recovery preview and atomic reservation must select the identical set of open
+`RECURRING_PERIOD` obligations. Historical `CHECKOUT` obligations and independent
+`MANUAL_ONE_OFF` charges are not subscription debt and must never enter the
+recovery quote, collection membership or amount.

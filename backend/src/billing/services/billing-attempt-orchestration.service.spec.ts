@@ -16,6 +16,7 @@ import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingPayerProfile } from '../entities/billing-payer-profile.entity';
 import { Documents } from '../../documents/documents.entity';
 import { PLAN_CHANGE_POLICY, PlanChangeSnapshot } from '../domain/billing-plan-change';
+import { billingDebtQuote } from '../domain/billing-debt-quote';
 import {
   BillingAttemptOrchestrationService,
   OpenBillingAttemptInput,
@@ -180,6 +181,68 @@ describe('BillingAttemptOrchestrationService', () => {
         ForbiddenException,
       );
     }
+  });
+
+  it('reserves only recurring debt when an unrelated legacy checkout is still open', async () => {
+    const sub = Object.assign(subscription(), {
+      status: SubscriptionStatus.PAST_DUE,
+    });
+    const recurring = obligation({
+      id: 20,
+      periodStart: '2026-10-27',
+      periodEnd: '2026-11-27',
+      amountAgorot: 2950,
+      amountBeforeVatAgorot: 2500,
+      vatAmountAgorot: 450,
+    });
+    const legacyCheckout = obligation({
+      id: 4,
+      kind: BillingObligationKind.CHECKOUT,
+      periodStart: '2026-10-26',
+      periodEnd: '2026-11-26',
+      amountAgorot: 122,
+      amountBeforeVatAgorot: 103,
+      vatAmountAgorot: 19,
+      activeAttemptId: 2,
+    });
+    manager.find.mockImplementation(async (entity, options) => {
+      if (entity !== BillingObligation) return [];
+      return [legacyCheckout, recurring].filter(row =>
+        row.subscriptionId === options.where.subscriptionId &&
+        row.status === options.where.status &&
+        row.kind === options.where.kind);
+    });
+    manager.findOne
+      .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    manager.save.mockImplementation(async (entity, value) => {
+      if (entity === BillingAttempt && !value.id) value.id = 21;
+      return value;
+    });
+
+    const result = await service.createRecoveryCollection(
+      owner,
+      sub.id,
+      [recurring.id],
+      billingDebtQuote([recurring]),
+    );
+
+    expect(result.obligation.id).toBe(recurring.id);
+    expect(result.attempt.amountAgorot).toBe(2950);
+    expect(manager.find).toHaveBeenCalledWith(BillingObligation, {
+      where: {
+        subscriptionId: sub.id,
+        status: BillingObligationStatus.OPEN,
+        kind: BillingObligationKind.RECURRING_PERIOD,
+      },
+      order: { id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.save).not.toHaveBeenCalledWith(
+      BillingObligation,
+      legacyCheckout,
+    );
   });
 
   it('creates one canonical obligation and one numbered active attempt under row locks', async () => {

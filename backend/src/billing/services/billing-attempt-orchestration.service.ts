@@ -341,7 +341,8 @@ export class BillingAttemptOrchestrationService {
         throw new ConflictException('Recovery state changed; refresh before paying');
       }
       const debts = await manager.find(BillingObligation, {
-        where: { subscriptionId, status: BillingObligationStatus.OPEN },
+        where: { subscriptionId, status: BillingObligationStatus.OPEN,
+          kind: BillingObligationKind.RECURRING_PERIOD },
         order: { id: 'ASC' }, lock: { mode: 'pessimistic_write' },
       });
       const ids = debts.map(debt => debt.id);
