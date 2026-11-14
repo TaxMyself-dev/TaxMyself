@@ -444,3 +444,15 @@ focused backend suite (14 tests), focused frontend suite (7 tests), Nest build,
 and Angular production build before reaching `origin/main`. No schema,
 production data, CardCom/provider call, authorization, accounting, deployment,
 or runtime restart occurred.
+
+## KT-108 recurring debt recovery isolation — 2026-11-14
+
+Production evidence showed that a legacy open CHECKOUT obligation could enter
+the atomic recovery reservation even though preview displayed only the true
+RECURRING_PERIOD debt, producing a safe pre-provider quote conflict. The
+reservation query now locks only open recurring obligations, matching preview;
+historical checkout and independent one-off records remain untouched. Commit
+`0ac04249` passed the focused orchestration suite (56 tests) and Nest build on
+the integrated tree. Local main, tracking origin/main and the remote main ref
+were verified at that commit. No schema, CardCom/provider call, accounting,
+authorization or deployment action was part of the code delivery.

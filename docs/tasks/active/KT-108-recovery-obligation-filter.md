@@ -1,6 +1,6 @@
 # KT-108 - Isolate recurring debt recovery obligations
 
-- Status: `APPROVED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent in isolated worktree
 - Worktree: `C:\Users\harel\.codex\worktrees\kt108\taxmyself-dev`
@@ -56,7 +56,11 @@ the account retains an unrelated historical checkout or one-off obligation.
 ## Integration
 
 - Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Integrated commit: `0ac042497f25d5c86421aa4233d725640ebcffd7`
+- Combined verification: focused billing orchestration suite passed on the
+  integrated tree (1 suite / 56 tests); Nest build passed.
+- `origin/main` verification: local `main`, tracking `origin/main`, and remote
+  `refs/heads/main` all resolved to `0ac042497f25d5c86421aa4233d725640ebcffd7`.
+- User-visible run instructions: no schema step. Deploy backend normally; then
+  verify a PAST_DUE owner with an unrelated historical checkout opens CardCom
+  for only the recurring balance.
