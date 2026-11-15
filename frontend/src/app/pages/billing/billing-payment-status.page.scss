@@ -1,0 +1,15 @@
+:host { display: block; min-height: 100%; background: #f4f6f9; }
+.status-shell { min-height: calc(100vh - 72px); padding: 32px 16px; display: grid; place-items: center; }
+.status-card { width: min(100%, 620px); box-sizing: border-box; padding: 44px 36px; text-align: center;
+  background: #fff; border: 1px solid #dce3ec; border-radius: 24px; box-shadow: 0 14px 40px rgba(26, 37, 81, .08); color: #182230; }
+.status-icon { width: 56px; height: 56px; margin: 0 auto 20px; display: grid; place-items: center;
+  border-radius: 16px; background: #fff4d6; color: #946200; font-size: 28px; font-weight: 700; }
+h1 { margin: 0; font-size: clamp(28px, 5vw, 38px); color: #101828; }
+p { margin: 16px auto 0; max-width: 500px; color: #667085; font-size: 17px; line-height: 1.65; }
+button { min-width: 210px; margin-top: 28px; padding: 12px 24px; border: 0; border-radius: 12px;
+  background: #111; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .55; cursor: wait; }
+.spinner { width: 30px; height: 30px; margin: 28px auto 0; border: 3px solid #dce3ec; border-top-color: #4273df;
+  border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .status-shell { padding: 16px 12px; } .status-card { padding: 32px 20px; border-radius: 18px; } }

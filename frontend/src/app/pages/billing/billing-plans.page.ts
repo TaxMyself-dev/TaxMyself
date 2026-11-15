@@ -118,8 +118,16 @@ export class BillingPlansPage implements OnInit {
   });
 
   ngOnInit(): void {
-    void this.billing.loadBillingState();
-    this.loadPlans();
+    void this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    await this.billing.loadBillingState();
+    if (this.billing.billingState()?.pendingCheckout) {
+      await this.router.navigate(['/billing/payment-status'], { replaceUrl: true });
+      return;
+    }
+    await this.loadPlans();
   }
 
   private async loadPlans(): Promise<void> {

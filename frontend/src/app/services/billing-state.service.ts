@@ -162,7 +162,14 @@ export interface ChangePaymentMethodStatus {
   reconciled: boolean;
 }
 
+export interface CheckoutResolutionStatus {
+  status: 'NONE' | 'PENDING' | 'COMPLETED' | 'DECLINED' | 'REVIEW';
+  flow: 'PLANS' | 'RECOVERY';
+  lowProfileId: string | null;
+}
+
 export interface BillingStateResponse {
+  pendingCheckout?: { status: 'PENDING' | 'REVIEW'; flow: 'PLANS' | 'RECOVERY' } | null;
   openBankingEnrollment?: { eventId: number; planId: number; status: 'PREPARE' | 'READY'; firstBillingAt: string } | null;
   pendingCancellation?: { eventId: number; effectiveAt: string } | null;
   pendingPlanChange?: { eventId: number; planId: number; planName: string;
@@ -207,6 +214,13 @@ export interface BillingStateResponse {
 @Injectable({ providedIn: 'root' })
 export class BillingStateService {
   private readonly http = inject(HttpClient);
+
+  getCheckoutResolution(lowProfileId?: string | null): Promise<CheckoutResolutionStatus> {
+    return firstValueFrom(this.http.get<CheckoutResolutionStatus>(
+      `${environment.apiUrl}billing/checkout/status`,
+      lowProfileId ? { params: { lowProfileId } } : {},
+    ));
+  }
 
   getPayerProfile(): Promise<BillingPayerProfile> {
     return firstValueFrom(this.http.get<BillingPayerProfile>(`${environment.apiUrl}billing/payer-profile`));
