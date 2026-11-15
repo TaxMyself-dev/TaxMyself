@@ -7,6 +7,7 @@ import {
   decodeAgentQuestionInput,
 } from "@/agent/chat/turn/agent-chat-question-answers";
 import type { AgentQuestionInput } from "@/agent/chat/turn/agent-chat-question-answers";
+import type { BusinessView } from "@/agent/core/ports/keepintax-ports";
 import { findAgentAnswerViolations } from "@/agent/core/turn/agent-answer-check";
 import {
   agentAnswerAsksUser,
@@ -57,6 +58,7 @@ const agentEvalQuestionText = (input: AgentQuestionInput) =>
  * @param supabase - The case's database.
  * @param writes - Where the case's stores record what the agent changed.
  * @param origin - How the user started this turn, as the chat records it.
+ * @param businesses - The data owner's businesses, for the answer check.
  * @returns The answer's steps, content, usage and follow-ups, and how long it took.
  */
 export const generateAgentEvalAnswer = async (
@@ -65,7 +67,8 @@ export const generateAgentEvalAnswer = async (
   input: string,
   supabase: ReturnType<typeof createAgentEvalDatabase>,
   writes: AgentEvalWrite[],
-  origin: AgentChatTurnOrigin = "typed"
+  origin: AgentChatTurnOrigin = "typed",
+  businesses: readonly BusinessView[] = []
 ) => {
   // The user's words without the <message_time> line the model reads; an
   // answer continued after approvals has none, as in the chat.
@@ -84,7 +87,9 @@ export const generateAgentEvalAnswer = async (
   // gets its follow-up questions.
   const stopHooks = createAgentStopHooks(
     async (check) =>
-      await appRuntime.runPromise(findAgentAnswerViolations(check))
+      await appRuntime.runPromise(
+        findAgentAnswerViolations({ ...check, businesses })
+      )
   );
 
   const started = performance.now();

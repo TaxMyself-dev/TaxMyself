@@ -142,13 +142,13 @@ describe.concurrent("reports: VAT", () => {
 
   it("an exempt business gets no VAT figure", async ({ expect }) => {
     const { run, reads } = await runPhase3("כמה מע״מ אני צריך לשלם החודש?", {
-      active: ceramics,
+      conversationBusiness: ceramics,
     });
 
     expect(calledToolNames(run)).toContain("getVatSummary");
 
-    // The active business: every VAT read leaves the business out (the
-    // active default) or names the workshop, never another business.
+    // The conversation's business (established earlier): every VAT read
+    // names the workshop or is filled in with it, never another business.
     for (const query of readsNamed(reads, "getVatSummary")) {
       expect([undefined, ceramics]).toContain(
         "businessNumber" in query ? query.businessNumber : undefined

@@ -42,3 +42,29 @@ During the first live attempt a plain restart booted this worktree's backend wit
 
 - Evals still model the old header default in their fakes (`active:`) and were not run; named-business and no-header eval cases are listed in the report §8.5.
 - Live checks used the dev chat page only; the production app has no chat surface yet.
+
+## Follow-up: evals aligned with the fix (2026-11-15, bounded diagnostic run)
+
+- Base revision `b2c7c0c8`. Changes are limited to the eval harness and fakes, the eval cases and the unit tests that use the fakes. No product code was changed.
+- Fakes (`agent-eval-books.ts`, `agent-eval-reports.ts`):
+  - The `active` option and its fallback are removed. A single-business read is the business asked for, else the only one, else `BUSINESS_REQUIRED`.
+  - `listUpcomingReports.activeBusiness` is the only business, else null.
+- Harness (`agent-eval-harness.ts`, `agent-eval-step-messages.ts`, `agent-eval-answer.ts`, `agent-eval-scenario.ts`) prepares each step with the production helpers:
+  - directory from `books.listBusinesses`;
+  - `withAgentBusinessContext`, `agentConversationBusiness` and `agentBusinessesSection` in the user context;
+  - books wrapped with `withConversationBusiness`;
+  - the answer check gets `businesses`.
+- Harness approximation: the eval's stored conversation keeps only user messages. The conversation's business is therefore the one the new message names, else the one carried from the previous answer's wrapper state. A button press is not itself an event in the eval: the model's read with that business number establishes it.
+- `AgentEvalScenario.conversationBusiness` replaces `active` for a business established before the first message. Phase 3 cases default it to the studio; the reports exempt case uses the workshop.
+- Cases:
+  - `query-expenses-businesses`: the "active" case becomes "fresh chat names the second business". The tool must receive 039876541, never the studio.
+  - `chat-interaction` S2 adds: no silent or all-business read before the buttons.
+  - New `chat-interaction` S2 retain/switch case: press the studio, then a phone follow-up reads the studio, then naming נועה קרמיקה reads it, with the fixture's 431.15.
+  - The all-business cases are kept, with `active` removed.
+- Deterministic results:
+  - `npx vitest run --project unit tests/src/agent/tools/books`: 37/37 passed.
+  - `npx tsc --noEmit -p .`: 0 errors.
+  - `npx ultracite check` on the 14 changed files: clean.
+- Live-model eval executions: **0 of the 5 allowed**. The 10-minute timebox was spent by 20:00. Started 19:51:23; deterministic checks finished 20:03 (about 12 minutes).
+- This was a bounded diagnostic run, not full regression verification. None of the updated or new eval cases has been run against the model; that is the remaining gap. The cases to run are the four named above, starting with `query-expenses-businesses` "reads the business a fresh chat names" and `chat-interaction` "a chosen business is kept…".
+- `runAgentHistory` (stored-history cases) is not wired to the business helpers.

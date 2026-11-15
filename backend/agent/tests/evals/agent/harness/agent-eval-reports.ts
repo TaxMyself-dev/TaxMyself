@@ -29,7 +29,7 @@ import type {
 // KeepInTax's other books and reports reads in memory, for the evals and the
 // agent's unit tests (Phase 3). Each answers as the Nest backend's
 // AgentBooksService does (backend/src/agent-harness/agent-books.service.ts):
-// one business (the one asked for, else the active one, else the only one),
+// one business (the one asked for, else the only one),
 // amounts summed in agorot, issued documents per type, VAT and advances by
 // whole periods (a bi-monthly business by two months), what is not counted
 // apart, and its failures as `CODE: detail` errors. The data is a design
@@ -547,7 +547,7 @@ export type AgentEvalReadQuery =
 /** What the evals' books give the report reads. */
 export interface AgentEvalReportsContext {
   readonly businesses: readonly AgentEvalReportBusiness[];
-  // The active business (the backend's verified one, else the only one).
+  // The only business, else null (the backend's listUpcomingReports).
   readonly active: AgentEvalReportBusiness | null;
   // The business the read is for (as the backend chooses it).
   readonly chooseBusiness: (

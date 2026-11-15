@@ -110,8 +110,7 @@ const pressed = (value: string) =>
 
 // Books as the Nest backend resolves them, no header: the business asked
 // for, else the only one, else BUSINESS_REQUIRED.
-const twoBusinessBooks = () =>
-  evalBooks([], { businesses: evalDirectory, active: null });
+const twoBusinessBooks = () => evalBooks([], { businesses: evalDirectory });
 
 const profitOf = async (
   books: ReturnType<typeof twoBusinessBooks>["books"],
@@ -217,7 +216,7 @@ describe("the conversation's business", () => {
   });
 
   it("the only business needs no choice", async () => {
-    const { books } = evalBooks([], { businesses: [designer], active: null });
+    const { books } = evalBooks([], { businesses: [designer] });
 
     const state = agentConversationBusinessState(
       [designer],

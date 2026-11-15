@@ -55,6 +55,10 @@ export interface AgentEvalScenario {
   // Fixed answers for KeepInTax's books and reports (evalBooks); without
   // them, any read fails the case.
   books?: KeepInTaxBooks;
+  // A business this conversation already established before the case's
+  // first message (as if the user had named it earlier); the harness reads
+  // it as the conversation's business (agent-conversation-business.ts).
+  conversationBusiness?: string;
   settings?: UserSettings;
   memories?: AgentMemory[];
   data?: AgentEvalData;

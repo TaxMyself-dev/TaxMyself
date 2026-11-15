@@ -52,9 +52,7 @@ describe.concurrent("query expenses, across businesses", () => {
   it("gives both businesses' fuel subtotals and the combined total from the books", async ({
     expect,
   }) => {
-    const { scenario: books, queries } = scenario({
-      active: evalDesignerBusiness.number,
-    });
+    const { scenario: books, queries } = scenario({});
 
     const run = await runAgentConversation(books, [
       "כמה הוצאתי על דלק השנה בכל עסק בנפרד, וכמה בשניהם ביחד?",
@@ -80,9 +78,7 @@ describe.concurrent("query expenses, across businesses", () => {
   it("gives the combined total only when asked for just that", async ({
     expect,
   }) => {
-    const { scenario: books, queries } = scenario({
-      active: evalDesignerBusiness.number,
-    });
+    const { scenario: books, queries } = scenario({});
 
     const run = await runAgentConversation(books, [
       "מה סך הוצאות הדלק השנה בשני העסקים שלי ביחד? תן רק את הסכום הכולל.",
@@ -95,22 +91,34 @@ describe.concurrent("query expenses, across businesses", () => {
     expect(answerNumbersNotFromTools(run)).toEqual([]);
   });
 
-  it("answers a question that names no business for the active one, and says which", async ({
+  // 2026-11-15 (business selection, S20): a fresh chat that names the
+  // second business reads it by number; there is no page default.
+  it("reads the business a fresh chat names, the second one, and says which", async ({
     expect,
   }) => {
-    const { scenario: books, queries } = scenario({
-      active: evalCeramicsBusiness.number,
-    });
+    const { scenario: books, queries } = scenario({});
 
-    const run = await runAgentConversation(books, ["כמה הוצאתי על דלק השנה?"]);
+    const run = await runAgentConversation(books, [
+      `כמה הוצאתי על דלק השנה ב${evalCeramicsBusiness.name}?`,
+    ]);
 
     expect(calledToolNames(run)).toContain("queryExpenses");
     expect(queries.some(coversBoth)).toBe(false);
+    expect(
+      queries.some(
+        (query) => query.businessNumber === evalCeramicsBusiness.number
+      )
+    ).toBe(true);
+    expect(
+      queries.some(
+        (query) => query.businessNumber === evalDesignerBusiness.number
+      )
+    ).toBe(false);
     expect(mentionsAmount(run.answer, "431.15")).toBe(true);
     expect(mentionsAmount(run.answer, "2093.15")).toBe(false);
     expect(answerNumbersNotFromTools(run)).toEqual([]);
     await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Answers for the active business", [
+      agentAnswerJudge("Answers for the named business", [
         "`test_case.actual_output` gives this year's fuel for the ceramics workshop (נועה קרמיקה) and names that business.",
       ]),
     ]);
@@ -120,7 +128,6 @@ describe.concurrent("query expenses, across businesses", () => {
     expect,
   }) => {
     const { scenario: books } = scenario({
-      active: evalDesignerBusiness.number,
       failing: [evalCeramicsBusiness.number],
     });
 

@@ -9,7 +9,7 @@ import { runAgentConversation } from "./agent-eval-harness";
 import { exampleEvalSettings } from "./agent-eval-settings-fixtures";
 
 // The Phase 3 eval cases' shared setup: one data owner with the design
-// studio (active) and the ceramics workshop, their books and reports
+// studio (the conversation's business, as if established earlier) and the ceramics workshop, their books and reports
 // (agent-eval-books.ts, agent-eval-reports.ts), in Hebrew.
 
 /** The design studio's number (licensed, bi-monthly VAT). */
@@ -18,24 +18,35 @@ export const studio = evalDesignerBusiness.number;
 /** The ceramics workshop's number (exempt). */
 export const ceramics = evalCeramicsBusiness.number;
 
+/** A Phase 3 scenario's options: the books', and the conversation's business. */
+export type Phase3Options = AgentEvalBooksOptions & {
+  readonly conversationBusiness?: string;
+};
+
 /**
- * A Phase 3 scenario: both businesses, the studio active unless options say
- * otherwise, every read recorded.
+ * A Phase 3 scenario: both businesses, the studio established in the
+ * conversation unless options say otherwise, every read recorded.
  *
- * @param options - Failures, the bank sync, another active business.
+ * @param options - Failures, the bank sync, another conversation business.
  * @returns The scenario and the reads it answered.
  */
-export const phase3Scenario = (options: AgentEvalBooksOptions = {}) => {
-  const { books, reads, queries } = evalBooks(evalTwoBusinessExpenses, {
+export const phase3Scenario = (options: Phase3Options = {}) => {
+  const { conversationBusiness = studio, ...books } = options;
+
+  const evalRun = evalBooks(evalTwoBusinessExpenses, {
     businesses: [evalDesignerBusiness, evalCeramicsBusiness],
-    active: studio,
-    ...options,
+    ...books,
   });
 
   return {
-    reads,
-    queries,
-    scenario: { settings: exampleEvalSettings, locale: "he" as const, books },
+    reads: evalRun.reads,
+    queries: evalRun.queries,
+    scenario: {
+      settings: exampleEvalSettings,
+      locale: "he" as const,
+      books: evalRun.books,
+      conversationBusiness,
+    },
   };
 };
 
@@ -48,7 +59,7 @@ export const phase3Scenario = (options: AgentEvalBooksOptions = {}) => {
  */
 export const runPhase3 = async (
   question: string,
-  options: AgentEvalBooksOptions = {}
+  options: Phase3Options = {}
 ) => {
   const { scenario, reads, queries } = phase3Scenario(options);
   const run = await runAgentConversation(scenario, [question]);

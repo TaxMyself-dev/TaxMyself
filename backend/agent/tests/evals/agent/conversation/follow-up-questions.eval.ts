@@ -41,7 +41,6 @@ describe.concurrent("follow-up questions", () => {
   }) => {
     const { books } = evalBooks(evalTwoBusinessExpenses, {
       businesses: [evalDesignerBusiness, evalCeramicsBusiness],
-      active: null,
     });
 
     const run = await runAgentConversation(

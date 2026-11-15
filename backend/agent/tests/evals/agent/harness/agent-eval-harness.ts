@@ -6,7 +6,7 @@ import type { ModelMessage } from "ai";
 import { logHyperparameters } from "deepeval";
 import type { ToolCall } from "deepeval/test-case";
 import { Turn } from "deepeval/test-case";
-import { Predicate } from "effect";
+import { Effect, Predicate } from "effect";
 import { afterAll, vi } from "vitest";
 
 import { agentChatModelHistory } from "@/agent/chat/messages/agent-chat-model-history";
@@ -16,6 +16,8 @@ import { agentModelId } from "@/agent/core/model/agent-model";
 import { appAgentTools } from "@/agent/core/tool-runtime/app-agent-tools";
 import { agentShortTermHistory } from "@/agent/memory/short-term-memory.server";
 import { withAgentSkillList } from "@/agent/skills/registry/agent-skills";
+import { withConversationBusiness } from "@/agent/tools/books/agent-conversation-business";
+import type { AgentConversationBusinessState } from "@/agent/tools/books/agent-conversation-business";
 import type {
   AgentChatMessage,
   AgentChatTurnOrigin,
@@ -164,7 +166,8 @@ const runEvalMessages = async (
   input: string,
   writes: AgentEvalWrite[],
   supabase: ReturnType<typeof createAgentEvalDatabase>,
-  origin: AgentChatTurnOrigin = "typed"
+  origin: AgentChatTurnOrigin = "typed",
+  businesses: AgentConversationBusinessState["directory"] = []
 ): Promise<
   Omit<AgentEvalRun, "turns"> & { responseMessages: ModelMessage[] }
 > => {
@@ -174,7 +177,8 @@ const runEvalMessages = async (
     input,
     supabase,
     writes,
-    origin
+    origin,
+    businesses
   );
 
   const toolErrors = agentEvalToolErrors(result);
@@ -253,7 +257,23 @@ export interface AgentEvalConversation {
   writes: AgentEvalWrite[];
   toolCalls: ToolCall[];
   turns: Turn[];
+  // The conversation's business after the last answer (KeepInTax,
+  // 2026-11-15, business selection), or null.
+  business: string | null;
 }
+
+// The data owner's businesses, read for each step as the chat endpoint
+// reads them (readAgentBusinessDirectory): none when the case gives no
+// books or the read fails.
+const readEvalBusinessDirectory = async (scenario: AgentEvalScenario) =>
+  scenario.books === undefined
+    ? []
+    : await Effect.runPromise(
+        scenario.books.listBusinesses().pipe(
+          Effect.map((directory) => directory.businesses),
+          Effect.orElseSucceed(() => [])
+        )
+      );
 
 /**
  * A new conversation on the case's fixtures, before the user's first step.
@@ -273,6 +293,7 @@ export const startAgentEvalConversation = (
     writes,
     toolCalls: [],
     turns: [],
+    business: scenario.conversationBusiness ?? null,
     supabase: createAgentEvalSession(scenario, writes),
   };
 };
@@ -293,12 +314,31 @@ export const runAgentEvalStep = async (
 ): Promise<{ run: AgentEvalRun; conversation: AgentEvalConversation }> => {
   pinEvalClock(evalMessageTime);
 
+  const directory = await readEvalBusinessDirectory(scenario);
+
   const stepMessages = await agentEvalStepMessages(
     step,
     earlier.turns.length,
     earlier,
-    earlier.lastFollowUps
+    earlier.lastFollowUps,
+    { directory, current: earlier.business }
   );
+
+  // The books as the chat endpoint gives them to the tools
+  // (agent-chat-answer-run.server.ts): the conversation's business filled in.
+  const business: AgentConversationBusinessState = {
+    directory,
+    current: stepMessages.current,
+    readByNumber: new Set(),
+  };
+
+  const answered =
+    scenario.books === undefined
+      ? scenario
+      : {
+          ...scenario,
+          books: withConversationBusiness(scenario.books, business),
+        };
 
   const messages: ModelMessage[] = [
     ...earlier.messages,
@@ -306,12 +346,13 @@ export const runAgentEvalStep = async (
   ];
 
   const run = await runEvalMessages(
-    scenario,
+    answered,
     messages,
     stepMessages.input,
     earlier.writes,
     earlier.supabase,
-    stepMessages.origin
+    stepMessages.origin,
+    directory
   );
 
   const toolCalls = [...earlier.toolCalls, ...run.toolCalls];
@@ -327,6 +368,7 @@ export const runAgentEvalStep = async (
       supabase: earlier.supabase,
       toolCalls,
       turns,
+      business: business.current,
     },
   };
 };

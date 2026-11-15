@@ -95,7 +95,6 @@ const oneBusiness = () => {
 const twoBusinessesNoneActive = () => {
   const { books, queries } = evalBooks(evalTwoBusinessExpenses, {
     businesses: [evalDesignerBusiness, evalCeramicsBusiness],
-    active: null,
   });
 
   return {
@@ -158,7 +157,9 @@ const memoryWrites = (run: AgentEvalRun | undefined) =>
 const minutesBefore = (minutes: number) =>
   new Date(Date.parse(evalMessageTime) - minutes * 60_000).toISOString();
 
-// The query that read one business: its number, or the active one.
+// The query that read one business by its number (the harness's production
+// wrapper fills in the conversation's business, so a read the model left
+// unnamed shows the number it was answered for).
 const readsBusiness = (query: ExpenseQuery, number: string) =>
   query.businessNumber === number ||
   (query.businessNumbers?.length === 1 && query.businessNumbers[0] === number);
@@ -193,7 +194,7 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
     ]);
   });
 
-  it("S2: several businesses, none active: business buttons with real values, then the same request completes", async ({
+  it("S2: several businesses, none named or established: business buttons with real values, then the same request completes", async ({
     expect,
   }) => {
     const { scenario, queries } = twoBusinessesNoneActive();
@@ -208,6 +209,15 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
     // numbers as the buttons' values, and nothing else.
     expect(calledToolNames(asked)).toContain("queryExpenses");
     expect(asked.question).not.toBeNull();
+    // No silent selection and no automatic all-business read (2026-11-15).
+    expect(
+      queries.some(
+        (query) =>
+          query.allBusinesses === true ||
+          (query.businessNumbers?.length ?? 0) > 1 ||
+          query.businessNumber !== undefined
+      )
+    ).toBe(false);
 
     const values = questionValues(asked);
 
@@ -284,9 +294,8 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
     expect(answerNumbersNotFromTools(next.run)).toEqual([]);
   });
 
-  // The user switches the app's active business between the question and
-  // the press: the press names its business, so that one is read, not the
-  // newly active one.
+  // 2026-11-15: the page's active business is no longer a fake default; the
+  // press names its business, so that one is read with fresh books.
   it("S2: a business switched before the press: the chosen business is read", async ({
     expect,
   }) => {
@@ -295,7 +304,6 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
 
     const switched = evalBooks(evalTwoBusinessExpenses, {
       businesses: [evalDesignerBusiness, evalCeramicsBusiness],
-      active: evalCeramicsBusiness.number,
     });
 
     const next = await runAgentEvalStep(
@@ -313,6 +321,61 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
     expect(mentionsAmount(next.run.answer, "1662")).toBe(true);
     expect(mentionsAmount(next.run.answer, "431.15")).toBe(false);
     expect(answerNumbersNotFromTools(next.run)).toEqual([]);
+  });
+
+  // 2026-11-15 (business selection): the pressed business stays the
+  // conversation's for a follow-up that names none; naming the other
+  // business switches. Judged on the numbers the reads were answered for.
+  it("S2: a chosen business is kept for a follow-up, and naming the other switches", async ({
+    expect,
+  }) => {
+    const { scenario, queries } = twoBusinessesNoneActive();
+    const first = await runSteps(scenario, [{ message: fuelQuestion }]);
+
+    const chosen = await runStepsAfter(
+      scenario,
+      [
+        { answer: { value: evalDesignerBusiness.number } },
+        { message: "ומה עם הטלפון הנייד באותה תקופה?" },
+      ],
+      first
+    );
+
+    const afterPress = queries.length;
+    expect(chosen.runs.at(2)).toBeDefined();
+
+    const switched = await runStepsAfter(
+      scenario,
+      [{ message: "ובעסק נועה קרמיקה, כמה דלק?" }],
+      chosen
+    );
+
+    const followUpReads = queries
+      .slice(0, afterPress)
+      .filter((query) => /טלפון|נייד/u.test(JSON.stringify(query)));
+
+    expect(followUpReads.length).toBeGreaterThanOrEqual(1);
+    expect(
+      followUpReads.every((query) =>
+        readsBusiness(query, evalDesignerBusiness.number)
+      )
+    ).toBe(true);
+
+    const switchReads = queries.slice(afterPress);
+
+    expect(
+      switchReads.some((query) =>
+        readsBusiness(query, evalCeramicsBusiness.number)
+      )
+    ).toBe(true);
+    expect(
+      switchReads.some((query) =>
+        readsBusiness(query, evalDesignerBusiness.number)
+      )
+    ).toBe(false);
+    expect(mentionsAmount(switched.runs.at(-1)?.answer ?? "", "431.15")).toBe(
+      true
+    );
   });
 
   it("S3: pressing a follow-up continues the analysis and creates nothing", async ({

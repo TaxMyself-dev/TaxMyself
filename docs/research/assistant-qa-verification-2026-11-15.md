@@ -437,3 +437,8 @@ Six model answer turns. No memory, task or accounting change (fixture
 identical). Deterministic coverage (unit and Nest specs) is listed in the
 task record. Remaining: the evals' fakes still emulate the old header
 default and were not run.
+
+
+### 9.x Evals aligned (bounded diagnostic run, 2026-11-15)
+
+The eval fakes no longer default to the page's active business. The harness prepares each step with the production business helpers, and the named-business, ambiguous, retain and switch cases are added or updated. The deterministic checks pass: books unit tests 37/37, `tsc` clean, lint clean. **No live-model eval was run** because the 10-minute timebox ran out. This is not full regression verification. Details and the remaining gaps are in `docs/tasks/active/assistant-business-selection.md` under "Follow-up: evals aligned".

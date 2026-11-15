@@ -188,16 +188,17 @@ describe("queryExpenses", () => {
   );
 
   it.effect(
-    "with several businesses: the active one by default, a question for one when none is active",
+    "with several businesses: the one asked for, a question for one when none is asked (no page default)",
     () =>
       Effect.gen(function* activeBusiness() {
-        const active = evalBooks(evalTwoBusinessExpenses, {
-          ...twoBusinesses,
-          active: evalCeramicsBusiness.number,
-        });
+        const named = evalBooks(evalTwoBusinessExpenses, twoBusinesses);
 
         const inActive = oneBusiness(
-          yield* active.books.queryExpenses({ ...thisYear, search: "דלק" })
+          yield* named.books.queryExpenses({
+            ...thisYear,
+            search: "דלק",
+            businessNumber: evalCeramicsBusiness.number,
+          })
         );
 
         assert.strictEqual(inActive.business.number, "039876541");

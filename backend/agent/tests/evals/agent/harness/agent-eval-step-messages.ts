@@ -15,9 +15,16 @@ import {
   agentUserContextText,
   withAgentUserContext,
 } from "@/agent/core/agent/agent-user-context";
+import type { BusinessView } from "@/agent/core/ports/keepintax-ports";
 import { appAgentTools } from "@/agent/core/tool-runtime/app-agent-tools";
 import { readStoredAgentMemories } from "@/agent/memory/long-term-memory.server";
 import { agentSkillListMessages } from "@/agent/skills/registry/agent-skills";
+import {
+  agentBusinessesSection,
+  agentConversationBusiness,
+  businessContextPart,
+  withAgentBusinessContext,
+} from "@/agent/tools/books/agent-conversation-business";
 import type {
   AgentChatMessage,
   AgentChatTurnOrigin,
@@ -41,10 +48,12 @@ import type {
  * endpoint reads it for each new message.
  *
  * @param supabase - The case's database.
+ * @param businesses - The <businesses> section (agentBusinessesSection).
  * @returns The user context's text.
  */
 export const readAgentEvalUserContext = async (
-  supabase: ReturnType<typeof createAgentEvalDatabase>
+  supabase: ReturnType<typeof createAgentEvalDatabase>,
+  businesses = ""
 ) =>
   await appRuntime.runPromise(
     Effect.all(
@@ -55,10 +64,37 @@ export const readAgentEvalUserContext = async (
       { concurrency: "unbounded" }
     ).pipe(
       Effect.map(([settings, memories]) =>
-        agentUserContextText(settings, memories)
+        agentUserContextText(settings, memories, businesses)
       )
     )
   );
+
+/**
+ * The data owner's businesses and the conversation's business before a
+ * step (agent-eval-harness.ts carries it from answer to answer).
+ */
+export interface AgentEvalStepBusiness {
+  readonly directory: readonly BusinessView[];
+  readonly current: string | null;
+}
+
+const noBusinesses: AgentEvalStepBusiness = { directory: [], current: null };
+
+// The stored eval conversation keeps only the user's messages, so the
+// conversation's business is the one this message establishes
+// (agentConversationBusiness on it: one named, or null for several), else
+// the one carried from the earlier answers (whose reads the production
+// wrapper recorded).
+const conversationBusinessAfter = (
+  messages: AgentChatMessage[],
+  business: AgentEvalStepBusiness
+) => {
+  const last = messages.at(-1);
+
+  return last?.parts.some((part) => part.type === businessContextPart) === true
+    ? agentConversationBusiness([last], business.directory)
+    : business.current;
+};
 
 /**
  * KeepInTax (Phase 3.1, A18): the question an answer stopped on, waiting
@@ -144,19 +180,23 @@ const agentEvalQuestionResult = (
  * @param index - The step's place in the conversation.
  * @param earlier - The conversation so far.
  * @param lastFollowUps - The follow-ups under the last answer.
- * @returns The model messages, the judges' input, the stored messages and
- *   the turn's origin.
+ * @param business - The directory and the conversation's business before it.
+ * @returns The model messages, the judges' input, the stored messages, the
+ *   turn's origin and the conversation's business after it.
  */
 export const agentEvalStepMessages = async (
   step: AgentEvalUserStep,
   index: number,
   earlier: AgentEvalConversation,
-  lastFollowUps: readonly string[] = []
+  lastFollowUps: readonly string[] = [],
+  business: AgentEvalStepBusiness = noBusinesses
 ): Promise<{
   messages: ModelMessage[];
   input: string;
   stored: AgentChatMessage[];
   origin: AgentChatTurnOrigin;
+  // The conversation's business after this step's message.
+  current: string | null;
 }> => {
   const open = openAgentEvalQuestion(earlier.messages);
 
@@ -173,6 +213,7 @@ export const agentEvalStepMessages = async (
     }
 
     return {
+      current: business.current,
       stored: earlier.stored,
       messages: [agentEvalQuestionResult(open, answer)],
       input: `[pressed "${answer.label}"]`,
@@ -182,6 +223,7 @@ export const agentEvalStepMessages = async (
 
   if ("decisions" in step) {
     return {
+      current: business.current,
       stored: earlier.stored,
       origin: "approval",
       messages: [
@@ -215,7 +257,10 @@ export const agentEvalStepMessages = async (
 
   const id = `eval-user-${index}`;
 
-  const stored = withAgentUserContext(
+  // As the chat endpoint prepares it (agent-chat-response.server.ts): the
+  // businesses the message names recorded on it, the conversation's
+  // business, then the user context with the <businesses> section.
+  const named = withAgentBusinessContext(
     [
       ...earlier.stored,
       {
@@ -225,7 +270,17 @@ export const agentEvalStepMessages = async (
         parts: [{ type: "text", text: step.message }],
       },
     ],
-    await readAgentEvalUserContext(earlier.supabase)
+    business.directory
+  );
+
+  const current = conversationBusinessAfter(named, business);
+
+  const stored = withAgentUserContext(
+    named,
+    await readAgentEvalUserContext(
+      earlier.supabase,
+      agentBusinessesSection(business.directory, current)
+    )
   );
 
   // The new message as the endpoint's history reads it: its context and
@@ -252,6 +307,7 @@ export const agentEvalStepMessages = async (
     : (own?.content ?? "");
 
   return {
+    current,
     messages: [...superseded, ...messages],
     input,
     stored,

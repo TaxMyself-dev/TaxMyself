@@ -17,8 +17,11 @@ import type { AgentEvalReadQuery } from "./agent-eval-reports";
 // KeepInTax's books in memory for the evals (KeepInTaxBooks): a data
 // owner's businesses and their expenses, answered as the Nest backend
 // answers them (backend/src/agent-harness/agent-domain.service.ts):
-// - one business: the one asked for, else the active one, else the only
-//   one; several without an active one ask which (BUSINESS_REQUIRED);
+// - one business: the one asked for, else the only one; several without
+//   one asked for ask which (BUSINESS_REQUIRED). The page's active business
+//   is never a default (2026-11-15, business selection): the harness fills
+//   in the conversation's business with the production wrapper
+//   (withConversationBusiness, agent-eval-harness.ts);
 // - businessNumbers or allBusinesses: the same query in each, every number
 //   checked first (a foreign one is refused outright), and the combined
 //   totals only when every business answered;
@@ -217,9 +220,6 @@ export interface AgentEvalBooksOptions {
   // The owner's businesses, in the app's order; the designer's alone when
   // left out.
   readonly businesses?: readonly AgentEvalBusiness[];
-  // The app's active business; left out, the only business when there is
-  // one, none when there are several.
-  readonly active?: string | null;
   // Businesses whose reads fail (BOOKS_UNAVAILABLE), as a lost connection
   // would.
   readonly failing?: readonly string[];
@@ -248,7 +248,7 @@ const promised =
  * recorded.
  *
  * @param expenses - The owner's expenses, each in its business.
- * @param options - The owner's businesses, the active one, failures.
+ * @param options - The owner's businesses, failures.
  * @returns The books port and the queries it answered.
  */
 export const evalBooks = (
@@ -259,12 +259,8 @@ export const evalBooks = (
   const businesses = options.businesses ?? [evalDesignerBusiness];
   const [firstBusiness] = businesses;
 
-  // Left out: the only business when there is one, none when there are
-  // several.
-  const onlyBusiness =
-    businesses.length === 1 ? (firstBusiness?.number ?? null) : null;
-
-  const active = options.active === undefined ? onlyBusiness : options.active;
+  // The only business, as the backend's listUpcomingReports reports it.
+  const onlyBusiness = businesses.length === 1 ? (firstBusiness ?? null) : null;
 
   const businessOf = (expense: AgentEvalExpense) =>
     expense.businessNumber ?? firstBusiness?.number;
@@ -350,7 +346,7 @@ export const evalBooks = (
   };
 
   const chooseBusiness = (asked: string | undefined) => {
-    const wanted = asked ?? active ?? undefined;
+    const wanted = asked;
 
     if (wanted !== undefined) {
       const found = businesses.find((business) => business.number === wanted);
@@ -511,7 +507,7 @@ export const evalBooks = (
       }),
     ...evalReportReads({
       businesses,
-      active: businesses.find((business) => business.number === active) ?? null,
+      active: onlyBusiness,
       chooseBusiness,
       pendingExpenses,
       bankSync: options.bankSync ?? "success",
@@ -540,7 +536,7 @@ export const evalBooks = (
  * (AgentDomain, plain promises), for tests of createKeepInTaxBooks.
  *
  * @param expenses - The owner's expenses.
- * @param options - The owner's businesses, the active one, failures.
+ * @param options - The owner's businesses, failures.
  * @returns The domain.
  */
 export const evalAgentDomain = (

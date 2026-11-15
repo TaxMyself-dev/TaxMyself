@@ -2,6 +2,8 @@ import { assert, describe, it } from "@effect/vitest";
 import { asSchema } from "ai";
 import { Effect, Exit } from "effect";
 
+import { withConversationBusiness } from "@/agent/tools/books/agent-conversation-business";
+
 import type { KeepInTaxBooks } from "../../../../../src/agent/core/ports/keepintax-ports";
 import { keepInTaxBooksReads } from "../../../../../src/agent/core/ports/keepintax-ports";
 import { agentSourceErrorText } from "../../../../../src/agent/core/tool-runtime/agent-tool-error-next-step";
@@ -51,9 +53,25 @@ const user = {
 
 const request = new Request("http://localhost/api/agent/chat");
 
+// The conversation established the studio (2026-11-15, business
+// selection): the production wrapper fills it in, as the chat does; the
+// fakes have no page default.
+const studioState = () => ({
+  directory: [evalDesignerBusiness, evalCeramicsBusiness],
+  current: evalDesignerBusiness.number,
+  readByNumber: new Set<string>(),
+});
+
+const inStudio = (books: KeepInTaxBooks) =>
+  withConversationBusiness(books, studioState());
+
+const studioBooks = (run: ReturnType<typeof evalBooks>) => ({
+  ...run,
+  books: inStudio(run.books),
+});
+
 const both = {
   businesses: [evalDesignerBusiness, evalCeramicsBusiness],
-  active: evalDesignerBusiness.number,
 };
 
 const january = { from: "2026-01-01", to: "2026-01-31" };
@@ -173,14 +191,14 @@ describe("the books and reports tools", () => {
         const domain = evalAgentDomain(evalTwoBusinessExpenses, both);
 
         const vat = yield* inRequest(domain, () =>
-          createKeepInTaxBooks().getVatSummary({
+          inStudio(createKeepInTaxBooks()).getVatSummary({
             from: "2026-01-01",
             to: "2026-02-28",
           })
         );
 
         const clients = yield* inRequest(domain, () =>
-          createKeepInTaxBooks().listClients({})
+          inStudio(createKeepInTaxBooks()).listClients({})
         );
 
         assert.deepStrictEqual(
@@ -224,7 +242,7 @@ describe("the books and reports tools", () => {
 
         const other = yield* inRequest(
           failingAgentDomain(new Error("socket hang up")),
-          () => createKeepInTaxBooks().getProfitAndLoss(january)
+          () => inStudio(createKeepInTaxBooks()).getProfitAndLoss(january)
         );
 
         assert.include(String(other), "BOOKS_UNAVAILABLE: socket hang up");
@@ -247,7 +265,9 @@ describe("the evals' report reads (fake ports)", () => {
     "VAT: a month widens to its bi-monthly period, across a year boundary too",
     () =>
       Effect.gen(function* vatPeriods() {
-        const { books, reads } = evalBooks(evalTwoBusinessExpenses, both);
+        const { books, reads } = studioBooks(
+          evalBooks(evalTwoBusinessExpenses, both)
+        );
 
         const firstPeriod = yield* books.getVatSummary(january);
 
@@ -292,7 +312,7 @@ describe("the evals' report reads (fake ports)", () => {
     () =>
       Effect.gen(function* transactions() {
         const thisYear = { from: "2026-01-01", to: "2026-10-04" };
-        const { books } = evalBooks(evalTwoBusinessExpenses, both);
+        const { books } = studioBooks(evalBooks(evalTwoBusinessExpenses, both));
 
         const all = yield* books.queryTransactions(thisYear);
 
@@ -302,10 +322,9 @@ describe("the evals' report reads (fake ports)", () => {
         assert.deepStrictEqual(all.notLinkedToBusiness, { count: 1 });
         assert.isFalse(all.complete);
 
-        const partial = evalBooks(evalTwoBusinessExpenses, {
-          ...both,
-          bankSync: "partial",
-        });
+        const partial = studioBooks(
+          evalBooks(evalTwoBusinessExpenses, { ...both, bankSync: "partial" })
+        );
 
         const fuel = yield* partial.books.queryTransactions({
           ...thisYear,
@@ -333,7 +352,7 @@ describe("the evals' report reads (fake ports)", () => {
     "issued documents: per type, the cancelled and drafts apart, clients listed when none matched",
     () =>
       Effect.gen(function* documents() {
-        const { books } = evalBooks(evalTwoBusinessExpenses, both);
+        const { books } = studioBooks(evalBooks(evalTwoBusinessExpenses, both));
 
         const september = yield* books.queryIssuedDocuments({
           from: "2026-09-01",
@@ -392,7 +411,7 @@ describe("the evals' report reads (fake ports)", () => {
     "upcoming reports: the overdue VAT report, the reported ones left out",
     () =>
       Effect.gen(function* upcoming() {
-        const { books } = evalBooks(evalTwoBusinessExpenses, both);
+        const { books } = studioBooks(evalBooks(evalTwoBusinessExpenses, both));
 
         const studio = yield* books.listUpcomingReports({
           businessNumber: evalDesignerBusiness.number,
