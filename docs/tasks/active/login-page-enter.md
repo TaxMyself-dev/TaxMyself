@@ -96,3 +96,40 @@ Main integration/push remain unauthorized for this feature.
   No global Node/CLI installation changes. No backend or production deployment.
 - Final release/artifact verification is recorded in ignored deployment-logs
   evidence and the final chat response after the deployment completes.
+
+## Follow-up: closed PrimeNG host blocked background Enter
+
+- Reproduced by read-only DOM inspection of the user's actual DEV browser tab:
+  focus was BODY, native submit was enabled, and the sole dialog selector match
+  was an empty p-dialog[role=alertdialog], display:block, width 1920 / height 0.
+  No credential values were read and no authentication action was triggered.
+- The old getClientRects().length guard treated that zero-area host as an open
+  dialog. PrimeNG keeps its host mounted after the real panel is closed.
+- Fix: a blocking dialog must have CSS visibility:visible and a rectangle with
+  both width and height greater than zero. Real nested dialog panels still block.
+- Same focused test command above, now on direct Node 20.20.2: PASS, 32 tests,
+  exit 0 (29 existing plus three regressions for zero-height host, real panel in
+  a zero-height host, and CSS-hidden positive-size panel).
+- Production build: direct Node 20.20.2, NG_BUILD_MAX_WORKERS=1, ng build
+  --configuration production --progress=false: PASS, exit 0, hash
+  212e1b12afc969e0, reported build time 154610 ms. Same nonfatal stylesheet/
+  initial bundle budget and CommonJS warning categories as the previous build.
+- git diff --check: PASS. No executable changes after passing tests/build.
+- No executable edits after passing tests except an explanatory source comment.
+- Elazar explicitly approved this follow-up test integration, test push and
+  frontend-only deployment. Main integration/push remain unauthorized.
+
+## Follow-up test integration
+
+- Applied fix 1ac7e71a on test base 7a175c6f. Executable code merged cleanly;
+  preserved both prior test-delivery history and this follow-up in the sole
+  task-document append conflict.
+- Combined verification repeated on integrated test with direct Node 20.20.2
+  and the three-spec integration command above: PASS, 36 tests, Chrome Headless 157.
+- Feature production build evidence is 212e1b12afc969e0. The guarded deployment
+  will build the complete integrated DEV frontend before any Hosting write.
+- git diff --cached --check: PASS. No executable changes after verification.
+- Use the existing ignored Node 20.20.2 npm/Firebase launchers and one build worker.
+- Only test is pushed and only hosting:app in taxmyself-5d8a0 is deployed.
+  No backend/schema/production changes. Final cloud/artifact evidence is stored
+  under ignored deployment-logs and reported in chat after deployment.
