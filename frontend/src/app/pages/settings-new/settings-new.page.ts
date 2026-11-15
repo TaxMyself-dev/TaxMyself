@@ -6,6 +6,7 @@ import { SettingsPage } from '../settings/settings.page';
 import { SettingsField, SettingsNewFieldComponent } from './settings-new-field.component';
 import { Validators } from '@angular/forms';
 import { Business } from '../../shared/interface';
+import { finalize, switchMap, take } from 'rxjs';
 
 export type PersonalSection = 'account' | 'businesses';
 
@@ -26,6 +27,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   readonly personalExpanded = signal(true);
   readonly familyMenuOpen = signal(false);
   readonly showSpouse = signal(false);
+  readonly personalEditing = signal(false);
   readonly spouseEditing = signal(false);
   readonly businessEditing = signal<number | null>(null);
   readonly childEditing = signal<number | null>(null);
@@ -123,11 +125,56 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   valid(group: FormGroup): boolean { group.markAllAsTouched(); return group.valid; }
   savePersonal(): void {
     if (this.authService.isViewingAsClient() || !this.valid(this.personalFormGroup)) return;
-    this.updatePersonalDetails();
+    this.persistAccountForm(false);
   }
   saveSpouse(): void {
     if (this.authService.isViewingAsClient() || !this.valid(this.spouseFormGroup)) return;
-    this.updateSpouseDetails();
+    this.persistAccountForm(true);
+  }
+  private apiFormDate(value: Date | null): string {
+    if (!(value instanceof Date) || isNaN(value.getTime())) return '';
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+  }
+  private savedFormDate(value: string | Date | null | undefined): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    const iso = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const display = String(value).match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    const result = iso ? new Date(+iso[1], +iso[2] - 1, +iso[3])
+      : display ? new Date(+display[3], +display[2] - 1, +display[1]) : new Date(value);
+    return isNaN(result.getTime()) ? null : result;
+  }
+  private persistAccountForm(isSpouse: boolean): void {
+    const form = isSpouse ? this.spouseFormGroup : this.personalFormGroup;
+    const saving = isSpouse ? this.savingSpouse : this.savingPersonal;
+    const editing = isSpouse ? this.spouseEditing : this.personalEditing;
+    if (saving()) return;
+    const payload = Object.fromEntries(Object.entries(form.getRawValue()).map(([key, value]) => [
+      key, value instanceof Date ? this.apiFormDate(value) || undefined : typeof value === 'string' ? value.trim() || undefined : value ?? undefined,
+    ]));
+    saving.set(true);
+    this.authService.updateUser(payload).pipe(
+      switchMap(() => this.authService.restoreUserData()),
+      take(1),
+      finalize(() => saving.set(false)),
+    ).subscribe({
+      next: user => {
+        if (!user) {
+          this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'הפרטים נשמרו אך לא ניתן לרענן את הנתונים. נסו שוב.', key: 'br' });
+          return;
+        }
+        this.userData = user;
+        const values = Object.fromEntries(Object.keys(form.controls).map(key => {
+          const value = user[key] ?? (key === 'spouseDateOfBirth' ? user['spouse_date_of_birth'] : undefined);
+          return [key, key === 'dateOfBirth' || key === 'spouseDateOfBirth' ? this.savedFormDate(value) : value ?? ''];
+        }));
+        form.patchValue(values);
+        form.markAsPristine();
+        editing.set(false);
+        this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'הפרטים נשמרו בהצלחה', key: 'br' });
+      },
+      error: () => this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לשמור את הפרטים. נסו שוב.', key: 'br' }),
+    });
   }
   async saveNewBusiness(index: number): Promise<void> {
     const group = this.businessesFormArray.at(index);
@@ -160,6 +207,26 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   saveFamilyChildren(): void {
     if (this.authService.isViewingAsClient()) return;
     this.childrenFormArray.markAllAsTouched();
-    if (this.childrenFormArray.valid) this.updateChildrenDetails();
+    if (!this.childrenFormArray.valid || this.savingChildren()) return;
+    const payload = this.childrenFormArray.controls.map(group => {
+      const value = group.getRawValue();
+      return {
+        childFName: value.childFName?.trim() ?? '',
+        childLName: value.childLName?.trim() ?? '',
+        childDate: this.apiFormDate(value.childDate),
+      };
+    });
+    this.savingChildren.set(true);
+    this.authService.updateChildren(payload).pipe(take(1), finalize(() => this.savingChildren.set(false))).subscribe({
+      next: saved => {
+        const children = Array.isArray(saved) ? saved : [];
+        this.children.set(children);
+        this.childrenFormArray.clear();
+        children.forEach(child => this.childrenFormArray.push(this.buildChildForm(child)));
+        this.childEditing.set(null);
+        this.messageService.add({ severity: 'success', summary: 'הצלחה', detail: 'פרטי הילדים נשמרו בהצלחה', key: 'br' });
+      },
+      error: () => this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לשמור את פרטי הילדים. נסו שוב.', key: 'br' }),
+    });
   }
 }

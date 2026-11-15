@@ -19,3 +19,10 @@ files under `pages/settings/` unchanged during the design trial.
   as an application entry point or bypass authentication/route guards.
 
 See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
+- Account, spouse and each child start read-only with one Edit action. Editing
+  shows Save/Clear. Clear resets only the draft and keeps edit mode open. Close
+  edit mode only after a successful server response (and account-profile refresh
+  for personal/spouse); failures retain the entered values and edit state.
+- These new-page callbacks use the existing AuthService APIs without changing
+  the old SettingsPage callbacks. Reload the saved form from server values and
+  preserve local calendar dates. New family members open directly in edit mode.

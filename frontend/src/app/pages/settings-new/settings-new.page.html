@@ -20,7 +20,7 @@
         <article class="panel personal-panel">
           <h2 id="account-heading">{{ isCompany() ? 'פרטי חברה' : 'חשבון אישי' }}</h2>
           <div class="profile-image">
-            <app-account-image [editable]="true" [imagePath]="userData?.profileImagePath"
+            <app-account-image [editable]="personalEditing()" [imagePath]="userData?.profileImagePath"
               [contextKey]="userData?.firebaseId || ''" [disabled]="authService.isViewingAsClient()"
               (imageChanged)="onProfileImageChanged($event)" />
           </div>
@@ -28,12 +28,16 @@
             <div class="fields-grid">
               @for (field of personalFields; track field.key) {
                 @if (!isCompany() || ['fName', 'email', 'phone'].includes(field.key)) {
-                  <app-new-settings-field [group]="personalFormGroup" [disabled]="authService.isViewingAsClient() || savingPersonal()" [field]="isCompany() && field.key === 'fName' ? {key: 'fName', label: 'שם החברה'} : field" />
+                  <app-new-settings-field [group]="personalFormGroup" [readonly]="!personalEditing()" [disabled]="authService.isViewingAsClient() || savingPersonal()" [field]="isCompany() && field.key === 'fName' ? {key: 'fName', label: 'שם החברה'} : field" />
                 }
               }
             </div>
-            <div class="actions"><button type="button" (click)="savePersonal()">{{ savingPersonal() ? 'שומר...' : 'שמור' }}</button>
-              <button type="button" (click)="personalFormGroup.reset()">נקה</button></div>
+            <div class="actions">
+              @if (personalEditing()) {
+                <button type="button" (click)="savePersonal()">{{ savingPersonal() ? 'שומר...' : 'שמור' }}</button>
+                <button type="button" (click)="personalFormGroup.reset()">נקה</button>
+              } @else { <button type="button" (click)="personalEditing.set(true)">ערוך</button> }
+            </div>
           </fieldset>
         </article>
 
@@ -48,7 +52,10 @@
                   }
                 </div>
                 <div class="actions">
-                  @if (spouseEditing()) { <button type="button" (click)="saveSpouse()">{{ savingSpouse() ? 'שומר...' : 'שמור' }}</button> }
+                  @if (spouseEditing()) {
+                    <button type="button" (click)="saveSpouse()">{{ savingSpouse() ? 'שומר...' : 'שמור' }}</button>
+                    <button type="button" (click)="spouseFormGroup.reset()">נקה</button>
+                  }
                   @else { <button type="button" (click)="spouseEditing.set(true)">ערוך</button> }
                 </div>
               </fieldset>
@@ -60,14 +67,15 @@
               <fieldset [disabled]="authService.isViewingAsClient() || savingChildren()">
                 <div class="fields-grid">
                   @for (field of childFields; track field.key) {
-                    <app-new-settings-field [group]="group" [disabled]="authService.isViewingAsClient() || savingChildren()" [field]="field" [readonly]="childEditing() !== i && children()[i]?.index != null" />
+                    <app-new-settings-field [group]="group" [disabled]="authService.isViewingAsClient() || savingChildren()" [field]="field" [readonly]="childEditing() !== i" />
                   }
                 </div>
                 <div class="actions">
-                  @if (childEditing() === i || children()[i]?.index == null) {
+                  @if (childEditing() === i) {
                     <button type="button" (click)="saveFamilyChildren()">{{ savingChildren() ? 'שומר...' : 'שמור' }}</button>
+                    <button type="button" (click)="group.reset()">נקה</button>
                   } @else { <button type="button" (click)="childEditing.set(i)">ערוך</button> }
-                  <button type="button" (click)="removeNewChild(i)">מחק</button>
+
                 </div>
               </fieldset>
             </article>

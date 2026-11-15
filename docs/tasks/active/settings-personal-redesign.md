@@ -138,3 +138,30 @@ Validation:
   PASS (no changes).
 - Existing local edits to npm start, API port and spouse heading are preserved
   separately from the correction commit. No backend, ENV, main or remote changes.
+
+## Account/family edit cycle (2026-11-15)
+
+Personal details, spouse and each child now default to read-only with one Edit
+button. Edit reveals controls and exactly Save/Clear for that section. Clear
+resets its draft without a server call or closing edit mode. Successful saves
+restore Edit and read-only fields. New family members start in edit mode.
+Profile image editing follows the personal Edit state and retains its existing
+explicit image upload flow.
+
+New-page callbacks use the existing AuthService update-user/children APIs so they
+can react to actual asynchronous success rather than button clicks. Personal and
+spouse saves refresh the profile and use authoritative returned fields. Failed
+updates or refreshes keep the editor open. Child success rebuilds server-backed
+forms and clears the active child editor. Local calendar dates are preserved.
+No changes were made to old settings, shared selects, backend or schema.
+
+Focused verification command (from frontend):
+`node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/*.spec.ts --include=src/app/pages/settings/settings-access.policy.spec.ts --ts-config=.test-tmp/tsconfig.focused.json --progress=false`
+
+Final focused tests: PASS, 15/15, including pending/success/error for personal,
+spouse and children, authoritative saved values, date payloads and prior select
+filtering/selection checks. Existing full-suite limitations remain as documented.
+No authenticated data was changed during verification. User's existing local
+ports and spouse heading edit remain separate from the implementation commit.
+
+Final production build: PASS. Build at: 2026-11-15T10:33:09.345Z - Hash: 842eaa61c6c8155b - Time: 35963ms Existing budget/CommonJS warnings remain unchanged.
