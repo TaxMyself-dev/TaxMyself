@@ -113,3 +113,28 @@ node node_modules/@angular/cli/bin/ng.js serve --host 127.0.0.1 --port 4318 --bu
 
 Open `http://127.0.0.1:4318/settings-new` and sign in normally. This server uses
 `environment.dev.ts`, not production. No local backend was started.
+
+## Shared select correction (2026-11-15)
+
+All option fields in the new page now render the existing `app-input-select`,
+including its default search/filter, PrimeNG options panel and typed values.
+The new field wrapper only scopes width, height, border, radius and label styles;
+it does not style the body-appended panel. Change events still trigger proprietor
+number synchronization. Explicit disabled inputs preserve represented-client and
+in-flight-save restrictions for the composite control (native fieldset alone is
+insufficient). The old settings page and shared input-select files are unchanged.
+
+Validation:
+- `npm run build -- --configuration production --progress=false`: PASS,
+  build hash `afeaec04d7a8ab67`, 115.640 seconds; existing warnings remain.
+- `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/*.spec.ts --include=src/app/pages/settings/settings-access.policy.spec.ts --ts-config=.test-tmp/tsconfig.focused.json --progress=false`:
+  PASS, 10/10, including actual overlay filtering/selection, boolean false and
+  disabled/read-only controls. The shared component emits its existing reactive
+  disabled-attribute warning; its code is unchanged.
+- Actual component fixture with Aura theme: searchable overlay present, zero
+  native select elements, 3 employment options; searching Hebrew `שכיר` returns
+  the 2 matching options. No runtime exceptions; screenshot inspected.
+- `git diff --exit-code HEAD -- frontend/src/app/pages/settings frontend/src/app/components/input-select`:
+  PASS (no changes).
+- Existing local edits to npm start, API port and spouse heading are preserved
+  separately from the correction commit. No backend, ENV, main or remote changes.

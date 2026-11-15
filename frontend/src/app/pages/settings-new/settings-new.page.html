@@ -28,7 +28,7 @@
             <div class="fields-grid">
               @for (field of personalFields; track field.key) {
                 @if (!isCompany() || ['fName', 'email', 'phone'].includes(field.key)) {
-                  <app-new-settings-field [group]="personalFormGroup" [field]="isCompany() && field.key === 'fName' ? {key: 'fName', label: 'שם החברה'} : field" />
+                  <app-new-settings-field [group]="personalFormGroup" [disabled]="authService.isViewingAsClient() || savingPersonal()" [field]="isCompany() && field.key === 'fName' ? {key: 'fName', label: 'שם החברה'} : field" />
                 }
               }
             </div>
@@ -44,7 +44,7 @@
               <fieldset [disabled]="authService.isViewingAsClient() || savingSpouse()">
                 <div class="fields-grid">
                   @for (field of spouseFields; track field.key) {
-                    <app-new-settings-field [group]="spouseFormGroup" [field]="field" [readonly]="!spouseEditing()" />
+                    <app-new-settings-field [group]="spouseFormGroup" [disabled]="authService.isViewingAsClient() || savingSpouse()" [field]="field" [readonly]="!spouseEditing()" />
                   }
                 </div>
                 <div class="actions">
@@ -60,7 +60,7 @@
               <fieldset [disabled]="authService.isViewingAsClient() || savingChildren()">
                 <div class="fields-grid">
                   @for (field of childFields; track field.key) {
-                    <app-new-settings-field [group]="group" [field]="field" [readonly]="childEditing() !== i && children()[i]?.index != null" />
+                    <app-new-settings-field [group]="group" [disabled]="authService.isViewingAsClient() || savingChildren()" [field]="field" [readonly]="childEditing() !== i && children()[i]?.index != null" />
                   }
                 </div>
                 <div class="actions">
@@ -96,7 +96,7 @@
             <fieldset [disabled]="addingBusiness()">
               <div class="fields-grid">
                 @for (field of fieldsForBusiness(addBusinessFormGroup, true); track field.key) {
-                  <app-new-settings-field [group]="addBusinessFormGroup" [field]="field" (valueChanged)="businessFieldChanged(addBusinessFormGroup, field)" />
+                  <app-new-settings-field [group]="addBusinessFormGroup" [disabled]="addingBusiness()" [field]="field" (valueChanged)="businessFieldChanged(addBusinessFormGroup, field)" />
                 }
               </div>
               <div class="actions"><button class="primary" type="button" (click)="submitAddBusiness()">{{ addingBusiness() ? 'יוצר...' : 'צור עסק' }}</button>
@@ -125,7 +125,7 @@
               <fieldset [disabled]="savingBusinessId() === biz?.id">
                 <div class="business-fields">
                   @for (field of fieldsForBusiness(group, false, editing); track field.key) {
-                    <app-new-settings-field [group]="group" [field]="field" [readonly]="!editing" (valueChanged)="businessFieldChanged(group, field)" />
+                    <app-new-settings-field [group]="group" [disabled]="savingBusinessId() === biz?.id" [field]="field" [readonly]="!editing" (valueChanged)="businessFieldChanged(group, field)" />
                   }
                 </div>
                 @if (editing) {
