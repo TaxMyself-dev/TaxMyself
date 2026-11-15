@@ -1,0 +1,57 @@
+.subscription-section { margin-top:64px; }
+.integration-area { padding-block:24px; border-bottom:1px solid var(--new-stroke); }
+.integration-area:last-child { border-bottom:0; padding-bottom:0; }
+.integration-area:first-child { padding-top:0; }
+.integration-area h3 { font-size:16px; margin:0 0 8px; font-weight:700; }
+.section-description { color:var(--new-muted); font-size:14px; line-height:1.6; margin:8px 0 24px; }
+.connection-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.connection-card { border:1px solid var(--new-stroke); border-radius:8px; padding:20px; min-width:0; background:linear-gradient(180deg,#9eb8f91a,transparent); }
+.connection-identity { display:flex; align-items:center; gap:20px; min-width:0; }
+.connection-identity strong { display:block; font-size:20px; overflow-wrap:anywhere; }
+.connection-identity p { margin:6px 0; color:var(--new-muted); }
+.connection-badge { display:inline-flex; align-items:center; gap:8px; font-size:14px; background:#f1f1f1; padding:4px 10px; border-radius:30px; color:var(--new-muted); }
+.connection-badge::before { content:''; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.connection-badge.connected { background:#57bc971a; color:#26765b; }
+.connection-badge.problem { color:#a44920; background:#fff0e9; }
+.connection-card .actions { margin-top:16px; }
+.connection-card button { display:inline-flex; align-items:center; justify-content:center; gap:8px; max-width:100%; font-size:14px; padding-inline:16px; }
+.connection-card button img { flex:none; }
+.permissions-list { list-style:none; padding:0; margin:16px 0 0; }
+.permissions-list li { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 0; border-bottom:1px solid var(--new-stroke); }
+.permissions-list span { overflow-wrap:anywhere; }
+.permissions-list button { font-size:14px; }
+.banking-source-number { font-size:28px; font-weight:400; margin:0 0 20px; }
+.banking-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px 24px; margin:0; }
+.banking-details dt { font-size:14px; color:var(--new-muted); margin-bottom:8px; }
+.banking-details dd { margin:0; overflow-wrap:anywhere; }
+.source-actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:24px; }
+.source-actions button { font-size:13px; padding:7px 10px; min-height:32px; }
+.permission-dialog-field { padding-block:16px; }
+.permission-error { color:#a12626; font-size:14px; margin-block:12px; }
+.permission-dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:24px; }
+:host ::ng-deep .integration-area .subsection-title { font-size:16px; margin:0 0 8px; }
+:host ::ng-deep .integration-area .gmail-text,:host ::ng-deep .integration-area .description { color:var(--new-muted); font-size:14px; line-height:1.6; }
+:host ::ng-deep .integration-area .p-button { border-radius:30px; font:inherit; min-height:39px; }
+:host ::ng-deep .integration-area .gmail-actions .p-button.black::after { content:''; background:url('/assets/settings-new/gmail.png') center/19px 15px no-repeat; display:block; width:19px; height:15px; }
+:host ::ng-deep .integration-area .address-card { border:0; padding:0; justify-content:flex-start; flex-wrap:wrap; }
+:host ::ng-deep .integration-area .address-input-row { border-radius:30px; border-color:var(--new-stroke); max-width:100%; }
+:host ::ng-deep .integration-area .address-input-row input { min-width:80px; width:150px; max-width:100%; }
+:host ::ng-deep .integration-area .primary-button,:host ::ng-deep .integration-area .copy-button { border-radius:30px; font:inherit; min-height:39px; }
+:host ::ng-deep .integration-area .domain { background:#ebebeb; }
+:host ::ng-deep .banking-footer .p-button { border-radius:30px; font:inherit; min-height:39px; }
+:host ::ng-deep .connection-card app-account-image img,:host ::ng-deep .connection-card app-account-image .placeholder { width:76px; height:76px; flex-basis:76px; }
+:host ::ng-deep .permission-dialog .p-dialog-content { padding:24px 30px; }
+@media(max-width:1100px) { .connection-list { grid-template-columns:1fr; } }
+@media(max-width:700px) {
+  .subscription-section { margin-top:40px; }
+  .connection-card { padding:16px; }
+  .connection-identity { gap:12px; }
+  .permissions-list li { flex-wrap:wrap; }
+}
+
+:host ::ng-deep .integration-area app-p-button .p-button,:host ::ng-deep .banking-footer app-p-button .p-button { width:auto!important; min-width:0!important; max-width:100%; padding-inline:20px; }
+:host ::ng-deep .integration-area app-p-button .p-button.black { background:var(--new-text)!important; border-color:var(--new-text)!important; }
+:host ::ng-deep .integration-area app-p-button .p-button.white-border { border-color:var(--new-stroke)!important; }
+.connection-card:not(.banking-source) { position:relative; }
+.connection-card:not(.banking-source) > .connection-badge { position:absolute; top:10px; inset-inline-end:12px; }
+.banking-source { background:white; }
