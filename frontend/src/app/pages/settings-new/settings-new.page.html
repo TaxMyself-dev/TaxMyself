@@ -7,15 +7,25 @@
       <img class="chevron" [class.closed]="!personalExpanded()" src="assets/settings-new/chevron.svg" width="8" height="4" alt="" />
     </button>
     <nav id="personal-links" [hidden]="!personalExpanded()">
-      <button type="button" [class.active]="activeSection() === 'account'" [attr.aria-current]="activeSection() === 'account' ? 'location' : null" (click)="goTo('account')">החשבון שלי</button>
-      <button type="button" [class.active]="activeSection() === 'businesses'" [attr.aria-current]="activeSection() === 'businesses' ? 'location' : null" (click)="goTo('businesses')">העסקים שלי</button>
+      @for (link of personalLinks; track link.key) {
+        <button type="button" [class.active]="activeSection() === link.key" [attr.aria-current]="activeSection() === link.key ? 'location' : null" (click)="goTo(link.key)">{{ link.label }}</button>
+      }
+    </nav>
+    <button class="group-toggle" type="button" [attr.aria-expanded]="subscriptionExpanded()" aria-controls="subscription-links" (click)="subscriptionExpanded.set(!subscriptionExpanded())">
+      <span><img src="assets/settings-new/subscription.svg" width="14" height="14" alt="" />הגדרות מנוי</span>
+      <img class="chevron" [class.closed]="!subscriptionExpanded()" src="assets/settings-new/chevron.svg" width="8" height="4" alt="" />
+    </button>
+    <nav id="subscription-links" [hidden]="!subscriptionExpanded()">
+      @for (link of subscriptionLinks; track link.key) {
+        <button type="button" [class.active]="activeSection() === link.key" [attr.aria-current]="activeSection() === link.key ? 'location' : null" (click)="goTo(link.key)">{{ link.label }}</button>
+      }
     </nav>
     <button class="logout" type="button" (click)="authService.logout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
   </aside>
 
   <main #scroller class="settings-scroll" (scroll)="onScroll()" aria-label="הגדרות אישיות">
     <div class="settings-content">
-      <section id="new-account" aria-labelledby="account-heading">
+      <section data-settings-section="account" id="new-account" aria-labelledby="account-heading">
         @if (authService.isViewingAsClient()) { <p class="view-only" role="status">פרטי החשבון מוצגים לצפייה בלבד.</p> }
         <article class="panel personal-panel">
           <h2 id="account-heading">{{ isCompany() ? 'פרטי חברה' : 'חשבון אישי' }}</h2>
@@ -93,7 +103,7 @@
         }
       </section>
 
-      <section #businessSection id="new-businesses" aria-labelledby="businesses-heading" class="business-section">
+      <section #businessSection data-settings-section="businesses" id="new-businesses" aria-labelledby="businesses-heading" class="business-section">
         <header class="section-heading"><div><h2 id="businesses-heading">העסקים שלי</h2>
           <p>רשימת העסקים המשויכים לחשבון זה. ניתן לצפות גם בעסקים נוספים המשויכים לבני המשפחה</p></div>
           <button type="button" class="add-business" aria-label="הוספת עסק חדש" (click)="openAddBusinessModal()">+</button>
@@ -145,6 +155,111 @@
           } @empty { <p class="empty-state">אין עסקים משויכים לחשבון. אפשר להוסיף עסק חדש באמצעות כפתור הפלוס.</p> }
         </div>
       </section>
+
+      <div class="subscription-section"><app-settings-new-subscription (navigateSection)="goTo($event)" /></div>
+
+      <section data-settings-section="permissions" id="new-permissions" class="subscription-section panel" aria-labelledby="permissions-heading">
+        <h2 id="permissions-heading">הרשאות וחשבונות</h2>
+        <div class="integration-area">
+          <h3>חיבור לרשות המסים</h3>
+          <p class="section-description">החיבור משמש לבקשת מספרי הקצאה עבור מסמכי העסק.</p>
+          @if (connectionsActivated()) {
+            <div class="connection-list">
+              @for (business of businesses(); track business.id ?? business.businessNumber) {
+                <article class="connection-card">
+                  <div class="connection-identity">
+                    @if (business.id != null) {
+                      <app-account-image [editable]="false" label="לוגו העסק" [businessId]="business.id" [imagePath]="business.logoPath" [contextKey]="business.firebaseId" />
+                    }
+                    <div><strong>{{ business.businessName || 'עסק ללא שם' }}</strong><p>{{ business.businessNumber }} · {{ businessTypeLabel(business.businessType) }}</p></div>
+                  </div>
+                  <span class="connection-badge" [class.connected]="shaamConnectionStatus(business.businessNumber) === 'connected'"
+                    [class.problem]="['error', 'reauth-required'].includes(shaamConnectionStatus(business.businessNumber))">
+                    {{ shaamStatusLabel(business.businessNumber) }}
+                  </span>
+                  <div class="actions">
+                    <button type="button" (click)="connectShaam(business.businessNumber)"
+                      [disabled]="!business.businessNumber || shaamConnectionStatus(business.businessNumber) === 'loading' || shaamConnectionStatus(business.businessNumber) === 'sandbox-blocked' || connectingShaamBusinessNumber() !== null">
+                      <img src="assets/settings-new/tax-authority.png" width="26" height="27" alt="" />
+                      {{ shaamConnectionStatus(business.businessNumber) === 'connected' || shaamConnectionStatus(business.businessNumber) === 'reauth-required' ? 'חיבור מחדש לרשות המסים' : 'חיבור לרשות המסים' }}
+                    </button>
+                  </div>
+                </article>
+              } @empty { <p class="empty-state">לא נמצא עסק לחיבור.</p> }
+            </div>
+          } @else { <p class="empty-state">החיבורים ייטענו בעת מעבר לאזור זה.</p> }
+        </div>
+        <div class="integration-area">
+          <h3>משתמשים בעלי הרשאות</h3>
+          @if (permissionsLoading()) { <p role="status" class="empty-state">טוען הרשאות...</p> }
+          @else {
+            <ul class="permissions-list">
+              @for (permission of myPermissions(); track permission.id) {
+                <li><span>{{ permission.fullName || permission.email || permission.agentId }}</span>
+                  <button type="button" [disabled]="revokingPermissionId() === permission.id" (click)="confirmRevokePermission(permission)">בטל הרשאה</button></li>
+              } @empty { <li class="empty-state">אין משתמשים בעלי הרשאות.</li> }
+            </ul>
+          }
+          <div class="actions"><button type="button" class="primary" (click)="openAddPermissionDialog()">הוסף הרשאה</button></div>
+        </div>
+        @if (connectionsActivated()) {
+          <div class="integration-area"><app-gmail-integration /></div>
+          <div class="integration-area"><app-inbound-email /></div>
+        }
+      </section>
+
+      <section data-settings-section="banking" id="new-banking" class="subscription-section" aria-labelledby="banking-heading">
+        <div class="panel">
+          <h2 id="banking-heading">בנקאות פתוחה</h2>
+          <p class="section-description">בנקאות פתוחה מאפשרת, בהסכמתך, לשתף מידע פיננסי עם אפליקציות מורשות, לרכז חשבונות במקום אחד ולעקוב אחר ההוצאות.</p>
+          <h3>ניהול הרשאות</h3>
+          @if (bankingActivated()) {
+            @if (hasOpenBankingAccess()) {
+              @if (accountSourcesLoading()) { <p class="empty-state" role="status">טוען חשבונות...</p> }
+              <div class="connection-list">
+                @for (row of accountSourcesTableData(); track row['sourceRecordId'] ?? row.id) {
+                  <article class="connection-card banking-source">
+                    <h4 class="banking-source-number"><bdi>{{ row['sourceName'] }}</bdi></h4>
+                    <dl class="banking-details">
+                      <div><dt>סטטוס</dt><dd><span class="connection-badge" [class.connected]="row['hasConsent']">{{ row['consentStatus'] }}</span></dd></div>
+                      <div><dt>סוג</dt><dd>{{ row['sourceTypeLabel'] }}</dd></div>
+                      <div><dt>חיבור</dt><dd>{{ row['connectionRoleLabel'] }}</dd></div>
+                      <div><dt>משויך לחשבון</dt><dd>{{ row['billName'] }}</dd></div>
+                    </dl>
+                    <div class="source-actions">
+                      @for (action of accountSourcesRowActions; track action.name) {
+                        @if (!action.showWhen || action.showWhen(row)) {
+                          <button type="button" [disabled]="bankingActionLoading()" (click)="action.action(undefined, row)"><i [class]="action.icon" aria-hidden="true"></i> {{ action.title }}</button>
+                        }
+                      }
+                    </div>
+                  </article>
+                } @empty { @if (!accountSourcesLoading()) { <p class="empty-state">אין חשבונות או כרטיסים להצגה.</p> } }
+              </div>
+            } @else { <p class="empty-state">המנוי הנוכחי אינו כולל צפייה בחשבונות בנקאות פתוחה. ניתן לנהל ולבטל הרשאות קיימות בהמשך.</p> }
+            <app-open-banking-error [issue]="bankingError()" />
+          } @else { <p class="empty-state">החשבונות ייטענו בעת מעבר לאזור זה.</p> }
+        </div>
+        @if (bankingActivated()) {
+          <app-open-banking-management #bankingManagement [embedded]="true"
+            [externalBusy]="accountSourcesLoading() || retryingSourceId() !== null || deletingSourceId() !== null"
+            (connectionChanged)="onBankingConnectionChanged()" />
+        }
+      </section>
     </div>
   </main>
 </div>
+
+<p-dialog header="הוספת הרשאה למשתמש" styleClass="permission-dialog" [visible]="addPermissionDialogVisible"
+  (visibleChange)="!$event && closeAddPermissionDialog()" [modal]="true" [draggable]="false" [resizable]="false"
+  [closable]="!addingPermission()" [closeOnEscape]="!addingPermission()" [style]="{width:'520px', maxWidth:'calc(100vw - 32px)'}" [rtl]="true">
+  <p class="section-description">הזן את כתובת האימייל של המשתמש אותו תרצה להוסיף.</p>
+  <form (ngSubmit)="submitNewPermission()">
+    <fieldset [disabled]="addingPermission()" class="permission-dialog-field">
+      <app-new-settings-field [group]="addPermissionFormGroup" [field]="{key:'email', label:'אימייל', type:'email'}" />
+      @if (addPermissionError()) { <p class="permission-error" role="alert">{{ addPermissionError() }}</p> }
+      <div class="permission-dialog-actions"><button type="button" (click)="closeAddPermissionDialog()">ביטול</button><button type="submit" class="primary">{{ addingPermission() ? 'מוסיף...' : 'אישור' }}</button></div>
+    </fieldset>
+  </form>
+</p-dialog>
+<p-confirmdialog key="payment-source" position="center" appendTo="body" [style]="{width:'28rem', maxWidth:'calc(100vw - 2rem)'}" />

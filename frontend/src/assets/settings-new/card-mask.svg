@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="315" height="184" viewBox="0 0 315 184" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Card 1 Mask">
+<mask id="mask0_0_10" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="315" height="184">
+<rect id="bg" width="315" height="184" rx="30" fill="#ED713C"/>
+</mask>
+<g mask="url(#mask0_0_10)">
+<ellipse id="Ellipse 2" opacity="0.1" cx="24.5" cy="213" rx="160.5" ry="113" fill="black"/>
+<ellipse id="Ellipse 1" opacity="0.08" cx="290.5" cy="-29" rx="160.5" ry="113" fill="black"/>
+</g>
+</g>
+</svg>

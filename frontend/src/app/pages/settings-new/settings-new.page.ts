@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal, ChangeDetectorRef, inject } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { AccountImageComponent } from '../../components/account-image/account-image.component';
 import { SettingsPage } from '../settings/settings.page';
@@ -7,6 +7,15 @@ import { SettingsField, SettingsNewFieldComponent } from './settings-new-field.c
 import { Validators } from '@angular/forms';
 import { Business } from '../../shared/interface';
 import { finalize, switchMap, take } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { DialogModule } from 'primeng/dialog';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { SettingsNewSubscriptionComponent } from './settings-new-subscription.component';
+import { PERSONAL_SETTINGS_LINKS, SUBSCRIPTION_SETTINGS_LINKS, SettingsSection, activeSettingsSection } from './settings-navigation';
+import { GmailIntegrationComponent } from '../settings/gmail-integration/gmail-integration.component';
+import { InboundEmailComponent } from '../settings/inbound-email/inbound-email.component';
+import { OpenBankingManagementComponent } from '../../components/open-banking-management/open-banking-management.component';
+import { OpenBankingErrorComponent } from '../../components/open-banking-management/open-banking-error.component';
 
 export type PersonalSection = 'account' | 'businesses';
 
@@ -17,13 +26,19 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
 
 @Component({
   selector: 'app-settings-new', standalone: true,
-  imports: [CommonModule, AccountImageComponent, SettingsNewFieldComponent],
-  templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss'],
+  imports: [CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
+  templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss', './settings-new-connections.scss'],
 })
 export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
   @ViewChild('scroller', { static: true }) scroller!: ElementRef<HTMLElement>;
   @ViewChild('businessSection', { static: true }) businessSection!: ElementRef<HTMLElement>;
-  readonly activeSection = signal<PersonalSection>('account');
+  readonly activeSection = signal<SettingsSection>('account');
+  private readonly navigationCdr = inject(ChangeDetectorRef);
+  readonly personalLinks = PERSONAL_SETTINGS_LINKS;
+  readonly subscriptionLinks = SUBSCRIPTION_SETTINGS_LINKS;
+  readonly subscriptionExpanded = signal(true);
+  readonly connectionsActivated = signal(false);
+  readonly bankingActivated = signal(false);
   readonly personalExpanded = signal(true);
   readonly familyMenuOpen = signal(false);
   readonly showSpouse = signal(false);
@@ -79,18 +94,44 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
   ngOnDestroy(): void { this.resizeObserver?.disconnect(); }
 
+  private activateSection(section: SettingsSection): void {
+    if ((section === 'permissions' || section === 'banking') && !this.connectionsActivated()) {
+      this.connectionsActivated.set(true);
+      this.onTabChange('permissions');
+    }
+    if (section === 'banking') this.bankingActivated.set(true);
+  }
   onScroll(): void {
     const el = this.scroller.nativeElement;
+    const sections = Array.from(el.querySelectorAll<HTMLElement>('[data-settings-section]')).map(node => ({
+      key: node.dataset['settingsSection'] as SettingsSection, top: node.getBoundingClientRect().top,
+    }));
     const atEnd = el.scrollHeight > el.clientHeight + 2 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-    this.activeSection.set(activePersonalSection(this.businessSection.nativeElement.getBoundingClientRect().top,
-      el.getBoundingClientRect().top, atEnd));
+    const active = activeSettingsSection(sections, el.getBoundingClientRect().top, atEnd);
+    this.activeSection.set(active);
+    this.activateSection(active);
   }
-  goTo(section: PersonalSection): void {
+  goTo(section: SettingsSection): void {
     this.activeSection.set(section);
+    this.activateSection(section);
+    this.navigationCdr?.detectChanges();
     const el = this.scroller.nativeElement;
-    const top = section === 'account' ? 0 : this.businessSection.nativeElement.getBoundingClientRect().top
-      - el.getBoundingClientRect().top + el.scrollTop - 32;
+    const target = section === 'account' ? null : section === 'businesses' ? this.businessSection.nativeElement
+      : el.querySelector<HTMLElement>('[data-settings-section="' + section + '"]');
+    const top = section === 'account' ? 0 : target ? target.getBoundingClientRect().top
+      - el.getBoundingClientRect().top + el.scrollTop - 32 : el.scrollTop;
     el.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  }
+  submitNewPermission(): void {
+    if (this.addingPermission() || !this.valid(this.addPermissionFormGroup)) return;
+    this.addPermissionEmail = this.addPermissionFormGroup.get('email')?.value ?? '';
+    this.submitAddPermission();
+  }
+  shaamStatusLabel(number: string | null | undefined): string {
+    if (!number) return 'חסר מספר עסק';
+    return ({ loading: 'בודק חיבור...', connected: 'מחובר', disconnected: 'לא מחובר',
+      'reauth-required': 'נדרשת הרשאה חדשה', 'sandbox-blocked': 'החיבור מוגבל לעסק הדמו בסביבת הבדיקות',
+      error: 'לא ניתן לבדוק את החיבור' })[this.shaamConnectionStatus(number)];
   }
   fieldsForBusiness(group: FormGroup, creating = false, editing = true): SettingsField[] {
     const readOrder = ['proprietorRole', 'nationalInsRequired', 'businessEmail', 'vatReportingType',
