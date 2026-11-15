@@ -172,3 +172,5 @@ Replaced the low-baseline Unicode arrow with the existing PrimeIcons chevron.
 The family-add trigger uses inline-flex, centered alignment and an 8px gap;
 the icon rotates on expansion. Old settings are unchanged. Production build and
 staged diff check pass. No behavior tests repeated for this presentation-only fix.
+
+Family chevron motion: 220ms eased transform between 0 and 180 degrees on open/close; reduced-motion disables transition. Focused Sass compile, production build and diff check passed. No behavior tests repeated for this CSS-only change.
