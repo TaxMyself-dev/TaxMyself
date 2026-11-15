@@ -1,6 +1,6 @@
 # KT-111 - Suppress trial dialog during checkout return
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex sequential worker
 - Worktree: `C:/Users/harel/.codex/worktrees/kt111/taxmyself-dev`
@@ -37,7 +37,7 @@ payment attempt.
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `3b72f38baa1d759a6b6687af9b5c71ed5ebe462a`
 - Changed files: app shell, billing-state service and spec, my-account topic
   documentation, this task file.
 - Tests and exact results: focused ChromeHeadless 5/5 passed with
@@ -55,8 +55,11 @@ payment attempt.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; presentation-only boundary,
+  reactive return context and unchanged backend enforcement reviewed.
+- Integrated commit: `faf2d458` plus this task-record commit.
+- Combined verification: focused ChromeHeadless 5/5 passed and Angular
+  production build passed on `codex/integration-kt111`.
+- `origin/main` verification: recorded after push in the final user report.
+- User-visible run instructions: deploy frontend only. No backend, SQL, schema
+  or environment update is required.
