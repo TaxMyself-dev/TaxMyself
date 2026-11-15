@@ -73,3 +73,25 @@ integrate main/test, push or deploy this new feature. Preserve existing changes.
 - No actual authentication calls or remote writes made by these tests.
 - Backend tests/broad application suites not run: frontend-login-only scope.
 - Documentation updated: frontend/src/app/pages/login/AGENTS.md.
+
+## Follow-up: closed PrimeNG host blocked background Enter
+
+- Reproduced by read-only DOM inspection of the user's actual DEV browser tab:
+  focus was BODY, native submit was enabled, and the sole dialog selector match
+  was an empty p-dialog[role=alertdialog], display:block, width 1920 / height 0.
+  No credential values were read and no authentication action was triggered.
+- The old getClientRects().length guard treated that zero-area host as an open
+  dialog. PrimeNG keeps its host mounted after the real panel is closed.
+- Fix: a blocking dialog must have CSS visibility:visible and a rectangle with
+  both width and height greater than zero. Real nested dialog panels still block.
+- Same focused test command above, now on direct Node 20.20.2: PASS, 32 tests,
+  exit 0 (29 existing plus three regressions for zero-height host, real panel in
+  a zero-height host, and CSS-hidden positive-size panel).
+- Production build: direct Node 20.20.2, NG_BUILD_MAX_WORKERS=1, ng build
+  --configuration production --progress=false: PASS, exit 0, hash
+  212e1b12afc969e0, reported build time 154610 ms. Same nonfatal stylesheet/
+  initial bundle budget and CommonJS warning categories as the previous build.
+- git diff --check: PASS. No executable changes after passing tests/build.
+- No executable edits after passing tests except an explanatory source comment.
+- Existing test/main integration and push/deployment approvals do not authorize
+  this new executable fix; completed local commit will be offered for approval.

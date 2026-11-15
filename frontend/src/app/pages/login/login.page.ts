@@ -214,7 +214,11 @@ export class LoginPage implements OnInit {
     const dialogs = document.querySelectorAll<HTMLElement>(
       '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], .custom-modal-backdrop',
     );
-    if (Array.from(dialogs).some(dialog => dialog.getClientRects().length > 0)) {
+    // PrimeNG keeps an empty dialog host mounted even when its panel is closed.
+    if (Array.from(dialogs).some(dialog =>
+      getComputedStyle(dialog).visibility === 'visible' &&
+      Array.from(dialog.getClientRects()).some(rect => rect.width > 0 && rect.height > 0)
+    )) {
       return;
     }
 

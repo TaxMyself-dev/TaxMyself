@@ -26,7 +26,10 @@ email-verification flows.
   It rejects invalid/pending forms, login/reset requests in flight, registration,
   verification/MFA/reset flows, visible dialogs, repeated/composing/modified keys
   and default-prevented events. Cached Ionic login pages on other routes cannot
-  trigger it. Keep ngSubmit as the single native form-submit path.
+  trigger it. A blocking dialog must have visible CSS and a nonzero width/height
+  rectangle: PrimeNG retains empty zero-height p-dialog alertdialog hosts while
+  closed. Inspect the actual open panel, not just the presence of layout boxes.
+  Keep ngSubmit as the single native form-submit path.
 - Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data in the current tab's UID-bound session cache → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
 - Email/password and Google login never write authenticated profile/business
   state to shared `localStorage`; this permits different identities in separate

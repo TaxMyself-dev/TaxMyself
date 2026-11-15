@@ -134,6 +134,42 @@ describe('LoginPage background Enter shortcut', () => {
     expect(login).toHaveBeenCalledTimes(1);
   });
 
+  it('allows background Enter with the closed zero-height PrimeNG alertdialog host', () => {
+    const host = document.createElement('p-dialog');
+    host.setAttribute('role', 'alertdialog');
+    host.style.cssText = 'display: block; height: 0';
+    surface.appendChild(host);
+    const rect = host.getClientRects()[0];
+    expect(rect.width).toBeGreaterThan(0);
+    expect(rect.height).toBe(0);
+    expect(enter().defaultPrevented).toBeTrue();
+    expect(login).toHaveBeenCalledTimes(1);
+  });
+
+  it('still blocks when a zero-height PrimeNG host contains an open dialog panel', () => {
+    const host = document.createElement('p-dialog');
+    host.setAttribute('role', 'alertdialog');
+    host.style.cssText = 'display: block; height: 0';
+    const panel = document.createElement('section');
+    panel.setAttribute('role', 'dialog');
+    panel.style.cssText = 'position: fixed; width: 200px; height: 100px';
+    host.appendChild(panel);
+    surface.appendChild(host);
+    expect(host.getClientRects()[0].height).toBe(0);
+    expect(panel.getClientRects()[0].height).toBeGreaterThan(0);
+    enter();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('ignores a dialog panel hidden by CSS even if it occupies layout space', () => {
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.style.cssText = 'width: 200px; height: 100px; visibility: hidden';
+    surface.appendChild(panel);
+    expect(panel.getClientRects()[0].height).toBeGreaterThan(0);
+    enter();
+    expect(login).toHaveBeenCalledTimes(1);
+  });
   it('does not act on a cached login component while another route is active', () => {
     (page as any).router.url = '/my-account';
     enter();
