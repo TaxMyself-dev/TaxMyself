@@ -1,6 +1,6 @@
 # KT-113 - Checkout resolution gate
 
-- Status: `APPROVED`
+- Status: `READY_TO_PUSH`
 - Task manager: Codex primary integration manager
 - Worker: Codex
 - Worktree: `C:\Users\harel\.codex\worktrees\kt113\taxmyself-dev`
@@ -13,14 +13,14 @@ A customer returning from CardCom remains on a dedicated payment-verification sc
 
 ## Acceptance criteria
 
-- [ ] A CardCom checkout return is immediately routed from the configured return URL to `/billing/payment-status`, not rendered as a banner over `/my-account`.
-- [ ] The status page checks only the authenticated owner's canonical hosted checkout and uses read-only CardCom reconciliation; it never creates or submits a charge.
-- [ ] Verified capture completes through the existing idempotent hosted-completion path and navigates home only after the attempt is `COMPLETED` and subscription state is refreshed.
-- [ ] A provider-proven decline/cancel returns the customer to plan or recovery payment with a clear retry message and releases no uncertain attempt.
-- [ ] Pending, provider-unreachable and unknown results stay on the status page, never enable another payment, and do not spin forever without explanatory state.
-- [ ] Refresh, browser close/reopen and a later authenticated login recover the server-owned unresolved checkout without relying solely on sessionStorage.
-- [ ] A late webhook or late reconciliation result resolves the same screen without creating another attempt.
-- [ ] Focused backend and frontend tests cover success, decline, pending, unknown/transport failure, timeout, refresh/re-entry, late completion and duplicate-payment prevention.
+- [x] A CardCom checkout return is immediately routed from the configured return URL to `/billing/payment-status`, not rendered as a banner over `/my-account`.
+- [x] The status page checks only the authenticated owner's canonical hosted checkout and uses read-only CardCom reconciliation; it never creates or submits a charge.
+- [x] Verified capture completes through the existing idempotent hosted-completion path and navigates home only after the attempt is `COMPLETED` and subscription state is refreshed.
+- [x] A provider-proven decline/cancel returns the customer to plan or recovery payment with a clear retry message and releases no uncertain attempt.
+- [x] Pending, provider-unreachable and unknown results stay on the status page, never enable another payment, and do not spin forever without explanatory state.
+- [x] Refresh, browser close/reopen and a later authenticated login recover the server-owned unresolved checkout without relying solely on sessionStorage.
+- [x] A late webhook or late reconciliation result resolves the same screen without creating another attempt.
+- [x] Focused backend and frontend tests cover success, decline, pending, unknown/transport failure, timeout, refresh/re-entry, late completion and duplicate-payment prevention.
 
 ## Scope and constraints
 
@@ -31,19 +31,34 @@ A customer returning from CardCom remains on a dedicated payment-verification sc
 
 ## Handoff
 
-- Result:
-- Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
+- Result: complete
+- Commit hash(es): `c6ff86bb9f4e2e2dfacb72aea85229e1e3226221`
+- Changed files: billing controller/service/tests/docs; Angular billing state,
+  guard/routing, plans/recovery, new payment-status page/tests/config, and topic docs.
+- Tests and exact results: worker backend 6 suites / 140 tests passed; worker
+  frontend 35 tests passed; Nest build passed; Angular production build passed
+  (hash `74f63c962df56fbb`). Integrated main backend focused 2 suites / 23 tests
+  passed. `git diff --check` and `git show --check` passed.
+- Known pre-existing failures: Angular integration rerun could not start Chrome
+  Headless after two attempts because the local Windows Chrome GPU process/cache
+  crashed before loading specs. The identical committed source had already run
+  the same 35 specs successfully in the isolated worker, and its production
+  build passed. Existing Angular bundle/style budget warnings remain unchanged.
 - Schema / production / security / accounting / external impact: no schema/data/accounting change; authenticated owner-only status lookup; read-only provider inspection only.
-- Risks and manual checks:
-- Documentation updated:
+- Risks and manual checks: CardCom itself cannot be simulated fully in unit
+  tests. Before production deployment, run one dev hosted checkout, return from
+  CardCom, refresh/close/reopen while pending, and confirm the dashboard appears
+  only after completion. No production operation was performed.
+- Documentation updated: backend billing, frontend billing, billing guard and
+  my-account topic AGENTS files.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `c6ff86bb9f4e2e2dfacb72aea85229e1e3226221` (fast-forward)
+- Combined verification: backend 140/140, frontend 35/35, both production builds;
+  integrated-tree backend 23/23. Browser-launch environment issue recorded above.
+- `origin/main` verification: pending push
+- User-visible run instructions: restart local backend/frontend, use the billing
+  QA user, start a checkout, return/back/refresh/close and reopen. Expect the
+  dedicated verification page until the same server-owned attempt completes.

@@ -456,3 +456,20 @@ historical checkout and independent one-off records remain untouched. Commit
 the integrated tree. Local main, tracking origin/main and the remote main ref
 were verified at that commit. No schema, CardCom/provider call, accounting,
 authorization or deployment action was part of the code delivery.
+
+## KT-113 hosted checkout resolution gate — 2026-11-15
+
+Canonical CardCom returns now enter an authenticated payment-status route that
+uses owner-scoped, read-only provider inspection and the existing idempotent
+hosted-completion path. Durable `pendingCheckout` state blocks dashboard,
+plans and recovery re-entry across refresh/close/login, and only backend
+`COMPLETED` plus refreshed non-blocking billing state unlocks the dashboard.
+Provider uncertainty never creates another charge; a verified decline returns
+to the matching payment flow. The old 90-second infinite-spinner race and a
+method-level recovery duplicate-submit gap were closed. Source commit
+`c6ff86bb` passed 6 backend suites / 140 tests, 35 focused frontend tests, Nest
+build and Angular production build. Integrated main additionally passed 23
+focused backend tests; its Chrome rerun was blocked before spec loading by a
+local Windows GPU/cache crash, while the identical source had already passed
+35/35 in the isolated worker. No schema, data, amount/VAT, receipt/accounting,
+credential, provider-write, production or deployment action occurred.
