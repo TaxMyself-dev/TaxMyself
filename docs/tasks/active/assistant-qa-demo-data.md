@@ -47,3 +47,12 @@ Exact checks:
 Documentation: docs/operations/assistant-qa-demo.md contains login-file location, dataset inventory, approximately 25 prompts and expected results, commands and limitations. backend/src/demo-data/AGENTS.md documents the special CLI path.
 
 No main integration or push authorized. Local feature commits permitted. The assistant feature branch may receive the isolated demo commit so its running backend recognizes syntheticOpenBanking; preserve its pre-existing untracked drafts and timing file.
+
+## Final assistant-branch verification
+
+- Dedicated feature commit: 135bb00011d318c575880d3affeea1f9d3ea1b78.
+- Applied locally to new-ai-assistant as a75c1fcb0a4c40c3afadfb1a0de54cd64110240f so the existing assistant can recognize the synthetic identity. The only conflict was .gitignore; both existing local-AI-log and new demo-evidence ignore rules were retained.
+- On a75c1fcb: npx jest src/demo-data/profiles --runInBand passed 5 suites / 26 tests (30.75s); npm run build exited 0; scripts/seed-assistant-qa.ts --verify with ASSISTANT_QA_OUTPUT pointing to the original manifest exited 0, including real expense-tool assertions.
+- git show --check passed. All four pre-existing untracked assistant files remain untouched.
+- Local main remains 96adf4643e91ebdb4090259308d06c46d493e2eb. origin/new-ai-assistant remains c4a9551fa5b107689d2d91b9014a914c84fe8698. No main integration, push or deployment.
+- The final follow-up commit changes documentation only; executable verification above remains applicable.
