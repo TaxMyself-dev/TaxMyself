@@ -301,6 +301,13 @@ export class BillingStateService {
   // loadBillingState() / refreshBillingState() are called concurrently.
   private _loadPromise: Promise<void> | null = null;
   private checkoutLowProfileId: string | null = null;
+  /**
+   * Exact one-tab context set only when the browser returns from a hosted
+   * checkout that Keepintax opened. Presentation may use it to avoid offering
+   * a second payment while the canonical result is still being resolved;
+   * backend access and charge guards remain authoritative.
+   */
+  readonly hasCheckoutReturnContext = signal(false);
 
   setCheckoutReturnContext(lowProfileId: string | null): void {
     if (lowProfileId !== this.checkoutLowProfileId) {
@@ -308,6 +315,7 @@ export class BillingStateService {
       if (current) this.billingState.set({ ...current, billingPaymentResult: null });
     }
     this.checkoutLowProfileId = lowProfileId;
+    this.hasCheckoutReturnContext.set(!!lowProfileId);
   }
 
   /**
