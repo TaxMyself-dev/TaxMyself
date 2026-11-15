@@ -1,6 +1,6 @@
 # KT-112 - Center billing plans layout
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex
 - Worktree: `C:\Users\harel\.codex\worktrees\kt112\taxmyself-dev`
@@ -40,8 +40,8 @@ The plan-selection screen presents its title, available plan cards, and VAT note
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `a2a60d98de40d8535735a2a2db690d47115907e8`
+- Combined verification: focused billing plans Karma tests passed 9/9; Angular production build passed with existing warnings.
+- `origin/main` verification: `main` pushed through `a2a60d98de40d8535735a2a2db690d47115907e8`.
+- User-visible run instructions: deploy frontend only, then verify `/billing/plans` at desktop and mobile widths.
