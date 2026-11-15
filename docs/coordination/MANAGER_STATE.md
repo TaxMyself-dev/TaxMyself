@@ -12,6 +12,9 @@ read-only CardCom check visible. Integration commit `7aa60eb6`; three focused
 Jest suites / 76 tests and the Nest production build passed on the isolated
 integration tree. No schema, production data/access, credential, provider-write,
 amount, VAT, receipt, accounting or deployment operation occurred.
+Delivery `57150ad6` was pushed and verified on `origin/main` and
+`origin/codex/integration-kt114`; production still requires a normal backend
+deployment.
 
 ## KT-107 Drive OCR at-most-once — 2026-11-10
 

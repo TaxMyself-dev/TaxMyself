@@ -1,6 +1,6 @@
 # KT-114 - Resolve terminal hosted checkout results safely
 
-- Status: `INTEGRATED`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt114\taxmyself-dev`
@@ -66,7 +66,9 @@ remain blocked against duplicate payment and expose useful sanitized diagnostics
 - Combined verification: integration-tree focused Jest 3 suites / 76 tests
   passed; Nest production build passed; `git diff --check` and
   `git show --check` passed.
-- `origin/main` verification: pending delivery.
+- `origin/main` verification: local `main`, `origin/main`, local/remote
+  `codex/integration-kt114` and `git ls-remote` all matched
+  `57150ad64b944c9768bb0bed553a2c62270dca3f` before this final status record.
 - User-visible run instructions: after backend deployment, open the existing
   payment-status screen and click check again. A safely correlated terminal
   no-charge result returns to plan selection; otherwise inspect the newly saved
