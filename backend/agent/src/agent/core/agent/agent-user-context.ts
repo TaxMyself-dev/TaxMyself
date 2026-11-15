@@ -43,11 +43,15 @@ const settingLine = (label: string, value: string) =>
  *
  * @param settings - The user's settings.
  * @param memories - What the agent remembers about the user.
+ * @param businesses - The user's businesses section, or empty.
  * @returns The context, as the model reads it.
  */
 export const agentUserContextText = (
   settings: UserSettings,
-  memories: AgentMemory[]
+  memories: AgentMemory[],
+  // KeepInTax (2026-11-15): the user's businesses and the conversation's
+  // business (agentBusinessesSection); empty when there are none to list.
+  businesses = ""
 ) => {
   const { profile, preferences } = settings;
 
@@ -73,7 +77,13 @@ ${lines.join("\n")}
 </user_settings>
 
 ${agentRememberedSection(memories)}
-</user_context>`;
+${
+  businesses === ""
+    ? ""
+    : `
+${businesses}
+`
+}</user_context>`;
 };
 
 const isAgentUserContextPart = (part: AgentChatMessagePart) =>

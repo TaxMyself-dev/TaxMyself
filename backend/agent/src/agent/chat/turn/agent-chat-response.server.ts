@@ -28,11 +28,18 @@ import {
   agentUserContextText,
   withAgentUserContext,
 } from "@/agent/core/agent/agent-user-context";
+import type { BusinessView } from "@/agent/core/ports/keepintax-ports";
 import {
   noAgentTurnSignals,
   readAgentTurnSignals,
 } from "@/agent/core/turn/agent-turn-signals";
 import { readStoredAgentMemories } from "@/agent/memory/long-term-memory.server";
+import {
+  agentBusinessesSection,
+  agentConversationBusinessState,
+  withAgentBusinessContext,
+} from "@/agent/tools/books/agent-conversation-business";
+import { createKeepInTaxBooks } from "@/server/agent-ports.server";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
 import { readStoredUserSettings } from "@/server/user-data/user-settings-storage.server";
 
@@ -51,6 +58,31 @@ import {
 // (answerAgentChatRequest) is the same for every channel: the web page
 // reaches it through respondToAgentChat (agent-chat-endpoint.server.ts);
 // another channel (a messaging app) calls it with its own hooks.
+
+// KeepInTax (2026-11-15): none, when the directory cannot be read.
+const noBusinesses: readonly BusinessView[] = [];
+
+/**
+ * The data owner's businesses, read on the server for the verified user
+ * before the model's first step (agent-conversation-business.ts). Without
+ * KeepInTax's backend (the task worker, unit tests) or when the read fails,
+ * none: the tools then fail with their own codes and the chat asks.
+ *
+ * @returns The businesses, or none.
+ */
+const readAgentBusinessDirectory = () =>
+  createKeepInTaxBooks()
+    .listBusinesses()
+    .pipe(
+      Effect.matchEffect({
+        onFailure: (error) =>
+          Effect.logWarning(
+            "AGENT_BUSINESS_DIRECTORY_FAILED",
+            error.message
+          ).pipe(Effect.as(noBusinesses)),
+        onSuccess: (directory) => Effect.succeed(directory.businesses),
+      })
+    );
 
 /**
  * Times each step before the model starts, for the chat-server-prep
@@ -177,15 +209,17 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
 
     return yield* Effect.gen(function* answerAgentChat() {
       // Read after the lease, so no other answer is still saving its messages.
-      const [history, messageStored, settings, memories] = yield* Effect.all(
-        [
-          readStoredAgentChatMessages(supabase, body.id),
-          isAgentChatMessageStored(supabase, body.message.id),
-          readStoredUserSettings(supabase, userId),
-          readStoredAgentMemories(supabase),
-        ],
-        { concurrency: "unbounded" }
-      );
+      const [history, messageStored, settings, memories, directory] =
+        yield* Effect.all(
+          [
+            readStoredAgentChatMessages(supabase, body.id),
+            isAgentChatMessageStored(supabase, body.message.id),
+            readStoredUserSettings(supabase, userId),
+            readStoredAgentMemories(supabase),
+            readAgentBusinessDirectory(),
+          ],
+          { concurrency: "unbounded" }
+        );
 
       yield* prep.mark("readsMs");
 
@@ -208,9 +242,23 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
 
       // A new or retried user message carries the user context when it
       // changed since the last one (agent-user-context.ts).
+      // KeepInTax (2026-11-15, business selection): the businesses a new
+      // message names are recorded on it, and the conversation's business
+      // is read from the stored messages (agent-conversation-business.ts).
+      const withBusinesses = withAgentBusinessContext(prepared, directory);
+
+      const business = agentConversationBusinessState(
+        directory,
+        withBusinesses
+      );
+
       const validated = withAgentUserContext(
-        prepared,
-        agentUserContextText(settings, memories)
+        withBusinesses,
+        agentUserContextText(
+          settings,
+          memories,
+          agentBusinessesSection(directory, business.current)
+        )
       );
 
       // The user's message is kept even if the answer fails.
@@ -243,6 +291,7 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
         userSteers,
         answerSignal,
         releaseAnswer,
+        business,
       });
 
       streaming = true;

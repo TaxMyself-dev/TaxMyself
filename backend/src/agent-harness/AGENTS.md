@@ -39,8 +39,13 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
   a stream with its own size limit.
 - Using the agent counts as DOCUMENTS_READ in delegation terms: it writes only
   its own tables, owned by the pair (actor, data owner); a conversation may
-  cover any of that owner's businesses, the verified active one being the
-  tools' default. Domain tools that act on KeepInTax data keep the
+  cover any of that owner's businesses. The agent names the business for
+  each read (the one the user named or established in the conversation);
+  `chooseBusiness` takes it, else the owner's only one, else
+  BUSINESS_REQUIRED, and never falls back to the `businessnumber` header,
+  which non-chat endpoints still use unchanged. `listBusinesses` gives the
+  agent the owner's numbered businesses (backend/agent/GUIDE.md "Business
+  selection"). Domain tools that act on KeepInTax data keep the
   backend's own guards and services, and never pass a business without a
   number to a service (the expenses service then reads every business).
 - `agent-harness.access.spec.ts` runs the real `FirebaseAuthGuard`: a revoked

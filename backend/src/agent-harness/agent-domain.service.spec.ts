@@ -246,17 +246,21 @@ describe('AgentDomainService.queryExpenses', () => {
       /^BUSINESS_REQUIRED: the user has 2 businesses: 111111111 \(סטודיו\), 222222222/,
     );
 
+    // The page's businessnumber header is never a default (2026-11-15):
+    // with several businesses and none asked for, the chat asks.
     await expect(
       setup([], businesses).service.queryExpenses({ ...owner, businessNumber: '999999999' }, range),
-    ).rejects.toThrow(/^BUSINESS_NOT_FOUND: /);
+    ).rejects.toThrow(/^BUSINESS_REQUIRED: /);
 
     // Another client's business, asked for by number.
     await expect(
       setup([], businesses).service.queryExpenses(owner, { ...range, businessNumber: '333333333' }),
     ).rejects.toThrow(/^BUSINESS_NOT_FOUND: /);
 
-    const header = setup([], businesses);
-    const result = await single(header.service.queryExpenses({ ...owner, businessNumber: '222222222' }, range));
+    const asked = setup([], businesses);
+    const result = await single(
+      asked.service.queryExpenses({ ...owner, businessNumber: '111111111' }, { ...range, businessNumber: '222222222' }),
+    );
     expect(result.business).toEqual({ number: '222222222', name: '222222222' });
     expect(result.otherBusinesses).toEqual([{ number: '111111111', name: 'סטודיו' }]);
 
@@ -496,19 +500,43 @@ describe('AgentDomainService.queryExpenses across businesses', () => {
     ).rejects.toThrow(/^EXPENSE_SCOPE_INVALID: /);
   });
 
-  it('without a scope, reads the active business; switching it mid-conversation moves the default', async () => {
+  it('never defaults to the page header: the business asked for, else BUSINESS_REQUIRED (2026-11-15)', async () => {
     const { service } = setupBusinesses({
       '111111111': [inStudio({ id: 1, sum: '100' as never })],
       '222222222': [inWorkshop({ id: 2, sum: '200' as never })],
     });
+    // The header another screen left behind (S20: the first business).
+    const withHeader = { ...owner, businessNumber: '111111111' };
 
-    const first = await single(service.queryExpenses({ ...owner, businessNumber: '111111111' }, range));
-    const afterSwitch = await single(service.queryExpenses({ ...owner, businessNumber: '222222222' }, range));
+    // A question naming the second business reads it, whatever the header.
+    const named = await single(service.queryExpenses(withHeader, { ...range, businessNumber: '222222222' }));
+    expect([named.business.number, named.totals.sum]).toEqual(['222222222', 200]);
 
-    expect([first.business.number, first.totals.sum]).toEqual(['111111111', 100]);
-    expect([afterSwitch.business.number, afterSwitch.totals.sum]).toEqual(['222222222', 200]);
-    // With several businesses and none active, the tool asks which one.
+    // The same request with no header.
+    const noHeader = await single(service.queryExpenses(owner, { ...range, businessNumber: '222222222' }));
+    expect([noHeader.business.number, noHeader.totals.sum]).toEqual(['222222222', 200]);
+
+    // Naming none: the header is not a confirmed choice, so the chat asks.
+    await expect(service.queryExpenses(withHeader, range)).rejects.toThrow(/^BUSINESS_REQUIRED: /);
     await expect(service.queryExpenses(owner, range)).rejects.toThrow(/^BUSINESS_REQUIRED: /);
+  });
+
+  it("lists the owner's numbered businesses as the chat's directory, after the access check", async () => {
+    const { service } = setup([], [
+      { businessNumber: '111111111', businessName: 'סטודיו' },
+      { businessNumber: '222222222', businessName: null },
+      { businessNumber: null, businessName: 'טיוטה' },
+    ]);
+
+    await expect(service.listBusinesses({ ...owner, businessNumber: '111111111' })).resolves.toEqual({
+      businesses: [
+        { number: '111111111', name: 'סטודיו' },
+        { number: '222222222', name: '222222222' },
+      ],
+    });
+
+    jest.spyOn(service, 'assertAccessStillHolds').mockRejectedValue(new AgentDomainError('ACCESS_REVOKED', 'revoked'));
+    await expect(service.listBusinesses(accountantForClient)).rejects.toThrow(/^ACCESS_REVOKED: /);
   });
 
   it('stops the whole query, with no partial result, when the delegation is revoked midway', async () => {

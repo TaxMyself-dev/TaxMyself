@@ -147,5 +147,6 @@ export const createKeepInTaxBooks = (): KeepInTaxBooks => {
     getAdvanceTaxStatus: read((backend) => backend.getAdvanceTaxStatus),
     listUpcomingReports: read((backend) => backend.listUpcomingReports),
     getReportReadiness: read((backend) => backend.getReportReadiness),
+    listBusinesses: read((backend) => backend.listBusinesses),
   };
 };

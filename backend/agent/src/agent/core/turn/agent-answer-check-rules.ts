@@ -207,6 +207,20 @@ export const agentAnswerUnbackedNumbers = (
 };
 
 /**
+ * KeepInTax (2026-11-15): the user named one business and the answer's
+ * reads are of another (agentAnswerBusinessViolations).
+ *
+ * @param named - The business the user named, "number (name)".
+ * @param read - The businesses this answer read, "number (name)".
+ * @returns The note sending the answer back.
+ */
+export const agentWrongBusinessViolation = (
+  named: string,
+  read: readonly string[]
+) =>
+  `The user asked about the business ${named}, but this answer read only ${read.join(", ")}. Those figures are not ${named}'s: read ${named.split(" ")[0]} now (businessNumber), and say plainly that the figures above were for another business.`;
+
+/**
  * The note for an answer with numbers no tool of the turn returned.
  *
  * @param numbers - The unbacked numbers, as the answer wrote them.

@@ -67,6 +67,11 @@ export type AgentChatMessage = UIMessage<
     // an approval; the page cannot write one. Never shown, never read by
     // the model.
     turnOrigin: AgentChatTurnOriginData;
+    // KeepInTax (2026-11-15, business selection): the businesses the user's
+    // message names, by number, written by the server from the data owner's
+    // directory (agent-conversation-business.ts); the page cannot write
+    // one. Never shown, never read by the model.
+    businessContext: { numbers: string[] };
     documentText: {
       documentId: string | null;
       filename: string;

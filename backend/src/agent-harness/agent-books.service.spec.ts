@@ -876,6 +876,37 @@ describe('AgentBooksService.listCategories and listClients', () => {
 });
 
 describe('AgentBooksService reports', () => {
+  it('S20 (2026-11-15): the P&L of the business named, never the page header; with neither, BUSINESS_REQUIRED', async () => {
+    const { service, reportsService } = setup({
+      businesses: [studio, workshop],
+    });
+    reportsService.createPnLReportFromJournal.mockResolvedValue({
+      income: 1500,
+      expenses: [{ sectionName: 'רכב ותחבורה', total: 318.6 }],
+      netProfitBeforeTax: 1181.4,
+    });
+    // The header another screen left behind: the first business.
+    const withHeader = service.forUser({ ...owner, businessNumber: '111111111' });
+
+    const named = await withHeader.getProfitAndLoss({
+      ...range,
+      businessNumber: '222222222',
+    });
+    expect(named.business).toEqual({ number: '222222222', name: 'סדנה' });
+    expect(reportsService.createPnLReportFromJournal.mock.calls[0][1]).toBe(
+      '222222222',
+    );
+
+    // The header alone is not a choice: the chat asks which business.
+    await expect(withHeader.getProfitAndLoss(range)).rejects.toThrow(
+      /^BUSINESS_REQUIRED:/,
+    );
+    await expect(
+      service.forUser(owner).getProfitAndLoss(range),
+    ).rejects.toThrow(/^BUSINESS_REQUIRED:/);
+    expect(reportsService.createPnLReportFromJournal).toHaveBeenCalledTimes(1);
+  });
+
   it('P&L comes from the read-only journal builder, never the depreciation-booking prepare step', async () => {
     const { service, reportsService } = setup({
       expenses: [
@@ -1132,16 +1163,15 @@ describe('AgentBooksService reports', () => {
     ).toEqual(['workflow', 'submission_mark', 'none', 'none']);
   });
 
-  it('upcoming reports name the active business: the verified one, the only one, else none; the list keeps every business', async () => {
+  it('upcoming reports name the only business as active, never the page header; the list keeps every business', async () => {
     const two = setup({ businesses: [studio, workshop] });
 
+    // 2026-11-15: the businessnumber header another screen left behind is
+    // not the chat's business (the agent fills in the conversation's own).
     const active = await two.service
       .forUser({ ...owner, businessNumber: '222222222' })
       .listUpcomingReports({});
-    expect(active.activeBusiness).toEqual({
-      number: '222222222',
-      name: 'סדנה',
-    });
+    expect(active.activeBusiness).toBeNull();
     expect(active.businesses.map((one) => one.business.number)).toEqual([
       '111111111',
       '222222222',

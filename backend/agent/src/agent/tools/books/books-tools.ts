@@ -27,7 +27,7 @@ import {
 
 export const queryTransactionsTool = tool({
   description:
-    "Read the user's bank and card transactions in KeepInTax for a date range, in one business (the active one unless another is named), as the transactions page shows them: money in and money out (₪, absolute amounts), how many are unclassified, classified or confirmed as expenses, optionally grouped, and the transactions themselves. bankData says what the last bank sync recorded; complete is false when the totals may leave something out (notConverted transactions are not in them). When an account filter matches nothing, accountsInRange lists the account names to read again with. Use it for questions about what came in or went out of the account, payments to a merchant, or transactions still to classify; for expenses as booked, use queryExpenses.",
+    "Read the user's bank and card transactions in KeepInTax for a date range, in one business (the one named, else the conversation's), as the transactions page shows them: money in and money out (₪, absolute amounts), how many are unclassified, classified or confirmed as expenses, optionally grouped, and the transactions themselves. bankData says what the last bank sync recorded; complete is false when the totals may leave something out (notConverted transactions are not in them). When an account filter matches nothing, accountsInRange lists the account names to read again with. Use it for questions about what came in or went out of the account, payments to a merchant, or transactions still to classify; for expenses as booked, use queryExpenses.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       from: fromInput,

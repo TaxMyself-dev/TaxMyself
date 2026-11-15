@@ -130,6 +130,14 @@ export interface BusinessView {
   name: string;
 }
 
+/**
+ * The data owner's numbered businesses, read on the server for the
+ * verified user: the directory the chat resolves a named business against.
+ */
+export interface BusinessDirectory {
+  businesses: BusinessView[];
+}
+
 /** A count and an amount in ₪, summed in agorot. */
 export interface MoneyTotal {
   count: number;
@@ -507,8 +515,9 @@ export interface AgentDomain {
   getAdvanceTaxStatus: (query: ReportRangeQuery) => Promise<AdvanceTaxResult>;
   listUpcomingReports: (query: UpcomingReportsQuery) => Promise<UpcomingReportsResult>;
   getReportReadiness: (query: ReportRangeQuery) => Promise<ReportReadinessResult>;
+  listBusinesses: () => Promise<BusinessDirectory>;
 }
 
 /** queryExpenses alone (AgentDomainService); the rest is AgentBooksService. */
-export type AgentExpensesDomain = Pick<AgentDomain, 'queryExpenses'>;
-export type AgentBooksDomain = Omit<AgentDomain, 'queryExpenses'>;
+export type AgentExpensesDomain = Pick<AgentDomain, 'queryExpenses' | 'listBusinesses'>;
+export type AgentBooksDomain = Omit<AgentDomain, 'queryExpenses' | 'listBusinesses'>;

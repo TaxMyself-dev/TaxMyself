@@ -472,7 +472,7 @@
   },
   {
     "name": "queryExpenses",
-    "description": "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses (the active one unless another is named) or, with businessNumbers or allBusinesses, in several, each with its subtotal and a combined total computed for you: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
+    "description": "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses (the one named, else the conversation's) or, with businessNumbers or allBusinesses, in several, each with its subtotal and a combined total computed for you: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -527,13 +527,13 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "Another of the user's businesses (from otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         },
         "businessNumbers": {
           "type": "array",
           "minItems": 2,
           "maxItems": 20,
-          "description": "Several of the user's businesses (numbers from business and otherBusinesses), for a question about them together: the same query in each, with their combined total",
+          "description": "Several of the user's businesses (numbers from <businesses> in the user context), for a question about them together: the same query in each, with their combined total",
           "items": {
             "type": "string",
             "pattern": "^\\d{5,12}$"
@@ -553,7 +553,7 @@
   },
   {
     "name": "queryTransactions",
-    "description": "Read the user's bank and card transactions in KeepInTax for a date range, in one business (the active one unless another is named), as the transactions page shows them: money in and money out (₪, absolute amounts), how many are unclassified, classified or confirmed as expenses, optionally grouped, and the transactions themselves. bankData says what the last bank sync recorded; complete is false when the totals may leave something out (notConverted transactions are not in them). When an account filter matches nothing, accountsInRange lists the account names to read again with. Use it for questions about what came in or went out of the account, payments to a merchant, or transactions still to classify; for expenses as booked, use queryExpenses.",
+    "description": "Read the user's bank and card transactions in KeepInTax for a date range, in one business (the one named, else the conversation's), as the transactions page shows them: money in and money out (₪, absolute amounts), how many are unclassified, classified or confirmed as expenses, optionally grouped, and the transactions themselves. bankData says what the last bank sync recorded; complete is false when the totals may leave something out (notConverted transactions are not in them). When an account filter matches nothing, accountsInRange lists the account names to read again with. Use it for questions about what came in or went out of the account, payments to a merchant, or transactions still to classify; for expenses as booked, use queryExpenses.",
     "openai": {
       "namespace": {
         "name": "books",
@@ -577,7 +577,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         },
         "direction": {
           "type": "string",
@@ -658,7 +658,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         },
         "docType": {
           "type": "string",
@@ -717,7 +717,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         },
         "search": {
           "type": "string",
@@ -745,7 +745,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         },
         "search": {
           "type": "string",
@@ -783,7 +783,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         }
       },
       "required": [
@@ -819,7 +819,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         }
       },
       "required": [
@@ -855,7 +855,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         }
       },
       "required": [
@@ -867,7 +867,7 @@
   },
   {
     "name": "listUpcomingReports",
-    "description": "List the VAT and income-tax advance reports of every one of the user's businesses (or one): each period with its due date and state, open (the period has not ended), due, overdue (past its due date and not marked as reported in KeepInTax) or reported, and where that state comes from. Reported ones are left out unless includeReported. activeBusiness is the business a question naming none is about (null when none is active): use it for that question's next report.",
+    "description": "List the VAT and income-tax advance reports of every one of the user's businesses (or one): each period with its due date and state, open (the period has not ended), due, overdue (past its due date and not marked as reported in KeepInTax) or reported, and where that state comes from. Reported ones are left out unless includeReported. activeBusiness is the business a question naming none is about: the conversation's, else the only one (null when neither): use it for that question's next report.",
     "openai": {
       "namespace": {
         "name": "reports",
@@ -917,7 +917,7 @@
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
-          "description": "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one"
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
         }
       },
       "required": [

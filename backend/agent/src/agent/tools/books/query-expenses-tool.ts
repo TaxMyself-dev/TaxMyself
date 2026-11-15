@@ -29,7 +29,7 @@ const filterText = (description: string) =>
 
 export const queryExpensesTool = tool({
   description:
-    "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses (the active one unless another is named) or, with businessNumbers or allBusinesses, in several, each with its subtotal and a combined total computed for you: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
+    "Read the user's expenses in KeepInTax for a date range (by the expense's date), in one of their businesses (the one named, else the conversation's) or, with businessNumbers or allBusinesses, in several, each with its subtotal and a combined total computed for you: the totals the reports count (approved and booked; paid, VAT recognized, recognized for income tax), optionally grouped, the expenses themselves, and apart what is not counted (waiting for review, private, rejected). Use it for any question about what they spent, on what or with whom. Words the user uses for a kind of expense (fuel, phone) go in search, which matches the category, sub-category, supplier and note; when nothing matches, the result lists the categories the range has, to search again with one of them.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       from: isoDate.annotate({
@@ -64,7 +64,7 @@ export const queryExpensesTool = tool({
       businessNumber: Schema.optionalKey(
         businessNumberSchema.annotate({
           description:
-            "Another of the user's businesses (from otherBusinesses in an earlier result); left out, their active one",
+            "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED",
         })
       ),
       businessNumbers: Schema.optionalKey(
@@ -72,7 +72,7 @@ export const queryExpensesTool = tool({
           .check(Schema.isMinLength(2), Schema.isMaxLength(20))
           .annotate({
             description:
-              "Several of the user's businesses (numbers from business and otherBusinesses), for a question about them together: the same query in each, with their combined total",
+              "Several of the user's businesses (numbers from <businesses> in the user context), for a question about them together: the same query in each, with their combined total",
           })
       ),
       allBusinesses: Schema.optionalKey(

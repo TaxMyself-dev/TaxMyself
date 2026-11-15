@@ -7,6 +7,7 @@ import {
   devAgentShouldContinue,
   withDevAgentFollowUps,
 } from './dev-agent-chat-parts';
+import { devAgentHeaders } from './dev-agent-chat';
 
 type Part = DevAgentPart;
 
@@ -109,5 +110,23 @@ describe('dev agent chat (Phase 3.1)', () => {
       kind: 'business_fact',
     });
     expect(devAgentSavedMemory(questionPart('input-available'))).toBeNull();
+  });
+});
+
+// Business selection (2026-11-15): the chat never forwards the app's active
+// business, which another screen leaves behind; the agent resolves the
+// business from the conversation and asks when it is ambiguous.
+describe('dev agent chat request headers (business selection)', () => {
+  it('sends the token and the client, never a businessnumber header', async () => {
+    const headers = await devAgentHeaders({
+      token: async () => 'token-1',
+      clientId: () => 'client-1',
+    });
+
+    expect(headers).toEqual({
+      Authorization: 'Bearer token-1',
+      'x-client-user-id': 'client-1',
+    });
+    expect(Object.keys(headers).map((name) => name.toLowerCase())).not.toContain('businessnumber');
   });
 });

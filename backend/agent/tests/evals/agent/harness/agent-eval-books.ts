@@ -560,6 +560,7 @@ export const evalAgentDomain = (
     getAdvanceTaxStatus: promised(books.getAdvanceTaxStatus),
     listUpcomingReports: promised(books.listUpcomingReports),
     getReportReadiness: promised(books.getReportReadiness),
+    listBusinesses: promised(books.listBusinesses),
   };
 };
 
@@ -583,6 +584,7 @@ export const failingAgentDomain = (failure: Error): AgentDomain => {
     getAdvanceTaxStatus: reject,
     listUpcomingReports: reject,
     getReportReadiness: reject,
+    listBusinesses: reject,
   };
 };
 
@@ -606,6 +608,7 @@ export const unusedEvalBooks = (
   getAdvanceTaxStatus: fail,
   listUpcomingReports: fail,
   getReportReadiness: fail,
+  listBusinesses: fail,
 });
 
 const car = "רכב";

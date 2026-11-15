@@ -22,6 +22,8 @@ import { createAgentStopHooks } from "@/agent/core/turn/agent-stop-hooks";
 import type { AgentTurnSignals } from "@/agent/core/turn/agent-turn-signals";
 import { agentShortTermHistory } from "@/agent/memory/short-term-memory.server";
 import { withAgentSkillList } from "@/agent/skills/registry/agent-skills";
+import { withConversationBusiness } from "@/agent/tools/books/agent-conversation-business";
+import type { AgentConversationBusinessState } from "@/agent/tools/books/agent-conversation-business";
 import { agentChatMessageText } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { AgentChatMessage } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { UserSettings } from "@/lib/settings/user-settings/user-settings-schema";
@@ -142,6 +144,10 @@ interface AgentChatAnswerRun {
   readonly releaseAnswer: Effect.Success<
     ReturnType<typeof maintainAgentChatAnswer>
   >;
+  // KeepInTax (2026-11-15): the user's businesses and the conversation's
+  // business; the books read it when the model names none
+  // (agent-conversation-business.ts).
+  readonly business: AgentConversationBusinessState;
 }
 
 /**
@@ -169,6 +175,7 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
       userSteers,
       answerSignal,
       releaseAnswer,
+      business,
     } = run;
 
     const { userId } = body;
@@ -201,7 +208,7 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
           opportunities: createTaskOpportunityStore(supabase),
           webSearch,
           email: emailSender,
-          books: createKeepInTaxBooks(),
+          books: withConversationBusiness(createKeepInTaxBooks(), business),
           locale: body.locale ?? "en",
           pageData: page.pageData,
           traceIntegrations,
@@ -227,7 +234,12 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
         }),
         stopHooks: createAgentStopHooks(
           async (input) =>
-            await appRuntime.runPromise(findAgentAnswerViolations(input))
+            await appRuntime.runPromise(
+              findAgentAnswerViolations({
+                ...input,
+                businesses: business.directory,
+              })
+            )
         ),
         onStepEnd: (usage) => {
           stepUsages.push(usage);

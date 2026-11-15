@@ -1263,6 +1263,13 @@ const getReportReadiness = (
 export const evalReportReads = (
   context: AgentEvalReportsContext
 ): Omit<KeepInTaxBooks, "queryExpenses"> => ({
+  listBusinesses: () =>
+    Effect.succeed({
+      businesses: context.businesses.map(({ number, name }) => ({
+        number,
+        name,
+      })),
+    }),
   queryTransactions: (query) =>
     asEffect(context, "queryTransactions", query, (one) =>
       queryTransactions(context, one)

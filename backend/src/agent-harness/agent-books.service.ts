@@ -961,11 +961,11 @@ export class AgentBooksService {
     query: UpcomingReportsQuery,
   ): Promise<UpcomingReportsResult> {
     const all = await this.agentDomain.ownerBusinesses(user);
-    // The other reads' default: the request's active business when it is
-    // one of the owner's (the controller verified it), else the owner's only
-    // one, else none. The list below still covers every business.
-    const activeNumber =
-      user.businessNumber ?? (all.length === 1 ? all[0].businessNumber : null);
+    // The other reads' default without a business asked for: the owner's
+    // only one, else none (never the page's businessnumber header; the agent
+    // names the conversation's own business itself). The list below still
+    // covers every business.
+    const activeNumber = all.length === 1 ? all[0].businessNumber : null;
     const active =
       all.find((business) => business.businessNumber === activeNumber) ?? null;
     let targets = all;

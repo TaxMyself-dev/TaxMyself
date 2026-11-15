@@ -32,13 +32,13 @@ const agentToolErrorNextSteps = new Map([
   ],
   [
     "BUSINESS_NOT_FOUND",
-    "That business is not one the user can read. Query again without businessNumber (their current business), or with one from otherBusinesses.",
+    "That business is not one the user can read. Use a number from <businesses> in the user context; when the business the user named is not there, say it was not found.",
   ],
   [
     "BUSINESS_REQUIRED",
     // KeepInTax (Phase 3.1, A18): the question's options carry the
     // business numbers as values, so the answer names the business.
-    'The user has several businesses and none is active. Ask which one with askUserQuestion: one option per business from this error, its name as the label and its number as the value; for queryExpenses also an option for all of them, value "all". Ask nothing else. With the answer, read again with the same range and filters: businessNumber set to the chosen value, or allBusinesses for "all".',
+    'The user has several businesses and this read named none. If the user\u0027s message names exactly one of the businesses listed here (by its name, a clear part of it, or its number), read again with businessNumber set to its number, without asking. Otherwise ask which one with askUserQuestion: one option per business from this error, its name as the label and its number as the value; for queryExpenses also an option for all of them, value "all". Ask nothing else. With the answer, read again with the same range and filters: businessNumber set to the chosen value, or allBusinesses for "all".',
   ],
   [
     "EXPENSE_SCOPE_INVALID",

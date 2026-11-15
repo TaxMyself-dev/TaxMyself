@@ -11,7 +11,7 @@ import {
 } from "../books/books-tool-schema";
 
 // listUpcomingReports' selector differs from the others': left out, it
-// lists every business, not the active one.
+// lists every business, not the conversation's.
 
 // The reports tools (Phase 3, §3.4 of docs/plans/ai-agent-tools-plan.md):
 // the P&L, the VAT report, income-tax advances, the reports coming up and
@@ -56,7 +56,7 @@ export const getAdvanceTaxStatusTool = tool({
 
 export const listUpcomingReportsTool = tool({
   description:
-    "List the VAT and income-tax advance reports of every one of the user's businesses (or one): each period with its due date and state, open (the period has not ended), due, overdue (past its due date and not marked as reported in KeepInTax) or reported, and where that state comes from. Reported ones are left out unless includeReported. activeBusiness is the business a question naming none is about (null when none is active): use it for that question's next report.",
+    "List the VAT and income-tax advance reports of every one of the user's businesses (or one): each period with its due date and state, open (the period has not ended), due, overdue (past its due date and not marked as reported in KeepInTax) or reported, and where that state comes from. Reported ones are left out unless includeReported. activeBusiness is the business a question naming none is about: the conversation's, else the only one (null when neither): use it for that question's next report.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       businessNumber: Schema.optionalKey(

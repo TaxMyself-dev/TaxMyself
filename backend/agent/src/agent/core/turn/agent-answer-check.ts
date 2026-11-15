@@ -1,6 +1,7 @@
 import type { ModelMessage, SystemModelMessage } from "ai";
-import { Config, Effect, Option } from "effect";
+import { Config, Effect, Option, Schema } from "effect";
 
+import type { BusinessView } from "@/agent/core/ports/keepintax-ports";
 import {
   agentAnswerCheckContext,
   agentAnswerCheckQuestions,
@@ -14,6 +15,7 @@ import {
   agentUnbackedNumbersViolation,
   agentWholeResultQuestion,
   agentWholeResultViolation,
+  agentWrongBusinessViolation,
 } from "@/agent/core/turn/agent-answer-check-rules";
 import type { AgentAnswerCheckAnswers } from "@/agent/core/turn/agent-answer-check-rules";
 import {
@@ -29,6 +31,7 @@ import type {
   AgentCutResult,
   AgentTurnToolOutcome,
 } from "@/agent/core/turn/agent-turn-tool-outcomes";
+import { namedBusinesses } from "@/agent/tools/books/agent-conversation-business";
 
 import {
   JevClient,
@@ -179,7 +182,88 @@ export interface AgentAnswerCheckInput {
   answer: string;
   outcomes: readonly AgentTurnToolOutcome[];
   unreadCuts: readonly AgentCutResult[];
+  // KeepInTax (2026-11-15): the data owner's businesses, for the
+  // named-business check (agentAnswerBusinessViolations); none in evals.
+  businesses?: readonly BusinessView[];
 }
+
+// The businesses a books result is about: its business, or each of its
+// businesses (queryExpenses across businesses, listUpcomingReports). None
+// when the output is not one of those shapes.
+const businessNumberSchema = Schema.Struct({ number: Schema.String });
+
+const decodeResultBusinesses = Schema.decodeUnknownOption(
+  Schema.fromJsonString(
+    Schema.Struct({
+      business: Schema.optionalKey(businessNumberSchema),
+      businesses: Schema.optionalKey(
+        Schema.Array(Schema.Struct({ business: businessNumberSchema }))
+      ),
+    })
+  )
+);
+
+const resultBusinesses = (output: string): string[] =>
+  Option.match(decodeResultBusinesses(output), {
+    onNone: () => [],
+    onSome: ({ business, businesses }) => [
+      ...(business === undefined ? [] : [business.number]),
+      ...(businesses ?? []).map((entry) => entry.business.number),
+    ],
+  });
+
+/**
+ * KeepInTax (2026-11-15, business selection): an answer must not present a
+ * read of one business as the answer about another the user named. When
+ * the user's message names exactly one of their businesses
+ * (namedBusinesses: whole words, quotes and punctuation aside, by name or
+ * number) and every books read that returned in this turn is of other
+ * businesses, the answer is sent back to read the named one. A message
+ * naming none, or several, or a turn with no returned read, is not
+ * judged: the check finds a mismatch, it never rejects wording. Ownership
+ * is the backend's check; this one is about which business answers.
+ *
+ * @param input - The user's message, the turn's tool calls and the owner's
+ *   businesses.
+ * @returns The violations (zero or one).
+ */
+export const agentAnswerBusinessViolations = (
+  input: Pick<AgentAnswerCheckInput, "userMessage" | "outcomes" | "businesses">
+) => {
+  const directory = input.businesses ?? [];
+
+  if (directory.length < 2) {
+    return [];
+  }
+
+  const [named, ...others] = namedBusinesses(input.userMessage, directory);
+
+  if (named === undefined || others.length > 0) {
+    return [];
+  }
+
+  const read = new Set(
+    input.outcomes.flatMap(({ toolName, outcome, output }) =>
+      outcome === "done" && agentToolReturnsBookNumbers(toolName)
+        ? resultBusinesses(output)
+        : []
+    )
+  );
+
+  if (read.size === 0 || read.has(named)) {
+    return [];
+  }
+
+  const nameOf = (number: string) =>
+    directory.find((business) => business.number === number)?.name ?? number;
+
+  return [
+    agentWrongBusinessViolation(
+      `${named} (${nameOf(named)})`,
+      [...read].map((number) => `${number} (${nameOf(number)})`)
+    ),
+  ];
+};
 
 /**
  * The rules the answer breaks; none when switched off, or when Jev is slow
@@ -200,7 +284,10 @@ export const findAgentAnswerViolations = Effect.fn("findAgentAnswerViolations")(
     }
 
     // In code, before Jev: it holds whatever Jev does.
-    const numberViolations = agentAnswerNumberViolations(input);
+    const numberViolations = [
+      ...agentAnswerNumberViolations(input),
+      ...agentAnswerBusinessViolations(input),
+    ];
 
     if (Option.isNone(jev)) {
       return numberViolations;

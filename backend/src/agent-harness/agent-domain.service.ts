@@ -11,6 +11,7 @@ import { User } from 'src/users/user.entity';
 import type { AgentHarnessUser } from './agent-harness.service';
 import {
   AgentExpensesDomain,
+  BusinessDirectory,
   ExpenseQueryAnswer,
   ExpensesAcrossBusinessesResult,
   ExpenseGrouping,
@@ -253,7 +254,20 @@ export class AgentDomainService {
   forUser(user: AgentHarnessUser): AgentExpensesDomain {
     return {
       queryExpenses: (query) => this.queryExpenses(user, query),
+      listBusinesses: () => this.listBusinesses(user),
     };
+  }
+
+  /**
+   * The data owner's numbered businesses (name and number), the directory
+   * the chat resolves a business the user names against. Read on the server
+   * for the verified user, after the access check and once more before it
+   * returns; the page sends no names or numbers the agent trusts.
+   */
+  async listBusinesses(user: AgentHarnessUser): Promise<BusinessDirectory> {
+    const businesses = await this.ownerBusinesses(user);
+    await this.assertAccessStillHolds(user);
+    return { businesses: businesses.map(businessView) };
   }
 
   /**
@@ -517,14 +531,18 @@ export class AgentDomainService {
     };
   }
 
-  // The business asked for, the request's current one (verified by the
-  // controller), or the owner's only one — always one of the owner's.
+  // The business asked for, else the owner's only one — always one of the
+  // owner's. The page's businessnumber header is never a default here
+  // (2026-11-15, business selection): it is whatever another screen left
+  // behind, so with several businesses and none asked for the read fails
+  // with BUSINESS_REQUIRED and the chat asks. The agent passes the
+  // conversation's own business as `asked` (agent-conversation-business.ts).
   private chooseBusiness<B extends { businessNumber: string; businessName: string | null }>(
     user: AgentHarnessUser,
     businesses: B[],
     asked: string | undefined,
   ): B {
-    const wanted = asked ?? user.businessNumber ?? undefined;
+    const wanted = asked;
 
     if (wanted !== undefined) {
       const found = businesses.find((business) => business.businessNumber === wanted);

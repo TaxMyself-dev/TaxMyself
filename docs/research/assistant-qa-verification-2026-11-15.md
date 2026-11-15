@@ -40,6 +40,15 @@ state and cross-checked against `agent_chat_messages`. No domain service or
 agent API was called directly. Read-only SQL was used only for the fixture
 check, the memory/task state and usage counts.
 
+> **Correction (follow-up investigation, see §8).** "That signal is what the
+> app's business selectors set" is inaccurate. No dedicated business selector
+> sets it, and nothing sets it on login. It is set as a side effect of
+> particular row actions and dialogs, persists across in-app navigation and is
+> cleared by a full page load. The programmatic setting was therefore test
+> instrumentation. In S1–S20 and S22–S24 every chat request carried
+> `businessnumber: 999100012`. S20's failure was later reproduced without any
+> instrumentation (§8.1), so the S20 verdict stands.
+
 ## 2. Fixture validation
 
 A read-only check before and after the run matched the documented fixture
@@ -112,6 +121,9 @@ business routing.
   the name, and nothing makes it notice that the business it read differs from
   the one named. Output shape: `backend/src/agent-harness/agent-books.service.ts`
   (P&L/VAT views).
+- **Correction (§8):** the repro above used programmatic business selection.
+  §8.1 gives an ordinary-UI reproduction, and §8.2 separates what is confirmed
+  from what is inferred. The fix recommended in §7 item 1 is superseded by §8.4.
 
 ### B. `getVatSummary` does not return output VAT (S13). Medium
 
@@ -203,3 +215,225 @@ business routing.
    itemize them.
 5. Investigate the occasional missing follow-ups. Log the follow-up writer's
    outcome per answer and record it in `agent_usage` so call counts are complete.
+
+## 8. Follow-up investigation of S20 (2026-11-15, later the same day)
+
+This was a read-only investigation, and no code had changed: HEAD was still
+`e27fd5ad` (this report only). The backend served the original runs from the
+same process (started 13:12:34) and the agent bundle was still the 09:54 build.
+I checked `keepintax-dev` before running anything. Five bounded model runs
+were made: A 1, B 1, C 2, N 1 (`agent_usage` went from 55 to 60 answers). One
+answer run that was not mine was recorded between the two sessions. Evidence is
+under `.local/assistant-qa/verification-2026-11-15/inv/`.
+
+Product clarification received: chat must not require an active business. It
+should resolve a named business, use conversation context, show buttons when
+the business is ambiguous, and never silently substitute another business.
+
+### 8.1 Is the S20 state reachable without instrumentation?
+
+**Code.** `AuthService.activeBusinessNumberSig` is an in-memory signal
+(`frontend/src/app/services/auth.service.ts:193`). The global
+`interceptors/auth.interceptor.ts:70-83` sends it as the `businessnumber` header
+on every API call. The chat page (`dev-agent.page.ts:120`,
+`dev-agent-chat.ts:58-65`) reads it per request.
+
+Nothing sets it on login or on entering `/dev/agent`. It is set as a side effect
+of row actions and dialogs, for example `my-account.page.ts:1250` (classify a
+transaction), `transactions.page.ts:793`, `expenses.page.ts:424` (edit expense),
+the manual-expense dialog, suppliers, the clients panel, depreciation,
+flow-analysis and the archived documents page. It is cleared on delegated-client
+exit. It survives in-app navigation, a "New chat" and business switches, and is
+lost on a full page load. The chat page shows it only as the text "active
+business:"; the chat has no selector.
+
+**Observed** (headless Chrome, ordinary clicks only, `inv/N0_dry`):
+
+| Step | Chat page shows |
+|---|---|
+| Login, then open `/dev/agent` (full page load) | `active business: none` |
+| Landing page: hover over the main-business row, choose "סיווג תנועה", close the dialog unsaved, then the "פאנל ניהול" nav link and its "צ׳אט AI" tab (in-app navigation) | `active business: 999100012` |
+| Full page load of `/dev/agent` again | `active business: none` |
+
+Run **N** (`inv/N_natural_ui_path`) then asked the S20 question in that
+ordinary-UI state. `getProfitAndLoss {"from":"2026-01-01","to":"2026-11-15"}`
+returned 999100012, and the answer was 7,000 / 2,567.52 / 4,432.48, the wrong
+business.
+
+**S20 is reachable without instrumentation**, through the current (dev-only)
+chat entry point, as a hidden side effect of an unrelated action. The original
+instrumentation was not identical to that journey, but it produced the same
+request state. Opening and closing the classify dialog only reads categories
+(`classify-tran.component.ts:340`). The fixture was unchanged afterwards; the
+client rows differed only in order.
+
+**Conclusions that still hold:** S1–S19 and S22–S24 measured the assistant with
+the header set to the main business. That is a reachable state, but not the
+only one. With no header and several businesses, every single-business read
+fails with `BUSINESS_REQUIRED` and the model asks (S21 shows this path). Those
+scenarios' amounts are valid for the header-present state. They do not show how
+unnamed questions behave without one, which by the clarified intent should be a
+button choice.
+
+### 8.2 Why the named business did not determine the tool call
+
+Same question in all runs. Expected business 999100020: 1,500 / 318.60 / 1,181.40.
+
+| Run | Context | `getProfitAndLoss` input | Outcome |
+|---|---|---|---|
+| Original S20 ×3, **B** | instrumented header 999100012, fresh chat | no `businessNumber` | 999100012 figures, wrong (4/4) |
+| **N** | ordinary-UI header 999100012, fresh chat | no `businessNumber` | wrong (1/1) |
+| **A** | no header (full page load), fresh chat | no `businessNumber` | `BUSINESS_REQUIRED`, then buttons for both businesses although the user named one; not pressed (1/1) |
+| **C** | header 999100012, after a `queryExpenses` turn whose result listed `otherBusinesses` | `businessNumber: "999100020"` | 1,500 / 318.6 / 1,181.4, correct (1/1) |
+
+**Confirmed by code and stored parts:**
+
+- In a fresh chat the model has no business names or numbers. The stored
+  `data-userContext` contains only settings ("Account: private person",
+  "Languages: en") and memory. There is no business list in the instructions,
+  and the `getProfitAndLoss` schema (`books-tool-schema.ts:13-17`) says to take
+  a number "from business or otherBusinesses in an earlier result; left out,
+  their active one". `agent-instructions.ts:66` says the same.
+- The only reads that return `otherBusinesses` are `queryExpenses`,
+  `queryTransactions` and `queryIssuedDocuments` (`agent-books.service.ts:272,
+  642`; `agent-domain.service.ts:498`). P&L and VAT results return only
+  `business`. `listUpcomingReports` lists every business, but nothing directs
+  the model to use it for discovery. **No documented way exists to discover the
+  businesses before the first read.**
+- The backend fills in the header without knowing the user's intent:
+  `chooseBusiness` uses `asked ?? user.businessNumber`
+  (`agent-domain.service.ts:524-533`). The header is only checked for
+  ownership (`requestBusiness`, `:289-301`).
+- Nothing checks that the business returned matches the business named. The
+  books answer check compares numbers against successful results of the same
+  turn, so the wrong-business figures pass it.
+- With no header, the backend does **not** substitute a business: it raises
+  `BUSINESS_REQUIRED` listing both names and numbers. The next-step text
+  (`agent-tool-error-next-step.ts:37-41`) unconditionally says "Ask which one…
+  Ask nothing else", so the model asked even though the error had just given it
+  the named business's number.
+- C succeeded because an earlier result in the conversation carried
+  `otherBusinesses: [{999100020, ייעוץ הדגמה - פטור}]`, exactly the source the
+  schema and the instructions point to.
+
+**Inferred, not proven:**
+
+- Why the model omits `businessNumber` rather than asking or saying it cannot
+  tell. The most consistent explanation is that it has no number for the name,
+  and instructions line 66 forbids picking one from a list.
+- A, C and N ran once each. Runs could differ, for example by A choosing
+  999100020 from the error without asking, or C omitting the number. The 4/4 and
+  1/1 wrong-business runs show the behavior is consistent, not that it is
+  certain.
+- The same pattern is expected for `getVatSummary`, `getAdvanceTaxStatus`,
+  `getReportReadiness` and `listClients`, which have the same schema and
+  resolution, but it was not run.
+- I did not see the user's own longer conversation. C reproduces the described
+  mechanism; I did not inspect that conversation.
+
+### 8.3 Does the active business belong in chat?
+
+Under the clarified intent, it should not be the tool default. In the app it is
+a hidden, page-level side effect, set by whichever row action ran last and
+invisible in chat. It survives navigation and silently decides which books are
+read, which is exactly the substitution the product forbids.
+
+It must stay for the rest of the application, though. `FirebaseAuthGuard`
+(`guards/firebase-auth.guard.ts:63-72`) exposes it as `request.user.businessNumber`,
+which `expenses.controller.ts` (e.g. `:51, :92, :349, :409, :541`),
+`bookkeeping.controller.ts` (`:42, :76, :242, :278, :295`) and
+`reports.controller.ts:684` use as their fallback. On the frontend the manual
+expense, classify-transaction, annual-report and SHAAM dialogs read it. **Do
+not remove it globally; stop chat from depending on it.**
+
+### 8.4 Minimal change (replaces §7 item 1)
+
+1. **Business directory in the turn context.** When the owner has more than one
+   numbered business, the server adds the verified owner's numbered businesses
+   (name and number, from `ownerBusinesses`) to the per-turn context. Names then
+   resolve before the first read.
+2. **Conversation business instead of the request header.** For agent tools,
+   `chooseBusiness` resolves in this order: explicit `businessNumber`, then the
+   conversation's current business (a number the user named or pressed earlier
+   in this conversation, kept server-side;
+   `agent_chat_conversations.business_number` already exists as "the business
+   the conversation started in"), then the only business, then
+   `BUSINESS_REQUIRED`. The page's `businessnumber` header is ignored by agent
+   tools, or kept only as an ownership-checked hint, never as a silent default.
+   It stays unchanged for the rest of the app.
+3. **Intent-aware clarification.** `BUSINESS_REQUIRED`'s next step: "if the
+   user's message names one of these businesses, read again with its number;
+   otherwise ask". Rewrite instructions lines 66 and 70 to cover named
+   businesses, conversation context and asking only when ambiguous.
+4. **Result check.** When the user's text names a business in the directory,
+   reject or flag an answer whose read `business.number` differs, so silent
+   substitution cannot pass the answer check.
+
+Step 2's conversation business is the only stored state. It adds no schema
+change if the existing column is reused, which is a decision for the agent
+owner. No user-facing selector is needed.
+
+### 8.5 Tests to correct or add
+
+- **Correct or adjust:**
+  - `agent-domain.service.spec.ts:499` ("reads the active business; switching it
+    mid-conversation moves the default") encodes the header default that §8.4
+    replaces; restate it for the conversation business.
+  - `agent-books.service.spec.ts:1135` (`listUpcomingReports` `activeBusiness`
+    "the verified one") and `:256` (asks when none is active) must follow the
+    new resolution order.
+  - `agent-domain.service.spec.ts:319/326` (`requestBusiness` header ownership)
+    stay valid for the non-chat app.
+- **Add (unit):**
+  - With a header and an explicit different `businessNumber`, the explicit one
+    is read, for every single-business read.
+  - With a header and several businesses, an agent tool without
+    `businessNumber` and without a conversation business returns
+    `BUSINESS_REQUIRED`.
+  - The directory lists only the owner's numbered businesses.
+- **Add (evals, `reports.eval.ts`, `books-reads.eval.ts`,
+  `chat-interaction.eval.ts`); the current cases always set `active:`:**
+  - Fresh chat with a named non-active business, with and without a header, for
+    P&L, VAT, issued documents and clients. Assert `businessNumber` equals the
+    named business, no `askUserQuestion`, and figures from that business.
+  - An unnamed question with no conversation business leads to a question with
+    buttons.
+  - A follow-up such as "ובעסק השני?" uses the conversation context.
+- **Frontend:** `dev-agent-chat.spec.ts` should assert whatever header policy is
+  chosen for chat requests.
+- **QA instructions:** `docs/operations/assistant-qa-demo.md` says to select the
+  main business first. There is no user-facing way to do that. This report
+  notes it; that document belongs to its task owner and was not edited.
+
+## 9. Business-selection fix and verification (2026-11-15, evening)
+
+Implements §8.4 for business selection only; the other findings of §4 (S13
+output VAT, S17 client existence, completeness) are not addressed here. Task
+record: `docs/tasks/active/assistant-business-selection.md`; design:
+`backend/agent/GUIDE.md` "Business selection".
+
+**Schema incident (repaired).** While restarting the backend for live checks,
+a plain `node dist/main` start booted with `synchronize=true` against
+keepintax-dev (~15:00); schema sync failed on `subscription` and the process
+was killed. Table creation times showed `typeorm_metadata` created and
+`user`, `subscription` and `transactions` rebuilt. The pricing schema was
+then repaired by Codex after a backup: the 4 missing pricing columns and 3
+CHECK constraints were restored from their original migration, all 41
+subscription rows kept their values, and migration verification passed.
+Afterwards every backend start set and verified `DISABLE_SYNCHRONIZE=true`,
+`SKIP_BOOT_SEED=true` and `DB_DATABASE=keepintax-dev` (boot log
+`synchronize=false`), on a port nobody else used. Evidence:
+`.local/.../incident-2026-11-15-synchronize/`.
+
+**Live results** (browser, ordinary UI; backend port 3012, frontend 4210):
+
+| Scenario | Result |
+|---|---|
+| L1: page context 999100012 (set by the ordinary classify-dialog path; the app's own requests carried it), fresh chat asks P&L of "ייעוץ הדגמה - פטור" | PASS: `getProfitAndLoss` with `businessNumber` 999100020; 1,500 / 318.6 / 1,181.4 |
+| L2: fresh chat, fuel, no business named | First run FAIL: the model read `allBusinesses` and gave 3,068. After one instruction correction (never widen an unnamed question to all businesses; ask): PASS: `BUSINESS_REQUIRED`, three buttons, press main business: 2,360, pending 118 excluded |
+| L3: same chat, "תפרט לפי חודשים", then fuel in "ייעוץ הדגמה - פטור" | PASS: main 354 / 590 / 826 / 590; then 999100020: 708 |
+
+Six model answer turns. No memory, task or accounting change (fixture
+identical). Deterministic coverage (unit and Nest specs) is listed in the
+task record. Remaining: the evals' fakes still emulate the old header
+default and were not run.

@@ -7,7 +7,6 @@ import type { Chat } from '@ai-sdk/angular';
 import type { UIMessage } from 'ai';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { environment } from 'src/environments/environment';
 import {
@@ -82,7 +81,6 @@ const examplePrompts = [
 })
 export class DevAgentPage implements OnInit, OnDestroy {
   private readonly afAuth = inject(AngularFireAuth);
-  private readonly authService = inject(AuthService);
   private readonly clientPanelService = inject(ClientPanelService);
 
   private readonly router = inject(Router);
@@ -100,8 +98,8 @@ export class DevAgentPage implements OnInit, OnDestroy {
 
   chat = signal<Chat<UIMessage> | null>(null);
   // The context the chat belongs to (agent user, client), read once per
-  // session: a chat never moves to another client. The active business may
-  // change within the chat.
+  // session: a chat never moves to another client. The business is the
+  // agent's to resolve from the conversation (never the app's active one).
   context = signal<DevAgentChatContext | null>(null);
   setupError = signal<string | null>(null);
   locale = signal<'he' | 'en'>('he');
@@ -117,17 +115,11 @@ export class DevAgentPage implements OnInit, OnDestroy {
 
   private readonly auth: DevAgentRequestAuth = {
     token: async () => await firstValueFrom(this.afAuth.idToken.pipe(take(1))),
-    businessNumber: () => this.authService.getActiveBusinessNumber(),
     clientId: () => this.clientPanelService.getSelectedClientId(),
   };
 
   agentUserId() {
     return this.context()?.agentUserId ?? null;
-  }
-
-  // The active business, the tools' default for the next request.
-  get businessNumber() {
-    return this.auth.businessNumber();
   }
 
   get clientId() {

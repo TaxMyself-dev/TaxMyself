@@ -508,8 +508,9 @@ export interface ReportObligation {
 /** The report periods of the owner's businesses (or one). */
 export interface UpcomingReportsResult {
   readonly today: string;
-  // The active business (verified, else the owner's only one), null when
-  // none is: the business a question naming none is about.
+  // The business a question naming none is about: the conversation's own
+  // business (agent-conversation-business.ts), else the owner's only one,
+  // else null (never the page's businessnumber header).
   readonly activeBusiness: BusinessView | null;
   readonly businesses: readonly {
     readonly business: BusinessView;
@@ -570,6 +571,15 @@ export interface ReportReadinessResult {
   readonly nothingToReview: boolean;
 }
 
+/**
+ * The data owner's numbered businesses, read on the server for the verified
+ * user (2026-11-15, business selection): the directory a business the user
+ * names is resolved against, before any read.
+ */
+export interface BusinessDirectory {
+  readonly businesses: readonly BusinessView[];
+}
+
 /** One read of the books: an Effect failing with a coded Error. */
 type BooksRead<Q, R> = (query: Q) => Effect.Effect<R, Error>;
 
@@ -594,6 +604,8 @@ export interface KeepInTaxBooks {
   getAdvanceTaxStatus: BooksRead<ReportRangeQuery, AdvanceTaxResult>;
   listUpcomingReports: BooksRead<UpcomingReportsQuery, UpcomingReportsResult>;
   getReportReadiness: BooksRead<ReportRangeQuery, ReportReadinessResult>;
+  // Not a tool: the server reads it before the model's first step.
+  listBusinesses: BooksRead<void, BusinessDirectory>;
 }
 
 /** The names of the books' reads (every KeepInTaxBooks method). */

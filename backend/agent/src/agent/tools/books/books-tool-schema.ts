@@ -13,7 +13,7 @@ import { trimmedLengthString } from "../../../../backend/shared/schema/trimmed-l
 export const businessNumberInput = Schema.optionalKey(
   Schema.String.check(Schema.isPattern(/^\d{5,12}$/u)).annotate({
     description:
-      "One of the user's businesses (from business or otherBusinesses in an earlier result); left out, their active one",
+      "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED",
   })
 );
 
