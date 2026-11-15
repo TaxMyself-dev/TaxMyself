@@ -816,3 +816,20 @@ projection is the re-entry source after refresh, browser close or a later login;
 browser storage is never authoritative. Delegated and admin-impersonated reads
 do not expose this owner checkout projection. No schema, amount, VAT, receipt,
 accounting, credential or CardCom URL change is part of this gate.
+
+KT-114 narrows the terminal non-success case using CardCom's documented
+`GetLpResult` contract. A non-zero top-level `ResponseCode` may release the
+hosted attempt only when the response echoes the exact LowProfile id, terminal
+and JSON ReturnValue for that owner/subscription/plan/attempt, contains no
+transaction id and contains no successful nested transaction. Credential,
+transport, malformed, foreign and conflicting results remain `UNKNOWN` or
+`MANUAL_REVIEW`; they never authorize another checkout. Unknown results persist
+the bounded, sanitized provider response code and description when supplied.
+Reconciliation logs one request and one normalized outcome using the existing
+token-free provider envelope (attempt/subscription/obligation identifiers,
+trigger/mode, opaque provider keys, amount/currency, response code and failure
+category); no card, token or payer data is logged. A correlated terminal
+non-success follows the existing atomic `DECLINED` transition, which releases
+the active obligation and lets the status page return the owner to the matching
+plans/recovery flow. This adds no provider write, schema, amount, VAT, receipt or
+accounting change.

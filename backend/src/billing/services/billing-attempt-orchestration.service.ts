@@ -862,8 +862,14 @@ export class BillingAttemptOrchestrationService {
       const targetStatus = BillingAttemptStatus[outcome.kind];
       assertBillingAttemptTransition(attempt.status, targetStatus);
       attempt.status = targetStatus;
-      attempt.providerResponseCode = outcome.providerResponseCode ?? null;
-      attempt.providerDescription = outcome.providerDescription ?? null;
+      // A later transport failure must not erase the last bounded CardCom
+      // diagnostic we successfully received for an unresolved attempt.
+      attempt.providerResponseCode =
+        outcome.providerResponseCode ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerResponseCode : null);
+      attempt.providerDescription =
+        outcome.providerDescription ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerDescription : null);
       attempt.failureCategory =
         outcome.kind === 'CAPTURED' ? null : outcome.failureCategory ?? null;
       attempt.lastReconciledAt = wasReconciliation

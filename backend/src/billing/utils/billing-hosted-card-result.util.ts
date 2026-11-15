@@ -243,6 +243,40 @@ export function isDefinitiveHostedDecline(
 }
 
 /**
+ * A top-level non-success from GetLpResult is safe to treat as a terminal
+ * no-charge result only when CardCom echoes the immutable identity of this
+ * exact hosted page. Authentication/development errors commonly omit that
+ * identity and must stay UNKNOWN: a lookup failure is not evidence that an
+ * otherwise valid checkout did not charge.
+ *
+ * A transaction-bearing response is deliberately excluded. Rejected
+ * transactions are handled by isDefinitiveHostedDecline, while any conflicting
+ * transaction signal remains fail-closed.
+ */
+export function isDefinitiveHostedNoCharge(
+  result: unknown,
+  expected: HostedCaptureExpectation,
+): { responseCode: number } | null {
+  if (!result || typeof result !== 'object') return null;
+  const verified = result as CardcomWebhookPayload;
+  const code = verified.ResponseCode;
+  if (
+    typeof code !== 'number' ||
+    !Number.isFinite(code) ||
+    code === 0 ||
+    verified.LowProfileId !== expected.lowProfileId ||
+    !terminalMatches(verified, expected) ||
+    !returnValueMatches(verified, expected) ||
+    verified.TranzactionId != null ||
+    verified.TranzactionInfo?.TranzactionId != null ||
+    verified.TranzactionInfo?.ResponseCode === 0
+  ) {
+    return null;
+  }
+  return { responseCode: code };
+}
+
+/**
  * Accepts card details from a LowProfile lookup ONLY for the exact captured
  * hosted attempt (see validateHostedTransactionResult).
  */
