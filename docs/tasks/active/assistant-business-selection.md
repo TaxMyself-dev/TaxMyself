@@ -98,3 +98,28 @@ During the first live attempt a plain restart booted this worktree's backend wit
   - Eval B (stored history, then an unnamed follow-up, then a named override): not written. The timebox ran out.
 - The task stays open: both gaps are addressed deterministically, but neither model eval is verified.
 - Remaining approximation: a typed message's business is still computed from that message alone plus the carried state, not from the whole stored conversation, because the eval stores no assistant UI parts. `runAgentHistory` is single-turn, so eval B's override step needs a second history run.
+
+## Follow-up 3: model evals A and B (2026-11-15, 20:55:55–about 21:01)
+
+- Tested revision: `e73eed79` plus eval B, committed with this note. Eval B is the new `chat-interaction.eval.ts` case "S2: a business chosen in a stored conversation is kept, and naming the other switches".
+  - It makes two linked `runAgentHistory` calls.
+  - The history holds a stored `tool-askUserQuestion` press of the studio (514789632), then the unnamed "וכמה הוצאתי על דלק השנה?".
+  - The second call carries the first answer forward: its actual `queryExpenses` inputs, with outputs from the same deterministic books, and its text. It then adds "ובעסק נועה קרמיקה?".
+- Command (from `backend/agent`; loads `../.env`, no secrets printed):
+
+  ```
+  npm run eval -- --variant business-selection --reps 1 tests/evals/agent/interaction/chat-interaction.eval.ts -t "S2: a (chosen business is kept|business chosen in a stored)"
+  ```
+
+  The first launch stopped before any model call with `AGENT_EVAL_RUN_VARIANT: pass --variant <name>`; it was relaunched with `--variant`.
+- Results (`.eval/agent/runs/business-selection/results.jsonl`, model gpt-6-luna): **2 passed, 10 skipped.**
+
+  | Eval | `passed_all` | Tool reads (input business → returned business) |
+  |---|---|---|
+  | A | true | unnamed `queryExpenses` (no business read) → `askUserQuestion` → `"514789632"`→514789632 → unnamed follow-up →514789632 (filled in from the press) → `"039876541"`→039876541 |
+  | B | true | unnamed →514789632 (restored from the stored press, no question asked, 1,662) → `"039876541"`→039876541 (431.15) |
+
+- Counts: 2 evaluated cases, 1 repetition each; 6 model answer turns (A 4, B 2; `attempts.jsonl` has 6 lines). No retries.
+- Checks: `npx tsc --noEmit -p .` 0 errors; `npx ultracite check` on `chat-interaction.eval.ts` clean.
+- Elapsed: about 5 minutes. All checks requested in this follow-up were run.
+- Business-selection evals A and B are verified. The approximations recorded in Follow-up 2 still apply to the harness. The other eval cases changed in `234cc7b4` have still not been run against the model.

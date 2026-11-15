@@ -1,4 +1,5 @@
 import { describe, it } from "@effect/vitest";
+import { Effect } from "effect";
 
 import { agentQuestionOptions } from "@/agent/chat/turn/agent-chat-question-answers";
 import type { ExpenseQuery } from "@/agent/core/ports/keepintax-ports";
@@ -152,6 +153,9 @@ const questionValues = (run: AgentEvalRun | undefined) =>
 // The memory writes of a conversation, shared by its runs.
 const memoryWrites = (run: AgentEvalRun | undefined) =>
   (run?.writes ?? []).filter((write) => write.table === "agent_memories");
+
+// A returned tool part's state, as the chat stores it.
+const returned = "output-available" as const;
 
 // A time this many minutes before the evals' message time.
 const minutesBefore = (minutes: number) =>
@@ -542,7 +546,7 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
           {
             type: "tool-searchWeb",
             toolCallId: "s11-search",
-            state: "output-available",
+            state: returned,
             input: { query: "מחירי דלק בישראל", maxResults: 3 },
             output: [],
           },
@@ -584,6 +588,119 @@ describe.concurrent("chat interaction (Phase 3.1)", () => {
     expect(calledToolNames(run)).toContain("queryExpenses");
     expect(mentionsAmount(run.answer, "1662")).toBe(true);
     expect(answerNumbersNotFromTools(run)).toEqual([]);
+  });
+
+  // 2026-11-15 (business selection): a stored conversation where the user
+  // pressed the studio keeps it for an unnamed follow-up; naming the
+  // workshop in the next message switches. Two linked runAgentHistory
+  // calls, the first answer carried into the second's history.
+  it("S2: a business chosen in a stored conversation is kept, and naming the other switches", async ({
+    expect,
+  }) => {
+    const { scenario, queries } = twoBusinessesNoneActive();
+    const { books } = scenario;
+    const studio = evalDesignerBusiness.number;
+    const ceramics = evalCeramicsBusiness.number;
+    const at = minutesBefore;
+
+    const history: AgentChatMessage[] = [
+      {
+        id: "b-u1",
+        role: "user",
+        metadata: { createdAt: at(30) },
+        parts: [{ type: "text", text: "כמה הוצאתי על הטלפון הנייד השנה?" }],
+      },
+      {
+        id: "b-a1",
+        role: "assistant",
+        metadata: { createdAt: at(29) },
+        parts: [
+          {
+            type: "tool-askUserQuestion",
+            toolCallId: "b-ask",
+            state: returned,
+            input: {
+              question: "באיזה עסק לבדוק?",
+              options: [evalDesignerBusiness.name, evalCeramicsBusiness.name],
+            },
+            output: { value: studio, label: evalDesignerBusiness.name },
+          },
+          { type: "text", text: "הטלפון הנייד השנה: 539.40 ₪." },
+        ],
+      },
+      {
+        id: "b-u2",
+        role: "user",
+        metadata: { createdAt: evalMessageTime },
+        parts: [{ type: "text", text: "וכמה הוצאתי על דלק השנה?" }],
+      },
+    ];
+
+    const first = await runAgentHistory(scenario, history);
+    const firstReads = [...queries];
+
+    // The follow-up read the pressed studio, asked nothing, and gave its
+    // counted fuel (1,662 ₪).
+    expect(calledToolNames(first)).toContain("queryExpenses");
+    expect(calledToolNames(first)).not.toContain("askUserQuestion");
+    expect(firstReads.length).toBeGreaterThanOrEqual(1);
+    expect(firstReads.every((query) => readsBusiness(query, studio))).toBe(
+      true
+    );
+    expect(mentionsAmount(first.answer, "1662")).toBe(true);
+    expect(answerNumbersNotFromTools(first)).toEqual([]);
+
+    // The first answer as the chat stores it: its reads (their actual
+    // inputs, answered again by the same deterministic books) and its text.
+    if (books === undefined) {
+      throw new Error("no books");
+    }
+
+    const outputs = await Promise.all(
+      firstReads.map(
+        async (query) => await Effect.runPromise(books.queryExpenses(query))
+      )
+    );
+
+    const carried: AgentChatMessage["parts"] = [
+      ...firstReads.map((query, index) => ({
+        type: "tool-queryExpenses" as const,
+        toolCallId: `b-read-${index}`,
+        state: returned,
+        input: query,
+        output: outputs[index],
+      })),
+      { type: "text", text: first.answer },
+    ];
+
+    const replayed = queries.length;
+
+    const second = await runAgentHistory(scenario, [
+      ...history,
+      {
+        id: "b-a2",
+        role: "assistant",
+        metadata: { createdAt: evalMessageTime },
+        parts: carried,
+      },
+      {
+        id: "b-u3",
+        role: "user",
+        metadata: { createdAt: evalMessageTime },
+        parts: [{ type: "text", text: `ובעסק ${evalCeramicsBusiness.name}?` }],
+      },
+    ]);
+
+    const secondReads = queries.slice(replayed);
+
+    expect(secondReads.some((query) => readsBusiness(query, ceramics))).toBe(
+      true
+    );
+    expect(secondReads.some((query) => readsBusiness(query, studio))).toBe(
+      false
+    );
+    expect(mentionsAmount(second.answer, "431.15")).toBe(true);
+    expect(answerNumbersNotFromTools(second)).toEqual([]);
   });
 
   it("S12: a stable business fact stated in a fuel question is saved as one, and the question is answered", async ({
