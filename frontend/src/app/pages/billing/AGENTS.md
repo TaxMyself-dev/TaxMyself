@@ -4,6 +4,11 @@ Local `npm run start:billing` serves port 4200 and the development API targets b
 Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
 The enrollment host owns vertical scrolling inside the app's overflow-hidden flex shell; its main content must not shrink, so the plan CTA and cancellation terms remain reachable on short screens.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
+The plans page presents its header, plan grid and VAT note inside one centered,
+bordered surface. The responsive grid derives its columns from the number of
+available cards and centers incomplete rows, so two plans never occupy two
+positions of an otherwise three-column layout. At tablet/mobile widths it
+collapses to one centered column without changing checkout behavior.
 
 ## Key entities/files
 - `billing-plans.page.ts` — standalone `BillingPlansPage`; fetches plans, builds a display view-model (`PlanVM`) merging module-based access-control items and marketing "feature" flags, and starts checkout.
