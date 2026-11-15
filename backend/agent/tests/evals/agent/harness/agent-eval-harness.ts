@@ -16,7 +16,10 @@ import { agentModelId } from "@/agent/core/model/agent-model";
 import { appAgentTools } from "@/agent/core/tool-runtime/app-agent-tools";
 import { agentShortTermHistory } from "@/agent/memory/short-term-memory.server";
 import { withAgentSkillList } from "@/agent/skills/registry/agent-skills";
-import { withConversationBusiness } from "@/agent/tools/books/agent-conversation-business";
+import {
+  agentBusinessesSection,
+  withConversationBusiness,
+} from "@/agent/tools/books/agent-conversation-business";
 import type { AgentConversationBusinessState } from "@/agent/tools/books/agent-conversation-business";
 import type {
   AgentChatMessage,
@@ -41,6 +44,7 @@ import { agentEvalTurns } from "./agent-eval-run-checks";
 import type { AgentEvalScenario } from "./agent-eval-scenario";
 import { createAgentEvalSession } from "./agent-eval-scenario";
 import {
+  agentEvalHistoryBusiness,
   agentEvalStepMessages,
   openAgentEvalQuestion,
   readAgentEvalUserContext,
@@ -262,10 +266,15 @@ export interface AgentEvalConversation {
   business: string | null;
 }
 
-// The data owner's businesses, read for each step as the chat endpoint
-// reads them (readAgentBusinessDirectory): none when the case gives no
-// books or the read fails.
-const readEvalBusinessDirectory = async (scenario: AgentEvalScenario) =>
+/**
+ * The data owner's businesses, read for each step as the chat endpoint
+ * reads them (readAgentBusinessDirectory): none when the case gives no
+ * books or the read fails.
+ *
+ * @param scenario - The case's fixtures.
+ * @returns The directory.
+ */
+export const readEvalBusinessDirectory = async (scenario: AgentEvalScenario) =>
   scenario.books === undefined
     ? []
     : await Effect.runPromise(
@@ -433,13 +442,21 @@ export const runAgentHistory = async (
   const writes: AgentEvalWrite[] = [];
   const supabase = createAgentEvalSession(scenario, writes);
 
+  // KeepInTax (2026-11-15, business selection): as the chat endpoint
+  // prepares a stored conversation (agentEvalHistoryBusiness).
+  const directory = await readEvalBusinessDirectory(scenario);
+  const prepared = agentEvalHistoryBusiness(history, directory);
+
   const messages = await convertToModelMessages(
     withAgentSkillList(
       agentChatModelHistory(
         agentShortTermHistory(
           withAgentUserContext(
-            history,
-            await readAgentEvalUserContext(supabase)
+            prepared.history,
+            await readAgentEvalUserContext(
+              supabase,
+              agentBusinessesSection(directory, prepared.business.current)
+            )
           )
         )
       )
@@ -447,17 +464,27 @@ export const runAgentHistory = async (
     { tools: appAgentTools }
   );
 
+  const answered =
+    scenario.books === undefined
+      ? scenario
+      : {
+          ...scenario,
+          books: withConversationBusiness(scenario.books, prepared.business),
+        };
+
   const lastUser = history.findLast((message) => message.role === "user");
   const input = lastUser?.parts.find((part) => part.type === "text");
 
   pinEvalClock(lastUser?.metadata?.createdAt ?? evalMessageTime);
 
   const run = await runEvalMessages(
-    scenario,
+    answered,
     messages,
     input?.type === "text" ? input.text : "",
     writes,
-    supabase
+    supabase,
+    "typed",
+    directory
   );
 
   // The stored messages' text, then the new answer; the last user message is

@@ -68,3 +68,33 @@ During the first live attempt a plain restart booted this worktree's backend wit
 - Live-model eval executions: **0 of the 5 allowed**. The 10-minute timebox was spent by 20:00. Started 19:51:23; deterministic checks finished 20:03 (about 12 minutes).
 - This was a bounded diagnostic run, not full regression verification. None of the updated or new eval cases has been run against the model; that is the remaining gap. The cases to run are the four named above, starting with `query-expenses-businesses` "reads the business a fresh chat names" and `chat-interaction` "a chosen business is kept…".
 - `runAgentHistory` (stored-history cases) is not wired to the business helpers.
+
+## Follow-up 2: button press and stored history (2026-11-15, 20:19:56–about 20:29, bounded)
+
+- Files changed:
+  - `backend/agent/tests/evals/agent/harness/agent-eval-step-messages.ts`
+  - `backend/agent/tests/evals/agent/harness/agent-eval-harness.ts`
+  - new `backend/agent/tests/src/agent/tools/books/agent-eval-business-harness.test.ts`
+  - No product code was changed.
+- Gap 1 (button press):
+  - `agentEvalBusinessAfterChoice` gives the answered question to the production reader `agentConversationBusiness`, in the shape the chat stores it (a returned `tool-askUserQuestion` part whose output is the pressed `{value,label}`).
+  - The carried business is placed before it as a `data-businessContext` part, so the reader's own rules apply: a business establishes itself, "all" clears it, any other value leaves the carried one.
+  - The answer step's `current` is that business, and the harness's `withConversationBusiness` state starts from it. The press therefore takes effect before the answer's first read.
+- Gap 2 (stored history):
+  - `runAgentHistory` reads the directory and prepares the history with `agentEvalHistoryBusiness`, which applies `withAgentBusinessContext` to each user message as the endpoint did when it was sent, then calls `agentConversationBusinessState`.
+  - It adds `agentBusinessesSection` to the user context, wraps the books with `withConversationBusiness` and passes `businesses` to the answer check.
+- Deterministic tests (new file, 5 tests):
+  - A press establishes the business before the first read (an unnamed read returns the pressed business).
+  - "all" clears it, and another value keeps the carried business.
+  - A history restores the business from a named message or from an earlier read by number.
+  - A new message naming the other business overrides the press.
+  - A history with no named, pressed or read event has no business, and an unnamed read gives `BUSINESS_REQUIRED`. The legacy `agent_chat_conversations.business_number` is not part of stored messages, so the reader cannot see it.
+- Commands and results:
+  - `npx vitest run --project unit tests/src/agent/tools/books`: 42/42 passed.
+  - `npx tsc --noEmit -p .`: 0 errors.
+  - `npx ultracite check` on the 3 changed files: clean.
+- Model evals: **0 of the 2 executed, 0 model answer turns.**
+  - Eval A (`chat-interaction` "a chosen business is kept…"): `npx vitest run --project evals … -t` did not load. It failed with `DeepEvalError: … TYPESAFE_API_KEY not configured` because plain vitest does not load the env files that `npm run eval` loads. No model turn ran.
+  - Eval B (stored history, then an unnamed follow-up, then a named override): not written. The timebox ran out.
+- The task stays open: both gaps are addressed deterministically, but neither model eval is verified.
+- Remaining approximation: a typed message's business is still computed from that message alone plus the carried state, not from the whole stored conversation, because the eval stores no assistant UI parts. `runAgentHistory` is single-turn, so eval B's override step needs a second history run.

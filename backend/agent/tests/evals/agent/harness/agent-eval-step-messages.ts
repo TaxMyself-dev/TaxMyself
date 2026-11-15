@@ -22,6 +22,7 @@ import { agentSkillListMessages } from "@/agent/skills/registry/agent-skills";
 import {
   agentBusinessesSection,
   agentConversationBusiness,
+  agentConversationBusinessState,
   businessContextPart,
   withAgentBusinessContext,
 } from "@/agent/tools/books/agent-conversation-business";
@@ -94,6 +95,77 @@ const conversationBusinessAfter = (
   return last?.parts.some((part) => part.type === businessContextPart) === true
     ? agentConversationBusiness([last], business.directory)
     : business.current;
+};
+
+// The carried business as a stored message names it, so the production
+// reader (agentConversationBusiness) sees it before the new event.
+const carriedBusiness = (business: AgentEvalStepBusiness) =>
+  business.current === null
+    ? []
+    : [
+        {
+          role: "user",
+          parts: [
+            {
+              type: businessContextPart,
+              data: { numbers: [business.current] },
+            },
+          ],
+        },
+      ];
+
+/**
+ * The conversation's business once a question is answered: the answer as
+ * the chat stores it (a returned tool-askUserQuestion part with the
+ * pressed value), read by the production reader after the carried
+ * business. A business value establishes it, "all" clears it, any other
+ * value leaves it. It holds before the answer's first read.
+ *
+ * @param answer - The pressed option (agentQuestionAnswerFor).
+ * @param business - The directory and the business before the press.
+ * @returns The business after the press, or null.
+ */
+export const agentEvalBusinessAfterChoice = (
+  answer: AgentQuestionAnswer,
+  business: AgentEvalStepBusiness
+) => {
+  const choice = {
+    type: "tool-askUserQuestion",
+    state: "output-available",
+    output: answer,
+  };
+
+  return agentConversationBusiness(
+    [...carriedBusiness(business), { role: "assistant", parts: [choice] }],
+    business.directory
+  );
+};
+
+/**
+ * A stored conversation prepared as the chat endpoint prepares it
+ * (agent-chat-response.server.ts): the businesses each user message names
+ * recorded on it, as the endpoint recorded them when it was sent, and the conversation's business read from every
+ * stored message (named, pressed or read by number). Nothing else, such as
+ * a legacy page-header value, establishes one.
+ *
+ * @param history - The stored conversation, oldest first.
+ * @param directory - The data owner's businesses.
+ * @returns The prepared history and the business state for its answer.
+ */
+export const agentEvalHistoryBusiness = (
+  history: AgentChatMessage[],
+  directory: readonly BusinessView[]
+) => {
+  let prepared: AgentChatMessage[] = [];
+
+  for (const next of history) {
+    prepared = withAgentBusinessContext([...prepared, next], directory);
+  }
+
+  return {
+    history: prepared,
+    business: agentConversationBusinessState(directory, prepared),
+  };
 };
 
 /**
@@ -213,7 +285,7 @@ export const agentEvalStepMessages = async (
     }
 
     return {
-      current: business.current,
+      current: agentEvalBusinessAfterChoice(answer, business),
       stored: earlier.stored,
       messages: [agentEvalQuestionResult(open, answer)],
       input: `[pressed "${answer.label}"]`,
