@@ -51,6 +51,11 @@ const appRoutes: Routes = [
     canActivate: [AuthGuard, BillingGuard]
   },
   {
+    path: 'settings-new',
+    loadComponent: () => import('./pages/settings-new/settings-new.page').then(m => m.SettingsNewPage),
+    canActivate: [AuthGuard, BillingGuard]
+  },
+  {
     path: 'settings',
     loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
     canActivate: [AuthGuard, BillingGuard]

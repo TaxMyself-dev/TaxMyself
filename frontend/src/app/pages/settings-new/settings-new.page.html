@@ -1,0 +1,142 @@
+<div class="settings-layout" dir="rtl">
+  <aside class="settings-sidebar" aria-label="ניווט הגדרות חדשות">
+    <h1>הגדרות</h1>
+    <button class="group-toggle" type="button" [attr.aria-expanded]="personalExpanded()"
+      aria-controls="personal-links" (click)="personalExpanded.set(!personalExpanded())">
+      <span><img src="assets/settings-new/user.svg" width="16" height="16" alt="" />הגדרות אישיות</span>
+      <img class="chevron" [class.closed]="!personalExpanded()" src="assets/settings-new/chevron.svg" width="8" height="4" alt="" />
+    </button>
+    <nav id="personal-links" [hidden]="!personalExpanded()">
+      <button type="button" [class.active]="activeSection() === 'account'" [attr.aria-current]="activeSection() === 'account' ? 'location' : null" (click)="goTo('account')">החשבון שלי</button>
+      <button type="button" [class.active]="activeSection() === 'businesses'" [attr.aria-current]="activeSection() === 'businesses' ? 'location' : null" (click)="goTo('businesses')">העסקים שלי</button>
+    </nav>
+    <button class="logout" type="button" (click)="authService.logout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
+  </aside>
+
+  <main #scroller class="settings-scroll" (scroll)="onScroll()" aria-label="הגדרות אישיות">
+    <div class="settings-content">
+      <section id="new-account" aria-labelledby="account-heading">
+        @if (authService.isViewingAsClient()) { <p class="view-only" role="status">פרטי החשבון מוצגים לצפייה בלבד.</p> }
+        <article class="panel personal-panel">
+          <h2 id="account-heading">{{ isCompany() ? 'פרטי חברה' : 'חשבון אישי' }}</h2>
+          <div class="profile-image">
+            <app-account-image [editable]="true" [imagePath]="userData?.profileImagePath"
+              [contextKey]="userData?.firebaseId || ''" [disabled]="authService.isViewingAsClient()"
+              (imageChanged)="onProfileImageChanged($event)" />
+          </div>
+          <fieldset [disabled]="authService.isViewingAsClient() || savingPersonal()">
+            <div class="fields-grid">
+              @for (field of personalFields; track field.key) {
+                @if (!isCompany() || ['fName', 'email', 'phone'].includes(field.key)) {
+                  <app-new-settings-field [group]="personalFormGroup" [field]="isCompany() && field.key === 'fName' ? {key: 'fName', label: 'שם החברה'} : field" />
+                }
+              }
+            </div>
+            <div class="actions"><button type="button" (click)="savePersonal()">{{ savingPersonal() ? 'שומר...' : 'שמור' }}</button>
+              <button type="button" (click)="personalFormGroup.reset()">נקה</button></div>
+          </fieldset>
+        </article>
+
+        @if (!isCompany()) {
+          @if (hasSpouse()) {
+            <article class="panel family-panel">
+              <h2>בני משפחה</h2>
+              <fieldset [disabled]="authService.isViewingAsClient() || savingSpouse()">
+                <div class="fields-grid">
+                  @for (field of spouseFields; track field.key) {
+                    <app-new-settings-field [group]="spouseFormGroup" [field]="field" [readonly]="!spouseEditing()" />
+                  }
+                </div>
+                <div class="actions">
+                  @if (spouseEditing()) { <button type="button" (click)="saveSpouse()">{{ savingSpouse() ? 'שומר...' : 'שמור' }}</button> }
+                  @else { <button type="button" (click)="spouseEditing.set(true)">ערוך</button> }
+                </div>
+              </fieldset>
+            </article>
+          }
+          @for (group of childrenFormArray.controls; track group; let i = $index) {
+            <article class="panel family-panel">
+              <h2>ילדים</h2>
+              <fieldset [disabled]="authService.isViewingAsClient() || savingChildren()">
+                <div class="fields-grid">
+                  @for (field of childFields; track field.key) {
+                    <app-new-settings-field [group]="group" [field]="field" [readonly]="childEditing() !== i && children()[i]?.index != null" />
+                  }
+                </div>
+                <div class="actions">
+                  @if (childEditing() === i || children()[i]?.index == null) {
+                    <button type="button" (click)="saveFamilyChildren()">{{ savingChildren() ? 'שומר...' : 'שמור' }}</button>
+                  } @else { <button type="button" (click)="childEditing.set(i)">ערוך</button> }
+                  <button type="button" (click)="removeNewChild(i)">מחק</button>
+                </div>
+              </fieldset>
+            </article>
+          }
+          <div class="family-add">
+            <button type="button" class="primary" [disabled]="authService.isViewingAsClient()"
+              [attr.aria-expanded]="familyMenuOpen()" aria-controls="family-options" (click)="familyMenuOpen.set(!familyMenuOpen())">הוסף בן משפחה <span aria-hidden="true">⌄</span></button>
+            @if (familyMenuOpen()) {
+              <div id="family-options" class="family-options" (keydown.escape)="familyMenuOpen.set(false)">
+                @if (!hasSpouse()) { <button type="button" (click)="addFamily('spouse')">הוספת בן / בת זוג</button> }
+                <button type="button" (click)="addFamily('child')">הוספת ילד / ילדה</button>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <section #businessSection id="new-businesses" aria-labelledby="businesses-heading" class="business-section">
+        <header class="section-heading"><div><h2 id="businesses-heading">העסקים שלי</h2>
+          <p>רשימת העסקים המשויכים לחשבון זה. ניתן לצפות גם בעסקים נוספים המשויכים לבני המשפחה</p></div>
+          <button type="button" class="add-business" aria-label="הוספת עסק חדש" (click)="openAddBusinessModal()">+</button>
+        </header>
+        @if (addBusinessModalVisible()) {
+          <article class="panel new-business">
+            <h2>הוספת עסק חדש</h2>
+            <fieldset [disabled]="addingBusiness()">
+              <div class="fields-grid">
+                @for (field of fieldsForBusiness(addBusinessFormGroup, true); track field.key) {
+                  <app-new-settings-field [group]="addBusinessFormGroup" [field]="field" (valueChanged)="businessFieldChanged(addBusinessFormGroup, field)" />
+                }
+              </div>
+              <div class="actions"><button class="primary" type="button" (click)="submitAddBusiness()">{{ addingBusiness() ? 'יוצר...' : 'צור עסק' }}</button>
+                <button type="button" (click)="addBusinessModalVisible.set(false)">ביטול</button></div>
+            </fieldset>
+          </article>
+        }
+        <div class="business-grid">
+          @for (group of businessesFormArray.controls; track group; let i = $index) {
+            @let biz = businesses()[i];
+            @let editing = businessEditing() === i;
+            <article class="business-card" [class.editing]="editing">
+              <header class="business-header">
+                @if (biz?.id != null) {
+                  <app-account-image class="business-image" [editable]="editing" label="לוגו העסק"
+                    [businessId]="biz.id" [imagePath]="biz.logoPath" [contextKey]="biz.firebaseId"
+                    (imageChanged)="onLogoChanged(i, $event)" />
+                }
+                <div><h3>{{ biz?.businessName || 'עסק חדש' }}</h3>
+                  <p>{{ biz?.businessNumber }} <span aria-hidden="true">|</span> {{ businessTypeLabel(biz?.businessType) }}</p></div>
+                <div class="card-tools">
+                  @if (!editing) { <button type="button" aria-label="עריכת פרטי העסק" (click)="beginBusiness(i)"><i class="pi pi-pen-to-square" aria-hidden="true"></i></button> }
+                  <button type="button" aria-label="מחיקת העסק" (click)="requestDeleteBusiness(biz)"><i class="pi pi-trash" aria-hidden="true"></i></button>
+                </div>
+              </header>
+              <fieldset [disabled]="savingBusinessId() === biz?.id">
+                <div class="business-fields">
+                  @for (field of fieldsForBusiness(group, false, editing); track field.key) {
+                    <app-new-settings-field [group]="group" [field]="field" [readonly]="!editing" (valueChanged)="businessFieldChanged(group, field)" />
+                  }
+                </div>
+                @if (editing) {
+                  <div class="actions"><button class="primary" type="button" (click)="saveNewBusiness(i)">{{ savingBusinessId() === biz?.id ? 'שומר...' : 'שמור ועדכן' }}</button>
+                    <button type="button" (click)="cancelBusiness()">ביטול</button></div>
+                }
+              </fieldset>
+            </article>
+          } @empty { <p class="empty-state">אין עסקים משויכים לחשבון. אפשר להוסיף עסק חדש באמצעות כפתור הפלוס.</p> }
+        </div>
+      </section>
+    </div>
+  </main>
+</div>

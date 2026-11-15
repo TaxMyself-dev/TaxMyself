@@ -66,6 +66,7 @@ export class TopNavComponent {
               }]
             : []),
         { type: 'action', id: 'settings', label: 'הגדרות', icon: 'pi pi-cog', action: () => this.router.navigate(['/settings']) },
+        { type: 'action', id: 'settings-new', label: 'הגדרות חדש', icon: 'pi pi-cog', action: () => this.router.navigate(['/settings-new']) },
         { type: 'separator' },
         { type: 'action', id: 'logout', label: 'התנתקות', icon: 'pi pi-sign-out', action: () => this.logout.emit() },
     ]);
