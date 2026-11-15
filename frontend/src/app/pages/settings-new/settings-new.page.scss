@@ -32,6 +32,9 @@ fieldset { border:0; padding:0; margin:0; min-width:0; }
 .actions button:first-child { min-width:143px; font-weight:700; }
 .actions button { min-width:95px; }
 .family-add { position:relative; display:flex; padding-bottom:20px; }
+.family-add > button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+.family-add-chevron { flex:0 0 auto; font-size:10px; line-height:1; }
+.family-add-chevron.is-open { transform:rotate(180deg); }
 .family-options { position:absolute; top:43px; inset-inline-start:0; z-index:2; background:white; box-shadow:0 4px 16px #0002; padding:6px; border:1px solid var(--new-stroke); border-radius:8px; }
 .family-options button { display:block; width:100%; border:0; border-radius:4px; font-size:14px; text-align:right; }
 .business-section { margin-top:64px; }

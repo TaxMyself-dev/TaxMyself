@@ -82,7 +82,7 @@
           }
           <div class="family-add">
             <button type="button" class="primary" [disabled]="authService.isViewingAsClient()"
-              [attr.aria-expanded]="familyMenuOpen()" aria-controls="family-options" (click)="familyMenuOpen.set(!familyMenuOpen())">הוסף בן משפחה <span aria-hidden="true">⌄</span></button>
+              [attr.aria-expanded]="familyMenuOpen()" aria-controls="family-options" (click)="familyMenuOpen.set(!familyMenuOpen())">הוסף בן משפחה <i class="pi pi-chevron-down family-add-chevron" [class.is-open]="familyMenuOpen()" aria-hidden="true"></i></button>
             @if (familyMenuOpen()) {
               <div id="family-options" class="family-options" (keydown.escape)="familyMenuOpen.set(false)">
                 @if (!hasSpouse()) { <button type="button" (click)="addFamily('spouse')">הוספת בן / בת זוג</button> }

@@ -165,3 +165,10 @@ No authenticated data was changed during verification. User's existing local
 ports and spouse heading edit remain separate from the implementation commit.
 
 Final production build: PASS. Build at: 2026-11-15T10:33:09.345Z - Hash: 842eaa61c6c8155b - Time: 35963ms Existing budget/CommonJS warnings remain unchanged.
+
+## Family button arrow (2026-11-15)
+
+Replaced the low-baseline Unicode arrow with the existing PrimeIcons chevron.
+The family-add trigger uses inline-flex, centered alignment and an 8px gap;
+the icon rotates on expansion. Old settings are unchanged. Production build and
+staged diff check pass. No behavior tests repeated for this presentation-only fix.
