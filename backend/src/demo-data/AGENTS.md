@@ -83,3 +83,7 @@ see access blocking because admin impersonation intentionally bypasses it.
 and to profiles declaring `billingQaScenario`. Creating or switching the
 fixture never submits a charge. Reset removes the fixture billing aggregate
 before deleting its demo identity.
+
+## Assistant QA demo (2026-11-15)
+
+The assistant-qa profile is an additive, synthetic two-business dev fixture. Its guarded CLI and expected-answer checklist live in docs/operations/assistant-qa-demo.md. Use only keepintax-dev. The CLI stores generated credentials, ownership and retry state under ignored .local/assistant-qa; never reset another profile or reuse an unrelated identity. Additional customers, classified transactions, source PDF links, pending/private expenses and issued documents are populated by scripts/seed-assistant-qa.ts, not the generic seedProfile path. No self-reset capability is granted. Source documents transferred to pending/private Expense rows retain their back-pointers without creating accounting journals.

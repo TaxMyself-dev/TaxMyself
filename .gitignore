@@ -31,3 +31,6 @@ _prod_dump/
 
 # Local AI development process logs.
 /.local-ai-dev/
+
+# Local-only assistant demo PDFs, identity manifest and DB verification
+.local/assistant-qa/

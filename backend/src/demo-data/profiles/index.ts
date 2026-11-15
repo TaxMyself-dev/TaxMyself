@@ -1,3 +1,4 @@
+import { ASSISTANT_QA_PROFILE } from './assistant-qa.profile';
 import { DemoProfile } from '../demo-profile.types';
 import { COUPLE_TWO_BUSINESSES_PROFILE } from './couple-two-businesses.profile';
 import { ACCOUNTANT_WITH_CLIENTS_PROFILE } from './accountant-with-clients.profile';
@@ -18,6 +19,7 @@ import { BILLING_QA_PROFILE } from './billing-qa.profile';
  * No service / controller / UI changes are needed.
  */
 export const DEMO_PROFILES: readonly DemoProfile[] = [
+  ASSISTANT_QA_PROFILE,
   COUPLE_TWO_BUSINESSES_PROFILE,
   ACCOUNTANT_WITH_CLIENTS_PROFILE,
   SINGLE_LICENSED_NO_BANKING_PROFILE,
