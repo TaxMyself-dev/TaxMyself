@@ -1,6 +1,6 @@
 # KT-113 - Checkout resolution gate
 
-- Status: `READY_TO_PUSH`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex
 - Worktree: `C:\Users\harel\.codex\worktrees\kt113\taxmyself-dev`
@@ -58,7 +58,8 @@ A customer returning from CardCom remains on a dedicated payment-verification sc
 - Integrated commit: `c6ff86bb9f4e2e2dfacb72aea85229e1e3226221` (fast-forward)
 - Combined verification: backend 140/140, frontend 35/35, both production builds;
   integrated-tree backend 23/23. Browser-launch environment issue recorded above.
-- `origin/main` verification: pending push
+- `origin/main` verification: source/integration commit `c6ff86bb` and integration
+  record `7baf78b9` were pushed and verified before this final status update.
 - User-visible run instructions: restart local backend/frontend, use the billing
   QA user, start a checkout, return/back/refresh/close and reopen. Expect the
   dedicated verification page until the same server-owned attempt completes.
