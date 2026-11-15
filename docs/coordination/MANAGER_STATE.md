@@ -1,5 +1,18 @@
 # Primary manager state
 
+## KT-114 Hosted checkout terminal result — 2026-11-15
+
+CardCom `GetLpResult` non-success responses now release a hosted checkout only
+when they echo the exact LowProfile, terminal and ReturnValue identity and carry
+no successful or transaction-bearing signal. Credential, transport, malformed,
+foreign and conflicting results remain fail-closed. Bounded provider response
+code/description persist for admin diagnosis, later transport failures no longer
+erase the last provider diagnostic, and token-free request/outcome logs make the
+read-only CardCom check visible. Integration commit `7aa60eb6`; three focused
+Jest suites / 76 tests and the Nest production build passed on the isolated
+integration tree. No schema, production data/access, credential, provider-write,
+amount, VAT, receipt, accounting or deployment operation occurred.
+
 ## KT-107 Drive OCR at-most-once — 2026-11-10
 
 Drive-backed OCR now persists a unique `PROCESSING` claim before Claude is

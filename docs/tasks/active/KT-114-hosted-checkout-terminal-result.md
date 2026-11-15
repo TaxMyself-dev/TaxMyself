@@ -1,6 +1,6 @@
 # KT-114 - Resolve terminal hosted checkout results safely
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:\Users\harel\.codex\worktrees\kt114\taxmyself-dev`
@@ -42,7 +42,7 @@ remain blocked against duplicate payment and expose useful sanitized diagnostics
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending source commit
+- Commit hash(es): source `d02926a6`; integration `7aa60eb6`
 - Changed files: hosted-result validation, CardCom executor, provider runtime,
   attempt diagnostic persistence, three focused spec files, billing topic docs,
   and this task record.
@@ -61,8 +61,13 @@ remain blocked against duplicate payment and expose useful sanitized diagnostics
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `7aa60eb6`
+- Combined verification: integration-tree focused Jest 3 suites / 76 tests
+  passed; Nest production build passed; `git diff --check` and
+  `git show --check` passed.
+- `origin/main` verification: pending delivery.
+- User-visible run instructions: after backend deployment, open the existing
+  payment-status screen and click check again. A safely correlated terminal
+  no-charge result returns to plan selection; otherwise inspect the newly saved
+  provider code/description and keep the attempt blocked.
