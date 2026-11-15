@@ -1,11 +1,11 @@
 # KT-110 - Unblock initial checkout resume
 
-- Status: `APPROVED`
+- Status: `WORKER_COMPLETE`
 - Task manager: Codex primary integration manager
 - Worker: Codex sequential worker
 - Worktree: `C:/Users/harel/.codex/worktrees/kt110/taxmyself-dev`
 - Branch: `codex/kt-110-unblock-initial-checkout-resume`
-- Base commit: `91d5bf274bb8cf8b33e445e0c017e0c7f1ae3ef3`
+- Base commit: `c44ac5e251026b5404f9dc10efd8847fd0afbd9f`
 
 ## Business outcome
 
@@ -14,16 +14,16 @@ instead of receiving the generic duplicate-payment conflict.
 
 ## Acceptance criteria
 
-- [ ] Initial-purchase orchestration returns the exact existing blocking hosted
+- [x] Initial-purchase orchestration returns the exact existing blocking hosted
   CHECKOUT attempt to the resume flow instead of throwing before inspection.
-- [ ] Pending/unknown provider state returns the saved safe CardCom URL without
+- [x] Pending/unknown provider state returns the saved safe CardCom URL without
   creating a new attempt or LowProfile page.
-- [ ] Only a provider-proven final decline releases the old attempt and permits
+- [x] Only a provider-proven final decline releases the old attempt and permits
   one replacement checkout.
-- [ ] Unrelated or inconsistent open obligations still fail closed.
-- [ ] A real orchestration-level regression test covers the production-shaped
+- [x] Unrelated or inconsistent open obligations still fail closed.
+- [x] A real orchestration-level regression test covers the production-shaped
   TRIAL_EXPIRED + OPEN CHECKOUT + UNKNOWN active-attempt case.
-- [ ] Focused backend tests and the Nest build pass.
+- [x] Focused backend tests and the Nest build pass.
 
 ## Scope and constraints
 
@@ -38,14 +38,21 @@ instead of receiving the generic duplicate-payment conflict.
 
 ## Handoff
 
-- Result:
+- Result: complete
 - Commit hash(es):
-- Changed files:
-- Tests and exact results:
-- Known pre-existing failures:
-- Schema / production / security / accounting / external impact:
-- Risks / manual checks:
-- Documentation updated:
+- Changed files: billing attempt orchestration service and spec; backend billing
+  topic documentation; this task file.
+- Tests and exact results: combined billing service/orchestration Jest 127/127
+  passed; final orchestration Jest 58/58 passed; Nest build passed.
+- Known pre-existing failures: none. Existing dependency audit warnings remain.
+- Schema / production / security / accounting / external impact: no schema,
+  data, frontend, authentication, accounting or CardCom API contract changes.
+  Duplicate-charge protection remains fail-closed outside the exact canonical
+  hosted initial CHECKOUT.
+- Risks / manual checks: after deployment retry subscription 67 and verify the
+  saved CardCom page is resumed (or one replacement appears only after a
+  provider-proven decline) without the generic 409.
+- Documentation updated: `backend/src/billing/AGENTS.md`.
 
 ## Integration
 

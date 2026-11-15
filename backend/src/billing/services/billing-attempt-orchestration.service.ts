@@ -588,6 +588,7 @@ export class BillingAttemptOrchestrationService {
             status: BillingObligationStatus.OPEN },
           lock: { mode: 'pessimistic_write' },
         });
+        let resumableInitialPurchase: OpenBillingAttemptResult | null = null;
         for (const purchase of pending ?? []) {
           if (input.enforceRenewalSchedule && purchase.kind !== BillingObligationKind.CHECKOUT) continue;
           if (purchase.activeAttemptId != null) {
@@ -596,10 +597,26 @@ export class BillingAttemptOrchestrationService {
             });
             if (!attempt || BILLING_ATTEMPT_BLOCKING_STATUSES.has(attempt.status)) {
               if (input.enforceRenewalSchedule) throw new BillingRenewalDeferredError('NOT_DUE');
+              const isResumableInitialPurchase = !!attempt && input.enforceInitialPurchase &&
+                purchase.kind === BillingObligationKind.CHECKOUT &&
+                attempt.obligationId === purchase.id && attempt.operation === 'CHARGE' &&
+                attempt.trigger === BillingAttemptTrigger.CHECKOUT &&
+                attempt.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED;
+              if (isResumableInitialPurchase) {
+                if (resumableInitialPurchase) {
+                  throw new ConflictException('Multiple unresolved initial checkout attempts require review');
+                }
+                resumableInitialPurchase = { obligation: purchase, attempt, created: false };
+                continue;
+              }
               throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
             }
           }
         }
+        // The caller performs the owner-scoped, read-only CardCom inspection
+        // and either resumes this exact durable page or, only after a verified
+        // final decline, calls back to reserve one replacement attempt.
+        if (resumableInitialPurchase) return resumableInitialPurchase;
       }
       if (input.enforceRecoverySchedule && (
         subscription.status !== SubscriptionStatus.PAST_DUE ||

@@ -30,6 +30,11 @@ CardCom inspection. UNKNOWN/pending state returns that same page, verified
 capture returns processing/completed without another page, and only a
 provider-proven final decline releases the attempt and permits one replacement.
 Missing or unsafe durable checkout identity fails closed for support review.
+The subscription-wide reservation scan must return that exact blocking hosted
+CHECKOUT to the caller before deriving a new date, plan or obligation key; it
+must not throw the generic duplicate-payment conflict first. Other obligation
+kinds, malformed attempt ownership and multiple blocking initial checkouts stay
+fail-closed.
 
 Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
 shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
