@@ -1,6 +1,6 @@
 # KT-110 - Unblock initial checkout resume
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex sequential worker
 - Worktree: `C:/Users/harel/.codex/worktrees/kt110/taxmyself-dev`
@@ -39,10 +39,10 @@ instead of receiving the generic duplicate-payment conflict.
 ## Handoff
 
 - Result: complete
-- Commit hash(es):
+- Commit hash(es): `a23b7590f2f6ffabe4b427a3b70c7c9e57cffb5e`
 - Changed files: billing attempt orchestration service and spec; backend billing
   topic documentation; this task file.
-- Tests and exact results: combined billing service/orchestration Jest 127/127
+- Tests and exact results: worker combined billing service/orchestration Jest 127/127
   passed; final orchestration Jest 58/58 passed; Nest build passed.
 - Known pre-existing failures: none. Existing dependency audit warnings remain.
 - Schema / production / security / accounting / external impact: no schema,
@@ -56,8 +56,11 @@ instead of receiving the generic duplicate-payment conflict.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full diff, transaction lock
+  ordering, owner/attempt identity, duplicate-charge boundary and tests reviewed.
+- Integrated commit: `48255205` plus this task-record commit.
+- Combined verification: focused billing Jest passed 128/128 and Nest build
+  passed on `codex/integration-kt110`.
+- `origin/main` verification: recorded after push in the final user report.
+- User-visible run instructions: deploy backend only, then retry subscription
+  67. No SQL, schema, environment or frontend deployment step is required.
