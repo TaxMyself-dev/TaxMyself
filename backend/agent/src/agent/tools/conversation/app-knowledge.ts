@@ -13,6 +13,11 @@ import {
   app_opportunities_intro,
   app_tasks_intro,
 } from "#/paraglide/messages";
+import {
+  agentCapabilityLines,
+  agentSupportedCapabilities,
+  agentUnsupportedCapabilities,
+} from "@/agent/core/agent/agent-capabilities";
 import { getHelpQuestionGroups } from "@/website/help-question-data";
 import { getPricingPlans } from "@/website/pricing-plans-data";
 
@@ -27,11 +32,19 @@ import { getPricingPlans } from "@/website/pricing-plans-data";
 
 // EXAMPLE: how your product's parts work together, in a few lines each.
 // Write only what the pages, plans and help center below do not say.
+//
+// KeepInTax change (Phase 3.1, plan §2.6): the agent's paragraph comes from
+// the supported capabilities (agent-capabilities.ts), and the template's
+// paragraphs on tracking tasks and opportunities (hidden from chat, A17) are
+// gone. The pages, plans and help below are still the template's examples
+// until KeepInTax's help content replaces them (plan §3.1).
 const appHowItWorks = `KeepInTax keeps the books of Israeli self-employed businesses and their accountants: expenses, income documents, bank and card transactions, and VAT and income-tax reports.
 
-- Tasks: each tracking task is one sentence of what to find. While it is active, the background worker scans its sources on its scan frequency, scores each new item against the task and the user's preferences, and records the matches as opportunities, with an in-app alert when its alerts are on. A task is suggested (waits until the user starts it), active, paused or finished; its sheet shows its last scans.
-- Opportunities: what the tasks found, newest first, each with what the person wants, why it fits and its score. The user files each one: new, in progress, replied, closed or irrelevant.
-- The agent (this chat): does all of the above in conversation, searches the web, and sends email in the user's name. It asks for approval before deleting tasks (with their opportunities) and before sending email, unless the user chose to always allow that action in the chat. It remembers facts about the user across chats (Settings > Agent memory, where the user can see and delete them). It reads files attached to a message (images, PDF, Word, Excel, PowerPoint, CSV, text) and the user can dictate by voice: the recording becomes text in the message box.`;
+- The agent (this chat) can:
+${agentCapabilityLines(agentSupportedCapabilities)}
+- It cannot yet:
+${agentCapabilityLines(agentUnsupportedCapabilities)}
+- It asks for approval before any action the user's rules say to ask about. It remembers preferences and facts the user states across chats (Settings > Agent memory, where the user can see, correct and delete them).`;
 
 // EXAMPLE pages: every page of your app with its path and intro line.
 const appPages = () => [

@@ -11,7 +11,8 @@ import { exampleEvalSettings } from "../harness/agent-eval-settings-fixtures";
 // (src/lib/settings/agent-actions/agent-action-rules.ts).
 
 describe.concurrent("agent action rules", () => {
-  it("saves the user's rule when they say once how an action should go", async ({
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. Its rule is for creating tasks. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("saves the user's rule when they say once how an action should go", async ({
     expect,
   }) => {
     const run = await runAgentConversation({ settings: exampleEvalSettings }, [
@@ -25,7 +26,8 @@ describe.concurrent("agent action rules", () => {
     ).toMatchObject({ action: "createTrackingTask", rule: "ask" });
   });
 
-  it("letting it act without asking waits for the user's approval", async ({
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. Its rule is for deleting tasks. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("letting it act without asking waits for the user's approval", async ({
     expect,
   }) => {
     const run = await runAgentConversation({ settings: exampleEvalSettings }, [

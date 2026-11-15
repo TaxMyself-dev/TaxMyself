@@ -31,7 +31,10 @@ const userMessage = (
 });
 
 describe.concurrent("chat history", () => {
-  it("carries on after the user stopped a tool call", async ({ expect }) => {
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. This case resumes a stopped listTrackingTasks call. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("carries on after the user stopped a tool call", async ({
+    expect,
+  }) => {
     const run = await runAgentHistory(
       { locale: "he", tasks: [accountantTask] },
       [
@@ -95,22 +98,24 @@ describe.concurrent("chat history", () => {
   });
 
   // "What time is it?" alone is outside the agent's scope (<scope>), so the
-  // case asks about the user's task: created at 08:01 UTC, and the message
-  // was written at 09:01 UTC, an hour later.
+  // case asks about the user's earlier question in this chat: written at
+  // 08:01 UTC, and the new message at 09:01 UTC, an hour later.
+  // KeepInTax Phase 3.1 (KT-108): restated in KeepInTax's terms; the template's version asked about tracking tasks or finding clients, which are no longer offered in chat (A17). What the case guards is unchanged.
   it("knows the time from the user's latest message", async ({ expect }) => {
-    const run = await runAgentHistory(
+    const run = await runAgentHistory({ locale: "he" }, [
+      userMessage("u1", "כמה הוצאתי על דלק השנה?", "2026-10-04T08:01:00.000Z"),
       {
-        locale: "he",
-        tasks: [{ ...accountantTask, createdAt: "2026-10-04T08:01:00.000Z" }],
+        id: "a1",
+        role: "assistant",
+        metadata: { createdAt: "2026-10-04T08:01:30.000Z" },
+        parts: [{ type: "text", text: "השנה הוצאתם 1,662 ₪ על דלק." }],
       },
-      [
-        userMessage(
-          "u1",
-          "כמה זמן עבר מאז שיצרתי את המשימה של רואה החשבון?",
-          "2026-10-04T09:01:00.000Z"
-        ),
-      ]
-    );
+      userMessage(
+        "u2",
+        "כמה זמן עבר מאז ששאלתי על הדלק?",
+        "2026-10-04T09:01:00.000Z"
+      ),
+    ]);
 
     expect(run.output).toMatch(/שעה|60 דקות/u);
   });

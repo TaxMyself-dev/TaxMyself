@@ -11,11 +11,21 @@ import { AuthService } from 'src/app/services/auth.service';
 import { ClientPanelService } from 'src/app/services/clients-panel.service';
 import { environment } from 'src/environments/environment';
 import {
+  callDevAgentFunction,
   createDevAgentChat,
   DevAgentChatContext,
+  devAgentFollowUps,
   devAgentHeaders,
+  devAgentQuestionView,
+  DevAgentQuestionOption,
+  DevAgentQuestionView,
   DevAgentRequestAuth,
+  devAgentSavedMemory,
+  DevAgentSavedMemory,
+  fetchDevAgentFollowUps,
   fixedContextAuth,
+  readDevAgentConversation,
+  withDevAgentFollowUps,
 } from './dev-agent-chat';
 import { DEV_AGENT_FROM_ADMIN, devAgentApiOverride } from './dev-agent.route';
 
@@ -32,6 +42,15 @@ interface ToolPartView {
   approvalId: string | null;
 }
 
+// A stored conversation the user can reopen (listAgentChatConversations).
+interface DevAgentConversationRow {
+  id: string;
+  name: string | null;
+  createdAt: string;
+}
+
+const uuidPattern = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/u;
+
 // Only a local backend may stand in for the app's (devAgentApiOverride).
 const devAgentApiUrl = (override: string | null) => devAgentApiOverride(override) ?? environment.apiUrl;
 
@@ -46,7 +65,11 @@ const examplePrompts = [
  * A dev-only page to try the AI agent (backend/agent) against the real
  * backend: a chat that streams the agent's answers and shows everything it
  * does — each tool call with its input and output, approval cards to approve
- * or deny, reasoning summaries and the stream's data parts. It is a test
+ * or deny, askUserQuestion's buttons (answered by the page, Phase 3.1),
+ * follow-ups as they are written and after a reload, a "saved" notice with
+ * undo for a remembered fact, reasoning summaries and the stream's data
+ * parts. The conversation is in the URL (?chat=), so a reload reopens it
+ * and follows an answer still running. It is a test
  * screen, not the product's chat (its UI spec is pending); the route exists
  * only when environment.agentDevPage is on (app-routing.module.ts).
  */
@@ -82,6 +105,14 @@ export class DevAgentPage implements OnInit, OnDestroy {
   context = signal<DevAgentChatContext | null>(null);
   setupError = signal<string | null>(null);
   locale = signal<'he' | 'en'>('he');
+  // The user's stored conversations, to reopen one.
+  conversations = signal<DevAgentConversationRow[]>([]);
+  // Memories whose "saved" notice was undone on this page.
+  undoneMemories = signal<ReadonlySet<string>>(new Set());
+  // Question calls pressed on this page, until the answer goes on.
+  private pendingAnswers = new Set<string>();
+  // The answer streaming now asked for follow-ups (data-followUpsPending).
+  private followUpsPending = false;
   draft = '';
 
   private readonly auth: DevAgentRequestAuth = {
@@ -138,7 +169,15 @@ export class DevAgentPage implements OnInit, OnDestroy {
       }
 
       this.context.set({ agentUserId: body.userId, ...live });
-      this.newChat();
+      void this.refreshConversations();
+
+      const stored = this.query.get('chat');
+
+      if (stored && uuidPattern.test(stored)) {
+        await this.openChat(stored);
+      } else {
+        this.newChat();
+      }
     } catch (error) {
       this.setupError.set(
         `The agent did not answer readAgentSession (${error instanceof Error ? error.message : String(error)}). ` +
@@ -170,17 +209,117 @@ export class DevAgentPage implements OnInit, OnDestroy {
     }
 
     void this.chat()?.stop();
-    this.chat.set(
-      createDevAgentChat({
-        apiUrl: this.apiUrl,
-        conversationId: crypto.randomUUID(),
-        agentUserId: context.agentUserId,
-        locale: this.locale(),
-        auth: fixedContextAuth(this.auth, context),
-        onFinish: () => this.scrollDown(),
-        onError: () => this.scrollDown(),
-      }),
-    );
+    this.startChat(context, crypto.randomUUID(), []);
+  }
+
+  // Reopens a stored conversation from its messages, and follows its answer
+  // when one is still running (GET chats/:id/stream; 204 when none is).
+  async openChat(conversationId: string) {
+    const context = this.context();
+
+    if (!context) {
+      return;
+    }
+
+    void this.chat()?.stop();
+    this.setupError.set(null);
+
+    try {
+      const messages = await readDevAgentConversation(
+        this.apiUrl,
+        fixedContextAuth(this.auth, context),
+        context.agentUserId,
+        conversationId,
+      );
+      const chat = this.startChat(context, conversationId, messages);
+      void chat.resumeStream();
+    } catch (error) {
+      this.setupError.set(
+        `The conversation could not be opened (${error instanceof Error ? error.message : String(error)}). A new chat was started.`,
+      );
+      this.newChat();
+    }
+  }
+
+  async refreshConversations() {
+    const context = this.context();
+
+    if (!context) {
+      return;
+    }
+
+    try {
+      const rows = await callDevAgentFunction(
+        this.apiUrl,
+        fixedContextAuth(this.auth, context),
+        'listAgentChatConversations',
+        { userId: context.agentUserId },
+      );
+      this.conversations.set(Array.isArray(rows) ? (rows as DevAgentConversationRow[]).slice(0, 15) : []);
+    } catch {
+      this.conversations.set([]);
+    }
+  }
+
+  private startChat(context: DevAgentChatContext, conversationId: string, messages: UIMessage[]) {
+    this.pendingAnswers = new Set();
+    this.followUpsPending = false;
+
+    const auth = fixedContextAuth(this.auth, context);
+    const chat = createDevAgentChat({
+      apiUrl: this.apiUrl,
+      conversationId,
+      agentUserId: context.agentUserId,
+      locale: this.locale(),
+      auth,
+      messages,
+      pendingAnswers: this.pendingAnswers,
+      onData: (part) => {
+        if (part.type === 'data-followUpsPending') {
+          this.followUpsPending = true;
+        }
+      },
+      onFinish: () => {
+        this.scrollDown();
+        void this.loadFollowUps(chat, auth);
+        void this.refreshConversations();
+      },
+      onError: () => this.scrollDown(),
+    });
+
+    this.chat.set(chat);
+    // The conversation in the URL, so a reload reopens it.
+    void this.router.navigate([], {
+      queryParams: { chat: conversationId },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+    this.scrollDown();
+
+    return chat;
+  }
+
+  // The follow-ups an answer gets are written after it ends: fetched when
+  // the stream said so (data-followUpsPending), and added to the answer as
+  // the server stores them.
+  private async loadFollowUps(chat: Chat<UIMessage>, auth: DevAgentRequestAuth) {
+    if (!this.followUpsPending) {
+      return;
+    }
+    this.followUpsPending = false;
+
+    const answer = chat.messages.at(-1);
+
+    if (answer?.role !== 'assistant') {
+      return;
+    }
+
+    const questions = await fetchDevAgentFollowUps(this.apiUrl, auth, chat.id, answer.id);
+
+    if (this.chat() === chat) {
+      chat.messages = withDevAgentFollowUps(chat.messages, answer.id, questions);
+      this.scrollDown();
+    }
   }
 
   setLocale(locale: 'he' | 'en') {
@@ -199,6 +338,78 @@ export class DevAgentPage implements OnInit, OnDestroy {
     this.draft = '';
     void chat.sendMessage({ text: message });
     this.scrollDown();
+  }
+
+  // A pressed follow-up: its text, sent as a press (the server checks it
+  // against the stored follow-ups and records the origin; it writes nothing).
+  sendFollowUp(question: string) {
+    const chat = this.chat();
+
+    if (!chat || this.isBusy(chat) || this.contextChanged) {
+      return;
+    }
+
+    void chat.sendMessage({ text: question }, { body: { origin: 'follow-up' } });
+    this.scrollDown();
+  }
+
+  // A pressed button of an open question: the page answers the call with the
+  // option's value, and the answer continues (the server accepts only the
+  // question's own values, once).
+  answerQuestion(view: DevAgentQuestionView, option: DevAgentQuestionOption) {
+    const chat = this.chat();
+
+    if (!chat || view.status !== 'open' || this.isBusy(chat) || this.contextChanged) {
+      return;
+    }
+
+    this.pendingAnswers.add(view.toolCallId);
+    void chat.addToolOutput({
+      tool: 'askUserQuestion',
+      toolCallId: view.toolCallId,
+      output: { value: option.value, label: option.label },
+    } as never);
+    this.scrollDown();
+  }
+
+  // The "saved" notice's undo: forgets the memory the agent saved.
+  async undoMemory(memory: DevAgentSavedMemory) {
+    const context = this.context();
+
+    if (!context) {
+      return;
+    }
+
+    try {
+      await callDevAgentFunction(
+        this.apiUrl,
+        fixedContextAuth(this.auth, context),
+        'deleteAgentMemory',
+        { userId: context.agentUserId, memoryId: memory.memoryId },
+        'POST',
+      );
+      this.undoneMemories.set(new Set([...this.undoneMemories(), memory.memoryId]));
+    } catch (error) {
+      this.setupError.set(`Undo failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // After a refused answer (a stale or repeated press), the stored
+  // conversation is the truth: read it again.
+  reloadChat() {
+    const chat = this.chat();
+
+    if (chat) {
+      void this.openChat(chat.id);
+    }
+  }
+
+  question(part: MessagePart) {
+    return devAgentQuestionView(part);
+  }
+
+  savedMemory(part: MessagePart) {
+    return devAgentSavedMemory(part);
   }
 
   onComposerKey(event: KeyboardEvent) {
@@ -246,9 +457,12 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   followUps(part: MessagePart): string[] {
-    const data = (part as { data?: { questions?: unknown } }).data;
+    return devAgentFollowUps(part);
+  }
 
-    return Array.isArray(data?.questions) ? data.questions.filter((q): q is string => typeof q === 'string') : [];
+  // Follow-ups show only under the newest answer, as in the template.
+  isLastMessage(chat: Chat<UIMessage>, message: UIMessage) {
+    return chat.messages.at(-1)?.id === message.id;
   }
 
   json(value: unknown) {

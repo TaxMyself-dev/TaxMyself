@@ -16,7 +16,10 @@ import { agentModelId } from "@/agent/core/model/agent-model";
 import { appAgentTools } from "@/agent/core/tool-runtime/app-agent-tools";
 import { agentShortTermHistory } from "@/agent/memory/short-term-memory.server";
 import { withAgentSkillList } from "@/agent/skills/registry/agent-skills";
-import type { AgentChatMessage } from "@/lib/agent-chat/conversation/agent-chat-messages";
+import type {
+  AgentChatMessage,
+  AgentChatTurnOrigin,
+} from "@/lib/agent-chat/conversation/agent-chat-messages";
 import { appRuntime } from "@/server/runtime/app-runtime.server";
 
 import { agentEvalHarness } from "../../harnessing/agent-harness-tree";
@@ -37,8 +40,10 @@ import type { AgentEvalScenario } from "./agent-eval-scenario";
 import { createAgentEvalSession } from "./agent-eval-scenario";
 import {
   agentEvalStepMessages,
+  openAgentEvalQuestion,
   readAgentEvalUserContext,
 } from "./agent-eval-step-messages";
+import type { AgentEvalOpenQuestion } from "./agent-eval-step-messages";
 
 // Runs the real agent (gpt-6-luna, its real tools and instructions) against
 // an in-memory stand-in of the user's database, for the agent evals. The
@@ -113,6 +118,9 @@ export interface AgentEvalRun {
   // Those approval cards, for a simulated user to decide
   // (agent-eval-simulated-user.ts).
   approvalRequests: AgentEvalApprovalRequest[];
+  // KeepInTax (Phase 3.1): the question the answer stopped on, waiting for
+  // the page's answer; null when it asked none.
+  question: AgentEvalOpenQuestion | null;
   // The follow-up questions written under the answer once it ended
   // (agent-follow-up-questions.ts); none when it asks the user or waits.
   followUps: string[];
@@ -138,20 +146,25 @@ export interface AgentEvalApprovalRequest {
 /**
  * The user's next step in a conversation: a message, or their decisions on
  * the approval cards the last answer stopped at (the answer then continues
- * with no new message, as in the chat).
+ * with no new message, as in the chat). KeepInTax (Phase 3.1): a pressed
+ * button of the open question (answer, by its value; the answer continues,
+ * A18), or a pressed follow-up (followUp: the message is one of the last
+ * answer's follow-ups, plan §2.7 item 4).
  */
 export type AgentEvalUserStep =
-  | { message: string }
+  | { message: string; followUp?: boolean }
   | {
       decisions: { approvalId: string; approved: boolean; reason?: string }[];
-    };
+    }
+  | { answer: { value: string } };
 
 const runEvalMessages = async (
   scenario: AgentEvalScenario,
   messages: ModelMessage[],
   input: string,
   writes: AgentEvalWrite[],
-  supabase: ReturnType<typeof createAgentEvalDatabase>
+  supabase: ReturnType<typeof createAgentEvalDatabase>,
+  origin: AgentChatTurnOrigin = "typed"
 ): Promise<
   Omit<AgentEvalRun, "turns"> & { responseMessages: ModelMessage[] }
 > => {
@@ -160,7 +173,8 @@ const runEvalMessages = async (
     messages,
     input,
     supabase,
-    writes
+    writes,
+    origin
   );
 
   const toolErrors = agentEvalToolErrors(result);
@@ -211,6 +225,7 @@ const runEvalMessages = async (
           ]
         : []
     ),
+    question: openAgentEvalQuestion([...messages, ...result.responseMessages]),
     followUps: result.followUps,
     writes,
     usage: {
@@ -231,6 +246,9 @@ export interface AgentEvalConversation {
   // The stored conversation so far, as the chat endpoint keeps it: the
   // user's messages with their user context (withAgentUserContext).
   stored: AgentChatMessage[];
+  // The follow-ups under the last answer, which a follow-up press must be
+  // one of (KeepInTax, Phase 3.1).
+  lastFollowUps: string[];
   messages: ModelMessage[];
   writes: AgentEvalWrite[];
   toolCalls: ToolCall[];
@@ -250,6 +268,7 @@ export const startAgentEvalConversation = (
 
   return {
     stored: [],
+    lastFollowUps: [],
     messages: [],
     writes,
     toolCalls: [],
@@ -277,7 +296,8 @@ export const runAgentEvalStep = async (
   const stepMessages = await agentEvalStepMessages(
     step,
     earlier.turns.length,
-    earlier
+    earlier,
+    earlier.lastFollowUps
   );
 
   const messages: ModelMessage[] = [
@@ -290,7 +310,8 @@ export const runAgentEvalStep = async (
     messages,
     stepMessages.input,
     earlier.writes,
-    earlier.supabase
+    earlier.supabase,
+    stepMessages.origin
   );
 
   const toolCalls = [...earlier.toolCalls, ...run.toolCalls];
@@ -300,6 +321,7 @@ export const runAgentEvalStep = async (
     run: { ...run, toolCalls, turns },
     conversation: {
       stored: stepMessages.stored,
+      lastFollowUps: run.followUps,
       messages: [...messages, ...run.responseMessages],
       writes: earlier.writes,
       supabase: earlier.supabase,

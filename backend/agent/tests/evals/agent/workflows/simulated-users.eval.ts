@@ -31,7 +31,8 @@ import {
 const neverSentStatement =
   "In `turns`, no assistant turn says an email was sent: every email card was denied.";
 
-describe.concurrent("simulated users", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("simulated users", () => {
   // Find something now. The user changes the budget, then asks to email the
   // lead and denies the card.
   it("a lead hunt: a changed budget, then a denied email", async ({

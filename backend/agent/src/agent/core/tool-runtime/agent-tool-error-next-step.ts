@@ -36,7 +36,9 @@ const agentToolErrorNextSteps = new Map([
   ],
   [
     "BUSINESS_REQUIRED",
-    "The user has several businesses and none is active. Ask which one they mean, or whether all of them (askUserQuestion, with the businesses' names from this error), then query it, or all with allBusinesses.",
+    // KeepInTax (Phase 3.1, A18): the question's options carry the
+    // business numbers as values, so the answer names the business.
+    'The user has several businesses and none is active. Ask which one with askUserQuestion: one option per business from this error, its name as the label and its number as the value; for queryExpenses also an option for all of them, value "all". Ask nothing else. With the answer, read again with the same range and filters: businessNumber set to the chosen value, or allBusinesses for "all".',
   ],
   [
     "EXPENSE_SCOPE_INVALID",

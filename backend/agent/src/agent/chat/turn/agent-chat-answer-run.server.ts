@@ -9,6 +9,7 @@ import { saveAgentChatAnswerStream } from "@/agent/chat/turn/agent-chat-answer-s
 import { agentChatErrorMessage } from "@/agent/chat/turn/agent-chat-errors";
 import { createAgentChatPageData } from "@/agent/chat/turn/agent-chat-page-data";
 import type { agentChatRequestSchema } from "@/agent/chat/turn/agent-chat-request.server";
+import { agentChatTurnOriginOf } from "@/agent/chat/turn/agent-chat-turn-origin";
 import { streamAgentChatTurn } from "@/agent/chat/turn/agent-chat-turn-stream.server";
 import type { createAgentChatUserSteers } from "@/agent/chat/turn/agent-chat-user-steers.server";
 import { createAppAgent } from "@/agent/core/agent/app-agent";
@@ -177,7 +178,8 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
     const traceIntegrations = yield* langfuseIntegrations;
     const continuing = validated.at(-1)?.role === "assistant";
 
-    // A continued answer (after an approval) keeps the time it started.
+    // A continued answer (after an approval or a question's answer) keeps
+    // the time it started.
     const answerCreatedAt = continuing
       ? (validated.at(-1)?.metadata?.createdAt ?? now)
       : now;
@@ -205,6 +207,8 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
           traceIntegrations,
           turnSignals,
           userSteers,
+          // How the user started this turn (agent-chat-turn-origin.ts).
+          origin: agentChatTurnOriginOf(validated),
         }),
         history: withAgentSkillList(
           agentChatModelHistory(agentShortTermHistory(validated))
@@ -305,7 +309,7 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
             metadata: { locale: body.locale ?? "en" },
           },
           continuing
-            ? "(continued after the user's approval decisions)"
+            ? "(continued after the user's approval decisions or answer)"
             : agentChatMessageText(validated.at(-1)),
           runAgentChatAnswer
         )

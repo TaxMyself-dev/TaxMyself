@@ -27,9 +27,12 @@ const decodeSettingChanges = Schema.decodeUnknownEffect(
 
 // Saves what the user tells the agent about themselves into their settings,
 // the same fields the settings pages edit. EXAMPLE fields: use yours.
+// KeepInTax (Phase 3.1, plan §2.10): only a change the user asks for; the
+// template's profile fields are no longer gaps the agent fills (Phase 3.2
+// replaces them with KeepInTax's own assistant settings).
 export const updateUserSettingsTool = tool({
   description:
-    "Save stable facts the user told you about themselves into their settings, which every answer, task and match reads: what they offer (offer), seek (seeking), never want (notRelevant), their areas, writing style (how drafts sound, never facts), account kind (individual or business), business name (name: the business's only; the person's own name goes to saveAgentMemory), website and languages; also the scan frequency for new tasks. Each change replaces the field's whole value: read <user_settings> and include what stays. A fact no field holds (working days and hours, prices, their own name) goes to saveAgentMemory, never into writingStyle. Returns the changed fields.",
+    "Change the user's settings when they ask for that change: account kind (individual or business), business name (name: the business's only), website, languages, writing style (how drafts sound, never facts), what they offer (offer), seek (seeking), never want (notRelevant), their areas, and the scan frequency. Never to fill in details the user did not ask to change. Each change replaces the field's whole value: read <user_settings> and include what stays. A fact or preference no field holds goes to saveAgentMemory. Returns the changed fields.",
   inputSchema: toStandardSchema(
     Schema.Struct({ changes: agentSettingChangesSchema })
   ),

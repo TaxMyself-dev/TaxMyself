@@ -11,6 +11,7 @@ import { appRuntime } from "@/server/runtime/app-runtime.server";
 
 import { toStandardSchema } from "../../../../backend/shared/schema/standard-schema";
 import { agentToolContextSchema } from "../../core/tool-runtime/agent-tool-context";
+import { agentToolCallKey } from "../../core/tool-runtime/agent-tool-idempotency";
 import { agentToolModelOutput } from "../../core/tool-runtime/agent-tool-output";
 import { agentToolUuid } from "../../core/tool-runtime/agent-tool-uuid";
 
@@ -134,16 +135,26 @@ export const createTrackingTaskTool = tool({
     )
   ),
   contextSchema: agentToolContextSchema,
-  execute: async (fields, { context, abortSignal }) =>
+  // KeepInTax (Phase 3.1, plan §2.7 item 6): the task's id is the call's
+  // idempotency key (agentToolCallKey), so a retried or resumed call finds
+  // the task it created and creates no second one.
+  execute: async (fields, { context, abortSignal, toolCallId }) =>
     await appRuntime.runPromise(
       Effect.gen(function* createTrackingTask() {
         const tasks = yield* context.tasks.list();
+        const id = agentToolCallKey(context.conversationId, toolCallId);
+        const created = tasks.find((existing) => existing.id === id);
+
+        if (created !== undefined) {
+          return agentTrackingTaskView(created);
+        }
 
         const task: TrackingTask = {
           ...newTrackingTask(fields.sentence, {
             scanFrequency: context.settings.automation.scanFrequency,
           }),
           ...fields,
+          id,
         };
 
         // At the end of the board, as a task added on the tasks page.

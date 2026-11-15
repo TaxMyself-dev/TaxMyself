@@ -2,6 +2,11 @@ import type { ModelMessage } from "ai";
 import { ToolCall } from "deepeval/test-case";
 import { Option, Schema } from "effect";
 
+import {
+  agentQuestionOptions,
+  decodeAgentQuestionInput,
+} from "@/agent/chat/turn/agent-chat-question-answers";
+import type { AgentQuestionInput } from "@/agent/chat/turn/agent-chat-question-answers";
 import { findAgentAnswerViolations } from "@/agent/core/turn/agent-answer-check";
 import {
   agentAnswerAsksUser,
@@ -11,6 +16,7 @@ import {
   agentTurnEndedAnswer,
   createAgentStopHooks,
 } from "@/agent/core/turn/agent-stop-hooks";
+import type { AgentChatTurnOrigin } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import { traceLangfuseAgentAnswer } from "@/server/integrations/langfuse-tracing.server";
 import { appRuntime } from "@/server/runtime/app-runtime.server";
 
@@ -32,22 +38,13 @@ import type { AgentEvalScenario } from "./agent-eval-scenario";
 // agent run as the chat runs it, and what the judges read of it (its tool
 // calls, its words and the follow-up buttons), recorded for the report.
 
-// An askUserQuestion card as the user sees it: the question, then its options.
-const agentEvalQuestionText = ({
-  question,
-  options,
-}: {
-  question: string;
-  options: readonly string[];
-}) => [question, ...options.map((option) => `- ${option}`)].join("\n");
-
-// An askUserQuestion card's question and answers, as the call holds them.
-const agentEvalQuestionInput = Schema.decodeUnknownOption(
-  Schema.Struct({
-    question: Schema.String,
-    options: Schema.Array(Schema.String),
-  })
-);
+// An askUserQuestion card as the user sees it: the question, then its
+// buttons' labels (KeepInTax: each option carries a value too).
+const agentEvalQuestionText = (input: AgentQuestionInput) =>
+  [
+    input.question,
+    ...agentQuestionOptions(input).map((option) => `- ${option.label}`),
+  ].join("\n");
 
 /**
  * Runs the agent on the conversation so far as the chat runs an answer: the
@@ -59,6 +56,7 @@ const agentEvalQuestionInput = Schema.decodeUnknownOption(
  * @param input - The user's step, as the judges read it.
  * @param supabase - The case's database.
  * @param writes - Where the case's stores record what the agent changed.
+ * @param origin - How the user started this turn, as the chat records it.
  * @returns The answer's steps, content, usage and follow-ups, and how long it took.
  */
 export const generateAgentEvalAnswer = async (
@@ -66,7 +64,8 @@ export const generateAgentEvalAnswer = async (
   messages: ModelMessage[],
   input: string,
   supabase: ReturnType<typeof createAgentEvalDatabase>,
-  writes: AgentEvalWrite[]
+  writes: AgentEvalWrite[],
+  origin: AgentChatTurnOrigin = "typed"
 ) => {
   // The user's words without the <message_time> line the model reads; an
   // answer continued after approvals has none, as in the chat.
@@ -76,7 +75,8 @@ export const generateAgentEvalAnswer = async (
     messages.at(-1)?.role === "user"
       ? input.replace(/^<message_time>.*<\/message_time>\n?/u, "")
       : "",
-    writes
+    writes,
+    origin
   );
 
   // As the chat runs an answer (agent-chat-turn-stream.server.ts): the stop
@@ -253,8 +253,8 @@ export const agentEvalAnswerText = (result: AgentEvalAnswer) =>
       step.text.trim(),
       ...step.toolCalls.flatMap((call) =>
         call.toolName === "askUserQuestion"
-          ? Option.toArray(agentEvalQuestionInput(call.input)).map((question) =>
-              agentEvalQuestionText(question)
+          ? Option.toArray(decodeAgentQuestionInput(call.input)).map(
+              agentEvalQuestionText
             )
           : []
       ),

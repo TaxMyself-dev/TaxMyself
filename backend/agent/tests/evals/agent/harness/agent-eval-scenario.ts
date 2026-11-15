@@ -10,6 +10,7 @@ import type {
   TrackingTaskStore,
 } from "@/agent/core/ports/tracking-task-ports";
 import { readAgentTurnSignals } from "@/agent/core/turn/agent-turn-signals";
+import type { AgentChatTurnOrigin } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { AgentMemory } from "@/lib/agent-memory/agent-memory-schema";
 import type { AppLocale } from "@/lib/i18n/app-intl-locale";
 import type { TaskOpportunity } from "@/lib/opportunities/task-opportunity-schema";
@@ -212,13 +213,15 @@ export const createEvalOpportunityStore = (
  * @param supabase - The case's database.
  * @param message - The user's words this turn.
  * @param writes - Where the case's stores record what the agent changed.
+ * @param origin - How the user started this turn, as the chat records it.
  * @returns A promise of the agent, its model and the trace integrations.
  */
 export const createEvalAgent = async (
   scenario: AgentEvalScenario,
   supabase: ReturnType<typeof createAgentEvalDatabase>,
   message: string,
-  writes: AgentEvalWrite[]
+  writes: AgentEvalWrite[],
+  origin: AgentChatTurnOrigin = "typed"
 ) => {
   // The app's own model (OPENAI_API_KEY), as the chat endpoint gives it, and
   // the scenario's stored settings for the tools (the model reads them in
@@ -256,6 +259,8 @@ export const createEvalAgent = async (
     locale: scenario.locale,
     traceIntegrations,
     turnSignals,
+    // How the user started this turn, as the chat records it.
+    origin,
     // A candidate harness when agent harnessing rolls this case.
     harness: agentEvalHarness(),
   });

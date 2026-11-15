@@ -38,7 +38,8 @@ const bakeryLeads = evalWebSearch([
   },
 ]);
 
-describe.concurrent("tracking tasks", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("tracking tasks", () => {
   it("creates a task once its setup is agreed", async ({ expect }) => {
     const run = await runAgentConversation({}, [
       "Create a task to find bakeries in Chicago that need a bookkeeper",

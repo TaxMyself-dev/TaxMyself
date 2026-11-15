@@ -2,7 +2,6 @@ import { assert, it, describe } from "@effect/vitest";
 
 import { agentChatModelHistory } from "../../../../../src/agent/chat/messages/agent-chat-model-history";
 import {
-  agentProfileGaps,
   agentUserContextText,
   withAgentUserContext,
 } from "../../../../../src/agent/core/agent/agent-user-context";
@@ -12,39 +11,37 @@ import {
   emptyEvalSettings,
 } from "../../../../evals/agent/harness/agent-eval-settings-fixtures";
 
-describe("agent profile gaps", () => {
-  // The profile details the agent gets first, by account kind
-  // (agent-user-context.ts, <profile_gaps>).
+describe("agent user context without profile gaps", () => {
+  // KeepInTax (Phase 3.1, plan §2.10, Appendix A F1): the template's
+  // <profile_gaps> made the agent ask for profile details first in any chat.
+  // The context now carries no gaps and none of the template's
+  // lead-generation settings, whatever is empty.
 
-  it("a complete business profile has no gaps", () => {
-    assert.deepStrictEqual(agentProfileGaps(exampleEvalSettings), []);
+  it("an empty profile asks for nothing", () => {
+    for (const settings of [
+      emptyEvalSettings,
+      {
+        ...emptyEvalSettings,
+        profile: { ...emptyEvalSettings.profile, kind: "business" as const },
+      },
+    ]) {
+      const text = agentUserContextText(settings, []);
+
+      assert.notInclude(text, "profile_gaps");
+      assert.notInclude(text, "seeking");
+      assert.notMatch(text, /missing|ask for|comes first/iu);
+    }
   });
 
-  it("a business lists its missing name, offer and customers", () => {
-    // Areas are optional (user-settings-schema.ts): they apply only when a
-    // task leaves its location empty, so they are never a gap.
-    const gaps = agentProfileGaps({
-      ...emptyEvalSettings,
-      profile: { ...emptyEvalSettings.profile, kind: "business" },
-    });
+  it("the template's lead-generation settings are not read into the context", () => {
+    const text = agentUserContextText(exampleEvalSettings, []);
 
-    assert.deepStrictEqual(
-      gaps.map((gap) => /\((?<field>\w+)\)/u.exec(gap)?.groups?.field),
-      ["name", "offer", "seeking"]
-    );
-    assert.match(gaps[0] ?? "", /business's name/u);
-  });
-
-  it("a private person lists only what they look for", () => {
-    const gaps = agentProfileGaps({
-      ...emptyEvalSettings,
-      profile: { ...emptyEvalSettings.profile, kind: "individual" },
-    });
-
-    assert.deepStrictEqual(
-      gaps.map((gap) => /\((?<field>\w+)\)/u.exec(gap)?.groups?.field),
-      ["seeking"]
-    );
+    assert.include(text, "Northwind Bookkeeping");
+    assert.include(text, "Writing style: warm and short");
+    assert.notInclude(text, exampleEvalSettings.preferences.seeking);
+    assert.notInclude(text, exampleEvalSettings.preferences.offer);
+    assert.notInclude(text, exampleEvalSettings.preferences.areas);
+    assert.notInclude(text, exampleEvalSettings.preferences.notRelevant);
   });
 });
 

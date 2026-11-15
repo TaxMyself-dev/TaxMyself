@@ -30,6 +30,10 @@ export const agentChatRequestSchema = Schema.Struct({
   // The app's language, for the agent's replies and errors; Hebrew when a
   // page from before languages sends none.
   locale: Schema.optional(Schema.Literals(appLocales)),
+  // KeepInTax (Phase 3.1, plan §2.7 item 4): the page says a message is a
+  // pressed follow-up; the server records it so only when the text is one
+  // of the stored follow-ups (agent-chat-turn-origin.ts).
+  origin: Schema.optional(Schema.Literal("follow-up")),
 });
 
 // Only inline uploads reach the model: remote URLs can cause server-side

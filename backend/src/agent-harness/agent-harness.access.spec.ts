@@ -150,6 +150,43 @@ describe('agent access through FirebaseAuthGuard', () => {
     },
   );
 
+  // KeepInTax Phase 3.1 (A18): answering an open question continues the
+  // answer through the same POST /api/agent/chat, so a delegation revoked
+  // between the question and the press stops it before the agent reads
+  // anything, whatever the body holds.
+  it('a question answered after the delegation was revoked reaches nothing', async () => {
+    delegations.push({
+      userId: 'client-uid',
+      agentId: 'accountant-uid',
+      status: DelegationStatus.REVOKED,
+      scopes: [] as never,
+    });
+
+    const response = await asAccountantForClient('/api/agent/chat', 'post')
+      .set('content-type', 'application/json')
+      .send({
+        userId: '00000000-0000-4000-8000-000000000001',
+        id: conversationId,
+        message: {
+          id: '00000000-0000-4000-8000-000000000002',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'tool-askUserQuestion',
+              toolCallId: 'ask-1',
+              state: 'output-available',
+              input: { question: '?', options: [{ label: 'a', value: '514789632' }] },
+              output: { value: '514789632', label: 'a' },
+            },
+          ],
+        },
+        conversation: { name: null, pinned: false },
+      });
+
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
   it('a client header with no delegation at all reaches nothing', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/agent/fn/listAgentChatConversations')

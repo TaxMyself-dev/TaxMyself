@@ -129,7 +129,8 @@ const earlierResultsRows: AgentEvalRow[] = earlierResultsChat.map(
   })
 );
 
-describe.concurrent("real chats", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("real chats", () => {
   it("answers about a result found early in a long chat from what it found, without searching again", async ({
     expect,
   }) => {

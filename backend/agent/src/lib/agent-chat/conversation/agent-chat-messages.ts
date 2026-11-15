@@ -61,6 +61,12 @@ export type AgentChatMessage = UIMessage<
     // The answer gets follow-ups, written after it ends: the page fetches
     // them (agent-chat-turn-stream.server.ts); transient.
     followUpsPending: Record<string, never>;
+    // KeepInTax (Phase 3.1, plan §2.7 item 4): how the user started this
+    // turn, written by the server (agent-chat-turn-origin.ts) on the user's
+    // message, or on the answer it continues after a question's answer or
+    // an approval; the page cannot write one. Never shown, never read by
+    // the model.
+    turnOrigin: AgentChatTurnOriginData;
     documentText: {
       documentId: string | null;
       filename: string;
@@ -70,6 +76,28 @@ export type AgentChatMessage = UIMessage<
   },
   InferUITools<typeof appAgentTools>
 >;
+
+/**
+ * How a turn was started (KeepInTax, plan §2.7 item 4): a message the user
+ * typed, a suggested follow-up they pressed (checked against the stored
+ * ones), their answer to an open question, or their approval decisions.
+ * Notification and background origins come with Phases 5 and 5.2.
+ */
+export type AgentChatTurnOrigin =
+  | "typed"
+  | "follow-up"
+  | "question-answer"
+  | "approval";
+
+/**
+ * The turn's origin as stored: the origin, the answer whose follow-up was
+ * pressed, and the question calls answered.
+ */
+export interface AgentChatTurnOriginData {
+  origin: AgentChatTurnOrigin;
+  followUpOf: string | null;
+  toolCallIds: string[];
+}
 
 /**
  * One part of a chat message.

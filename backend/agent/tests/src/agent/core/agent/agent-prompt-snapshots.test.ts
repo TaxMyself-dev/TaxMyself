@@ -3,6 +3,7 @@ import { asSchema, convertToModelMessages } from "ai";
 import { Predicate } from "effect";
 
 import { agentChatModelHistory } from "../../../../../src/agent/chat/messages/agent-chat-model-history";
+import { isAgentToolOffered } from "../../../../../src/agent/core/agent/agent-capabilities";
 import { agentInstructions } from "../../../../../src/agent/core/agent/agent-instructions";
 import { agentUserContextText } from "../../../../../src/agent/core/agent/agent-user-context";
 import { deferRareAgentTools } from "../../../../../src/agent/core/tool-runtime/agent-tool-search";
@@ -75,11 +76,11 @@ describe("agent prompt snapshots", () => {
       "writing",
       "facts",
       "tool_calls",
-      "tasks",
+      "books",
       "approvals",
       "outside_content",
       "scope",
-      "missing_details",
+      "clarification",
       "follow_ups",
       "memory_rules",
     ]) {
@@ -88,11 +89,43 @@ describe("agent prompt snapshots", () => {
     }
   });
 
+  // KeepInTax (Phase 3.1, plan §2.6 and §2.10): the instructions offer no
+  // template capability and ask for no profile or personal details.
+  it("the instructions advertise no hidden tool and ask for no profile details", () => {
+    const instructions = agentInstructions("he");
+
+    for (const removed of [
+      "searchWeb",
+      "sendEmail",
+      "createTrackingTask",
+      "suggestTrackingTasks",
+      "listTaskOpportunities",
+      "<tasks>",
+      "<missing_details>",
+      "profile_gaps",
+      "profile complete",
+      "ask for it once",
+      "asking for it",
+    ]) {
+      assert.notInclude(instructions, removed, removed);
+    }
+
+    assert.include(
+      instructions,
+      "Ask only what the current request cannot be completed without"
+    );
+    assert.include(instructions, "monitoring the books");
+  });
+
+  // Only the tools offered to the model count (KeepInTax: the ones kept for
+  // stored conversations are never sent).
   it("the instructions and the up-front tools stay within their budget", async () => {
     assert.isAtMost(agentInstructions("he").length, 20_000);
 
     const upFront = await Promise.all(
-      Object.values(deferRareAgentTools(appAgentTools))
+      Object.entries(deferRareAgentTools(appAgentTools))
+        .filter(([name]) => isAgentToolOffered(name))
+        .map(([, tool]) => tool)
         .filter((tool) => tool.providerOptions?.openai === undefined)
         .map(
           async (tool) =>

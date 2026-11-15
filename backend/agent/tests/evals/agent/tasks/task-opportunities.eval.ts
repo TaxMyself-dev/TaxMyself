@@ -34,7 +34,8 @@ const opportunityScenario = {
   opportunities: [evalOpportunity()],
 };
 
-describe.concurrent("task opportunities", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("task opportunities", () => {
   // The chat shows the found opportunities as cards, so the answer adds what
   // the cards leave out; the card's data is the tool's output.
   it("reads what the tasks found when asked", async ({ expect }) => {

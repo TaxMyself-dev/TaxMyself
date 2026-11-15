@@ -985,7 +985,7 @@
   },
   {
     "name": "updateUserSettings",
-    "description": "Save stable facts the user told you about themselves into their settings, which every answer, task and match reads: what they offer (offer), seek (seeking), never want (notRelevant), their areas, writing style (how drafts sound, never facts), account kind (individual or business), business name (name: the business's only; the person's own name goes to saveAgentMemory), website and languages; also the scan frequency for new tasks. Each change replaces the field's whole value: read <user_settings> and include what stays. A fact no field holds (working days and hours, prices, their own name) goes to saveAgentMemory, never into writingStyle. Returns the changed fields.",
+    "description": "Change the user's settings when they ask for that change: account kind (individual or business), business name (name: the business's only), website, languages, writing style (how drafts sound, never facts), what they offer (offer), seek (seeking), never want (notRelevant), their areas, and the scan frequency. Never to fill in details the user did not ask to change. Each change replaces the field's whole value: read <user_settings> and include what stays. A fact or preference no field holds goes to saveAgentMemory. Returns the changed fields.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1067,7 +1067,7 @@
     "openai": {
       "namespace": {
         "name": "action_rules",
-        "description": "Save the user's rule for one of your actions (allow without asking, ask first, or never): creating or deleting tasks, changing settings, remembering, sending email."
+        "description": "Save the user's rule for one of your actions (allow without asking, ask first, or never): changing settings, remembering."
       },
       "deferLoading": true
     },
@@ -1213,7 +1213,7 @@
   },
   {
     "name": "loadAgentSkill",
-    "description": "Load a playbook from the skill list and follow it, before starting the multi-step flow it covers. Only when the user's request is that flow: a question one tool answers, such as listing tasks, needs no playbook.",
+    "description": "Load a playbook from the skill list and follow it, before starting the multi-step flow it covers. Only when the user's request is that flow: a question one tool answers needs no playbook.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1233,7 +1233,7 @@
   },
   {
     "name": "saveAgentMemory",
-    "description": "Remember one fact about the user for future chats (a preference, a business fact, something to avoid), as the user said it, never from a tool result. What a settings field holds goes to updateUserSettings. AGENT_MEMORY_FULL: merge with updateAgentMemory or forget outdated ones first.",
+    "description": "Remember one fact for future chats, as the user said it, never from a tool result: when they ask you to remember it, or state a stable preference or fact in their own words. Returns the memory with its id; the chat shows it with an undo. Saving again in the same call saves nothing twice. AGENT_MEMORY_FULL: merge with updateAgentMemory or forget outdated ones first.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1241,7 +1241,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "One fact about the user, short, in the user's language"
+          "description": "One fact, short, in the user's language"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "preference",
+            "business_fact"
+          ],
+          "description": "preference: how the user likes answers, their way of working. business_fact: a fact about their business or its work (working from home, a car, who does their VAT)"
         }
       },
       "required": [
@@ -1252,7 +1260,7 @@
   },
   {
     "name": "updateAgentMemory",
-    "description": "Replace a remembered fact that changed, by its id from the <memory> list; the old wording is gone. AGENT_MEMORY_NOT_FOUND means no fact has that id: check <memory> again.",
+    "description": "Replace a remembered fact that changed, in place, by its id from the <memory> list; the old wording is gone, and its kind stays unless you give one. AGENT_MEMORY_NOT_FOUND means no fact has that id: check <memory> again.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1264,7 +1272,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
-          "description": "One fact about the user, short, in the user's language"
+          "description": "One fact, short, in the user's language"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "preference",
+            "business_fact"
+          ],
+          "description": "preference: how the user likes answers, their way of working. business_fact: a fact about their business or its work (working from home, a car, who does their VAT)"
         }
       },
       "required": [
@@ -1342,7 +1358,7 @@
   },
   {
     "name": "askUserQuestion",
-    "description": "Ask one question with 2 to 4 answers as buttons; the pick, or the user's own words, comes back as their next message. Use it when the next step depends on a few clear options (a task's setup, which groups or tasks, which match). Open questions (what they offer, a price) stay in your text. It ends your turn, so first write everything the answer has to say (what you found, with links); write the question only here, and call nothing after it.",
+    "description": "Ask one question the current request cannot be completed without (which business, which of several matches), with 2 to 6 answers as buttons. Each answer has a label the user reads and a value you get back. The page answers it: its result { value, label } comes back in this same answer, and you then finish the request you were doing. Never for preferences, the user's goals, details about them, or anything for later. First write what you can already say; write the question only here, and call nothing after it.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1355,12 +1371,38 @@
         "options": {
           "type": "array",
           "minItems": 2,
-          "maxItems": 4,
-          "description": "2 to 4 short answers as the user would say them, the recommended one first",
+          "maxItems": 6,
+          "description": "2 to 6 answers, each { label, value }, the recommended one first",
           "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "description": "The button's text, as the user would say it"
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "What you get back when it is picked: a business number, an id, or a short code such as all"
+                  }
+                },
+                "required": [
+                  "label",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            ]
           }
         }
       },

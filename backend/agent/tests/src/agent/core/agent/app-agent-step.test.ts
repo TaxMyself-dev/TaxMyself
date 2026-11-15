@@ -29,4 +29,19 @@ describe("app agent steps", () => {
 
     assert.isUndefined(later?.activeTools);
   });
+
+  // KeepInTax (Phase 3.1, A16, A17): every later step offers only the
+  // offered tools, so a tool kept for stored conversations never returns.
+  it("later steps offer only the offered tools when they are given", () => {
+    const offered = ["queryExpenses", "updatePlan", "toolSearch"];
+
+    const later = prepareAppAgentStep(
+      { messages: [ask], steps: [{ toolCalls: [], content: [] }] },
+      undefined,
+      ["queryExpenses", "toolSearch"],
+      offered
+    );
+
+    assert.deepStrictEqual(later?.activeTools, offered);
+  });
 });

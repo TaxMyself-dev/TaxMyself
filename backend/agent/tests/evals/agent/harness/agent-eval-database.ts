@@ -166,7 +166,11 @@ const applyEvalWrite = (
   resource: string,
   action: AgentEvalWrite["action"],
   url: URL,
-  body: string
+  body: string,
+  // An upsert (Prefer: resolution=merge-duplicates): a sent row whose id is
+  // already stored replaces that row's columns, as PostgREST and the MySQL
+  // gateway do, instead of adding a second row with the same id.
+  merge = false
 ): AgentEvalRow[] => {
   const rows = tables.get(resource) ?? [];
   const matched = readEvalRows(rows, url);
@@ -207,6 +211,27 @@ const applyEvalWrite = (
 
   // A table whose rows the database fills in (defaults, joins) gets them
   // here, so a later read sees what the real database would return.
+  if (merge) {
+    const sentIds = new Set(inserted.map((row) => row.id));
+
+    const kept = rows.map((row) => {
+      const replacement = inserted.find((sentRow) => sentRow.id === row.id);
+
+      return replacement === undefined
+        ? row
+        : { ...row, ...replacement, created_at: row.created_at };
+    });
+
+    tables.set(resource, [
+      ...kept,
+      ...inserted.filter(
+        (row) => sentIds.has(row.id) && !rows.some((old) => old.id === row.id)
+      ),
+    ]);
+
+    return inserted;
+  }
+
   tables.set(resource, [...rows, ...inserted]);
 
   return inserted;
@@ -310,7 +335,17 @@ export const createAgentEvalDatabase = (
         }
 
         writes.push({ table: resource, action, body });
-        const echoed = applyEvalWrite(tables, resource, action, url, body);
+
+        const echoed = applyEvalWrite(
+          tables,
+          resource,
+          action,
+          url,
+          body,
+          new Headers(options?.headers)
+            .get("Prefer")
+            ?.includes("resolution=merge-duplicates") === true
+        );
 
         return await Promise.resolve(
           Response.json(wantsObject === true ? echoed[0] : echoed)

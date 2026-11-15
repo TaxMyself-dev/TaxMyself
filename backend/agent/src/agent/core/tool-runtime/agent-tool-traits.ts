@@ -105,6 +105,16 @@ export const agentToolRunsAlone = (toolName: string) =>
   ["write", "approval"].includes(agentToolEffect(toolName));
 
 /**
+ * Changes the user's data without an approval card (KeepInTax, Phase 3.1:
+ * what a pressed follow-up never runs, agentToolApproval).
+ *
+ * @param toolName - The tool's name.
+ * @returns Whether the tool writes.
+ */
+export const agentToolChangesData = (toolName: string) =>
+  agentToolEffect(toolName) === "write";
+
+/**
  * Changes data, acts in the user's name, or reads an outside service: an
  * answer after it is checked against what it returned (agent-answer-check.ts).
  *

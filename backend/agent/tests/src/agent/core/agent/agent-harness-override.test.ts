@@ -60,7 +60,9 @@ describe("agent harness override", () => {
   it("a harness's instructions and tool description replace the agent's own", async () => {
     const body = await firstRequestBody({
       instructions: "HARNESS_INSTRUCTIONS_MARKER",
-      toolDescriptions: { listTrackingTasks: "HARNESS_TOOL_MARKER" },
+      // KeepInTax (Phase 3.1): an offered tool; listTrackingTasks is no
+      // longer sent to the model (agent-capabilities.ts).
+      toolDescriptions: { queryExpenses: "HARNESS_TOOL_MARKER" },
     });
 
     assert.include(body, "HARNESS_INSTRUCTIONS_MARKER");

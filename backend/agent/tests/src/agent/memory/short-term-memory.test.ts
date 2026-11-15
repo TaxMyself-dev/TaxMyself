@@ -152,12 +152,15 @@ describe("short term memory", () => {
     assert.notInclude(text, "x".repeat(400));
   });
 
-  it("a playbook loaded in the older part reaches the model whole after the list", () => {
+  // KeepInTax (Phase 3.1, §2.10): research-brief is retired, so a stored
+  // load of it is not brought back after the list; only offered playbooks
+  // are (agentSkills, none today).
+  it("a retired playbook loaded in the older part is not brought back after the list", () => {
     const messages = longChat();
     messages.splice(1, 1, loadedPlaybook(researchBriefSkill));
     const text = historyText(agentShortTermHistory(messages).slice(0, 1));
-    assert.include(text, "<loaded_playbooks>");
-    assert.include(text, "# Research brief");
+    assert.notInclude(text, "<loaded_playbooks>");
+    assert.notInclude(text, "# Research brief");
   });
 
   it("a playbook loaded again among the newest messages is not repeated in the list", () => {

@@ -15,7 +15,8 @@ const emptyWebSearch = evalWebSearch([]);
 
 // A new user's first chat end to end: the agent learns who they are, saves
 // it to the settings, and then creates the task they ask for from it.
-describe("setup workflow", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.skip("setup workflow", () => {
   it("saves a new user's details first, then creates their task", async ({
     expect,
   }) => {

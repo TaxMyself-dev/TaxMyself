@@ -1,6 +1,6 @@
 import type { OpenAILanguageModelResponsesOptions } from "@ai-sdk/openai";
 import { isStepCount, ToolLoopAgent } from "ai";
-import type { ModelMessage, StopCondition, Telemetry } from "ai";
+import type { ModelMessage, Telemetry } from "ai";
 
 import type { AgentChatUserSteers } from "@/agent/chat/turn/agent-chat-user-steers.server";
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
@@ -12,6 +12,7 @@ import type {
 import { noAgentChatPageData } from "@/agent/core/tool-runtime/agent-chat-page-data-port";
 import type { AgentChatPageData } from "@/agent/core/tool-runtime/agent-chat-page-data-port";
 import { repairAgentPlanInput } from "@/agent/tools/conversation/agent-plan-tool";
+import type { AgentChatTurnOrigin } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { AppLocale } from "@/lib/i18n/app-intl-locale";
 import type { UserSettings } from "@/lib/settings/user-settings/user-settings-schema";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
@@ -25,7 +26,7 @@ import {
   prepareAgentReasoningStep,
 } from "../model/agent-reasoning";
 import { agentTelemetry } from "../model/agent-telemetry";
-import { agentToolApproval } from "../tool-runtime/agent-tool-approval";
+import { agentChatToolApproval } from "../tool-runtime/agent-tool-approval";
 import { addAgentToolErrorNextSteps } from "../tool-runtime/agent-tool-error-next-step";
 import { queueExclusiveAgentTools } from "../tool-runtime/agent-tool-exclusive-runner";
 import { dropAgentToolInputNulls } from "../tool-runtime/agent-tool-null-repair";
@@ -34,6 +35,7 @@ import { appAgentTools } from "../tool-runtime/app-agent-tools";
 import { agentNamespaceRuleNotes } from "../turn/agent-namespace-rules";
 import { noAgentTurnSignals } from "../turn/agent-turn-signals";
 import type { AgentTurnSignals } from "../turn/agent-turn-signals";
+import { isAgentToolOffered } from "./agent-capabilities";
 import { withAgentToolDescriptions } from "./agent-harness-override";
 import type { AgentHarnessOverride } from "./agent-harness-override";
 import { agentInstructions } from "./agent-instructions";
@@ -75,13 +77,16 @@ interface AppAgentRequest {
   // A candidate harness tried on an eval case (agent harnessing); never
   // from the chat.
   harness?: AgentHarnessOverride;
+  // KeepInTax (Phase 3.1, plan §2.7 item 4): how the user started this
+  // turn (agent-chat-turn-origin.ts); typed when left out.
+  origin?: AgentChatTurnOrigin;
 }
 
-// Asking the user a question with answers to pick ends the turn: their
-// answer is the next message.
-const agentAskedUser: StopCondition<typeof appAgentTools> = ({ steps }) =>
-  steps.at(-1)?.toolCalls.some((call) => call.toolName === "askUserQuestion") ??
-  false;
+// KeepInTax change (Phase 3.1, A18): the template stopped the loop on an
+// askUserQuestion call (agentAskedUser), which returned { asked: true } and
+// took the user's pick as their next message. askUserQuestion now has no
+// execute, so the AI SDK ends the loop on the open call itself; the page
+// answers it and the same answer continues (agent-chat-question-answers.ts).
 
 // The most steps one answer may take (each step is a model call and the
 // tools it called).
@@ -151,12 +156,16 @@ const agentRepeatedCallNote = (
  *   search.
  * @param firstStepTools - The tools the first step may call (every tool but
  *   updatePlan); all of them when left out.
+ * @param offeredTools - The tools the later steps may call (KeepInTax: the
+ *   tools offered to the model, agent-capabilities.ts); all of them when
+ *   left out.
  * @returns The step's settings: its reasoning effort, messages and tools.
  */
 export const prepareAppAgentStep = <ToolName extends string>(
   step: Parameters<typeof prepareAgentReasoningStep>[0],
   signals: AgentTurnSignals = noAgentTurnSignals,
-  firstStepTools?: readonly ToolName[]
+  firstStepTools?: readonly ToolName[],
+  offeredTools?: readonly ToolName[]
 ):
   | {
       messages?: ModelMessage[];
@@ -173,10 +182,15 @@ export const prepareAppAgentStep = <ToolName extends string>(
   // with real tool calls. The same list on every first step keeps its
   // prompt cache. A message of several requests (signals.several) plans
   // from the first step, with its reads.
-  const tools =
+  // KeepInTax: every other step offers only the offered tools, so a tool
+  // kept registered for stored conversations never reaches the model.
+  const stepTools =
     step.steps.length === 0 && firstStepTools !== undefined && !signals.several
-      ? { activeTools: [...firstStepTools] }
-      : null;
+      ? firstStepTools
+      : offeredTools;
+
+  const tools =
+    stepTools === undefined ? null : { activeTools: [...stepTools] };
 
   const hints: ModelMessage | null =
     step.steps.length === 0 &&
@@ -207,8 +221,8 @@ export const prepareAppAgentStep = <ToolName extends string>(
  * The agent behind the chat (/api/agent/chat), made for each request: the
  * tools are shared, and each one receives the request's user and settings
  * through its tool context. Its loop ends when a step writes text and calls
- * no tool, asks with askUserQuestion, waits for an approval, or reaches the
- * step limit; the chat and the evals then run the stop hooks
+ * no tool, asks with askUserQuestion (the page answers it), waits for an
+ * approval, or reaches the step limit; the chat and the evals then run the stop hooks
  * (agent-stop-hooks.ts) and write the follow-up questions
  * (agent-follow-up-questions.ts).
  *
@@ -249,10 +263,14 @@ export const createAppAgent = (request: AppAgentRequest) => {
     request.harness?.toolDescriptions
   );
 
-  const firstStepTools = Object.keys(tools).filter(
+  // KeepInTax (Phase 3.1, A16, A17): the tools kept only for stored
+  // conversations are never offered (agentToolsNotOffered).
+  const offeredTools = Object.keys(tools).filter(
     (name): name is keyof typeof tools =>
-      Object.hasOwn(tools, name) && name !== "updatePlan"
+      Object.hasOwn(tools, name) && isAgentToolOffered(name)
   );
+
+  const firstStepTools = offeredTools.filter((name) => name !== "updatePlan");
 
   return new ToolLoopAgent({
     // Retried in sight of the user; the SDK's silent retries are off.
@@ -307,8 +325,12 @@ export const createAppAgent = (request: AppAgentRequest) => {
     // that change data the user cannot get back, or act outside the app in
     // the user's name, ask first (agentToolEffects "approval").
     toolApproval: ({ toolCall }) =>
-      agentToolApproval(toolCall, request.settings.automation.agentActionRules),
-    stopWhen: [isStepCount(agentMaxSteps), agentAskedUser],
+      agentChatToolApproval(
+        toolCall,
+        request.settings.automation.agentActionRules,
+        request.origin
+      ),
+    stopWhen: [isStepCount(agentMaxSteps)],
     // Adaptive reasoning: each turn starts at agentBaseReasoningEffort and
     // rises with the work through message-level effort updates, which need
     // system messages in the model input (agent-reasoning.ts). Chat
@@ -324,7 +346,12 @@ export const createAppAgent = (request: AppAgentRequest) => {
           : [];
 
       if (steers.length === 0) {
-        return prepareAppAgentStep(step, request.turnSignals, firstStepTools);
+        return prepareAppAgentStep(
+          step,
+          request.turnSignals,
+          firstStepTools,
+          offeredTools
+        );
       }
 
       const messages = [...step.messages, ...steers];
@@ -332,7 +359,8 @@ export const createAppAgent = (request: AppAgentRequest) => {
       const prepared = prepareAppAgentStep(
         { ...step, messages },
         request.turnSignals,
-        firstStepTools
+        firstStepTools,
+        offeredTools
       );
 
       return { ...prepared, messages: prepared?.messages ?? messages };

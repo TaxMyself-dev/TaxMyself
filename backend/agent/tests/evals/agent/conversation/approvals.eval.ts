@@ -60,7 +60,8 @@ const decidedDeletion = (
     approval: { id: "approval_delete", ...approval },
   });
 
-describe.concurrent("approvals", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("approvals", () => {
   it("once the user approves a deletion, deletes and reports it", async ({
     expect,
   }) => {

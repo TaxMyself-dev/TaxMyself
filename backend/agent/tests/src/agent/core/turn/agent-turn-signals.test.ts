@@ -139,7 +139,8 @@ describe("agent turn signals", () => {
         answers("normal", "small_talk", 0.95, "several")
       ).hints,
       [
-        "Turn signal: small talk. Answer in one friendly line, then ask for the details <profile_gaps> lists, and nothing else; without it, offer one thing you can do.",
+        // KeepInTax (Phase 3.1, §2.10): no longer points to <profile_gaps>.
+        "Turn signal: small talk. Answer in one friendly line and offer one thing you can do; ask nothing about the user.",
       ]
     );
   });

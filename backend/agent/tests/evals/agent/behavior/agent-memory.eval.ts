@@ -81,7 +81,8 @@ describe.concurrent("agent memory", () => {
     expect(saved?.body).toContain("שבת");
   });
 
-  it("keeps a fact a settings field holds in the settings, even when told to remember it", async ({
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. Phase 3.1 (plan §2.10, A20, S4): a request to remember goes to memory; the template's lead-generation settings (notRelevant) are no longer its target, and Phase 3.2 replaces them with KeepInTax's own settings.
+  it.skip("keeps a fact a settings field holds in the settings, even when told to remember it", async ({
     expect,
   }) => {
     const run = await runAgentConversation({}, [

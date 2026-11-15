@@ -33,6 +33,17 @@
     </div>
   }
 
+  @if (conversations().length > 0) {
+    <details class="conversations">
+      <summary>Recent chats ({{ conversations().length }})</summary>
+      @for (row of conversations(); track row.id) {
+        <button type="button" class="chip" dir="auto" [class.on]="chat()?.id === row.id" (click)="openChat(row.id)">
+          {{ row.name ?? row.id.slice(0, 8) }}
+        </button>
+      }
+    </details>
+  }
+
   @if (chat(); as c) {
     <div class="messages" #scroller>
       @if (c.messages.length === 0) {
@@ -58,35 +69,84 @@
                 </details>
               }
             } @else if (isTool(part)) {
-              @let tool = toolView(part);
-              <details class="tool" [class.error]="tool.state === 'output-error'" [open]="!!tool.approvalId">
-                <summary>
-                  🔧 <b>{{ tool.name }}</b>
-                  <span class="state">{{ tool.state }}</span>
-                </summary>
-                <h5>input</h5>
-                <pre>{{ json(tool.input) }}</pre>
-                @if (tool.errorText) {
-                  <h5>error</h5>
-                  <pre class="error-text">{{ tool.errorText }}</pre>
-                } @else if (tool.state === 'output-available') {
-                  <h5>output</h5>
-                  <pre>{{ json(tool.output) }}</pre>
-                }
-              </details>
-              @if (tool.approvalId; as approvalId) {
-                <div class="approval">
-                  <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
-                  <button type="button" class="approve" (click)="answerApproval(approvalId, true)">Approve</button>
-                  <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
+              <!-- askUserQuestion: buttons from the stored part (Phase 3.1) -->
+              @if (question(part); as q) {
+                <div class="question" dir="auto" [class.closed]="q.status !== 'open'">
+                  <div class="question-text">{{ q.question }}</div>
+                  <div class="question-options">
+                    @for (option of q.options; track option.value) {
+                      <button
+                        type="button"
+                        class="chip"
+                        dir="auto"
+                        [class.on]="q.answeredLabel === option.label"
+                        [disabled]="q.status !== 'open' || isBusy(c) || contextChanged"
+                        (click)="answerQuestion(q, option)"
+                      >
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                  @switch (q.status) {
+                    @case ('answered') {
+                      <div class="question-status">Answered: {{ q.answeredLabel }}</div>
+                    }
+                    @case ('superseded') {
+                      <div class="question-status">Replaced by a newer message</div>
+                    }
+                    @case ('legacy') {
+                      <div class="question-status">Answered (asked before buttons carried values)</div>
+                    }
+                    @case ('streaming') {
+                      <div class="question-status">…</div>
+                    }
+                  }
                 </div>
+              } @else {
+                @let tool = toolView(part);
+                <details class="tool" [class.error]="tool.state === 'output-error'" [open]="!!tool.approvalId">
+                  <summary>
+                    🔧 <b>{{ tool.name }}</b>
+                    <span class="state">{{ tool.state }}</span>
+                  </summary>
+                  <h5>input</h5>
+                  <pre>{{ json(tool.input) }}</pre>
+                  @if (tool.errorText) {
+                    <h5>error</h5>
+                    <pre class="error-text">{{ tool.errorText }}</pre>
+                  } @else if (tool.state === 'output-available') {
+                    <h5>output</h5>
+                    <pre>{{ json(tool.output) }}</pre>
+                  }
+                </details>
+                @if (savedMemory(part); as memory) {
+                  <div class="saved-memory" dir="auto">
+                    @if (undoneMemories().has(memory.memoryId)) {
+                      <span>Undone: no longer remembered.</span>
+                    } @else {
+                      <span>Saved{{ memory.kind === 'business_fact' ? ' (business fact)' : '' }}: {{ memory.content }}</span>
+                      <button type="button" (click)="undoMemory(memory)">Undo</button>
+                    }
+                  </div>
+                }
+                @if (tool.approvalId; as approvalId) {
+                  <div class="approval">
+                    <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
+                    <button type="button" class="approve" (click)="answerApproval(approvalId, true)">Approve</button>
+                    <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
+                  </div>
+                }
               }
             } @else if (part.type === 'data-followUps') {
-              <div class="follow-ups">
-                @for (question of followUps(part); track question) {
-                  <button type="button" class="chip" dir="auto" (click)="send(question)">{{ question }}</button>
-                }
-              </div>
+              @if (isLastMessage(c, message)) {
+                <div class="follow-ups">
+                  @for (question of followUps(part); track question) {
+                    <button type="button" class="chip" dir="auto" [disabled]="isBusy(c) || contextChanged" (click)="sendFollowUp(question)">{{ question }}</button>
+                  }
+                </div>
+              }
+            } @else if (part.type === 'data-turnOrigin' || part.type === 'data-userContext') {
+              <!-- server-written records, never shown -->
             } @else if (part.type !== 'step-start') {
               <details class="data">
                 <summary>{{ part.type }}</summary>
@@ -104,6 +164,7 @@
         <div class="chat-error">
           {{ error.message }}
           <button type="button" (click)="c.clearError()">Dismiss</button>
+          <button type="button" (click)="reloadChat()">Reload conversation</button>
         </div>
       }
     </div>

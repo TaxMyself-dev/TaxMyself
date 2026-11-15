@@ -1,5 +1,11 @@
 import { describe, it } from "@effect/vitest";
 
+import {
+  evalBooks,
+  evalCeramicsBusiness,
+  evalDesignerBusiness,
+  evalTwoBusinessExpenses,
+} from "../harness/agent-eval-books";
 import { runAgentConversation } from "../harness/agent-eval-harness";
 import { emptyEvalSettings } from "../harness/agent-eval-settings-fixtures";
 
@@ -18,7 +24,8 @@ describe.concurrent("follow-up questions", () => {
       [1, 2, 3].map(
         async () =>
           await runAgentConversation({}, [
-            "תסביר לי איך הסוכן עובד, מהבקשה ועד שהמשימה נוצרת",
+            // KeepInTax Phase 3.1 (KT-108): restated in KeepInTax's terms; the template's version asked about tracking tasks or finding clients, which are no longer offered in chat (A17). What the case guards is unchanged.
+            "תסביר לי איך הסוכן עובד, מהשאלה ועד שאני מקבל תשובה",
           ])
       )
     );
@@ -27,13 +34,22 @@ describe.concurrent("follow-up questions", () => {
     expect(offered.length).toBeGreaterThanOrEqual(2);
   });
 
+  // KeepInTax Phase 3.1 (KT-108): restated in KeepInTax's terms; the template's version asked about tracking tasks or finding clients, which are no longer offered in chat (A17). What the case guards is unchanged.
+  // The answer stops on its question (which business), so none.
   it("holds follow-ups back while asking the user for details", async ({
     expect,
   }) => {
-    const run = await runAgentConversation({ settings: emptyEvalSettings }, [
-      "תמצא לי לקוחות",
-    ]);
+    const { books } = evalBooks(evalTwoBusinessExpenses, {
+      businesses: [evalDesignerBusiness, evalCeramicsBusiness],
+      active: null,
+    });
 
+    const run = await runAgentConversation(
+      { settings: emptyEvalSettings, locale: "he", books },
+      ["כמה הוצאתי על דלק השנה?"]
+    );
+
+    expect(run.question).not.toBeNull();
     expect(run.followUps).toStrictEqual([]);
   });
 });

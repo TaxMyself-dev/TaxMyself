@@ -18,7 +18,10 @@ describe.concurrent("agent voice", () => {
     await expect(agentEvalTestCase(run)).toPass([hebrewVoiceJudge()]);
   });
 
-  it("answers about the user's tasks in plain Hebrew", async ({ expect }) => {
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("answers about the user's tasks in plain Hebrew", async ({
+    expect,
+  }) => {
     const run = await runAgentConversation(
       {
         locale: "he",

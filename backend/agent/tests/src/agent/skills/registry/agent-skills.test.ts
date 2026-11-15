@@ -1,10 +1,16 @@
 import { assert, it, describe } from "@effect/vitest";
+import { Schema } from "effect";
 
+import { isAgentToolOffered } from "../../../../../src/agent/core/agent/agent-capabilities";
 import {
   agentSkillInstructions,
+  agentSkillListMessages,
+  agentSkillNames,
   agentSkills,
+  withAgentSkillList,
 } from "../../../../../src/agent/skills/registry/agent-skills";
 import { loadAgentSkillTool } from "../../../../../src/agent/tools/conversation/agent-skill-tool";
+import type { AgentChatMessage } from "../../../../../src/lib/agent-chat/conversation/agent-chat-messages";
 
 describe("agent skills", () => {
   it("every skill has its own name and a playbook", () => {
@@ -36,18 +42,38 @@ describe("agent skills", () => {
 
     assert.isAtMost(agentSkillInstructions().length, 3000);
   });
+});
 
-  it("loading a skill gives the model its playbook and the chat its name", async () => {
-    const [skill] = agentSkills;
+// KeepInTax (Phase 3.1, plan §2.10, A19): the template's new-user-setup and
+// research-brief playbooks are no longer offered.
+describe("agent skills after Phase 3.1", () => {
+  const conversation: AgentChatMessage[] = [
+    { id: "u1", role: "user", parts: [{ type: "text", text: "היי" }] },
+  ];
+
+  it("offers no playbook: no skill list, and loadAgentSkill is not offered", () => {
+    assert.deepStrictEqual(agentSkills, []);
+    assert.deepStrictEqual(agentSkillListMessages(), []);
+    assert.deepStrictEqual(withAgentSkillList(conversation), conversation);
+    assert.isFalse(isAgentToolOffered("loadAgentSkill"));
+  });
+
+  it("a stored call that loaded a retired playbook still validates and loads nothing", async () => {
+    assert.includeMembers(agentSkillNames, [
+      "new-user-setup",
+      "research-brief",
+    ]);
 
     const output = await loadAgentSkillTool.execute?.(
-      { name: skill.name },
+      { name: "new-user-setup" },
       { toolCallId: "call_1", messages: [], context: {} }
     );
 
-    assert.deepStrictEqual(output, {
-      name: skill.name,
-      content: skill.content,
-    });
+    assert.strictEqual(
+      Schema.decodeUnknownSync(Schema.Struct({ content: Schema.String }))(
+        output
+      ).content,
+      "This playbook is no longer available. Do what the user asked with the tools you have."
+    );
   });
 });

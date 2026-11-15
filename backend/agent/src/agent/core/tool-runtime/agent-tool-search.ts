@@ -1,5 +1,6 @@
 import type { ToolSet } from "ai";
 
+import { isAgentToolOffered } from "../agent/agent-capabilities";
 import { patchAgentTools } from "./agent-tool-patch";
 import type { AppAgentToolName } from "./app-agent-tools";
 
@@ -39,6 +40,9 @@ const agentToolNamespaces = [
       "getReportReadiness",
     ],
   },
+  // KeepInTax (Phase 3.1, A16): sendEmail stays registered for stored
+  // conversations but is not offered (agent-capabilities.ts), so the
+  // instructions' line below leaves this namespace out.
   {
     name: "email",
     description:
@@ -54,7 +58,7 @@ const agentToolNamespaces = [
   {
     name: "action_rules",
     description:
-      "Save the user's rule for one of your actions (allow without asking, ask first, or never): creating or deleting tasks, changing settings, remembering, sending email.",
+      "Save the user's rule for one of your actions (allow without asking, ask first, or never): changing settings, remembering.",
     tools: ["setAgentActionRule"],
   },
 ] as const satisfies readonly {
@@ -62,6 +66,15 @@ const agentToolNamespaces = [
   description: string;
   tools: readonly AppAgentToolName[];
 }[];
+
+// KeepInTax (Phase 3.1): the namespaces as the model is told of them, each
+// with only its offered tools, and none left empty.
+const agentOfferedToolNamespaces = () =>
+  agentToolNamespaces.flatMap(({ name, tools }) => {
+    const offered = tools.filter((tool) => isAgentToolOffered(tool));
+
+    return offered.length === 0 ? [] : [{ name, tools: offered }];
+  });
 
 const agentToolNamespaceByTool: ReadonlyMap<
   string,
@@ -93,7 +106,7 @@ export const agentToolNamespaceName = (toolName: string) =>
  * @returns The line.
  */
 export const agentDeferredToolsInstructions = () =>
-  `These tools are in namespaces that load through tool search: ${agentToolNamespaces
+  `These tools are in namespaces that load through tool search: ${agentOfferedToolNamespaces()
     .map(({ name, tools }) => `${name} (${tools.join(", ")})`)
     .join(
       "; "

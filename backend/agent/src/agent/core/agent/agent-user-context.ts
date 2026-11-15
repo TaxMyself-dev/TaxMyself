@@ -6,8 +6,8 @@ import type {
 import type { AgentMemory } from "@/lib/agent-memory/agent-memory-schema";
 import type { UserSettings } from "@/lib/settings/user-settings/user-settings-schema";
 
-// The user context: what the agent knows about this user (their settings,
-// the profile details still missing, what it remembers), sent as a message
+// The user context: what the agent knows about this user (their settings
+// and what it remembers), sent as a message
 // of its own instead of in the instructions, as DeepSeek's "current context"
 // snapshot and Claude Code's first-message reminder are. The instructions
 // then stay the same for every user and every turn, so OpenAI's prompt cache
@@ -26,48 +26,20 @@ const userContextPart = "data-userContext";
 const settingLine = (label: string, value: string) =>
   value.trim() ? [`- ${label}: ${value.trim()}`] : [];
 
-/**
- * The profile details every answer depends on, by account kind; the rest of
- * the settings are optional (website, writing style) or have defaults
- * (languages). EXAMPLE: list the ones your agent cannot work without.
- *
- * @returns The missing details, each as its label for the user context.
- */
-export const agentProfileGaps = ({ profile, preferences }: UserSettings) =>
-  (profile.kind === "business"
-    ? [
-        ["the business's name (name)", profile.name],
-        ["what the business offers (offer)", preferences.offer],
-        [
-          "who its customers are, what it looks for (seeking)",
-          preferences.seeking,
-        ],
-      ]
-    : [["what they are looking for (seeking)", preferences.seeking]]
-  ).flatMap(([label, value]) => (value?.trim() ? [] : [label]));
-
-// While essential profile details are missing, filling them comes first in
-// every chat (the user can skip): a rule only for that situation, so it
-// comes with the context that shows the gaps.
-const agentProfileGapsSection = (settings: UserSettings) => {
-  const gaps = agentProfileGaps(settings);
-
-  return gaps.length === 0
-    ? ""
-    : `<profile_gaps>
-The user's profile is missing details that every answer depends on: ${gaps.join("; ")}.
-- Getting them comes first, in any chat: before other work, ask for them in one short, friendly message, addressed to the user as <voice> says, that says how it helps them, at most two per message, the first listed first, and asks nothing else. Save each answer with updateUserSettings as soon as it comes, then carry on with what the user asked.
-- A request the user already made that does not depend on a missing detail is never held for it: do it, and ask for the detail in the same answer, unless the user skipped it.
-- Answer a question about how KeepInTax works, or small talk, first in one line, then ask.
-- Once the user skips ("לא עכשיו", "אחר כך"), these gaps no longer apply in this chat: do what they ask with what you have, and never mention the missing details again, not even as an invitation for later ("כשיתאים, כתבו לי…", "כשנחפש…, כתבו מה…").
-</profile_gaps>
-
-`;
-};
+// KeepInTax change (Phase 3.1, plan §2.10, A19; GUIDE.md "What KeepInTax
+// changed"): the template's <profile_gaps> section and its gaps
+// (agentProfileGaps: the business's name, what it offers and seeks) are
+// removed. They made the agent ask for profile details "first, in any
+// chat", before an ordinary request such as a fuel question (plan
+// Appendix A, F1). The template's lead-generation settings (seeking, offer,
+// areas, notRelevant) are not read into the context either: KeepInTax does
+// not use them, and an empty one was read as something to ask for. The
+// agent asks only what the current request needs (agent-instructions.ts,
+// <clarification>); onboarding is started by the user (Phase 4, A19).
 
 /**
- * The user context's text: the user's profile, preferences and automation
- * settings, the profile gaps, and what the agent remembers.
+ * The user context's text: the account settings the agent uses and what it
+ * remembers.
  *
  * @param settings - The user's settings.
  * @param memories - What the agent remembers about the user.
@@ -79,8 +51,9 @@ export const agentUserContextText = (
 ) => {
   const { profile, preferences } = settings;
 
-  // EXAMPLE settings: one line per setting the agent should know. Leave
-  // empty ones out (settingLine) so the model never guesses them.
+  // One line per setting the agent should know. Empty ones are left out
+  // (settingLine), so the model never guesses them, and an empty one is
+  // never a question to ask.
   const lines = [
     `- Account: ${profile.kind === "business" ? "business" : "private person"}`,
     ...settingLine(
@@ -89,10 +62,6 @@ export const agentUserContextText = (
     ),
     ...settingLine("Website", profile.website),
     ...settingLine("Languages they handle", profile.languages.join(", ")),
-    ...settingLine("Looking for", preferences.seeking),
-    ...settingLine("Never relevant", preferences.notRelevant),
-    ...settingLine("What they offer", preferences.offer),
-    ...settingLine("Areas they work in or search", preferences.areas),
     ...settingLine("Writing style", preferences.writingStyle),
   ];
 
@@ -103,7 +72,7 @@ From KeepInTax, not written by the user: the user's settings and what you rememb
 ${lines.join("\n")}
 </user_settings>
 
-${agentProfileGapsSection(settings)}${agentRememberedSection(memories)}
+${agentRememberedSection(memories)}
 </user_context>`;
 };
 

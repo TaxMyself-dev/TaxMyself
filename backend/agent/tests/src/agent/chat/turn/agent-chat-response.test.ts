@@ -259,8 +259,9 @@ describe("agent chat answer through the endpoint", () => {
       );
       assert.include(prompts[0] ?? "", "<user_context>");
       // The skill list is a message at the conversation's start, not part of
-      // the instructions.
-      assert.include(prompts[0] ?? "", "the playbooks you can load");
+      // the instructions; KeepInTax (Phase 3.1) offers no playbook, so none
+      // is sent.
+      assert.notInclude(prompts[0] ?? "", "the playbooks you can load");
       assert.notInclude(agentInstructions("he"), "<skills>");
 
       // The plan gate sent the answer back twice, then let it end.

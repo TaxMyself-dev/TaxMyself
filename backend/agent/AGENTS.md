@@ -28,6 +28,10 @@ The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its
 
 The existing `queryExpenses` is joined by nine read-only books/report tools over `KeepInTaxBooks` and the verified-user Nest `AgentBooksService`. Additional books tools and reports are deferred by namespace; expenses stay loaded. See GUIDE.md "Books and reports reads" for service sources, periods, currencies, exclusions and limits. Numeric evidence is restricted to successful books/report results from the same turn; discovery schemas, memory/web results and failed calls are not evidence. These are explicit KeepInTax extensions to the template, including the answer check and Hebrew instructions. Tests/evals use fixed fake ports; Phase 3 adds no SQL migrations.
 
+## Phase 3.1 chat interaction (KT-108)
+
+The prompt, user context, memory rules, turn-signal hint, follow-up writer and app knowledge ask nothing about the user and advertise only `agent-capabilities.ts`. The template's web, email, tracking and playbook tools stay registered for stored conversations but are never offered (`activeTools`, `agentChatToolApproval`). `askUserQuestion` has no `execute`: the page answers it and `agent-chat-question-answers.ts` accepts only an open question's own value, once; a typed message supersedes it. Turn origins are server-written `data-turnOrigin` parts; a pressed follow-up writes nothing. Created memories and tracking tasks are keyed by their tool call (`agent-tool-idempotency.ts`). No schema change. See GUIDE.md "Phase 3.1: chat interaction".
+
 ## Related topics
 
 - [agent-harness](../src/agent-harness/AGENTS.md) — the Nest edge.

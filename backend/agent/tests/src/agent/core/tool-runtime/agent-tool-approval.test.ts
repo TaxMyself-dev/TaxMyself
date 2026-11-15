@@ -1,6 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
+import { Option, Schema } from "effect";
 
-import { agentToolApproval } from "../../../../../src/agent/core/tool-runtime/agent-tool-approval";
+import {
+  agentChatToolApproval,
+  agentToolApproval,
+} from "../../../../../src/agent/core/tool-runtime/agent-tool-approval";
 import { agentToolNeedsApproval } from "../../../../../src/agent/core/tool-runtime/agent-tool-traits";
 import {
   agentActionRuleActions,
@@ -105,5 +109,75 @@ describe("agent tool approval", () => {
         {}
       )
     );
+  });
+});
+
+const decodeDenial = Schema.decodeUnknownOption(
+  Schema.Struct({ type: Schema.Literal("denied"), reason: Schema.String })
+);
+
+// A denial's reason, or null when the call was not denied.
+const deniedReason = (status: ReturnType<typeof agentChatToolApproval>) =>
+  Option.match(decodeDenial(status), {
+    onNone: () => null,
+    onSome: ({ reason }) => reason,
+  });
+
+// KeepInTax (Phase 3.1, A16, A17, plan §2.7 item 4): a tool kept only for
+// stored conversations is refused if the model calls it anyway, and a
+// pressed follow-up runs reads but writes nothing.
+describe("agent tool approval in KeepInTax's chat", () => {
+  it("a tool that is not offered is refused, whatever the user's rules", () => {
+    for (const toolName of [
+      "searchWeb",
+      "sendEmail",
+      "createTrackingTask",
+      "suggestTrackingTasks",
+      "loadAgentSkill",
+    ]) {
+      const reason = deniedReason(
+        agentChatToolApproval(call(toolName), {
+          createTrackingTask: "allow",
+          sendEmail: "allow",
+        })
+      );
+
+      assert.match(reason ?? "", /^AGENT_TOOL_NOT_AVAILABLE:/u, toolName);
+    }
+  });
+
+  it("a pressed follow-up writes nothing but still reads", () => {
+    for (const toolName of [
+      "saveAgentMemory",
+      "updateAgentMemory",
+      "forgetAgentMemories",
+      "updateUserSettings",
+      "setAgentActionRule",
+    ]) {
+      assert.match(
+        deniedReason(agentChatToolApproval(call(toolName), {}, "follow-up")) ??
+          "",
+        /^AGENT_FOLLOW_UP_NO_WRITE:/u,
+        toolName
+      );
+    }
+
+    for (const toolName of [
+      "queryExpenses",
+      "getProfitAndLoss",
+      "askUserQuestion",
+    ]) {
+      assert.isUndefined(
+        agentChatToolApproval(call(toolName), {}, "follow-up")
+      );
+    }
+  });
+
+  it("a typed message or a question's answer may write as before", () => {
+    for (const origin of ["typed", "question-answer", "approval"] as const) {
+      assert.isUndefined(
+        agentChatToolApproval(call("saveAgentMemory"), {}, origin)
+      );
+    }
   });
 });

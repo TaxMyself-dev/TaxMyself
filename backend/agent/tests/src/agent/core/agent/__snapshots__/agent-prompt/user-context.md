@@ -5,10 +5,6 @@ From KeepInTax, not written by the user: the user's settings and what you rememb
 - Account: business
 - Business name (the business, not the person): Northwind Bookkeeping
 - Languages they handle: en
-- Looking for: small businesses that need monthly bookkeeping
-- Never relevant: one-off tax returns
-- What they offer: bookkeeping and payroll for small businesses
-- Areas they work in or search: Chicago
 - Writing style: warm and short
 </user_settings>
 

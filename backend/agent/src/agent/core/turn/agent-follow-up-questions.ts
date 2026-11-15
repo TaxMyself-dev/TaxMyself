@@ -3,6 +3,11 @@ import type { Telemetry } from "ai";
 import { Effect, Schema } from "effect";
 
 import { toStandardSchema } from "../../../../backend/shared/schema/standard-schema";
+import {
+  agentCapabilityLines,
+  agentSupportedCapabilities,
+  agentUnsupportedCapabilities,
+} from "../agent/agent-capabilities";
 import type { AgentLanguageModel } from "../model/agent-model";
 import { agentOpenAiPrivacyOptions } from "../model/agent-openai-privacy";
 
@@ -41,6 +46,18 @@ export const agentAnswerAsksUser = (answer: string) =>
       .split(/\n\s*\n/u)
       .at(-1) ?? ""
   );
+
+// KeepInTax change (Phase 3.1, plan §2.6; GUIDE.md "What KeepInTax
+// changed"): the follow-ups continue the answer's topic with things the
+// agent can actually do (agentSupportedCapabilities), never ask about the
+// user, start onboarding, or offer what does not exist yet (monitoring,
+// alerts, web search, email). The template listed tracking tasks, web search
+// and email here.
+const agentFollowUpInstructions = `Suggest what the user of KeepInTax's agent might ask next, after the answer below: two or three short questions in the user's voice and language (2 to 12 words each), each continuing this answer's topic (the next step on what it found, such as the same figure by month, by supplier or for another period; not a tour of the app) and something the agent can do:
+${agentCapabilityLines(agentSupportedCapabilities)}
+Never suggest what it cannot do yet:
+${agentCapabilityLines(agentUnsupportedCapabilities)}
+Never a question about the user (their goals, what they look for, their details or preferences), never a request to remember or set up something, never onboarding. Suggest only follow-ups that go beyond what the user already asked for. A wrong or generic question is worse than none. When the answer asks the user for something, as a question or as a request (write, tell, send), return none: their reply comes next. Never write a placeholder such as [business type].`;
 
 // The follow-ups' own model call failed; the answer ends without buttons.
 class AgentFollowUpQuestionsError extends Schema.TaggedError<
@@ -92,8 +109,7 @@ export const writeAgentFollowUpQuestions = Effect.fn(
           output: Output.object({
             schema: toStandardSchema(agentFollowUpQuestionsSchema),
           }),
-          instructions:
-            "Suggest what the user of KeepInTax's agent might ask next, after the answer below: two or three short questions in the user's voice and language (2 to 12 words each), each following from this answer (the next step on what it found or did, not a tour of the app) and something the agent can do: read the user's expenses (totals by category, supplier or month, and which expenses), manage tracking tasks, search the web, write and send emails. Suggest only follow-ups that go beyond what the user already asked for. A wrong or generic question is worse than none. When the answer asks the user for something, as a question or as a request (write, tell, send), return none: their reply comes next. Never write a placeholder such as [business type].",
+          instructions: agentFollowUpInstructions,
           prompt: `${
             input.maxLength === undefined
               ? ""

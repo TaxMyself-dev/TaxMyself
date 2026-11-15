@@ -6,6 +6,11 @@ import {
   agentPlanStepsOnceAnswered,
 } from "@/agent/tools/conversation/agent-plan-tool";
 
+import {
+  evalBooks,
+  evalDesignerBusiness,
+  evalDesignerExpenses,
+} from "../harness/agent-eval-books";
 import { evalOpportunity, evalTask } from "../harness/agent-eval-fixtures";
 import { runAgentConversation } from "../harness/agent-eval-harness";
 import { calledToolNames } from "../harness/agent-eval-run-checks";
@@ -28,7 +33,8 @@ const planSteps = Schema.decodeUnknownSync(
 );
 
 describe.concurrent("planning", () => {
-  it("plans a request of several parts and finishes every part", async ({
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. This case plans over tasks and opportunities. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("plans a request of several parts and finishes every part", async ({
     expect,
   }) => {
     const run = await runAgentConversation(
@@ -66,7 +72,8 @@ describe.concurrent("planning", () => {
     expect(open).toEqual([]);
   });
 
-  it("asks with buttons whether to set up a new task with the defaults", async ({
+  // KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+  it.skip("asks with buttons whether to set up a new task with the defaults", async ({
     expect,
   }) => {
     const run = await runAgentConversation({}, [
@@ -81,9 +88,14 @@ describe.concurrent("planning", () => {
     ).toBe(false);
   });
 
+  // KeepInTax Phase 3.1 (KT-108): restated in KeepInTax's terms; the template's version asked about tracking tasks or finding clients, which are no longer offered in chat (A17). What the case guards is unchanged.
   it("answers a simple question without a plan", async ({ expect }) => {
-    const run = await runAgentConversation({ tasks: [evalTask()] }, [
-      "What are my tasks?",
+    const { books } = evalBooks(evalDesignerExpenses, {
+      businesses: [evalDesignerBusiness],
+    });
+
+    const run = await runAgentConversation({ books }, [
+      "How much did I spend on fuel this year?",
     ]);
 
     expect(calledToolNames(run)).not.toContain("updatePlan");

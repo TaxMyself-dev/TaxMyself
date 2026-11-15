@@ -1,7 +1,5 @@
 import { describe, it } from "@effect/vitest";
-import { Choice } from "deepeval/metrics";
 
-import { evalWebSearch } from "../harness/agent-eval-fixtures";
 import { runAgentConversation } from "../harness/agent-eval-harness";
 import { agentAnswerJudge } from "../harness/agent-eval-judge";
 import {
@@ -13,127 +11,79 @@ import {
   exampleEvalSettings,
 } from "../harness/agent-eval-settings-fixtures";
 
-// The agent keeps the user's profile and goals complete: when a request
-// depends on something the settings do not hold, it asks first, saves the
-// answer to the settings, and carries on (agent-instructions.ts,
-// <missing_details>; agent-user-context.ts, <profile_gaps>).
+// KeepInTax Phase 3.1 (plan §2.10, Appendix A F1-F3, A19): inverted. The
+// template's cases here asserted that the agent asks for missing profile
+// details first, in any chat (<profile_gaps>, <missing_details>). That
+// behavior is removed: whatever the settings hold or lack, an ordinary
+// message gets no question about the user, their profile or their goals, and
+// nothing is written to the settings. Onboarding is started by the user
+// (Phase 4).
 
-// Carrying on may search the web for clients: it finds nothing.
-const emptyWebSearch = evalWebSearch([]);
+// What a message must not lead to: any write to the user's settings or
+// memory.
+const wroteAboutTheUser = (
+  run: Awaited<ReturnType<typeof runAgentConversation>>
+) =>
+  run.writes.some(
+    (write) =>
+      write.table === "user_settings" || write.table === "agent_memories"
+  );
 
-describe.concurrent("missing details", () => {
+// Worded positively after the final run (KT-108): the negative statement
+// read correct greetings ("היי! אפשר לבדוק כאן הוצאות…") as unclear at
+// confidence 0.06-0.36. Same meaning: a greeting may ask what they want help
+// with now, never about the user. The follow-up buttons are questions the
+// user may press, and they too must not ask about the user.
+const noProfileQuestion = agentAnswerJudge("Asks nothing about the user", [
+  "`test_case.actual_output` greets the user and offers help with KeepInTax; if the agent's answer or its follow-up buttons hold a question, it is only about what to help with now, never about the user themselves (their business profile, what they offer or look for, their goals or preferences) or what to search for later.",
+]);
+
+describe.concurrent("no unsolicited profile questions", () => {
   // A business whose profile lacks what it offers and where it works: the
-  // agent gets those first, in any chat (<profile_gaps>).
+  // template asked for those first.
   const halfFilledBusiness = {
     ...exampleEvalSettings,
     preferences: { ...exampleEvalSettings.preferences, offer: "", areas: "" },
   };
 
-  it("asks for the missing profile details first, even after a greeting", async ({
-    expect,
-  }) => {
-    const run = await runAgentConversation({ settings: halfFilledBusiness }, [
-      "hi",
-    ]);
-
-    await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Asks for the profile gaps", [
-        "`test_case.actual_output` asks what the business offers or which areas it works in.",
-        // <profile_gaps>: one short message that may say how it helps and
-        // asks nothing else.
-        "`test_case.actual_output` asks only about what the business offers and the areas it works in: it asks the user no other question, such as what they want to do or find.",
-      ]),
-    ]);
-  });
-
-  it("carries on without the details when the user wants to skip", async ({
-    expect,
-  }) => {
-    const run = await runAgentConversation({ settings: halfFilledBusiness }, [
-      "hi",
-      "Not now, show me my tasks",
-    ]);
-
-    // Step: the agent does what was asked instead of asking again.
-    expect(calledToolNames(run)).toContain("listTrackingTasks");
-    await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Lets the user skip", [
-        new Choice({
-          question:
-            "What does `test_case.actual_output` do about the business details the user chose to skip?",
-          options: {
-            carries_on_without_them: 1,
-            mentions_them_once_in_passing: 0.5,
-            asks_for_them_again: 0,
-          },
-        }),
-      ]),
-    ]);
-  });
-
-  it("asks what a new user offers and where before looking for clients", async ({
-    expect,
-  }) => {
-    const run = await runAgentConversation({ settings: emptyEvalSettings }, [
-      "Find me clients",
-    ]);
-
-    expect(calledToolNames(run)).not.toContain("createTrackingTask");
-    await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Asks for the missing details", [
-        "`test_case.actual_output` asks the user what they offer or sell, or what kind of clients they want.",
-        "`test_case.actual_output` asks the user which area or city they work in.",
-      ]),
-    ]);
-  });
-
-  it("saves the user's answer to their settings and carries on", async ({
+  it("a greeting gets a greeting back, with empty settings", async ({
     expect,
   }) => {
     const run = await runAgentConversation(
-      { settings: emptyEvalSettings, webSearch: emptyWebSearch },
-      [
-        "Find me clients",
-        "I do bookkeeping for small businesses, in Chicago and the suburbs",
-      ]
+      { settings: emptyEvalSettings, locale: "he" },
+      ["היי"]
     );
 
-    expect(calledToolNames(run)).toContain("updateUserSettings");
-    const saved = run.writes.find((write) => write.table === "user_settings");
-    expect(saved?.body).toMatch(/bookkeep/iu);
-    expect(saved?.body).toContain("Chicago");
+    expect(wroteAboutTheUser(run)).toBe(false);
+    expect(calledToolNames(run)).not.toContain("updateUserSettings");
+    await expect(agentEvalTestCase(run)).toPass([noProfileQuestion]);
   });
 
-  it("does not ask for what the settings already hold", async ({ expect }) => {
-    const run = await runAgentConversation(
-      { settings: exampleEvalSettings, webSearch: emptyWebSearch },
-      ["Suggest tasks that would bring me clients"]
-    );
-
-    expect(calledToolNames(run)).toContain("suggestTrackingTasks");
-    // Step: the answer asks nothing, since the settings hold what the ideas
-    // need and the ideas show as cards. Checked in code: Jev read questions
-    // into answers that asked none, in every wording tried
-    // (agent-judges.eval.ts).
-    expect(run.answer).not.toContain("?");
-    await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Uses the settings it has", [
-        "`test_case.actual_output` tells the user that task suggestions were made.",
-      ]),
-    ]);
-  });
-
-  it("asks for the budget before creating a task for buyers", async ({
+  it("a greeting gets a greeting back, with a half-filled business profile", async ({
     expect,
   }) => {
-    const run = await runAgentConversation({ settings: exampleEvalSettings }, [
-      "Create a task to find people buying a used delivery van",
-    ]);
+    const run = await runAgentConversation(
+      { settings: halfFilledBusiness, locale: "he" },
+      ["היי"]
+    );
 
-    expect(calledToolNames(run)).not.toContain("createTrackingTask");
+    expect(wroteAboutTheUser(run)).toBe(false);
+    await expect(agentEvalTestCase(run)).toPass([noProfileQuestion]);
+  });
+
+  it("asked what it knows about the user, it says what it holds and asks for nothing", async ({
+    expect,
+  }) => {
+    const run = await runAgentConversation(
+      { settings: emptyEvalSettings, locale: "he" },
+      ["מה אתה יודע עליי?"]
+    );
+
+    expect(wroteAboutTheUser(run)).toBe(false);
     await expect(agentEvalTestCase(run)).toPass([
-      agentAnswerJudge("Asks for the budget", [
-        "`test_case.actual_output` asks the user for a price range or budget.",
+      agentAnswerJudge("Says what it holds, asks for nothing", [
+        "`test_case.actual_output` says, in a few words, what it knows about the user (little or nothing), without inventing anything about them.",
+        "`test_case.actual_output` does not ask the user for their name or any other detail about themselves.",
       ]),
     ]);
   });

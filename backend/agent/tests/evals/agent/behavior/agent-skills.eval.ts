@@ -48,7 +48,8 @@ const skillCases: {
   },
 ];
 
-describe.concurrent("agent skills", () => {
+// KeepInTax Phase 3.1 (KT-108): skipped, not passing. The template's tracking tasks, opportunities, web search, email and playbooks are no longer offered in chat. The code stays for Phase 5.1's monitors over the books (plan §3.10, A16, A17).
+describe.concurrent.skip("agent skills", () => {
   for (const { request, skill, scenario } of skillCases) {
     it(`loads ${skill} for "${request}"`, async ({ expect }) => {
       const run = await runAgentConversation(scenario, [request]);

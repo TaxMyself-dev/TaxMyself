@@ -1,19 +1,20 @@
 # KeepInTax AI agent: tools and delivery plan
 
-Status: **PROPOSED, not approved** as a whole. Implemented so far: the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7) (2026-11-05); and **Phase 3** (2026-11-11, KT-089): the rest of §3.3 and §3.4 as read-only tools (`queryTransactions`, `queryIssuedDocuments`, `listCategories`, `listClients`, `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`, `listUpcomingReports`, `getReportReadiness`), the Hebrew prompt on number origins, and the same-turn number check. Where Phase 3 deviates from the tables below, see "Phase 3 as built" under §3.4. Everything else (Phases 4–13, including Phase 8's reminder job and Phase 10's alerts) is not built.
+Status: **PROPOSED, not approved** as a whole. Implemented so far: the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7) (2026-11-05); and **Phase 3** (2026-11-11, KT-089): the rest of §3.3 and §3.4 as read-only tools (`queryTransactions`, `queryIssuedDocuments`, `listCategories`, `listClients`, `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`, `listUpcomingReports`, `getReportReadiness`), the Hebrew prompt on number origins, and the same-turn number check. Where Phase 3 deviates from the tables below, see "Phase 3 as built" under §3.4. **Phase 3.1** (2026-11-15, KT-108): the chat interaction corrections, as recorded under Phase 3.1 ("Status"). Everything else (Phases 3.2 and 4–13, including Phase 8's reminder job and Phase 10's alerts) is not built.
 Date: 2026-11-03; updated 2026-11-11; updated 2026-11-14 (the interaction model, §2.5–§2.10, Phases 3.1, 3.2, 4.1, 5.1 and 5.2, §6.1, §7 and the appendices were consolidated into this plan as **proposed, not built and not approved**; the separate proposal `ai-agent-interaction-model-plan.md` is now a pointer to this file); updated 2026-11-15 (the product owner's decisions of 2026-11-14 on DR-1 to DR-14 recorded as approved, §1 A11–A25, and propagated through the plan).
 
 This is the single plan for the agent. The decisions in §7 were **approved on 2026-11-14** (§1, A11–A25). Approval is not implementation: everything they govern is still **not built** unless the build-status table below says otherwise, and the plan as a whole stays PROPOSED. Blockers that remain are of other kinds: RULES PENDING, missing credentials or providers, and phases not yet built.
 
-**Build status by phase** (from code at `new-ai-assistant` @ `8ffde33a`, read on 2026-11-14 without running it; verification evidence lives in `docs/tasks/active/KT-089-agent-harness-backend.md` and was not re-run for this update):
+**Build status by phase** (from code at `new-ai-assistant` @ `8ffde33a`, read on 2026-11-14 without running it; verification evidence lives in `docs/tasks/active/KT-089-agent-harness-backend.md` and was not re-run for this update. Rows 2 and 3.1 updated 2026-11-15 from KT-108, whose verification is in `docs/tasks/active/KT-108-agent-chat-interaction.md`):
 
 | Phase | State | Notes |
 |---|---|---|
 | 0 | Recorded as done in KT-089 | Langfuse runs locally through `start-ai.cmd` (`backend/agent/GUIDE.md`, 2026-11-14) |
 | 1 | Partly built | Data scoping is done (§2.3, as built). Books and reports reads go through `KeepInTaxBooks`, backed by `AgentDomainService` and `AgentBooksService`, not a single `AgentDomainPortsService`. Step 5 is open: the example tools (`searchWeb`, `sendEmail`) and their ports are still registered |
-| 2 | Partly built | `/dev/agent` streams the chat and shows tool calls as JSON, approval cards, stop, and stored follow-up chips. Not built: `askUserQuestion` choices (a question shows as raw tool JSON), resuming a running answer, steer, the side panel, a link to each turn's trace, and the stream-parser unit test (only `dev-agent.route.spec.ts` exists). Follow-ups never show live (Appendix A, F6) |
+| 2 | Partly built | `/dev/agent` streams the chat and shows tool calls as JSON, approval cards and stop. Since KT-108 (2026-11-15): `askUserQuestion` buttons from the stored part, follow-ups fetched live and shown after a reload, the conversation in the URL with its stream resumed on reload, a recent-chats list, the "saved" notice with undo, and unit specs for the page's helpers (`dev-agent-chat.spec.ts`; the page uses the AI SDK's own stream parser). Not built: steer, the side panel (memories, notifications), a link to each turn's trace. Not runtime-verified in a browser (KT-108) |
 | 3 | Built (KT-089, 2026-11-11) | See "Phase 3 as built" under §3.4 and KT-089's evaluation status |
-| 3.1–13 | Not built | Phases 3.1, 3.2, 4.1, 5.1 and 5.2 are new (2026-11-14). Their decisions are approved (A11–A25); none of the work is implemented |
+| 3.1 | Built (KT-108, 2026-11-15) | See Phase 3.1, "Status". Remaining gaps listed there |
+| 3.2–13 | Not built | Phases 3.2, 4.1, 5.1 and 5.2 are new (2026-11-14). Their decisions are approved (A11–A25); none of that work is implemented |
 Inputs:
 - the capability spec, `backend/src/AI.features.md`;
 - the agent package, `backend/agent` (KT-089, ported 1:1 from the agent template);
@@ -425,6 +426,8 @@ Each phase is one task file under `docs/tasks/active/` (KT-090 onward).
 - item 5: the side panel, with memories (and later inferences, Phase 4.1) and notifications, with open-in-chat (Phase 5);
 - item 6, and the stream-parser unit test.
 
+**Status update (2026-11-15, KT-108):** done for Phase 3.1: item 3's `askUserQuestion` buttons (disabled once answered or superseded); item 4's stored-conversation load and stream resume (`?chat=`); follow-ups fetched on `data-followUpsPending` and shown from the stored part after a reload; the "saved" notice with undo. Still open: steer (item 4), the side panel (item 5), the trace link (item 6). The page uses the AI SDK's stream parser, so item 6's parser test is covered by unit specs of the page's own helpers (`dev-agent-chat.spec.ts`).
+
 ### Phase 3 — Books and reports Q&A (§3.3, §3.4)
 
 1. Tools, port implementations, and the system prompt's Hebrew section on reading numbers: always quote the period, never invent a number, and say when the data is partial.
@@ -434,7 +437,7 @@ Each phase is one task file under `docs/tasks/active/` (KT-090 onward).
 - About 30 Hebrew questions, among them "כמה הוצאתי על דלק השנה?", "כמה אני מוציא על פלאפון?" and "האם הוצאתי חשבונית ללקוח X?", plus period edge cases (VAT bi-monthly, a year boundary).
 - Judges check four things: the right tool and filters were used, the numbers match the fake data, the answer is in Hebrew, and nothing was invented.
 
-### Phase 3.1 — Chat interaction corrections (added 2026-11-14; §2.6, §2.10; decisions approved, not built)
+### Phase 3.1 — Chat interaction corrections (added 2026-11-14; §2.6, §2.10; built 2026-11-15, KT-108)
 
 There are no schema changes.
 
@@ -451,6 +454,12 @@ UI work for this phase is in Phase 2's remaining items.
 **Evals and tests:** S1, S2, S3, S4, S6, S10 and S11 in §6.1. Unit tests: an open question accepts only its own values, once; a stale or repeated answer changes nothing; a typed message supersedes an open question; a follow-up press is recognized from the stored part; `searchWeb`, `sendEmail` and the tracking tools are not offered but stored parts that used them still validate.
 
 **Done when:** S1, S2 (with the validated continuation), S3, S4, S6, S10 and S11 pass.
+
+**Status (2026-11-15, KT-108; details in `backend/agent/GUIDE.md`, "What KeepInTax changed" and "Phase 3.1: chat interaction"):**
+- Items 1–7 are implemented with no schema change. As built: the capability list is `agent-capabilities.ts`; hidden tools stay registered, are left out of every step's `activeTools` and of the deferred-tools line, and are denied server-side if called (`AGENT_TOOL_NOT_AVAILABLE`); `askUserQuestion` has no `execute`, takes `{ label, value }` options (2–6; a plain string still validates as its own value) and is answered through `agent-chat-question-answers.ts`; a typed message closes an open question as `{ superseded: true }`; a stale, repeated or other-tab press is refused (409 `AGENT_QUESTION_CLOSED`) and an unoffered value too (400); the origin is a server-written `data-turnOrigin` part (`typed`, `follow-up`, `question-answer`, `approval`); idempotency keys are derived from the conversation and tool call id and used as the id of a created memory or tracking task; a business fact is held in memory with the content prefix `[business_fact] ` until Phase 4's column exists.
+- One origin rule is applied now, as the minimum S3 needs: a turn started by a pressed follow-up runs no write tool. The other origin and consequence rules remain Phase 3.2.
+- Evals (`kt108-final2-interaction`, 3 repetitions, on the code before the last app-knowledge wording fix): S2 (four cases, including a business switched between question and press), S3, S4, S6, S10, S11 and S12's Phase 3.1 part 3/3 each, S1 2/3 (the miss is the books judge's numeric statement on an answer whose figures all came from the tool, the open judge item recorded in KT-089), the inverted `missing-details.eval.ts` 9/9; 38/39 combined, 39/39 code checks. The regression pass on the final revision did not run (stopped for low memory); its earlier run, classified misses and the commands to finish it are in KT-108.
+- Remaining gaps: `readAppKnowledge`'s pages, plans and help are still the template's examples (only its how-it-works comes from the capability list); the dev page was not runtime-verified in a browser; eval cases whose subject is a hidden template capability are skipped with a reason, including the approval-card evals (no offered tool asks for approval except an `allow` action rule) until Phase 3.2; steer, the side panel and the trace link (Phase 2) are not built.
 
 ### Phase 3.2 — Action authorization policy (added 2026-11-14; §2.7; decisions approved as A21, A25; not built)
 
