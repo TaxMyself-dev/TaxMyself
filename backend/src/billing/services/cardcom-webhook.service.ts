@@ -32,6 +32,7 @@ import { BillingIssuerConfigService } from './billing-issuer-config.service';
 import { ModuleName } from 'src/enum';
 import { BillingLifecycleService } from './billing-lifecycle.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
+import { frozenPricePlanPatch } from '../domain/subscription-pricing';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { BillingPayerProfileService } from './billing-payer-profile.service';
@@ -537,6 +538,7 @@ export class CardcomWebhookService implements OnModuleInit {
         canceledAt: null,
         endedAt: null,
         ...(recoveryPatch ?? {}),
+        ...await frozenPricePlanPatch(qr.manager, subscription, recoveryPatch?.planId ?? planId),
         billingAnchorDay: subscription.billingAnchorDay ?? (members
           ? Number(billingDate(subscription.currentPeriodStart ?? now).slice(8)) : anchor),
       });

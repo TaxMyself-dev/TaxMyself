@@ -195,7 +195,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
   let planRepo: { find: jest.Mock; findOne: jest.Mock };
   let subscriptionRepo: { findOne: jest.Mock };
   let userRepo: { findOne: jest.Mock };
-  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveEffectivePlanPrice: jest.Mock };
+  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveMonthlyPrice: jest.Mock };
 
   const PUBLIC_PLANS = [
     { id: 1, slug: 'consumer-basic', displayOrder: 0, isPublic: true },
@@ -219,7 +219,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
     userRepo = { findOne: jest.fn().mockResolvedValue({ hasOpenBanking: false }) };
     pricingService = {
       resolveUserBillingBusinessType: jest.fn().mockResolvedValue('EXEMPT'),
-      resolveEffectivePlanPrice: jest.fn().mockReturnValue(0),
+      resolveMonthlyPrice: jest.fn().mockReturnValue({ baseAmountAgorot: 0 }),
     };
 
     service = new BillingService(

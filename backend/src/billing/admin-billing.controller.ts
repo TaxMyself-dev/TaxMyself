@@ -1,5 +1,6 @@
 import {
   Body,
+  Delete,
   Controller,
   ForbiddenException,
   Get,
@@ -20,6 +21,7 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { UsersService } from 'src/users/users.service';
 import { AdminBillingService } from './services/admin-billing.service';
 import { CreatePlanDto } from './dtos/admin/create-plan.dto';
+import { UpdateSubscriptionPricingDto } from './dtos/admin/update-subscription-pricing.dto';
 import { UpdatePlanDto } from './dtos/admin/update-plan.dto';
 import { UpdateSubscriptionDiscountDto } from './dtos/admin/update-subscription-discount.dto';
 import { UpdateSubscriptionTrialEndDto } from './dtos/admin/update-subscription-trial-end.dto';
@@ -144,7 +146,7 @@ export class AdminBillingController {
     @Body() dto: CreatePlanDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.createPlan(dto);
+    return this.adminBillingService.createPlan(dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('plans/:id')
@@ -155,7 +157,7 @@ export class AdminBillingController {
     @Body() dto: UpdatePlanDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.updatePlan(id, dto);
+    return this.adminBillingService.updatePlan(id, dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('plans/:id/deactivate')
@@ -165,7 +167,7 @@ export class AdminBillingController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.deactivatePlan(id);
+    return this.adminBillingService.deactivatePlan(id, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('plans/:id/activate')
@@ -175,7 +177,32 @@ export class AdminBillingController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.activatePlan(id);
+    return this.adminBillingService.activatePlan(id, request.user?.actorFirebaseId ?? request.user!.firebaseId);
+  }
+
+  @Get('plans/:id/impact')
+  async planImpact(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.planImpact(id);
+  }
+
+  @Delete('plans/:id')
+  async deletePlan(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.deletePlan(id, request.user?.actorFirebaseId ?? request.user!.firebaseId);
+  }
+
+  @Get('subscriptions/:id/pricing')
+  async subscriptionPricing(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.getSubscriptionPricing(id);
+  }
+
+  @Patch('subscriptions/:id/pricing')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updatePricing(@Req() request: AuthenticatedRequest, @Param('id', ParseIntPipe) id: number, @Body() dto: UpdateSubscriptionPricingDto) {
+    await this.assertAdmin(request);
+    return this.adminBillingService.updateSubscriptionPricing(id, dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   // ─── Subscriptions ───────────────────────────────────────────────────────────
@@ -220,7 +247,7 @@ export class AdminBillingController {
     @Body() dto: UpdateSubscriptionDiscountDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.updateSubscriptionDiscount(id, dto);
+    return this.adminBillingService.updateSubscriptionDiscount(id, dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('subscriptions/:id/trial-end')
@@ -231,7 +258,7 @@ export class AdminBillingController {
     @Body() dto: UpdateSubscriptionTrialEndDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.updateSubscriptionTrialEnd(id, dto);
+    return this.adminBillingService.updateSubscriptionTrialEnd(id, dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('subscriptions/:id/plan')
@@ -242,7 +269,7 @@ export class AdminBillingController {
     @Body() dto: UpdateSubscriptionPlanDto,
   ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.updateSubscriptionPlan(id, dto);
+    return this.adminBillingService.updateSubscriptionPlan(id, dto, request.user?.actorFirebaseId ?? request.user!.firebaseId);
   }
 
   @Patch('subscriptions/:id/access-mode')

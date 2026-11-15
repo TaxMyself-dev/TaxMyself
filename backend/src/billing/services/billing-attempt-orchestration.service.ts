@@ -41,6 +41,7 @@ import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { billingDate } from '../domain/billing-debt-periods';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
+import { assertPricingFingerprint } from '../domain/subscription-pricing';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { Documents } from '../../documents/documents.entity';
@@ -177,6 +178,7 @@ export class BillingRenewalDeferredError extends Error {
 }
 
 export interface OpenBillingAttemptInput {
+  pricingFingerprint?: string;
   actor: BillingMutationActorContext;
   subscriptionId: number;
   kind: BillingObligationKind;
@@ -543,6 +545,7 @@ export class BillingAttemptOrchestrationService {
           'Billing mutation subject does not own the subscription',
         );
       }
+      await assertPricingFingerprint(manager, subscription, input.planId, input.pricingFingerprint ?? input.planChangeSnapshot?.pricingFingerprint);
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }

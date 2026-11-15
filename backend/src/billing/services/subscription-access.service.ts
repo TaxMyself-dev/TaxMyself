@@ -80,7 +80,7 @@ export class SubscriptionAccessService {
           graceLimit.setDate(graceLimit.getDate() + ACTIVE_BILLING_GRACE_DAYS);
           if (graceLimit < now) return [];
         }
-        return plan?.modules?.length ? plan.modules : allModules;
+        return plan?.modules ?? allModules;
       }
 
       case SubscriptionStatus.PAST_DUE: {
@@ -93,7 +93,7 @@ export class SubscriptionAccessService {
           subscription.currentPeriodEnd != null &&
           subscription.currentPeriodEnd > now;
         if (stillInPeriod) {
-          return plan?.modules?.length ? plan.modules : allModules;
+          return plan?.modules ?? allModules;
         }
         return [];
       }

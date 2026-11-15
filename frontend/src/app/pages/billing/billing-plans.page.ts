@@ -154,11 +154,18 @@ export class BillingPlansPage implements OnInit {
     this.checkingOutPlanId.set(planId);
     try {
       const result = await firstValueFrom(
-        this.http.post<{ paymentUrl?: string; lowProfileId?: string; status?: 'REDIRECT' | 'PROCESSING' | 'COMPLETED' }>(
+        this.http.post<{ paymentUrl?: string; lowProfileId?: string; status?: 'REDIRECT' | 'PROCESSING' | 'COMPLETED' | 'APPLIED' }>(
           `${environment.apiUrl}billing/checkout`,
           { planId },
         )
       );
+      if (result.status === 'APPLIED') {
+        sessionStorage.removeItem('tm.checkoutLowProfileId');
+        await this.billing.refreshBillingState();
+        this.genericService.showToast('התוכנית הופעלה ללא חיוב.', 'success');
+        this.checkingOutPlanId.set(null);
+        return;
+      }
       if (result.paymentUrl) {
         sessionStorage.removeItem('tm.checkoutLowProfileId');
         if (result.lowProfileId) sessionStorage.setItem('tm.checkoutLowProfileId', result.lowProfileId);

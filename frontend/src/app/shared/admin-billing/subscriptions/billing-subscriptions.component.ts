@@ -13,8 +13,8 @@ import {
 import { CommonModule, DatePipe } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, Subscription, forkJoin } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Observable, Subscription, forkJoin, of } from 'rxjs';
+import { concatMap, finalize } from 'rxjs/operators';
 import { DrawerModule } from 'primeng/drawer';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService, MessageService } from 'primeng/api';
@@ -30,6 +30,8 @@ import {
   AdminBillingService,
   AdminDebtSettlementPreview,
   AdminSubscription,
+  AdminSubscriptionPricing,
+  UpdateSubscriptionPricingPayload,
   AdminUnresolvedBillingAttempt,
   BillingResolutionAction,
   BillingAccessMode,
@@ -184,6 +186,12 @@ export class BillingSubscriptionsComponent implements OnInit {
   }
   private exceptionsRequest: Subscription | null = null;
   savingEdit = signal(false);
+  pricing = signal<AdminSubscriptionPricing | null>(null);
+  pricingLoading = signal(false);
+  pricingFailed = signal(false);
+  private pricingRequest: Subscription | null = null;
+  readonly priceSourceLabels = { PLAN: 'מחיר התוכנית', FROZEN: 'מחיר שמור', CUSTOM: 'מחיר אישי', DEBT: 'חיוב קיים', AGREED: 'תנאי הצטרפות מאושרים' };
+
   /** Plan dropdown options for the edit-dialog "תוכנית" field. */
   planOptions = signal<ISelectItem[]>([]);
   /** subscriptionId currently being charged, or null. Mirrors the isClearingCache
@@ -199,6 +207,12 @@ export class BillingSubscriptionsComponent implements OnInit {
   runningDueRenewals = signal(false);
 
   readonly editForm = this.fb.group({
+    pricePolicy: ['LIVE' as 'LIVE' | 'FROZEN'],
+    customPriceEnabled: [false],
+    customPriceShekels: [null as number | null],
+    customPriceTemporary: [false],
+    customPriceStartDate: [''],
+    customPriceEndDate: [''],
     billingAccessMode:      ['STANDARD' as BillingAccessMode],
     planId:                 [null as number | null],
     trialEnd:                [null as Date | null],
@@ -233,7 +247,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     { name: 'createdAt',          value: 'תאריך רישום',     type: FormTypes.DATE },
     { name: 'trialEnd',           value: 'תאריך סיום ניסיון', type: FormTypes.DATE },
     { name: 'nextBillingDate',    value: 'תאריך חיוב הבא',  type: FormTypes.DATE },
-    { name: 'nextBillingAmount',  value: 'סכום חיוב הבא',   type: FormTypes.TEXT },
+    { name: 'nextBillingAmount',  value: 'אומדן לתקופה חדשה לפני מע״מ',   type: FormTypes.TEXT },
     { name: 'discountPercentDisplay', value: 'אחוז הנחה',   type: FormTypes.TEXT },
     { name: 'discountAmountDisplay',  value: 'סכום הנחה',   type: FormTypes.TEXT },
     { name: 'currentPeriodEnd',   value: 'תום תקופה',       type: FormTypes.DATE },
@@ -284,6 +298,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.filteredSubscriptions().map(s => ({
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
+      searchText: [s.userName, s.userEmail, s.businessName].filter(Boolean).join(' '),
       businessName:            s.businessName ?? '—',
       hasOpenBanking:          s.hasOpenBanking,
       lastLoginAtDisplay:      s.lastLoginAt
@@ -351,9 +366,13 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.resetEditForm(sub);
     this.showDrawer.set(true);
     this.loadBillingExceptions(sub.subscriptionId);
+    this.loadPricing(sub.subscriptionId);
   }
 
   onDrawerHide(): void {
+    this.pricingRequest?.unsubscribe();
+    this.pricingRequest = null;
+    this.pricing.set(null);
     this.exceptionsRequest?.unsubscribe();
     this.exceptionsRequest = null;
     this.selectedSub.set(null);
@@ -375,6 +394,54 @@ export class BillingSubscriptionsComponent implements OnInit {
         next: attempts => this.exceptionAttempts.set(attempts),
         error: () => this.exceptionsFailed.set(true),
       });
+  }
+
+  loadPricing(subscriptionId: number): void {
+    this.pricingRequest?.unsubscribe();
+    this.pricing.set(null);
+    this.pricingLoading.set(true);
+    this.pricingFailed.set(false);
+    this.pricingRequest = this.adminBillingService.getSubscriptionPricing(subscriptionId).pipe(
+      finalize(() => this.pricingLoading.set(false)), takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: context => {
+        if (this.selectedSub()?.subscriptionId !== subscriptionId) return;
+        this.pricing.set(context);
+        this.editForm.patchValue({
+          pricePolicy: context.pricePolicy,
+          customPriceEnabled: context.customMonthlyPriceAgorot != null,
+          customPriceShekels: context.customMonthlyPriceAgorot != null ? context.customMonthlyPriceAgorot / 100 : null,
+          customPriceTemporary: context.customPriceEndDate != null,
+          customPriceStartDate: context.customPriceStartDate ?? '',
+          customPriceEndDate: context.customPriceEndDate ?? '',
+        });
+      },
+      error: () => this.pricingFailed.set(true),
+    });
+  }
+
+  pricingPayload(): UpdateSubscriptionPricingPayload | null {
+    const raw = this.editForm.getRawValue();
+    const amount = Number(raw.customPriceShekels);
+    if (raw.customPriceEnabled && (raw.customPriceShekels == null || raw.customPriceShekels === ('' as any) ||
+      !Number.isFinite(amount) || amount < 0 || amount > 1000000)) return null;
+    const start = raw.customPriceEnabled ? raw.customPriceStartDate || null : null;
+    const end = raw.customPriceEnabled && raw.customPriceTemporary ? raw.customPriceEndDate || null : null;
+    if (raw.customPriceEnabled && raw.customPriceTemporary && !end) return null;
+    if (start && end && start > end) return null;
+    return {
+      pricePolicy: raw.pricePolicy ?? 'LIVE',
+      customMonthlyPriceAgorot: raw.customPriceEnabled ? Math.round(amount * 100) : null,
+      customPriceStartDate: start, customPriceEndDate: end,
+    };
+  }
+
+  pricingChanged(): boolean {
+    const context = this.pricing();
+    const payload = this.pricingPayload();
+    return !!context && !!payload && (payload.pricePolicy !== context.pricePolicy ||
+      payload.customMonthlyPriceAgorot !== context.customMonthlyPriceAgorot ||
+      payload.customPriceStartDate !== context.customPriceStartDate || payload.customPriceEndDate !== context.customPriceEndDate);
   }
 
   formatDate(value: string | null | undefined): string {
@@ -412,6 +479,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   }
 
   saveEdit(): void {
+    if (this.savingEdit()) return;
     if (this.editForm.invalid) {
       this.editForm.markAllAsTouched();
       return;
@@ -425,6 +493,14 @@ export class BillingSubscriptionsComponent implements OnInit {
       this.confirmAccessModeChange(sub, nextAccessMode);
       return;
     }
+    if (sub.billingAccessMode === 'STANDARD' && (!this.pricing() || !this.pricingPayload())) {
+      this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לשמור',
+        detail: this.pricingFailed() ? 'טעינת הגדרות המחיר נכשלה. יש לנסות שוב לפני השמירה.' :
+          this.pricingLoading() ? 'יש להמתין לטעינת הגדרות המחיר.' : 'יש להזין מחיר אישי תקין ותאריכי תוקף תקינים.' });
+      return;
+    }
+    const pricingPayload = this.pricingPayload();
+    const updatePricing = this.pricingChanged();
     // Business dates are date-only, not timestamps — format using local date
     // parts to avoid the UTC-shift toISOString() would introduce.
     const toLocalDateString = (d: Date | null): string | null => {
@@ -459,6 +535,8 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.savingEdit.set(true);
     forkJoin(requests)
       .pipe(
+        concatMap(() => updatePricing && pricingPayload
+          ? this.adminBillingService.updateSubscriptionPricing(sub.subscriptionId, pricingPayload) : of(null)),
         finalize(() => this.savingEdit.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -480,9 +558,11 @@ export class BillingSubscriptionsComponent implements OnInit {
             key: 'br',
             severity: 'error',
             summary: 'שגיאה',
-            detail: err?.error?.message ?? 'שגיאה בעדכון המנוי',
-            life: 4000,
+            detail: `השמירה לא הושלמה; ייתכן שחלק מהשינויים נשמרו. ${err?.error?.message ?? 'יש לבדוק את הנתונים המעודכנים ולנסות שוב.'}`,
+            life: 6000,
           });
+          this.onDrawerHide();
+          this.loadSubscriptions();
         },
       });
   }

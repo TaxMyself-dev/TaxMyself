@@ -131,3 +131,8 @@ Active and complimentary owners automatically enter the existing Feezback connec
 Referral owners see every active referral plan on the plans page, including the
 basic downgrade and banking upgrade, independent of whether a bank is connected.
 The server keeps public and referral catalogs separate and honors the selected plan.
+
+Admin custom-price support: initial zero-net checkout may return status APPLIED
+without a payment URL. The plans page refreshes billing state, clears checkout
+polling context and shows successful no-charge activation without redirecting.
+Unknown responses without a URL fail locally without navigation.

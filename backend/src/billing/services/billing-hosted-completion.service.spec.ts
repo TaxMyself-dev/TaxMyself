@@ -261,6 +261,14 @@ describe('BillingHostedCompletionService — local recovery of a CAPTURED hosted
     };
   }
 
+  it('preserves the new plan frozen price when settling debt from an older plan', async () => {
+    const f = build();
+    Object.assign(f.sub, { planId: 8, pricePolicy: 'FROZEN', frozenPlanId: 8, frozenMonthlyPriceAgorot: 7900 });
+    expect(await f.service.completeCapturedHostedAttempt(f.params)).toBe('COMPLETED');
+    expect(f.sub).toMatchObject({ planId: 8, frozenPlanId: 8, frozenMonthlyPriceAgorot: 7900 });
+    expect(f.updates.values.every(patch => !('frozenPlanId' in patch))).toBe(true);
+  });
+
   const failuresOf = (rows: any[]) =>
     rows.filter((r) => r.eventType === BillingEventType.RECEIPT_FAILED);
 
