@@ -108,3 +108,14 @@ connection read calls are reused; no new API endpoints or weaker access policy.
 - Live provider/account mutations and the full legacy suite were not run.
 - User's local port/environment changes and family heading remain outside this commit.
 - Local feature delivery only; main and remote remain untouched.
+
+## Logout confirmation (2026-11-15)
+
+New settings sidebar logout now opens a dedicated keyed PrimeNG confirmation with
+Hebrew confirm/cancel actions and default focus on cancel. Only acceptance calls
+the existing AuthService.logout; dismiss/cancel keeps the session. Old settings
+and AuthService remain unchanged.
+
+Verification: `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit` passed.
+Focused command from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-navigation.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 5/5 passed.
+`git diff --cached --check` passed. No full-suite or live logout test performed.

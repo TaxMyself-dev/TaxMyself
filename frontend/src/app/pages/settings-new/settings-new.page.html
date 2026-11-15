@@ -20,7 +20,7 @@
         <button type="button" [class.active]="activeSection() === link.key" [attr.aria-current]="activeSection() === link.key ? 'location' : null" (click)="goTo(link.key)">{{ link.label }}</button>
       }
     </nav>
-    <button class="logout" type="button" (click)="authService.logout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
+    <button class="logout" type="button" (click)="confirmLogout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
   </aside>
 
   <main #scroller class="settings-scroll" (scroll)="onScroll()" aria-label="הגדרות אישיות">
@@ -263,3 +263,5 @@
   </form>
 </p-dialog>
 <p-confirmdialog key="payment-source" position="center" appendTo="body" [style]="{width:'28rem', maxWidth:'calc(100vw - 2rem)'}" />
+
+<p-confirmdialog key="settings-new-logout" position="center" appendTo="body" [rtl]="true" [style]="{width:'28rem', maxWidth:'calc(100vw - 2rem)'}" />

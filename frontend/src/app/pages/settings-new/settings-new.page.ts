@@ -32,6 +32,19 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
 export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
   @ViewChild('scroller', { static: true }) scroller!: ElementRef<HTMLElement>;
   @ViewChild('businessSection', { static: true }) businessSection!: ElementRef<HTMLElement>;
+  confirmLogout(): void {
+    this.confirmationService.confirm({
+      key: 'settings-new-logout',
+      header: 'התנתקות',
+      message: 'האם אתה בטוח שברצונך להתנתק?',
+      icon: 'pi pi-sign-out',
+      acceptLabel: 'התנתק',
+      rejectLabel: 'ביטול',
+      defaultFocus: 'reject',
+      accept: () => this.authService.logout(),
+    });
+  }
+
   readonly activeSection = signal<SettingsSection>('account');
   private readonly navigationCdr = inject(ChangeDetectorRef);
   readonly personalLinks = PERSONAL_SETTINGS_LINKS;

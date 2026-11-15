@@ -49,3 +49,22 @@ describe('new settings subscription navigation', () => {
     expect(page.addPermissionEmail).toBe('valid@example.com');
   });
 });
+
+
+describe('new settings logout confirmation', () => {
+  it('logs out only after explicit acceptance; cancel and dismiss keep the session', () => {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    const confirm = jasmine.createSpy('confirm');
+    page.confirmationService = { confirm };
+    page.authService = { logout: jasmine.createSpy('logout') };
+    page.confirmLogout();
+    const options = confirm.calls.mostRecent().args[0];
+    expect(options.key).toBe('settings-new-logout');
+    expect(options.defaultFocus).toBe('reject');
+    expect(page.authService.logout).not.toHaveBeenCalled();
+    options.reject?.();
+    expect(page.authService.logout).not.toHaveBeenCalled();
+    options.accept();
+    expect(page.authService.logout).toHaveBeenCalledTimes(1);
+  });
+});
