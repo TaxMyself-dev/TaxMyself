@@ -4,6 +4,11 @@ Local `npm run start:billing` serves port 4200 and the development API targets b
 Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
 The enrollment host owns vertical scrolling inside the app's overflow-hidden flex shell; its main content must not shrink, so the plan CTA and cancellation terms remain reachable on short screens.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
+The plans page presents its header, plan grid and VAT note inside one centered,
+bordered surface. The responsive grid derives its columns from the number of
+available cards and centers incomplete rows, so two plans never occupy two
+positions of an otherwise three-column layout. At tablet/mobile widths it
+collapses to one centered column without changing checkout behavior.
 
 ## Key entities/files
 - `billing-plans.page.ts` — standalone `BillingPlansPage`; fetches plans, builds a display view-model (`PlanVM`) merging module-based access-control items and marketing "feature" flags, and starts checkout.
@@ -36,6 +41,14 @@ Standalone pricing/plans page where a user views available subscription plans an
 - New canonical purchases/recovery return lowProfileId; the page stores it in
   tab-local sessionStorage before redirect. The dashboard consumes it to scope
   payment-result polling. Legacy checkout responses retain their old handling.
+
+- Repeating an initial TRIAL/TRIAL_EXPIRED purchase may return the previously
+  persisted CardCom page after the backend checks it read-only. The page follows
+  that URL without opening another provider checkout. Captured/completed
+  responses refresh billing state instead of redirecting to a new charge.
+- Checkout and plan-loading failures render an inline, aria-live message on the
+  plans page as well as the legacy toast call, so a backend 4xx/5xx can never
+  look like an inert plan button.
 
 - Local billing worktree runs with `npm run start:billing` from frontend on
   localhost:4200; environment.ts points to backend localhost:3000. Production

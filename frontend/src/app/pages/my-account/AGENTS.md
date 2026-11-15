@@ -47,6 +47,10 @@ when they render no visible content.
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
+  While that exact checkout-return context is active, the app shell suppresses
+  its generic expired-trial billing dialog so it cannot cover the authoritative
+  payment-result banner or invite another payment. Ordinary expired-trial
+  sessions without a return context keep the normal blocking dialog.
 - Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 

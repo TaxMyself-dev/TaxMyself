@@ -23,6 +23,19 @@ Time, a missing transaction, a transport error, or an unavailable provider is
 never treated as proof that a new charge is safe. Only HTTPS URLs on
 `secure.cardcom.solutions` are stored or returned.
 
+Initial TRIAL/TRIAL_EXPIRED purchases apply the same safety rule directly on a
+repeated `POST /billing/checkout`. If an earlier canonical CHECKOUT has a saved
+LowProfile and safe hosted URL, the backend performs the existing read-only
+CardCom inspection. UNKNOWN/pending state returns that same page, verified
+capture returns processing/completed without another page, and only a
+provider-proven final decline releases the attempt and permits one replacement.
+Missing or unsafe durable checkout identity fails closed for support review.
+The subscription-wide reservation scan must return that exact blocking hosted
+CHECKOUT to the caller before deriving a new date, plan or obligation key; it
+must not throw the generic duplicate-payment conflict first. Other obligation
+kinds, malformed attempt ownership and multiple blocking initial checkouts stay
+fail-closed.
+
 Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
 shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
 card exactly once, and activates only after verified capture plus completion.
@@ -195,6 +208,11 @@ without another provider lookup; later recovery uses the existing read-only
 lookup and newer-card protection. Receipt/link/finalization and admin recovery
 reuse existing attempt leases. No new schema. Old attempt-less callbacks retain
 their legacy path; ACTIVE plan changes now use KT-049 below.
+
+Leaving the initial CardCom page does not require an operator to find or cancel
+the session. A later plan submission reuses the blocking canonical attempt and
+its stored page after a read-only provider check. It never assumes that an old,
+missing or unreachable page proves no charge occurred.
 
 ### Prorated plan changes (KT-051)
 
@@ -773,3 +791,8 @@ period as one `RECURRING_PERIOD` obligation, records `OVERDUE_DEBT_CREATED`, and
 changes only `ACTIVE` to `PAST_DUE`. It creates no billing attempt and makes no
 CardCom call; the existing recovery flow performs the later customer-approved
 payment. Repeated calls return the existing open debt.
+
+Recovery preview and atomic reservation must select the identical set of open
+`RECURRING_PERIOD` obligations. Historical `CHECKOUT` obligations and independent
+`MANUAL_ONE_OFF` charges are not subscription debt and must never enter the
+recovery quote, collection membership or amount.

@@ -629,9 +629,22 @@ export class BillingService {
         amountBeforeVatAgorot: pricing.amountBeforeVatAgorot,
         vatAmountAgorot: pricing.vatAmountAgorot, currency: pricing.currency,
       };
-      const purchase = isUpgrade
+      let purchase = isUpgrade
         ? await this.billingLifecycleService.openUpgrade({ ...purchaseInput, planChangeSnapshot: changeSnapshot })
         : await this.billingLifecycleService.openInitialPurchase(purchaseInput);
+      if (!purchase.created && isInitialPurchase) {
+        const existing = await this.resumeInitialHostedCheckout(
+          actor,
+          subscription.id,
+          purchase.attempt,
+        );
+        if (existing) return existing;
+
+        // A read-only CardCom lookup proved a final decline and atomically
+        // released the old attempt. Reserve exactly one replacement before
+        // any new provider page is created.
+        purchase = await this.billingLifecycleService.openInitialPurchase(purchaseInput);
+      }
       if (!purchase.created) throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
       recoveryAttemptId = purchase.attempt.id;
     }
@@ -785,6 +798,73 @@ export class BillingService {
       ...(recoveryAttemptId != null ? { lowProfileId: cardcomResult.lowProfileId } : {}),
       finalAmountAgorot: pricing.finalAmountAgorot,
       currency: pricing.currency,
+    };
+  }
+
+  /**
+   * Reuses the canonical initial-purchase checkout after a customer leaves
+   * CardCom. The provider lookup is read-only: uncertain/pending state returns
+   * the same durable URL, capture never opens another page, and only a
+   * provider-proven final decline permits the caller to reserve a replacement.
+   */
+  private async resumeInitialHostedCheckout(
+    actor: BillingMutationActorContext,
+    subscriptionId: number,
+    active: BillingAttempt,
+  ): Promise<{
+    paymentUrl?: string;
+    lowProfileId?: string;
+    finalAmountAgorot: number;
+    currency: string;
+    status: 'REDIRECT' | 'PROCESSING' | 'COMPLETED';
+  } | null> {
+    const finalAmountAgorot = active.amountAgorot;
+    const currency = active.currency;
+    if (!this.billingLifecycleService) {
+      throw new ConflictException('Canonical billing purchase is not configured');
+    }
+    if (active.status === BillingAttemptStatus.COMPLETED) {
+      return { status: 'COMPLETED', finalAmountAgorot, currency };
+    }
+    if (active.status === BillingAttemptStatus.CAPTURED) {
+      return { status: 'PROCESSING', finalAmountAgorot, currency };
+    }
+    if (!active.cardcomLowProfileId || !this.isSafeHostedPaymentUrl(active.hostedPaymentUrl)) {
+      throw new ConflictException({
+        code: 'BILLING_CHECKOUT_REQUIRES_REVIEW',
+        message: 'לא ניתן להמשיך כרגע את עמוד התשלום הקיים. יש לפנות לתמיכה.',
+      });
+    }
+
+    const inspected = await this.billingLifecycleService.inspectHostedCheckout(
+      actor,
+      active.id,
+      subscriptionId,
+    );
+    const current = inspected.attempt as BillingAttempt;
+    if (current.status === BillingAttemptStatus.COMPLETED) {
+      return { status: 'COMPLETED', finalAmountAgorot, currency };
+    }
+    if (current.status === BillingAttemptStatus.CAPTURED ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'CAPTURED')) {
+      return { status: 'PROCESSING', finalAmountAgorot, currency };
+    }
+    if ([BillingAttemptStatus.DECLINED, BillingAttemptStatus.CANCELED].includes(current.status) ||
+      (inspected.kind === 'APPLIED' && inspected.outcome.kind === 'DECLINED')) {
+      return null;
+    }
+    if (!current.cardcomLowProfileId || !this.isSafeHostedPaymentUrl(current.hostedPaymentUrl)) {
+      throw new ConflictException({
+        code: 'BILLING_CHECKOUT_REQUIRES_REVIEW',
+        message: 'לא ניתן להמשיך כרגע את עמוד התשלום הקיים. יש לפנות לתמיכה.',
+      });
+    }
+    return {
+      status: 'REDIRECT',
+      paymentUrl: current.hostedPaymentUrl!,
+      lowProfileId: current.cardcomLowProfileId,
+      finalAmountAgorot,
+      currency,
     };
   }
 

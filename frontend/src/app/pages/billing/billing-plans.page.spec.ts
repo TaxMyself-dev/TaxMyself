@@ -15,7 +15,7 @@ describe('BillingPlansPage plan changes', () => {
     planChangeQuote: 'a'.repeat(64), expiresAt: new Date(Date.now() + 600_000).toISOString() });
   beforeEach(() => {
     state = { billingState: signal({ subscription: { status: 'ACTIVE' }, plan: { id: 1 }, pendingPlanChange: null }),
-      effectiveStatus: () => 'ACTIVE', hasBillingOverride: () => false,
+      effectiveStatus: () => state.billingState()?.subscription?.status ?? null, hasBillingOverride: () => false,
       loadBillingState: jasmine.createSpy().and.resolveTo(), refreshBillingState: jasmine.createSpy().and.resolveTo() };
     toast = jasmine.createSpy();
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
@@ -91,5 +91,30 @@ describe('BillingPlansPage plan changes', () => {
     http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
     http.expectNone(`${environment.apiUrl}billing/checkout`);
     expect(state.refreshBillingState).not.toHaveBeenCalled();
+  });
+
+  it('shows a visible error when initial checkout is rejected', async () => {
+    state.billingState.set({ subscription: { status: 'TRIAL_EXPIRED' }, plan: null, pendingPlanChange: null });
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush(
+      { message: 'לא ניתן להמשיך כרגע את עמוד התשלום הקיים.' },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await operation;
+
+    expect(page.feedback()).toEqual({ kind: 'error', text: 'לא ניתן להמשיך כרגע את עמוד התשלום הקיים.' });
+    expect(page.checkingOutPlanId()).toBeNull();
+  });
+
+  it('shows processing state without opening another payment page', async () => {
+    state.billingState.set({ subscription: { status: 'TRIAL_EXPIRED' }, plan: null, pendingPlanChange: null });
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush({ status: 'PROCESSING' });
+    await operation;
+
+    expect(page.feedback()?.kind).toBe('info');
+    expect(page.feedback()?.text).toContain('התשלום התקבל');
+    expect(page.checkingOutPlanId()).toBeNull();
+    expect(state.refreshBillingState).toHaveBeenCalledTimes(1);
   });
 });

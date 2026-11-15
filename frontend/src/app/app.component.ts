@@ -60,6 +60,12 @@ export class AppComponent implements OnInit {
     if (this.billingStateService.hasBillingOverride()) {
       return false;
     }
+    // The checkout-return page owns payment-result presentation. Showing the
+    // generic TRIAL_EXPIRED dialog over its processing banner both contradicts
+    // the current state and can invite an unsafe second payment attempt.
+    if (this.billingStateService.hasCheckoutReturnContext()) {
+      return false;
+    }
     const status = this.billingStateService.effectiveStatus();
     return this.billingStateService.isPaymentRequired() ||
       (!!status && BILLING_BLOCKING_STATUSES.includes(status));

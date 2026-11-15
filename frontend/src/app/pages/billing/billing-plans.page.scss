@@ -20,15 +20,38 @@
 // ─── Page wrapper ──────────────────────────────────────────────────────────────
 .plans-page {
   flex: 1 1 auto;
-  padding-block: 3rem;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
   background: #f4f6f9;
   overflow-y: auto;
 }
 
 .plans-container {
-  max-width: 1100px;
+  width: min(100%, 1120px);
   margin-inline: auto;
-  padding-inline: 2rem;
+  padding: clamp(1.75rem, 4vw, 3rem);
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #dce3ec;
+  border-radius: 24px;
+  box-shadow: 0 14px 40px rgba(26, 37, 81, 0.08);
+}
+
+.plans-feedback {
+  max-width: 760px;
+  margin: 0 auto 24px;
+  padding: 16px 20px;
+  border: 1px solid #b8c3d6;
+  border-radius: 14px;
+  background: #f1f4f8;
+  color: var(--color-primary);
+  text-align: center;
+  font-weight: 600;
+}
+
+.plans-feedback--error {
+  border-color: #e8b9b5;
+  background: #fff1f0;
+  color: #b42318;
 }
 
 .plan-change-panel {
@@ -51,7 +74,7 @@
 // ─── Header ───────────────────────────────────────────────────────────────────
 .plans-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin: 0 auto 2.5rem;
 }
 
 .plans-title {
@@ -93,12 +116,28 @@
 // Copied verbatim from landing Pricing.astro <style>
 .pricing__grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 320px));
   gap: 1.5rem;
   align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  margin-inline: auto;
 }
 
 @media (max-width: 900px) {
+  .plans-page {
+    padding: 1rem;
+  }
+
+  .plans-container {
+    padding: 2rem 1.25rem;
+    border-radius: 18px;
+  }
+
+  .plans-header {
+    margin-bottom: 2rem;
+  }
+
   .pricing__grid {
     grid-template-columns: 1fr;
     max-width: 420px;

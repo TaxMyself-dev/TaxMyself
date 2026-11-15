@@ -46,8 +46,10 @@ describe('BillingStateService professional-access override', () => {
     const get = jasmine.createSpy('get').and.returnValue(response);
     TestBed.configureTestingModule({ providers: [BillingStateService, { provide: HttpClient, useValue: { get } }] });
     const billing = TestBed.inject(BillingStateService);
+    expect(billing.hasCheckoutReturnContext()).toBeFalse();
     billing.billingState.set({ subscription: { status: 'TRIAL_EXPIRED' }, billingPaymentResult: { paymentStatus: 'SUCCESS' } } as any);
     billing.setCheckoutReturnContext('lp-current');
+    expect(billing.hasCheckoutReturnContext()).toBeTrue();
     expect(billing.billingPaymentResult()).toBeNull();
     const refresh = billing.refreshBillingState();
     expect(billing.isLoading()).toBeFalse();
@@ -56,6 +58,8 @@ describe('BillingStateService professional-access override', () => {
     response.complete();
     await refresh;
     expect(billing.billingState()?.subscription?.status).toBe('ACTIVE');
+    billing.setCheckoutReturnContext(null);
+    expect(billing.hasCheckoutReturnContext()).toBeFalse();
   });
 
   it('prepares overdue debt and refreshes billing state before recovery navigation', async () => {
