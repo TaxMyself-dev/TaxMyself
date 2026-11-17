@@ -1,6 +1,6 @@
 # Assistant Phase A one-time transaction classification
 
-- Status: IN_PROGRESS — the 2026-11-17 traced rerun found an open continuation/card issue
+- Status: WORKER_COMPLETE — narrow orchestration fix verified; awaiting user review, no main integration or push
 - Task manager and worker: Codex, same agent; no delegation
 - Worktree: existing TaxMyself-new-ai-assistant feature worktree
 - Branch: new-ai-assistant
@@ -264,3 +264,102 @@ Only this task record is changed by the follow-up documentation commit.
 No app servers were started/stopped; no shared application database, demo data,
 schema, main branch, remote branch or production service was changed. No merge,
 push, deployment, broad test suite or extra paid repetition was performed.
+
+## Narrow orchestration fix and verification — 2026-11-17
+
+The user authorized fixing the continuation/card gap, regression tests, bounded
+evals and actual Langfuse ingestion verification, without a general framework,
+main integration or push. Continued the existing branch from 80dfa646; executable
+base was 9ed04612c5c430eb2fff49ead3b2f2544b1bafe4. No delegation.
+
+### Behavior and regression coverage
+
+A successful current-answer preparation now requires a subsequent model step
+with only classifyTransaction available. The prepared ID is supplied in system
+context. The SDK creates the real approval request, and execution still requires
+the original approval boundary and backend checks. Explicit proposal-only
+requests use requestApproval=false. New steers invalidate earlier preparation
+eligibility; the boundary resets for a new generation on the same agent. Failed
+preparations, read-only follow-ups and attempted IDs do not force another card.
+Only classifyTransaction moved out of the deferred books namespace: a forced
+single-tool step cannot rely on deferred tool_search. No broad framework.
+
+Ten deterministic tests cover the missing transition, real SDK approval event
+with zero writes, preview, cancellation, agent reuse, malformed output, follow-up
+origin, attempted IDs, fresh proposals and latest-preview precedence. Added one
+model eval for explicit proposal-only behavior; existing assertions unchanged.
+Snapshot changes were reviewed before updating: the optional input and removal
+of classifier namespace/deferLoading metadata and deferred-list entry only.
+
+### Bounded model diagnostics and final result
+
+All commands ran from backend/agent with LANGFUSE_SAMPLE_RATE=1,
+LANGFUSE_ALLOW_REMOTE=false and OTEL_SDK_DISABLED=true, process-only. No judge
+criteria, thresholds, credentials or environment files were changed.
+
+1. npm run eval -- --variant phase-a-orchestration-diag-20261117 --reps 1 tests/evals/agent/interaction/classification.eval.ts -t "continues"
+   Fingerprint fe2bb3f63acb9e0a. Failed API contract: named tool choice did not
+   resolve the namespaced classifier. Not a passing/graded behavioral run.
+2. npm run eval -- --variant phase-a-orchestration-final-20261117 --reps 1 tests/evals/agent/interaction/classification.eval.ts
+   Fingerprint a9a964818914ab11. Preview and ambiguity passed; three approval
+   paths hit API error: deferred tools require tool_search. This prompted the
+   narrow eager-classifier change, not another prompt-only retry.
+3. npm run eval -- --variant phase-a-orchestration-eager-20261117 --reps 1 tests/evals/agent/interaction/classification.eval.ts
+   Fingerprint 42391cfc7ef76485. FINAL: 5/5 passed, one repetition each,
+   eight answer turns, gpt-6-luna. Clear request/approval, denial, ambiguity,
+   continuation and proposal-only all passed. Vitest duration 69.45 seconds;
+   model-turn latency p50 11.415s / p95 14.177s. The runner enumerated 100 slots,
+   but only these five selected cases ran; 95 filtered slots are not failures.
+   No extra repetitions or judge-noise retries. This is bounded evidence, not
+   a production reliability estimate. Existing eval fixture uses a seeded
+   stored preparation because its harness does not stream-persist tool parts.
+
+The previously recorded open continuation/card gap is resolved by the final
+run and deterministic reproduction. Earlier failed evidence remains above.
+
+### Actual local Langfuse ingestion
+
+Docker/Langfuse were initially down. Ran the existing .\start-ai.cmd launcher;
+local Langfuse 4.76.0 health returned 200 at localhost:3100. Used authenticated
+/api/public/v2/observations (legacy traces API is unavailable on this v4 setup),
+filtered by the unique run tag rather than timestamps: fixture clocks are pinned.
+Verified final ingestion at 2026-11-17T21:54:52.725Z: 8 traces, 85 observations,
+22 generations with gpt-6-luna input/output, 21 tool observations, zero ERROR
+observations. All eight root inputs/outputs present; all five case sessions
+represented. Telemetry success is separate from the behavioral assertions.
+
+| Case | Trace IDs |
+| --- | --- |
+| Clear / approval | e587848c26b5d5b748ad4517bf4775a2; 11ace9ce95f945d277041be6040fadcd |
+| Denial | 697ead2463205506fd75bfeee89296ed; 95f92064f5451b44737bf42732e1129c |
+| Continuation | 9f8ae19f3012f1b957b891f0684ccc1f; d59d0aa64789e32b2b7db772aa12738d |
+| Ambiguity | 95a4f5c5e9181f2b0a5065fea7244da6 |
+| Proposal only | 754760350dcd819ca94c7da3f04282a9 |
+
+Sanitized evidence is in this chat workspace's deliverables folder:
+phase-a-orchestration-eager-preflight.json and
+phase-a-orchestration-eager-trace-proof.json. Diagnostic variants retain their
+own evidence. Raw generated eval results are under backend/agent/.eval/agent/runs
+with the variant names above; neither generated evidence nor secrets are committed.
+
+### Final package verification and delivery
+
+On final executable source: npm run check passed (341 files); npm run typecheck
+-- --pretty false passed with existing Effect suggestions only; npm run build
+passed; npm test -- --maxWorkers=2 passed: 67 files, 358 tests, 22 skipped across
+3 files, 69.59 seconds. New flow/helper tests and both reviewed snapshots passed
+in this full run. The earlier 357-pass checkpoint predates the final registry
+change and reuse test; it is not substituted for this final run. A verification
+session's output was lost during context compaction, so final checks were run
+once more with retained output; no extra paid eval was needed.
+
+git diff --check passed. Changed runtime/tests were reviewed directly; documented
+repository links resolve. No executable changes followed the passing checks.
+Local feature commit contains the implementation, tests, snapshots and docs;
+see Git history for its hash. Work lasted about 28 minutes from 21:29 UTC,
+including bounded model/API diagnosis, local stack startup and final checks.
+
+No app servers were started or stopped. No application database, demo data,
+schema, production, dependencies or environment files changed. Only agent package
+runtime/tests and documentation changed, so unrelated Nest/Angular checks were
+not rerun. Existing untracked files were preserved. No main integration or push.

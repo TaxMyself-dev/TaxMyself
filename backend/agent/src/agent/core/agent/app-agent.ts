@@ -11,6 +11,7 @@ import type {
 } from "@/agent/core/ports/tracking-task-ports";
 import { noAgentChatPageData } from "@/agent/core/tool-runtime/agent-chat-page-data-port";
 import type { AgentChatPageData } from "@/agent/core/tool-runtime/agent-chat-page-data-port";
+import { prepareClassificationApprovalStep } from "@/agent/tools/books/classification-orchestration";
 import { repairAgentPlanInput } from "@/agent/tools/conversation/agent-plan-tool";
 import type { AgentChatTurnOrigin } from "@/lib/agent-chat/conversation/agent-chat-messages";
 import type { AppLocale } from "@/lib/i18n/app-intl-locale";
@@ -272,6 +273,10 @@ export const createAppAgent = (request: AppAgentRequest) => {
 
   const firstStepTools = offeredTools.filter((name) => name !== "updatePlan");
 
+  // A new steer supersedes earlier prepared classification proposals. Only
+  // preparations made after it may force a card in this answer.
+  let classificationStepFloor = 0;
+
   return new ToolLoopAgent({
     // Retried in sight of the user; the SDK's silent retries are off.
     model: retryAgentModelVisibly(
@@ -342,20 +347,34 @@ export const createAppAgent = (request: AppAgentRequest) => {
     // step, as Pi's steering messages do; the returned messages keep it for
     // the steps after.
     prepareStep: async (step) => {
+      if (step.steps.length === 0) {
+        classificationStepFloor = 0;
+      }
+
       const steers =
         step.steps.length > 0 && request.userSteers
           ? await request.userSteers.take(step.responseMessages.length)
           : [];
 
       if (steers.length === 0) {
-        return prepareAppAgentStep(
-          step,
-          request.turnSignals,
-          firstStepTools,
-          offeredTools
+        const classification = prepareClassificationApprovalStep(
+          step.steps.slice(classificationStepFloor),
+          step.messages,
+          request.origin
+        );
+
+        return (
+          classification ??
+          prepareAppAgentStep(
+            step,
+            request.turnSignals,
+            firstStepTools,
+            offeredTools
+          )
         );
       }
 
+      classificationStepFloor = step.steps.length;
       const messages = [...step.messages, ...steers];
 
       const prepared = prepareAppAgentStep(

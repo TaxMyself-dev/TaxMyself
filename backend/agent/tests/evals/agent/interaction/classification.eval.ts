@@ -265,4 +265,24 @@ describe("Phase A classification", () => {
     expect(next.run.approvals).toContain("classifyTransaction");
     expect(f.applied()).toBe(0);
   });
+  it("prepare only produces a proposal without an approval card or write", async () => {
+    const f = fixture();
+
+    const result = await runAgentEvalStep(
+      f.scenario,
+      {
+        message:
+          "הכן הצעת סיווג בלבד לחיוב Adobe מ־12 בספטמבר 2026 בסך 118 ש״ח בסטודיו נועה לקטגוריית משרד / תוכנה. אל תציג כרטיס אישור ואל תבצע סיווג.",
+      },
+      startAgentEvalConversation(f.scenario)
+    );
+
+    expect(
+      result.run.toolCalls.some(
+        (call) => call.name === "prepareTransactionClassification"
+      )
+    ).toBe(true);
+    expect(result.run.approvals).toHaveLength(0);
+    expect(f.applied()).toBe(0);
+  });
 });

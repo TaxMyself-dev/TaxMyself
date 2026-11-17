@@ -16,6 +16,8 @@ import type { AppAgentToolName } from "./app-agent-tools";
 // and the chat's own tools) stays loaded on every request.
 // EXAMPLE namespaces: put each group of your rare tools in one, with a
 // high-level description of when it is needed.
+// classifyTransaction stays eagerly available: its forced approval step offers
+// only that tool, so it cannot depend on a deferred namespace/tool_search.
 const agentToolNamespaces = [
   {
     name: "books",
@@ -24,7 +26,6 @@ const agentToolNamespaces = [
     tools: [
       "queryTransactions",
       "prepareTransactionClassification",
-      "classifyTransaction",
       "queryIssuedDocuments",
       "listCategories",
       "listClients",

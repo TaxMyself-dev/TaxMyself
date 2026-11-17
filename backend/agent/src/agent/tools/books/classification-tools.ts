@@ -42,6 +42,10 @@ const storedProposal = Schema.decodeUnknownOption(
   })
 );
 
+// Stored preparations from before the preview option have no flag.
+const classificationApprovalState = (requestApproval = true) =>
+  requestApproval ? "card_required_next" : "proposal_only_no_card";
+
 const storedParts = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown));
 
 /** Resolve a short ID only from successful assistant results in THIS owned
@@ -94,6 +98,12 @@ export const prepareTransactionClassificationTool = tool({
     "Prepare a one-time classification of ONE pending outgoing bank/card transaction, never approve an expense or create a rule. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
   inputSchema: toStandardSchema(
     Schema.Struct({
+      requestApproval: Schema.optionalKey(
+        Schema.Boolean.annotate({
+          description:
+            "Defaults to true for a request to classify or show an approval card. Set false ONLY when the user explicitly asks for a preview/proposal without an approval card or execution. Preparing alone does not display an approval card.",
+        })
+      ),
       businessNumber: businessNumberInput,
       externalTransactionId: Schema.String.check(
         Schema.isMinLength(1),
@@ -108,7 +118,11 @@ export const prepareTransactionClassificationTool = tool({
   contextSchema: agentToolContextSchema,
   execute: async (query, { context, abortSignal }) => {
     const result = await runBooksRead(
-      context.books.prepareTransactionClassification?.(query) ??
+      context.books.prepareTransactionClassification?.({
+        businessNumber: query.businessNumber,
+        externalTransactionId: query.externalTransactionId,
+        subCategoryId: query.subCategoryId,
+      }) ??
         Effect.fail(
           new ClassificationError({
             code: "CLASSIFICATION_UNAVAILABLE",
@@ -121,6 +135,7 @@ export const prepareTransactionClassificationTool = tool({
     const envelope = decodeEnvelope(result.proposal);
 
     return {
+      requestApproval: query.requestApproval !== false,
       proposalId: envelope.signature,
       proposal: result.proposal,
       display: decodePayload(envelope.payload).display,
@@ -130,7 +145,11 @@ export const prepareTransactionClassificationTool = tool({
   // and UI reload. The model reads a short ID; no nested JSON copying.
   toModelOutput: ({ output }) => ({
     type: "json",
-    value: { proposalId: output.proposalId, display: output.display },
+    value: {
+      proposalId: output.proposalId,
+      display: output.display,
+      approvalState: classificationApprovalState(output.requestApproval),
+    },
   }),
 });
 

@@ -241,3 +241,9 @@ The user approved delivering chat actions before profile/learning/monitors. This
 - Proposals expire after 30 minutes. The signing key is process-local: restart, deployment or a different backend instance invalidates an outstanding card safely, requiring a fresh proposal and approval. This local feature does not introduce a persistent signing key or schema migration; multi-instance delivery needs a shared signing-key design before rollout.
 
 Scope excludes batches, rule creation, confirmed-transaction changes, expense approval, document linking and issuance. Those capabilities stay unavailable. No schema, production, provider or environment-file changes are required.
+
+### Classification card orchestration follow-up (2026-11-17)
+
+After a successful preparation in the current answer, prepareStep requires the next model step to call classifyTransaction with the prepared ID and offers only that tool. This creates the real approval request; it never executes or bypasses approval. Only classifyTransaction is eagerly loaded because the provider cannot force a namespaced deferred tool alone without tool_search. Other books tools remain deferred.
+
+Preparation accepts optional requestApproval=false only for explicit proposal-only requests; omission means a card is required. A new user steer supersedes earlier preparations, and the boundary resets when the same agent starts another generation. Failed preparations, follow-up origins and already-attempted IDs do not force a card. This is a classification-specific transition, not a general orchestration framework.

@@ -645,6 +645,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "requestApproval": {
+          "type": "boolean",
+          "description": "Defaults to true for a request to classify or show an approval card. Set false ONLY when the user explicitly asks for a preview/proposal without an approval card or execution. Preparing alone does not display an approval card."
+        },
         "businessNumber": {
           "type": "string",
           "pattern": "^\\d{5,12}$",
@@ -671,13 +675,6 @@
   {
     "name": "classifyTransaction",
     "description": "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It changes only this pending outgoing transaction's classification, never approves an expense or creates a rule. If stale, prepare again and obtain a new card. Report success only from the actual result.",
-    "openai": {
-      "namespace": {
-        "name": "books",
-        "description": "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers."
-      },
-      "deferLoading": true
-    },
     "inputSchema": {
       "type": "object",
       "properties": {
