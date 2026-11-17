@@ -12,7 +12,7 @@
 - Preserve attachment filtering, document import, per-business dedup and Drive credentials.
 - Failed message reads never advance the sync cursor.
 - Read-only allowlisted provider interface with mocked focused tests and builds.
-- No main integration, push, deployment, production access or applied schema changes.
+- No main integration, push, deployment or production access. DEV schema application requires separate explicit approval, recorded below.
 
 ## Milestones
 
@@ -65,7 +65,7 @@ All paths below are relative to the feature worktree. No app boot or real databa
 - Schema / production impact: additive prepared SQL only; no database contacted or modified.
 - Security / external impact: official SDK and managed OAuth/read-only adapter, explicit user/account/environment scoping, owner-only mailbox access, bounded safe downloads. Google permissions and provider data handling still require live/product review before production.
 - Accounting impact: no changes to recognition, journals, reports, dedup semantics or the shared document processor.
-- Required next step: separate approval before applying DEV schema, enabling the integration and connecting a synthetic DEV mailbox. Verify live contracts and Drive operations there before any integration request.
+- Required next step: DEV schema was subsequently applied under the explicit approval recorded below. Separate approval is still required before enabling the integration and connecting a synthetic DEV mailbox. Verify live contracts and Drive operations there before any integration request.
 
 ## Follow-up: configuration-only environment separation
 
@@ -74,3 +74,13 @@ All paths below are relative to the feature worktree. No app boot or real databa
 - Updated fixtures to omit the removed property. Reader tests now verify configured environment propagation without a database environment field.
 - Verification on this follow-up: `npm test -- --runInBand --silent --testPathPattern='user-integrations\|gmail-reader\|email-connections\|composio-gmail\|composio-client'` passed 5 suites / 56 tests, exit 0, 45.83 seconds. `npm run build` passed, exit 0. `git diff --check` passed. Frontend and shared importer unchanged; their earlier passing evidence was not rerun or presented as a new full run.
 - No database connection or SQL application occurred. The user simultaneously requested no database changes and DB implementation; a clarification was requested before any live schema operation. No main integration, push, deploy or mailbox connection is authorized by this follow-up.
+
+## Approved DEV-only schema application — 2026-11-17
+
+- User clarified explicitly: apply the schema to DEV only. This supersedes the earlier no-database-change restriction solely for this additive DEV schema operation. Mailbox authorization, provider execution, main integration, push, deployment and PROD access remain prohibited.
+- Added `backend/scripts/apply-composio-dev-schema.cjs`: fixed local configuration, exact `keepintax-dev` allowlist and runtime identity verification, no application boot, metadata preflight of both tables, existing-definition validation, duplicate-pointer check, idempotent missing-addition plan and a maintenance lock for application.
+- `node scripts/apply-composio-dev-schema.cjs`: inspection passed, database `keepintax-dev`, MySQL `8.0.37-google`, both baseline tables existed, two additive statements planned. Initial sandboxed attempt failed with EACCES; the same read-only operation succeeded with scoped escalation.
+- `node scripts/apply-composio-dev-schema.cjs --apply`: exit 0; exactly two ALTER TABLE statements applied; verified all seven expected new columns and the unique connected-account index. No environment column added. No UPDATE, DELETE, INSERT or backfill statements were issued.
+- The approved schema has five new user_integrations columns, two new oauth_states columns and one unique index. Existing data and legacy columns were preserved. No PROD connection, mailbox connection or Composio call occurred.
+- Documentation and SQL execution-status comments updated. Application tests/build evidence from the column-removal revision remains applicable: no application source changed in this DB-operation follow-up.
+- Final read-only inspection returned `plan: []`, exit 0. `node --check backend/scripts/apply-composio-dev-schema.cjs` and `git diff --check` passed.

@@ -2928,9 +2928,9 @@ ALTER TABLE subscription
   ADD CONSTRAINT ck_subscription_custom_price CHECK (custom_monthly_price_agorot IS NULL OR custom_monthly_price_agorot BETWEEN 0 AND 100000000),
   ADD CONSTRAINT ck_subscription_custom_window CHECK (custom_price_start_date IS NULL OR custom_price_end_date IS NULL OR custom_price_start_date <= custom_price_end_date);
 
--- Composio managed Gmail: prepared only; not applied in this task.
--- Composio managed Gmail schema. Review/apply manually to DEV only after approval.
--- This file is prepared, not executed. Preserve legacy columns; no data deletion.
+-- Composio managed Gmail: applied to DEV only with explicit approval on 2026-11-17.
+-- PROD has not been modified. Preserve legacy columns; no data deletion.
+-- For DEV reruns use backend/scripts/apply-composio-dev-schema.cjs; raw ALTER statements are not idempotent.
 ALTER TABLE user_integrations
   ADD COLUMN connection_backend VARCHAR(32) NULL,
   ADD COLUMN connected_account_id VARCHAR(255) NULL,
