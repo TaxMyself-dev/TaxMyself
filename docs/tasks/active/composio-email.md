@@ -84,3 +84,13 @@ All paths below are relative to the feature worktree. No app boot or real databa
 - The approved schema has five new user_integrations columns, two new oauth_states columns and one unique index. Existing data and legacy columns were preserved. No PROD connection, mailbox connection or Composio call occurred.
 - Documentation and SQL execution-status comments updated. Application tests/build evidence from the column-removal revision remains applicable: no application source changed in this DB-operation follow-up.
 - Final read-only inspection returned `plan: []`, exit 0. `node --check backend/scripts/apply-composio-dev-schema.cjs` and `git diff --check` passed.
+
+## Approved connection-only DEV diagnostic — 2026-11-17
+
+- User approved connecting only a dedicated DEV Gmail mailbox and checking identity; no message search/read/download/import or production access.
+- Validated credential presence without displaying values: database keepintax-dev, environment dev, synchronize disabled, persistent integration flag still false. Existing Node 24.13.0 used; no runtime upgrade or full application boot.
+- DEV key can read tool metadata. GMAIL_WHO_AM_I was available at toolkit version 20261116_00. No mailbox tool was executed.
+- Added `backend/scripts/test-composio-dev-connection.cjs`, an explicit diagnostic with loopback callback port 4317, fresh synthetic DEV identity, only the two integration entities/repositories (synchronize/migrations disabled), and actual connection services. The SDK execution boundary rejects every tool except GMAIL_WHO_AM_I; connection deletion is also blocked. No application module, scheduler, reader or importer is loaded. Persistent .env remains unchanged; feature enablement is process-local only.
+- First attempt exposed and corrected a TypeORM raw-result destructuring error before connection creation. Its process was terminated. Subsequent attempts failed at link creation; redacted diagnostics established the exact cause rather than broadening permissions speculatively.
+- Blocker: POST /api/v3/connected_accounts/link returns HTTP 403, APIKey_InsufficientPermissions (code 812), explicitly stating that connected_accounts has read access but requires write. User must replace the DEV key with one granting Connected accounts Read + Write. Existing user approval remains sufficient to resume the same connection-only diagnostic after replacement.
+- No consent URL was obtained, no Gmail connection or identity tool execution occurred, no imported-document/user data was changed. Only short-lived diagnostic OAuth attempt states were created in DEV. The failed diagnostic listener and database pool were closed. No main integration, push or deploy.

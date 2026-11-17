@@ -32,6 +32,10 @@ Google Drive remains direct: service-account folder administration and system-ac
 
 ## Verification
 
+For an expressly approved connection-only DEV check, `node scripts/test-composio-dev-connection.cjs` runs the actual connection services without booting the application, readers, importers or scheduler. It creates a fresh technical DEV identity and a loopback callback on port 4317, permits only GMAIL_WHO_AM_I at the SDK execution boundary, and keeps permanent feature configuration disabled. The consent URL must be completed manually by the user within ten minutes. A successful connection is stored only in the DEV integrations table with initial import incomplete, so it is not eligible for nightly sync. This is a diagnostic, not full application/login UI verification. Do not run it without explicit live-connection approval.
+
+Project key permissions must include Connected accounts Read + Write (link/list), Tools Read, Toolkits Read and Tool execution (Legacy) Write (identity execution). A DEV attempt on 2026-11-17 was blocked before consent because the supplied key had only Connected accounts Read; no mailbox tools ran. Replace that key rather than enabling unrelated permissions.
+
 Backend: `npm test -- --runInBand --silent --testPathPattern='integrations|document-import'`, then `npm run build`.
 
 Frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/services/integrations.service.spec.ts --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`, then `npm run build -- --configuration production`.
