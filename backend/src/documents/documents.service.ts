@@ -1250,7 +1250,7 @@ export class DocumentsService {
         DocumentType.CREDIT_INVOICE,        // חשבונית זיכוי
       ];
 
-      if (docTypesWithJournalEntry.includes(data.docData.docType) && !isPendingAllocation) {
+      if (docTypesWithJournalEntry.includes(data.docData.docType)) {
         // Single-entry (חד-צידית): credit net revenue (4000) + output VAT (2400).
         // No contra A/R (1000) line. חשבונית זיכוי reverses both sides.
         const net = Number(data.docData.sumAftDisBefVAT) || 0;
@@ -1500,7 +1500,8 @@ ${finalOwnerName}`;
   /**
    * Finalizes a PENDING_ALLOCATION document: optionally attaches an allocation
    * number, generates the original + copy PDFs, uploads them to Firebase,
-   * records the journal entry, and flips status to OPEN/CLOSE.
+   * ensures a legacy missing journal entry exists, and flips status to
+   * OPEN/CLOSE. Current pending documents already have their journal entry.
    *
    * Called from "the docs I issued" page when the user decides how to handle
    * a doc that was saved without a PDF because it required an allocation #.
@@ -1565,10 +1566,10 @@ ${finalOwnerName}`;
       }
     }
 
-    // PENDING means the doc was never finalized — full PDF generation + journal
-    // entry needed. ISSUED (OPEN/CLOSE) means it's already on file and we're
-    // just attaching an allocation # after the fact: regenerate the PDFs (so
-    // the new allocation # shows on them) but skip the journal entry.
+    // PENDING means the PDF was never finalized. Current rows already have a
+    // journal entry; legacy pending rows receive a missing one below. ISSUED
+    // (OPEN/CLOSE) means it's already on file and we're only regenerating PDFs
+    // so the new allocation number appears on them.
     const wasPending = doc.docStatus === DocumentStatusType.PENDING_ALLOCATION;
     if (!wasPending && doc.allocationNum) {
       throw new BadRequestException('Document already has an allocation number');
@@ -1670,15 +1671,21 @@ ${finalOwnerName}`;
       }
       await docsRepo.save(doc);
 
-      // Journal entry was deferred at create time for pending docs — record it
-      // now. Already-issued docs already have one.
+      // Current pending documents post their journal entry when their final
+      // number is reserved, so they participate in reports before the
+      // allocation/PDF step. Older pending rows may predate that behavior;
+      // finalize those by creating the missing entry exactly once.
       const docTypesWithJournalEntry = [
         DocumentType.TAX_INVOICE,
         DocumentType.TAX_INVOICE_RECEIPT,
         DocumentType.RECEIPT,
         DocumentType.CREDIT_INVOICE,
       ];
-      if (wasPending && docTypesWithJournalEntry.includes(doc.docType)) {
+      if (
+        wasPending &&
+        !doc.journalEntryId &&
+        docTypesWithJournalEntry.includes(doc.docType)
+      ) {
         // Single-entry (חד-צידית), same logic as createDoc: credit net revenue
         // (4000) + output VAT (2400). No contra A/R (1000) line.
         // חשבונית זיכוי reverses both sides.

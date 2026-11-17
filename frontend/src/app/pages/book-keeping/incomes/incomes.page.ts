@@ -24,7 +24,10 @@ import { Router } from '@angular/router';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DialogService } from 'primeng/dynamicdialog';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
-import { ShaamService } from 'src/app/services/shaam.service';
+import {
+  SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED,
+  ShaamService,
+} from 'src/app/services/shaam.service';
 
 // Israeli Tax Authority page where the user manually requests an allocation number.
 const TAX_AUTHORITY_ALLOCATION_URL = 'https://www.gov.il/he/service/request-assignment-number-for-tax-invoice';
@@ -56,6 +59,7 @@ export class IncomesPage implements OnInit {
   // For the allocation-number entry dialog
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
+  showAllocationMethodDialog = signal<boolean>(false);
   showAllocationInputDialog = signal<boolean>(false);
   allocationInputValue = '';
   // Exposed as a signal so the dialog template can show the doc's details
@@ -354,9 +358,9 @@ export class IncomesPage implements OnInit {
         name: 'get-allocation-from-tax',
         desktopDisplay: 'icon',
         icon: 'pi pi-refresh',
-        title: 'המשך / אחזר מספר הקצאה משע״מ',
+        title: 'הפק מספר הקצאה',
         showWhen: needsAllocationNumber,
-        action: (_event: any, row: IRowDataTable) => this.confirmResumeAutomaticAllocation(row),
+        action: (_event: any, row: IRowDataTable) => this.openAllocationMethodDialog(row),
       },
       {
         name: 'finalize-no-allocation',
@@ -443,22 +447,73 @@ export class IncomesPage implements OnInit {
     this.showAllocationInputDialog.set(true);
   }
 
-  /** Checks the durable server-side state before any provider request. */
-  private confirmResumeAutomaticAllocation(row: IRowDataTable): void {
+  openAllocationMethodDialog(row: IRowDataTable): void {
     const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
     if (!docNumber) {
       this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את מספר המסמך', life: 4000, key: 'br' });
       return;
     }
 
+    this.pendingFinalizeRow.set(row);
+    this.allocationInputValue = '';
+    this.showAllocationMethodDialog.set(true);
+  }
+
+  cancelAllocationMethodDialog(): void {
+    this.showAllocationMethodDialog.set(false);
+    this.pendingFinalizeRow.set(null);
+  }
+
+  chooseManualAllocation(): void {
+    const row = this.pendingFinalizeRow();
+    if (!row) return;
+    this.showAllocationMethodDialog.set(false);
+    this.getAllocationFromTaxAuthority(row);
+  }
+
+  chooseAutomaticAllocation(): void {
+    const row = this.pendingFinalizeRow();
+    if (!row) return;
+
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    if (!businessNumber) {
+      this.messageService.add({ severity: 'error', summary: 'שגיאה', detail: 'לא ניתן לזהות את העסק', life: 4000, key: 'br' });
+      return;
+    }
+
+    this.showAllocationMethodDialog.set(false);
+    this.shaamService.getConnectionStatus(businessNumber).pipe(take(1)).subscribe({
+      next: (connection) => {
+        if (connection?.connected) {
+          this.resumeAutomaticAllocation(row);
+          return;
+        }
+        this.offerShaamConnection();
+      },
+      error: (error) => {
+        const sandboxBlocked = error?.error?.code === SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED;
+        this.messageService.add({
+          severity: 'error',
+          summary: sandboxBlocked ? 'עסק זה אינו מורשה לבדיקת שע״מ' : 'לא ניתן לבדוק את החיבור לשע״מ',
+          detail: sandboxBlocked
+            ? 'בסביבת הבדיקות ניתן לבקש מספר הקצאה רק דרך עסק הדמו הייעודי של שע״מ.'
+            : 'בדיקת החיבור נכשלה. נסה שוב מאוחר יותר או עבור להגדרות החיבור.',
+          life: 7000,
+          key: 'br',
+        });
+      },
+    });
+  }
+
+  private offerShaamConnection(): void {
     this.confirmationService.confirm({
-      header: 'הפקת מספר הקצאה',
-      message: `האם ברצונך להפיק מספר הקצאה עבור מסמך מספר ${docNumber}?`,
-      icon: 'pi pi-question-circle',
-      acceptLabel: 'כן, הפק מספר הקצאה',
+      header: 'נדרש חיבור לרשות המסים',
+      message: 'לא קיים חיבור פעיל לשירות מספרי ההקצאה. ניתן להתחבר דרך מסך ההגדרות.',
+      icon: 'pi pi-info-circle',
+      acceptLabel: 'מעבר לחיבור',
       rejectLabel: 'ביטול',
       rejectVisible: true,
-      accept: () => this.resumeAutomaticAllocation(row),
+      accept: () => this.router.navigate(['/settings'], { queryParams: { tab: 'permissions' } }),
     });
   }
 

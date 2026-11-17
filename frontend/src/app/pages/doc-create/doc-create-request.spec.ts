@@ -128,6 +128,19 @@ describe('document preview and create request coordination', () => {
 describe('voluntary SHAAM allocation', () => {
   const docDate = '2026-10-19';
 
+  it('defers PDF issuance while persisting the pending document', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    page.showAllocationDecisionDialog = signal(true);
+    page.createPendingAllocationDoc = jasmine.createSpy('createPendingAllocationDoc');
+
+    page.onDeferAllocationDecision();
+
+    expect(page.showAllocationDecisionDialog()).toBeFalse();
+    expect(page.createPendingAllocationDoc).toHaveBeenCalledOnceWith({
+      requestAllocation: false,
+    });
+  });
+
   it('keeps 4,999 and exactly 5,000 optional, and 5,000.01 mandatory', () => {
     expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 4999, docDate)).toBeFalse();
     expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 5000, docDate)).toBeFalse();
