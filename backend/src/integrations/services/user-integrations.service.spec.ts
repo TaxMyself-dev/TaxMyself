@@ -19,7 +19,6 @@ describe('UserIntegrationsService — multi-account upsert', () => {
     provider: IntegrationProvider.GOOGLE,
     accountId: 'google-sub-1',
     connectedAccountId: 'ca-test',
-    connectionEnvironment: 'dev',
     accountEmail: 'a@example.com',
     scopes: 'openid https://www.googleapis.com/auth/gmail.readonly',
     expiresAt: null,

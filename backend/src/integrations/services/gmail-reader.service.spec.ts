@@ -38,7 +38,6 @@ const INTEGRATION = {
   status: IntegrationStatus.ACTIVE,
   connectionBackend: 'COMPOSIO',
   connectedAccountId: 'ca-test',
-  connectionEnvironment: 'dev',
   firebaseId: 'user-1',
   scopes: 'https://www.googleapis.com/auth/gmail.readonly',
 } as UserIntegration;
@@ -90,16 +89,23 @@ function buildMessage(
 }
 
 describe('GmailReaderService — attachment filtering', () => {
+  const originalEnvironment = process.env.COMPOSIO_ENVIRONMENT;
   let service: GmailReaderService;
   let attachmentsGet: jest.Mock;
   let skipStats: SkippedAttachmentsAccumulator;
   let pdfStats: PdfContentScanAccumulator;
 
   beforeEach(() => {
+    process.env.COMPOSIO_ENVIRONMENT = 'dev';
     extractPdfTextMock.mockClear();
     service = new GmailReaderService({} as any, {} as any);
     skipStats = new SkippedAttachmentsAccumulator();
     pdfStats = new PdfContentScanAccumulator();
+  });
+
+  afterAll(() => {
+    if (originalEnvironment === undefined) delete process.env.COMPOSIO_ENVIRONMENT;
+    else process.env.COMPOSIO_ENVIRONMENT = originalEnvironment;
   });
 
   /** Runs one message through the real scan pipeline with a fake Gmail client. */
@@ -125,6 +131,10 @@ describe('GmailReaderService — attachment filtering', () => {
     })) {
       results.push(scan);
     }
+    expect(provider.listMessages).toHaveBeenCalledWith(
+      expect.objectContaining({ firebaseId: 'user-1', connectedAccountId: 'ca-test', environment: 'dev' }),
+      expect.any(String), expect.any(Number), undefined,
+    );
     return results[0];
   }
 

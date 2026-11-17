@@ -36,7 +36,7 @@ export class EmailConnectionsService {
       const target = await this.integrations.findOwnedByIdOrThrow(attempt.targetIntegrationId, attempt.firebaseId);
       if (target.accountId !== identity.sub) throw new ConflictException('A different mailbox was selected');
     }
-    const saved = await this.integrations.upsertIntegration({ firebaseId: attempt.firebaseId, provider: IntegrationProvider.GOOGLE, accountId: identity.sub, accountEmail: identity.email, connectedAccountId, connectionEnvironment: account.environment });
+    const saved = await this.integrations.upsertIntegration({ firebaseId: attempt.firebaseId, provider: IntegrationProvider.GOOGLE, accountId: identity.sub, accountEmail: identity.email, connectedAccountId });
     if (saved.retiredConnectedAccountIds?.length) {
       try {
         for (const id of saved.retiredConnectedAccountIds) await this.composio.remove({ ...account, connectedAccountId: id });
@@ -48,7 +48,7 @@ export class EmailConnectionsService {
   async disconnect(firebaseId: string, integrationId: number): Promise<void> {
     const integration = await this.integrations.findOwnedByIdOrThrow(integrationId, firebaseId);
     if (integration.provider !== IntegrationProvider.GOOGLE || !integration.connectedAccountId) throw new BadRequestException('Invalid email connection');
-    const account = { firebaseId, connectedAccountId: integration.connectedAccountId, environment: integration.connectionEnvironment };
+    const account = { firebaseId, connectedAccountId: integration.connectedAccountId, environment: this.composio.environment() };
     // Local revocation stops new reads immediately. Remote failure remains retryable via DELETE.
     await this.integrations.disconnect(integrationId);
     await this.composio.remove(account);

@@ -302,7 +302,7 @@ export class GmailReaderService {
   }
 
   private accountContext(integration: UserIntegration): EmailAccountContext {
-    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: integration.connectionEnvironment };
+    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
   }
 
   private async listMessagesPage(account: EmailAccountContext, query: string, maxResults: number, pageToken?: string): Promise<{ ids: string[]; nextPageToken?: string }> {

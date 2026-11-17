@@ -23,7 +23,6 @@ export interface UpsertIntegrationInput {
    */
   accountId: string;
   connectedAccountId: string;
-  connectionEnvironment: string;
   accountEmail?: string | null;
   scopes?: string | null;
   expiresAt?: Date | null;
@@ -137,7 +136,7 @@ export class UserIntegrationsService {
    * Connection updates are conditional and do not overwrite sync state.
    */
   async upsertIntegration(input: UpsertIntegrationInput): Promise<UserIntegration> {
-    if (!input.accountId || !input.connectedAccountId || !['dev', 'prod'].includes(input.connectionEnvironment)) {
+    if (!input.accountId || !input.connectedAccountId) {
       throw new ConflictException(
         `Cannot connect ${input.provider}: the provider returned no account id.`,
       );
@@ -174,7 +173,6 @@ export class UserIntegrationsService {
       integration.retiredConnectedAccountIds = [...new Set([...(existing.retiredConnectedAccountIds || []), existing.connectedAccountId])];
     }
     integration.connectedAccountId = input.connectedAccountId;
-    integration.connectionEnvironment = input.connectionEnvironment;
     integration.connectionVerifiedAt = new Date();
     integration.remoteDisconnectPending = false;
     integration.refreshToken = null;
@@ -189,7 +187,7 @@ export class UserIntegrationsService {
       if (existing) {
         const values = {
           connectionBackend: integration.connectionBackend, connectedAccountId: integration.connectedAccountId,
-          connectionEnvironment: integration.connectionEnvironment, connectionVerifiedAt: integration.connectionVerifiedAt,
+          connectionVerifiedAt: integration.connectionVerifiedAt,
           retiredConnectedAccountIds: integration.retiredConnectedAccountIds, remoteDisconnectPending: false,
           accountEmail: integration.accountEmail, status: IntegrationStatus.ACTIVE,
           refreshToken: null, accessToken: null, scopes: integration.scopes, expiresAt: integration.expiresAt,

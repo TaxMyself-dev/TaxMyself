@@ -40,9 +40,6 @@ export class UserIntegration {
   @Column({ name: 'connected_account_id', type: 'varchar', length: 255, nullable: true })
   connectedAccountId: string | null;
 
-  @Column({ name: 'connection_environment', type: 'varchar', length: 16, nullable: true })
-  connectionEnvironment: string | null;
-
   @Column({ name: 'connection_verified_at', type: 'datetime', nullable: true })
   connectionVerifiedAt: Date | null;
 

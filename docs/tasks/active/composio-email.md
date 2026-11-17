@@ -26,7 +26,7 @@
 - [x] Final Angular build passed; implementation prepared for local feature commit.
 - [ ] Approved live DEV verification (not authorized; no mailbox was connected).
 
-## Verification evidence
+## Initial implementation verification evidence (c73c8790)
 
 All paths below are relative to the feature worktree. No app boot or real database/provider execution occurred.
 
@@ -66,3 +66,11 @@ All paths below are relative to the feature worktree. No app boot or real databa
 - Security / external impact: official SDK and managed OAuth/read-only adapter, explicit user/account/environment scoping, owner-only mailbox access, bounded safe downloads. Google permissions and provider data handling still require live/product review before production.
 - Accounting impact: no changes to recognition, journals, reports, dedup semantics or the shared document processor.
 - Required next step: separate approval before applying DEV schema, enabling the integration and connecting a synthetic DEV mailbox. Verify live contracts and Drive operations there before any integration request.
+
+## Follow-up: configuration-only environment separation
+
+- Removed the persisted environment property from the entity, upsert input/storage and both prepared SQL copies. DEV and PROD already have separate databases; Composio projects/keys/auth configs remain separate server configuration.
+- Reader and disconnect contexts derive environment from server configuration. User/account ownership checks, configured-environment validation and Composio user-ID namespaces remain enforced.
+- Updated fixtures to omit the removed property. Reader tests now verify configured environment propagation without a database environment field.
+- Verification on this follow-up: `npm test -- --runInBand --silent --testPathPattern='user-integrations\|gmail-reader\|email-connections\|composio-gmail\|composio-client'` passed 5 suites / 56 tests, exit 0, 45.83 seconds. `npm run build` passed, exit 0. `git diff --check` passed. Frontend and shared importer unchanged; their earlier passing evidence was not rerun or presented as a new full run.
+- No database connection or SQL application occurred. The user simultaneously requested no database changes and DB implementation; a clarification was requested before any live schema operation. No main integration, push, deploy or mailbox connection is authorized by this follow-up.

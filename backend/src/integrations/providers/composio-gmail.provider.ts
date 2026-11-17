@@ -12,7 +12,7 @@ export class ComposioGmailProvider extends EmailProvider {
 
   private async assertLocalAccount(account: EmailAccountContext): Promise<void> {
     const row = await this.integrations.findByConnectedAccountId(account.connectedAccountId, account.firebaseId);
-    if (!row || row.status !== IntegrationStatus.ACTIVE || row.connectionBackend !== 'COMPOSIO' || row.connectionEnvironment !== account.environment) throw new EmailProviderError('AUTH');
+    if (!row || row.status !== IntegrationStatus.ACTIVE || row.connectionBackend !== 'COMPOSIO') throw new EmailProviderError('AUTH');
   }
 
   private async read(account: EmailAccountContext, tool: GmailReadTool, args: Record<string, unknown>): Promise<Record<string, any>> {

@@ -9,7 +9,7 @@ describe('Composio Gmail response normalization', () => {
   let provider: ComposioGmailProvider;
   beforeEach(() => {
     execute = jest.fn();
-    integrations = { findByConnectedAccountId: jest.fn().mockResolvedValue({ status: IntegrationStatus.ACTIVE, connectionBackend: 'COMPOSIO', connectionEnvironment: 'dev' }) };
+    integrations = { findByConnectedAccountId: jest.fn().mockResolvedValue({ status: IntegrationStatus.ACTIVE, connectionBackend: 'COMPOSIO' }) };
     downloads = { download: jest.fn().mockResolvedValue(Buffer.from('bytes')) };
     provider = new ComposioGmailProvider({ execute } as any, integrations, downloads);
   });

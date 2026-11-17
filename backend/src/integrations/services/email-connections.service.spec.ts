@@ -30,7 +30,7 @@ describe('Email connection lifecycle without a live mailbox', () => {
   });
   it('persists only the verified identity and connection pointer', async () => {
     await service.complete('single-use', 'ca-a', 'success');
-    expect(integrations.upsertIntegration).toHaveBeenCalledWith({ firebaseId: 'user-a', provider: IntegrationProvider.GOOGLE, accountId: 'google-sub', accountEmail: 'test@example.com', connectedAccountId: 'ca-a', connectionEnvironment: 'dev' });
+    expect(integrations.upsertIntegration).toHaveBeenCalledWith({ firebaseId: 'user-a', provider: IntegrationProvider.GOOGLE, accountId: 'google-sub', accountEmail: 'test@example.com', connectedAccountId: 'ca-a' });
   });
   it('rejects a different mailbox when reconnecting a selected row', async () => {
     states.consumeState.mockResolvedValue({ ...attempt, targetIntegrationId: 1 });
@@ -49,7 +49,7 @@ describe('Email connection lifecycle without a live mailbox', () => {
     expect(composio.assertAccount).not.toHaveBeenCalled();
   });
   it('stops local reads even when remote revocation fails', async () => {
-    integrations.findOwnedByIdOrThrow.mockResolvedValue({ provider: IntegrationProvider.GOOGLE, connectedAccountId: 'ca-a', connectionEnvironment: 'dev' });
+    integrations.findOwnedByIdOrThrow.mockResolvedValue({ provider: IntegrationProvider.GOOGLE, connectedAccountId: 'ca-a' });
     composio.remove.mockRejectedValue(new Error('transient'));
     await expect(service.disconnect('user-a', 1)).rejects.toThrow();
     expect(integrations.disconnect).toHaveBeenCalledWith(1);
