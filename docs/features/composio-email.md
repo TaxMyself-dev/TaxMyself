@@ -58,3 +58,9 @@ All provider tests use synthetic responses. Initial local verification did not b
 - [Gmail tool catalog](https://docs.composio.dev/toolkits/gmail)
 
 Input/output contracts were also read directly through Composio MCP Search Tools and Get Tool Schemas; no mailbox tools were executed.
+
+## Approved DEV artificial-fixture check — 2026-11-18
+
+The isolated `backend/scripts/test-composio-dev-mail-read.cjs` successfully searched the exact user-prepared subject `KEEPINTAX-DEV-TEST`, read one matching message and downloaded `keepintax-dev-test.pdf` into memory (43,527 bytes, PDF signature verified). Integration 17's entire record, ownership and history were unchanged. No Drive, imports, scheduler, application boot or PROD access occurred. The permanent feature flag remains disabled.
+
+Live testing exposed IPv6-first DNS selection on a machine without working outbound IPv6. The downloader now prefers public IPv4 after checking every resolved address; all existing SSRF and byte-limit protections remain. Focused adapter/downloader tests passed (23 tests), backend build passed. The exact authenticated attachment storage host is allowlisted only inside the diagnostic, not in permanent environment configuration. Full attempt counts, commands, hash and limitations are recorded in the active task notes. This verifies one artificial PDF, not pagination, large files, production readiness or document import.

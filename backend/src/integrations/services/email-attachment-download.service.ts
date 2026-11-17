@@ -25,7 +25,8 @@ export class EmailAttachmentDownloadService {
       const agent = new Agent({ lookup: (hostname, options, callback) => {
         lookup(hostname, { all: true }, (error, addresses) => {
           if (error || !addresses.length || addresses.some(item => !isPublicDownloadAddress(item.address))) return callback(new Error('Blocked attachment destination'), undefined, undefined);
-          const selected = addresses[0];
+          // Prefer IPv4 when the host has DNS IPv6 but no outbound IPv6 route.
+          const selected = addresses.find(item => item.family === 4) || addresses[0];
           if (typeof options === 'object' && options.all) (callback as Function)(null, [selected]);
           else callback(null, selected.address, selected.family);
         });
