@@ -1,6 +1,6 @@
 # KT-115 - Pending allocation accounting and completion flow
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt115-worker`
@@ -60,8 +60,12 @@ allocation or the existing manual details-and-entry flow.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `b69f41f0665fa2e039b83f0d629bd0a71f9b2cc3`
+- Combined verification: backend focused Jest 3/3; allocation/table Karma
+  52/52; doc-create Karma 27/27; production builds passed in the isolated
+  worktree before integration.
+- `origin/main` verification: `b69f41f0` pushed successfully on 2026-11-17.
+- User-visible run instructions: restart/reload the backend and frontend, then
+  create an allocation-required invoice and choose the deferred-allocation
+  action. Complete it later from the incomes table through either method.
