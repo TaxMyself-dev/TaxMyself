@@ -11,6 +11,27 @@ import { agentToolLeavesNoTrace } from "./agent-tool-traits";
 // EXAMPLE codes: give each failure your tools can raise its next step.
 const agentToolErrorNextSteps = new Map([
   [
+    "CLASSIFICATION_STALE",
+    "The proposal is expired, invalid, or its transaction/catalog changed. Nothing was applied by this attempt. Read current data, prepare again and obtain a NEW approval card. Never reuse the old approval.",
+  ],
+  [
+    "CLASSIFICATION_BLOCKED",
+    "This transaction cannot be classified in Phase A (confirmed, locked, unlinked, or not an outgoing payment). Explain the restriction and change nothing; never bypass a report lock.",
+  ],
+  [
+    "CLASSIFICATION_FORBIDDEN",
+    "This actor lacks access, classification permission or the banking module. Change nothing and explain the restriction.",
+  ],
+  [
+    "CLASSIFICATION_CATEGORY_INVALID",
+    "Read the effective listCategories for this business and choose an existing mapped or private subcategory. Do not invent accounting percentages.",
+  ],
+  [
+    "CLASSIFICATION_NOT_FOUND",
+    "Read queryTransactions again; use only its externalTransactionId. Ask which transaction if several match.",
+  ],
+
+  [
     "WEB_SEARCH_UNAVAILABLE",
     "The search service did not answer. Try once more; if it fails again, tell the user in plain words and offer to try later.",
   ],

@@ -31,6 +31,8 @@ const agentToolEffects = {
   // and changes nothing.
   queryExpenses: "read",
   queryTransactions: "read",
+  prepareTransactionClassification: "read",
+  classifyTransaction: "approval",
   queryIssuedDocuments: "read",
   listCategories: "read",
   listClients: "read",
@@ -130,6 +132,8 @@ export const agentToolNeedsAnswerCheck = (toolName: string) =>
 const agentBookNumberTools: ReadonlySet<string> = new Set<AppAgentToolName>([
   "queryExpenses",
   "queryTransactions",
+  "prepareTransactionClassification",
+  "classifyTransaction",
   "queryIssuedDocuments",
   "listCategories",
   "listClients",

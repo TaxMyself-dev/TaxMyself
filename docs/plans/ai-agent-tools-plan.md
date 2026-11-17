@@ -1,6 +1,6 @@
 # KeepInTax AI agent: tools and delivery plan
 
-Status: **PROPOSED, not approved** as a whole. Implemented so far: the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7) (2026-11-05); and **Phase 3** (2026-11-11, KT-089): the rest of §3.3 and §3.4 as read-only tools (`queryTransactions`, `queryIssuedDocuments`, `listCategories`, `listClients`, `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`, `listUpcomingReports`, `getReportReadiness`), the Hebrew prompt on number origins, and the same-turn number check. Where Phase 3 deviates from the tables below, see "Phase 3 as built" under §3.4. **Phase 3.1** (2026-11-15, KT-108): the chat interaction corrections, as recorded under Phase 3.1 ("Status"). Everything else (Phases 3.2 and 4–13, including Phase 8's reminder job and Phase 10's alerts) is not built.
+Status: **PROPOSED, not approved** as a whole. Implemented so far: the data scoping of 2.3 (as built, below) and the first books tool, `queryExpenses` (3.3), for one or several of the owner's businesses, with the dev test page (A7) (2026-11-05); and **Phase 3** (2026-11-11, KT-089): the rest of §3.3 and §3.4 as read-only tools (`queryTransactions`, `queryIssuedDocuments`, `listCategories`, `listClients`, `getProfitAndLoss`, `getVatSummary`, `getAdvanceTaxStatus`, `listUpcomingReports`, `getReportReadiness`), the Hebrew prompt on number origins, and the same-turn number check. Where Phase 3 deviates from the tables below, see "Phase 3 as built" under §3.4. **Phase 3.1** (2026-11-15, KT-108): the chat interaction corrections, as recorded under Phase 3.1 ("Status"). Phase A (approved 2026-11-17) adds one-time pending outgoing transaction classification from Phase 6 with its required Phase 3.2 approval boundary; see its task record for exact verification. The remainder of Phases 3.2 and 4–13, including reminders and alerts, is not built.
 Date: 2026-11-03; updated 2026-11-11; updated 2026-11-14 (the interaction model, §2.5–§2.10, Phases 3.1, 3.2, 4.1, 5.1 and 5.2, §6.1, §7 and the appendices were consolidated into this plan as **proposed, not built and not approved**; the separate proposal `ai-agent-interaction-model-plan.md` is now a pointer to this file); updated 2026-11-15 (the product owner's decisions of 2026-11-14 on DR-1 to DR-14 recorded as approved, §1 A11–A25, and propagated through the plan).
 
 This is the single plan for the agent. The decisions in §7 were **approved on 2026-11-14** (§1, A11–A25). Approval is not implementation: everything they govern is still **not built** unless the build-status table below says otherwise, and the plan as a whole stays PROPOSED. Blockers that remain are of other kinds: RULES PENDING, missing credentials or providers, and phases not yet built.
@@ -14,7 +14,7 @@ This is the single plan for the agent. The decisions in §7 were **approved on 2
 | 2 | Partly built | `/dev/agent` streams the chat and shows tool calls as JSON, approval cards and stop. Since KT-108 (2026-11-15): `askUserQuestion` buttons from the stored part, follow-ups fetched live and shown after a reload, the conversation in the URL with its stream resumed on reload, a recent-chats list, the "saved" notice with undo, and unit specs for the page's helpers (`dev-agent-chat.spec.ts`; the page uses the AI SDK's own stream parser). Not built: steer, the side panel (memories, notifications), a link to each turn's trace. Not runtime-verified in a browser (KT-108) |
 | 3 | Built (KT-089, 2026-11-11) | See "Phase 3 as built" under §3.4 and KT-089's evaluation status |
 | 3.1 | Built (KT-108, 2026-11-15) | See Phase 3.1, "Status". Remaining gaps listed there |
-| 3.2–13 | Not built | Phases 3.2, 4.1, 5.1 and 5.2 are new (2026-11-14). Their decisions are approved (A11–A25); none of that work is implemented |
+| 3.2–13 | Mostly not built | Phase A (approved 2026-11-17) brings one-time pending transaction classification from Phase 6 forward with its required approval policy from 3.2. Profile, learning, monitors, other actions and background jobs remain unbuilt. See the Phase A task record for verification status |
 Inputs:
 - the capability spec, `backend/src/AI.features.md`;
 - the agent package, `backend/agent` (KT-089, ported 1:1 from the agent template);
@@ -470,6 +470,29 @@ UI work for this phase is in Phase 2's remaining items.
 **Tests:** S5 in §6.1. A follow-up or a notification body cannot start ongoing work without its card. A retried answer duplicates no write. A9 actions still need the card and the backend permission.
 
 **Depends on:** Phase 3.1. Phases 4 (profile writes), 5.1 and 5.2 build on it.
+
+### Phase A — First application action in chat (approved 2026-11-17)
+
+The user approved prioritizing existing application actions through chat, then
+building background automation. Deliver one-time classification of one pending
+outgoing transaction first, with the required part of Phase 3.2. This changes
+execution order, not A9's accounting approval or backend permissions.
+
+1. Read transactions and effective categories with stable identifiers.
+2. Prepare a server-owned proposal using catalog accounting defaults.
+3. Display its approval card and apply only the approved original proposal.
+4. Recheck actor/owner/business, write scope, module, source state and catalog;
+   preserve report locks and represented-owner classification-only behavior.
+5. Cover rejection, ambiguity, stale/forged/replayed approvals and chat continuation.
+
+No batches, standing classification rules, confirmed-row changes or expense
+approval. The next proposed actions are document-to-transaction linking and
+income-document preparation/issuance; their implementation is not approved here.
+
+Implementation and exact verification: [Phase A task](../tasks/active/assistant-chat-classification.md).
+Proposals currently use a process-local signing key and expire after 30 minutes;
+a restart or another server instance requires a fresh card. Multi-instance
+rollout remains outside this local delivery.
 
 ### Phase 4 — Business profile and onboarding (§3.2)
 

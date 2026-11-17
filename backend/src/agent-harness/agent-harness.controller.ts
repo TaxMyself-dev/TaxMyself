@@ -36,9 +36,9 @@ const agentBodyLimitBytes = 1024 * 1024;
  * about one client never reaches another, or the accountant's own. A revoked
  * delegation is refused here by the guard, and by the domain tools on every
  * call of an answer already running. Using the agent is a read of the
- * client's data in delegation terms (DOCUMENTS_READ): it writes only its own
- * tables, owned by the actor, and every future domain action keeps its own
- * guard.
+ * client's data in delegation terms (DOCUMENTS_READ). Conversation data belongs
+ * to the actor/owner pair. Domain actions independently recheck their current
+ * write permissions and module access before changing application data.
  */
 @Controller('api/agent')
 @UseGuards(FirebaseAuthGuard)

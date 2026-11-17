@@ -633,6 +633,67 @@
     }
   },
   {
+    "name": "prepareTransactionClassification",
+    "description": "Prepare a one-time classification of ONE pending outgoing bank/card transaction, never approve an expense or create a rule. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
+    "openai": {
+      "namespace": {
+        "name": "books",
+        "description": "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers."
+      },
+      "deferLoading": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "businessNumber": {
+          "type": "string",
+          "pattern": "^\\d{5,12}$",
+          "description": "One of the user's businesses, its number from <businesses> in the user context: the one the user named or chose. Left out: the business this conversation is about, else their only one, else BUSINESS_REQUIRED"
+        },
+        "externalTransactionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "subCategoryId": {
+          "type": "integer",
+          "maximum": 9007199254740991,
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "externalTransactionId",
+        "subCategoryId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "classifyTransaction",
+    "description": "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It changes only this pending outgoing transaction's classification, never approves an expense or creates a rule. If stale, prepare again and obtain a new card. Report success only from the actual result.",
+    "openai": {
+      "namespace": {
+        "name": "books",
+        "description": "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers."
+      },
+      "deferLoading": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "proposalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "proposalId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "queryIssuedDocuments",
     "description": "Read the documents the user's business issued in KeepInTax (tax invoices, receipts, invoice-receipts, credit invoices, quotes…) for a range of document dates, in one business: per document type and currency, how many and their totals with and without VAT in that currency as issued (never one total across types or currencies: a credit invoice reduces income, a quote is not income, and a dollar or euro total is not shekels), optionally per client or month, and the documents themselves. count is how many match, of every type and currency. Cancelled documents (cancelled) and drafts or ones awaiting allocation (notIssued) are excluded from count and every total: when either is above zero, say they are not included. It reads documents only: no document for a client never means the client is not saved (only listClients says that). Use it for \"did I issue an invoice to X?\" or \"how much did I invoice this month?\".",
     "openai": {

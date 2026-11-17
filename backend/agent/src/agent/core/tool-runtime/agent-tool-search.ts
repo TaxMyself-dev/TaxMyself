@@ -23,6 +23,8 @@ const agentToolNamespaces = [
       "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers.",
     tools: [
       "queryTransactions",
+      "prepareTransactionClassification",
+      "classifyTransaction",
       "queryIssuedDocuments",
       "listCategories",
       "listClients",

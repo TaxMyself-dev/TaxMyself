@@ -204,6 +204,7 @@ export interface TransactionQuery {
 
 /** One bank or card transaction as the transactions page shows it. */
 export interface TransactionRow {
+  readonly externalTransactionId?: string;
   readonly id: number;
   readonly date: string;
   readonly merchant: string;
@@ -364,7 +365,8 @@ export interface CategoryListResult {
   readonly categories: readonly {
     readonly name: string;
     readonly subCategories: readonly {
-      readonly name: string;
+      readonly id?: number;
+      name: string;
       readonly owner: "system" | "accountant" | "own";
       readonly private: boolean;
       readonly status: "ready" | "missing_mapping" | "private";
@@ -588,7 +590,32 @@ type BooksRead<Q, R> = (query: Q) => Effect.Effect<R, Error>;
  * documents, categories, clients, the P&L, VAT, advance tax, the reports
  * coming up and what still needs review before one.
  */
+export interface ClassificationQuery {
+  readonly businessNumber?: string;
+  readonly externalTransactionId: string;
+  readonly subCategoryId: number;
+}
+
+/** The signed, expiring input copied unchanged into the approval tool. */
+export interface ClassificationProposal {
+  readonly proposal: string;
+}
+
+/** The actual classification outcome; expense approval is never performed. */
+export interface ClassificationResult {
+  readonly status: "classified" | "already_applied";
+  readonly expenseApproved: false;
+  readonly category: string;
+  readonly subCategory: string;
+}
+
+/** Request-bound books reads and optional Phase A classification actions. */
 export interface KeepInTaxBooks {
+  prepareTransactionClassification?: BooksRead<
+    ClassificationQuery,
+    ClassificationProposal
+  >;
+  classifyTransaction?: BooksRead<ClassificationProposal, ClassificationResult>;
   queryExpenses: (
     query: ExpenseQuery
   ) => Effect.Effect<ExpenseQueryAnswer, Error>;

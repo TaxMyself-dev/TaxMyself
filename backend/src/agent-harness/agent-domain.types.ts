@@ -172,6 +172,7 @@ export interface TransactionQuery {
 }
 
 export interface TransactionRow {
+  readonly externalTransactionId?: string;
   id: number;
   date: string;
   merchant: string;
@@ -331,6 +332,7 @@ export interface CategoryListResult {
   categories: {
     name: string;
     subCategories: {
+      id?: number;
       name: string;
       // Whose row it is: the app's, the accountant's, or the business's own.
       owner: 'system' | 'accountant' | 'own';
@@ -505,6 +507,8 @@ export interface ReportReadinessResult {
 
 /** The domain one agent request may use, bound to its verified user. */
 export interface AgentDomain {
+  prepareTransactionClassification?: (query: { businessNumber?: string; externalTransactionId: string; subCategoryId: number }) => Promise<{ proposal: string }>;
+  classifyTransaction?: (query: { proposal: string }) => Promise<{ status: 'classified' | 'already_applied'; expenseApproved: false; category: string; subCategory: string }>;
   queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryAnswer>;
   queryTransactions: (query: TransactionQuery) => Promise<TransactionQueryResult>;
   queryIssuedDocuments: (query: IssuedDocumentQuery) => Promise<IssuedDocumentQueryResult>;

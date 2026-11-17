@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { classificationCard } from './classification-card';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -426,6 +427,8 @@ export class DevAgentPage implements OnInit, OnDestroy {
   isTool(part: MessagePart) {
     return part.type.startsWith('tool-') || part.type === 'dynamic-tool';
   }
+
+  classificationCard = classificationCard;
 
   toolView(part: MessagePart): ToolPartView {
     const tool = part as unknown as {

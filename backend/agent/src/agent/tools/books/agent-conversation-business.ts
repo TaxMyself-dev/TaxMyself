@@ -495,6 +495,11 @@ export const withConversationBusiness = (
         )
         .pipe(Effect.tap(() => recordRead(state, asked)));
     },
+    prepareTransactionClassification:
+      books.prepareTransactionClassification === undefined
+        ? undefined
+        : single(books.prepareTransactionClassification),
+    classifyTransaction: books.classifyTransaction,
     queryTransactions: single(books.queryTransactions),
     queryIssuedDocuments: single(books.queryIssuedDocuments),
     listCategories: single(books.listCategories),

@@ -6,6 +6,10 @@ import {
   queryIssuedDocumentsTool,
   queryTransactionsTool,
 } from "@/agent/tools/books/books-tools";
+import {
+  prepareTransactionClassificationTool,
+  classifyTransactionTool,
+} from "@/agent/tools/books/classification-tools";
 import { queryExpensesTool } from "@/agent/tools/books/query-expenses-tool";
 import { setAgentActionRuleTool } from "@/agent/tools/conversation/agent-action-rule-tool";
 import {
@@ -60,6 +64,8 @@ export const appAgentTools = {
   // KeepInTax's books (src/agent/tools/books), through KeepInTaxBooks.
   queryExpenses: queryExpensesTool,
   queryTransactions: queryTransactionsTool,
+  prepareTransactionClassification: prepareTransactionClassificationTool,
+  classifyTransaction: classifyTransactionTool,
   queryIssuedDocuments: queryIssuedDocumentsTool,
   listCategories: listCategoriesTool,
   listClients: listClientsTool,

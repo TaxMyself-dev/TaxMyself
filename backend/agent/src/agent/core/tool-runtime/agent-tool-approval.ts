@@ -94,7 +94,10 @@ export const agentChatToolApproval = (
     };
   }
 
-  if (origin === "follow-up" && agentToolChangesData(toolName)) {
+  if (
+    origin === "follow-up" &&
+    (agentToolChangesData(toolName) || toolName === "classifyTransaction")
+  ) {
     return {
       type: "denied",
       reason: `AGENT_FOLLOW_UP_NO_WRITE: the user pressed a suggested follow-up question, which asks only for information; ${toolName} was not run. Answer the question; if something should be saved or changed, the user can ask for it in their own words.`,

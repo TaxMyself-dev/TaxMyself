@@ -40,3 +40,7 @@ The prompt, user context, memory rules, turn-signal hint, follow-up writer and a
 ## Optional telemetry failures
 
 Local tracing is optional: exporter flush/shutdown failures are bounded and contained by app-telemetry-errors.ts, with one credential-free warning per minute per exporter. Detached background promises are observed immediately, including on waitUntil hosts. Database/save failures are still reported. The Nest edge attributes SDK background rejections by AsyncLocalStorage; it does not suppress unrelated backend failures. See GUIDE.md and docs/operations/local-ai-development.md for the local launcher.
+
+## Phase A chat action
+
+Pending outgoing transactions can be classified once through `prepareTransactionClassification` and approval-only `classifyTransaction`. The model passes a short ID; execution resolves the original preparation from successful assistant parts in this conversation. Never accept an action payload from a user approval response. Nest checks fresh write scope and catalog values, then uses the existing classification-only implementation under row locks. No expense approval, confirmed-row update, batch or rule creation. GUIDE.md records expiry, replay behavior and the process-local signing-key limitation.

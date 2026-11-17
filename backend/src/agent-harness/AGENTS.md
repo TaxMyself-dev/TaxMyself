@@ -37,8 +37,9 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
 
 - `main.ts` leaves `/api/agent/` bodies unparsed: the agent reads its body as
   a stream with its own size limit.
-- Using the agent counts as DOCUMENTS_READ in delegation terms: it writes only
-  its own tables, owned by the pair (actor, data owner); a conversation may
+- Entering chat counts as DOCUMENTS_READ in delegation terms. Conversation and
+  memory data belong to the pair (actor, data owner); Phase A domain actions
+  separately recheck current write scope and module access. A conversation may
   cover any of that owner's businesses. The agent names the business for
   each read (the one the user named or established in the conversation);
   `chooseBusiness` takes it, else the owner's only one, else
@@ -69,3 +70,15 @@ even for AggregateError with only node:net frames; it retains the legacy
 agent-stack fallback and rethrows unrelated backend rejections. Do not
 replace this boundary with a global catch-all. Child-process regression
 tests prove both survival of the reported shape and unrelated-error failure.
+
+## Phase A classification action
+
+`AgentClassificationService` adds the two classification ports to the request
+domain. Reads remain in AgentBooksService; writes never inherit its read scope.
+Every prepare/apply rechecks access and OPEN_BANKING; delegated actors need a
+current ACTIVE delegation with EXPENSES_APPROVE. The action is only a one-time
+classification of an owned business's outgoing pending transaction. Signed,
+expiring proposals bind actor/owner, display, catalog values and source state.
+The agent tool resolves them from the owned chat before invoking the domain.
+Apply uses TransactionProcessingService.classifyPendingForAgent; there is no
+direct controller write endpoint, expense approval or rule-creation path.

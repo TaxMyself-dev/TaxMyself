@@ -14,6 +14,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { TransactionsModule } from 'src/transactions/transactions.module';
 import { User } from 'src/users/user.entity';
 import { AgentBooksService } from './agent-books.service';
+import { AgentClassificationService } from './agent-classification.service';
 import { AgentDomainService } from './agent-domain.service';
 import { AgentHarnessController } from './agent-harness.controller';
 import { AgentHarnessService } from './agent-harness.service';
@@ -39,6 +40,6 @@ import { AgentHarnessService } from './agent-harness.service';
     SharedModule,
   ],
   controllers: [AgentHarnessController],
-  providers: [AgentHarnessService, AgentDomainService, AgentBooksService],
+  providers: [AgentHarnessService, AgentDomainService, AgentBooksService, AgentClassificationService],
 })
 export class AgentHarnessModule {}

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { AgentBooksService } from './agent-books.service';
+import { AgentClassificationService } from './agent-classification.service';
 import {
   installAgentRejectionGuard,
   withAgentBackgroundContext,
@@ -63,6 +64,7 @@ export class AgentHarnessService implements OnModuleDestroy {
   constructor(
     private readonly agentDomain: AgentDomainService,
     private readonly agentBooks: AgentBooksService,
+    private readonly classification: AgentClassificationService,
   ) {}
 
   private bundlePath() {
@@ -102,6 +104,7 @@ export class AgentHarnessService implements OnModuleDestroy {
       return await bundle.handleAgentHttpRequest(request, user, {
         ...this.agentDomain.forUser(user),
         ...this.agentBooks.forUser(user),
+        ...this.classification.forUser(user),
       });
     });
   }

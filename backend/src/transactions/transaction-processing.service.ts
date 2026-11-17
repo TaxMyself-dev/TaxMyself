@@ -614,6 +614,34 @@ export class TransactionProcessingService {
     return result;
   }
 
+  /** Agent-only transaction boundary. No expense approval or rule creation.
+   * Row locks serialize repeated approvals across requests and instances.
+   * preflight runs after locks; failure rolls the entire classification back. */
+  async classifyPendingForAgent<T>(
+    userId: string,
+    externalTransactionId: string,
+    preflight: (cache: FullTransactionCache, slim: SlimTransaction | null) => Promise<{ result: T; dto?: ClassifyManuallyDto }>,
+  ): Promise<T> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
+      const cache = await manager.getRepository(FullTransactionCache).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
+      if (!cache) throw new NotFoundException('CLASSIFICATION_STALE: transaction no longer available');
+      const slim = await manager.getRepository(SlimTransaction).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
+      const { result, dto } = await preflight(cache, slim);
+      if (dto) {
+        const scoped = new TransactionProcessingService(
+          manager.getRepository(SlimTransaction), manager.getRepository(FullTransactionCache),
+          manager.getRepository(UserTransactionCacheState), manager.getRepository(ClassifiedTransactions),
+          manager.getRepository(Source), manager.getRepository(Bill), manager.getRepository(Business),
+          manager.getRepository(Expense), this.userSyncStateService, this.sharedService,
+          this.fxRateService, this.dataSource, this.expensesService,
+        );
+        await scoped.classifyManually(userId, dto, true);
+      }
+      return result;
+    });
+  }
+
   /**
    * Manually classifies a transaction (ONE_TIME).
    *

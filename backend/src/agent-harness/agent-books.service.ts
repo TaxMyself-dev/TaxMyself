@@ -369,6 +369,7 @@ export class AgentBooksService {
 
       const row: TransactionRow = {
         id: Number(raw.id),
+        externalTransactionId: raw.externalTransactionId,
         date: dayText(raw.billDate),
         merchant: raw.name ?? '',
         account: raw.billName ?? raw.paymentIdentifier ?? null,
@@ -708,6 +709,7 @@ export class AgentBooksService {
       byCategory.set(name, [
         ...(byCategory.get(name) ?? []),
         {
+          id: row.id,
           name: row.name,
           owner:
             row.ownerType === OwnerType.CLIENT

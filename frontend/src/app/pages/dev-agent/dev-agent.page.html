@@ -130,8 +130,21 @@
                 }
                 @if (tool.approvalId; as approvalId) {
                   <div class="approval">
-                    <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
-                    <button type="button" class="approve" (click)="answerApproval(approvalId, true)">Approve</button>
+                      @if (classificationCard(part, c.messages); as card) {
+                        <div dir="rtl">
+                          <b>אישור סיווג חד־פעמי של תנועה</b>
+                          <p>{{ card.businessName }} · {{ card.businessNumber }}</p>
+                          <p>{{ card.date | date:'dd/MM/yyyy' }} · {{ card.merchant }} · {{ card.amount | number:'1.2-2' }} {{ card.currency }}</p>
+                          <p>סיווג נוכחי: {{ card.currentCategory || 'ללא סיווג' }} / {{ card.currentSubCategory || '—' }}</p>
+                          <p>סיווג מבוקש: {{ card.category }} / {{ card.subCategory }}</p>
+                          <p>אחוז מע״מ: {{ card.vatPercent }}% · אחוז הכרה למס: {{ card.taxPercent }}%</p>
+                          <p>מוכר למס: {{ card.isRecognized === undefined ? 'לא זמין' : card.isRecognized ? 'כן' : 'לא' }} · ציוד: {{ card.isEquipment === undefined ? 'לא זמין' : card.isEquipment ? 'כן' : 'לא' }} · פחת: {{ card.reductionPercent === undefined ? 'לא זמין' : card.reductionPercent + '%' }}</p>
+                          <p>הפעולה מסווגת תנועה אחת בלבד. היא אינה מאשרת הוצאה ואינה יוצרת כלל קבוע.</p>
+                        </div>
+                      } @else {
+                        <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
+                      }
+                    <button type="button" class="approve" [disabled]="tool.name === 'classifyTransaction' && !classificationCard(part, c.messages)" (click)="answerApproval(approvalId, true)">Approve</button>
                     <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
                   </div>
                 }

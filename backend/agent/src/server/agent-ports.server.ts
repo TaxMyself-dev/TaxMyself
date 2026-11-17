@@ -137,6 +137,20 @@ export const createKeepInTaxBooks = (): KeepInTaxBooks => {
     };
 
   return {
+    prepareTransactionClassification: read((backend) => {
+      if (backend.prepareTransactionClassification === undefined) {
+        throw keepInTaxFailure("CLASSIFICATION_UNAVAILABLE: unavailable");
+      }
+
+      return backend.prepareTransactionClassification;
+    }),
+    classifyTransaction: read((backend) => {
+      if (backend.classifyTransaction === undefined) {
+        throw keepInTaxFailure("CLASSIFICATION_UNAVAILABLE: unavailable");
+      }
+
+      return backend.classifyTransaction;
+    }),
     queryExpenses: read((backend) => backend.queryExpenses),
     queryTransactions: read((backend) => backend.queryTransactions),
     queryIssuedDocuments: read((backend) => backend.queryIssuedDocuments),

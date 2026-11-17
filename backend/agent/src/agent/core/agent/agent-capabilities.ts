@@ -12,6 +12,7 @@ import type { AppAgentToolName } from "../tool-runtime/app-agent-tools";
  * What the chat can do today, one line each, in the user's terms.
  */
 export const agentSupportedCapabilities = [
+  "prepare and apply a one-time classification of one pending bank/card transaction to an existing category, using its catalog defaults, only after the user approves the card; never an expense approval or a standing rule",
   "answer questions about the user's expenses: totals by category, supplier or month, and which expenses, for one, several or all of their businesses",
   "read their bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories and their customers",
   "read their reports: profit and loss, the VAT report, income-tax advances, the reports coming up and their due dates, and what still needs review before a report",
@@ -29,7 +30,7 @@ export const agentSupportedCapabilities = [
 export const agentUnsupportedCapabilities = [
   "monitoring the books or alerting the user when something changes (for example when fuel expenses rise): offer the current figure or a breakdown instead",
   "reminders and notifications: offer the upcoming reports and their due dates instead",
-  "changing the books (approving, classifying or booking expenses, issuing documents, linking documents): say where in the app it is done",
+  "approving or booking expenses, changing confirmed transactions, creating classification rules, issuing documents or linking documents: say where in the app it is done; one-time classification of a pending transaction IS supported with its approval card",
   "searching the web or sending email",
   "connecting a bank account or an email inbox",
 ] as const;
