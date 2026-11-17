@@ -36,6 +36,8 @@ For an expressly approved connection-only DEV check, `node scripts/test-composio
 
 Project key permissions must include Connected accounts Read + Write (link/list), Tools Read, Toolkits Read and Tool execution (Legacy) Write (identity execution). A DEV attempt on 2026-11-17 was blocked before consent because the supplied key had only Connected accounts Read; no mailbox tools ran. Replace that key rather than enabling unrelated permissions.
 
+With a replacement key the 2026-11-18 diagnostic reached ACTIVE managed OAuth and successfully executed identity verification once, but the selected mailbox had a disconnected historical DEV integration owned by a different user. The fresh technical diagnostic identity correctly failed local persistence. Existing revoked rows retain global mailbox ownership and history: use an authorized matching DEV owner context or a clean test mailbox; never delete/reassign the row or weaken ownership checks to force the diagnostic to pass. External connection success and local application activation are separate outcomes.
+
 Backend: `npm test -- --runInBand --silent --testPathPattern='integrations|document-import'`, then `npm run build`.
 
 Frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/services/integrations.service.spec.ts --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`, then `npm run build -- --configuration production`.
