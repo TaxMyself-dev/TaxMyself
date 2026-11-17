@@ -249,3 +249,5 @@ After a successful preparation in the current answer, prepareStep requires the n
 Preparation accepts optional requestApproval=false only for explicit proposal-only requests; omission means a card is required. A new user steer supersedes earlier preparations, and the boundary resets when the same agent starts another generation. Failed preparations, follow-up origins and already-attempted IDs do not force a card. This is a classification-specific transition, not a general orchestration framework.
 
 Classification blocking errors identify the actual condition: already transferred to an Expense, submitted-report lock, missing account link, or incoming payment. confirmed means transferred to an Expense; the Expense may still await approval. Explain the returned reason instead of guessing a list of causes.
+
+Both unclassified and classified outgoing transactions can receive a one-time classification proposal while not transferred to an Expense. Existing category/subcategory is not a refusal reason. Read both states when locating a requested reclassification; server eligibility and a new approval card remain required.

@@ -439,3 +439,55 @@ the rebuilt bundle and new Nest messages require backend restart to load.
 Main and remotes remain untouched. Local feature commit records this delivery.
 
 Final agent check: npm run check passed (341 files); git diff --check passed. Combined backend evidence covers 170 distinct passing tests across the focused and adjacent checkpoints; agent coverage is 92 passing tests plus the added wrapper regression verified in its 8-test file. No failing checks remain for this scope.
+
+## Reclassification capability clarification — 2026-11-18
+
+Following the user's manual test, the model claimed an already-classified payment
+could not receive a card. Code inspection showed no category-null eligibility
+requirement; the supported contract said pending without distinguishing classified
+from transferred-to-Expense. The backend test now explicitly proves prepare/apply
+can change an existing unconfirmed classification. No backend eligibility or
+approval policy changed. Tool descriptions and the central capability list now
+explicitly support both unclassified and classified outgoing transactions before
+Expense transfer, with existing locks/access checks and a new approval card.
+
+Continued existing new-ai-assistant from 6d38a19a. Preserved existing untracked
+files. No main integration/push, app restart, database write or delegation.
+
+Verification:
+- Backend: npx jest --runInBand src/agent-harness/agent-classification.service.spec.ts
+  15/15 passed including the new existing-classification test.
+- Agent prompt snapshots: first run 7 passed / 2 expected mismatches. Reviewed
+  differences in the capability paragraph and two tool descriptions before -u;
+  no schema, approval flags or tool availability changed. Updated run 9/9 passed.
+- Agent npm run typecheck -- --pretty false initially caught an incorrect field
+  name in the new eval assertion before any paid call; corrected toolName to name.
+  Final typecheck passed (existing Effect suggestions only), npm run build passed.
+- Bounded model eval: npm run eval -- --variant reclassification-20261118 --reps 1 tests/evals/agent/interaction/classification.eval.ts -t reclassifies
+  Selects one new case with four answer turns: existing category, denial with zero
+  writes, a fresh approval request, then approved exact-proposal execution once.
+  Existing fixtures keep historical stored-proposal seeding approximation; this
+  is a model orchestration check, not live browser persistence verification.
+
+Final results: agent core/classification unit scope 12 files, 79/79 passed;
+npm run check passed. Model eval fingerprint 66ffdccc51857a43, dataset
+0f1dc861f7eb31e9: selected case 1/1 passed with four answer turns, five sibling
+cases skipped. Runner enumerated 101 metadata slots, only one paid case ran.
+No retries or threshold changes. Stored passed_all=true and every code assertion
+held. Actual queryTransactions inputs used no unclassified-only filter; results
+contained classified rows, preparation ran twice and execution ran only after
+new approval. No broad suite is claimed from this bounded diagnostic.
+
+Authenticated local Langfuse v2 observation reads found all four answer traces,
+38 observations including ten generations, eight tools, zero ERROR observations.
+Trace IDs: 61bfbb8c991117e973e475166d6afb0f,
+80db41b73855e0fc9779105feaacfe8b, 36f44873d3c2ee8c565c0d66ef6936d5,
+e3b19ee40f31a351dfdcb8668f3838bf. Sanitized evidence in the chat deliverables:
+reclassification-20261118-preflight.json and
+reclassification-20261118-trace-proof.json. Generated eval artifacts remain
+ignored under .eval/agent/runs/reclassification-20261118.
+
+Executable source was unchanged after passing typecheck/build/model/unit checks;
+final docs were formatted and git diff --check passed. Local feature commit only.
+The running backend must be restarted to load the rebuilt agent bundle. Manual
+browser verification remains for the user; no actual demo classification changed.

@@ -151,6 +151,16 @@ describe('agent one-time pending classification', () => {
     );
     expect(f.write).toHaveBeenCalledTimes(1);
   });
+  it('allows changing an existing classification while not transferred to an expense', async () => {
+    const f = setup();
+    f.cache.category = 'משרד';
+    f.cache.subCategory = 'ציוד';
+    f.setSlim({businessNumber: query.businessNumber, category: 'משרד', subCategory: 'ציוד', confirmed: false, isLocked: false});
+    const p = await f.service.prepare(owner, query);
+    expect(f.write).not.toHaveBeenCalled();
+    await expect(f.service.apply(owner, p.proposal)).resolves.toMatchObject({status: 'classified', expenseApproved: false});
+    expect(f.write).toHaveBeenCalledTimes(1);
+  });
   it.each(['confirmed', 'isLocked'])(
     'refuses %s transactions',
     async (field) => {

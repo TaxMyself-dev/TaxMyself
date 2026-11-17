@@ -12,7 +12,7 @@ import {
 import type { AgentEvalScenario } from "../harness/agent-eval-scenario";
 import { emptyEvalSettings } from "../harness/agent-eval-settings-fixtures";
 
-const fixture = (ambiguous = false) => {
+const fixture = (ambiguous = false, classified = false) => {
   const business = evalDesignerBusiness;
   let applied = 0;
 
@@ -26,9 +26,9 @@ const fixture = (ambiguous = false) => {
       amount: -118,
       currency: "ILS",
       originalAmount: null,
-      category: null,
-      subCategory: null,
-      state: "unclassified" as const,
+      category: classified ? "משרד" : null,
+      subCategory: classified ? "ציוד משרדי" : null,
+      state: classified ? ("classified" as const) : ("unclassified" as const),
     },
   ];
 
@@ -71,7 +71,7 @@ const fixture = (ambiguous = false) => {
           direction: "out",
           search: null,
           account: null,
-          state: "unclassified",
+          state: classified ? "classified" : "unclassified",
         },
         bankData: {
           syncRecorded: true,
@@ -83,7 +83,11 @@ const fixture = (ambiguous = false) => {
         },
         moneyIn: { count: 0, sum: 0 },
         moneyOut: { count: rows.length, sum: 118 * rows.length },
-        byState: { unclassified: rows.length, classified: 0, confirmed: 0 },
+        byState: {
+          unclassified: classified ? 0 : rows.length,
+          classified: classified ? rows.length : 0,
+          confirmed: 0,
+        },
         groups: [],
         groupsOmitted: null,
         rows,
@@ -166,6 +170,67 @@ const request =
   "סווג באופן חד פעמי את החיוב של Adobe מ־12 בספטמבר 2026 בסך 118 ש״ח כהוצאות תוכנה בסטודיו נועה. אל תאשר אותו כהוצאה.";
 
 describe("Phase A classification", () => {
+  it("reclassifies an existing category with denial then fresh approval", async () => {
+    const f = fixture(false, true);
+
+    const message =
+      "בעסק סטודיו נועה שנה את הסיווג הקיים של התשלום ל-Adobe מ-12 בספטמבר 2026 בסך 118 ש״ח מציוד משרדי לתוכנה. הצג כרטיס אישור לפני ביצוע.";
+
+    const first = await runAgentEvalStep(
+      f.scenario,
+      { message },
+      startAgentEvalConversation(f.scenario)
+    );
+
+    const card = first.run.approvalRequests.find(
+      (item) => item.toolName === "classifyTransaction"
+    );
+
+    expect(
+      first.run.toolCalls.some(
+        (call) => call.name === "prepareTransactionClassification"
+      )
+    ).toBe(true);
+    expect(card).toBeDefined();
+    expect(f.applied()).toBe(0);
+
+    if (!card) {
+      throw new Error("Missing reclassification card");
+    }
+
+    const denied = await runAgentEvalStep(
+      f.scenario,
+      { decisions: [{ approvalId: card.approvalId, approved: false }] },
+      first.conversation
+    );
+
+    expect(f.applied()).toBe(0);
+
+    const retry = await runAgentEvalStep(
+      f.scenario,
+      { message: "כעת בקש שוב אישור לשינוי הסיווג הזה לתוכנה." },
+      denied.conversation
+    );
+
+    const fresh = retry.run.approvalRequests.find(
+      (item) => item.toolName === "classifyTransaction"
+    );
+
+    expect(fresh).toBeDefined();
+    expect(f.applied()).toBe(0);
+
+    if (!fresh) {
+      throw new Error("Missing fresh reclassification card");
+    }
+
+    expect(fresh.approvalId).not.toBe(card.approvalId);
+    await runAgentEvalStep(
+      f.scenario,
+      { decisions: [{ approvalId: fresh.approvalId, approved: true }] },
+      retry.conversation
+    );
+    expect(f.applied()).toBe(1);
+  });
   it("clear request waits for approval, then executes the exact proposal", async () => {
     const f = fixture();
 
