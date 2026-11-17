@@ -1,6 +1,6 @@
 # Assistant Phase A one-time transaction classification
 
-- Status: WORKER_COMPLETE
+- Status: IN_PROGRESS — the 2026-11-17 traced rerun found an open continuation/card issue
 - Task manager and worker: Codex, same agent; no delegation
 - Worktree: existing TaxMyself-new-ai-assistant feature worktree
 - Branch: new-ai-assistant
@@ -175,3 +175,92 @@ Documentation updated: central tools plan, agent GUIDE, agent/edge/transaction
 topic instructions and demo operation note. Security impact is a new scoped
 approval boundary; accounting logic is reused unchanged. Multi-instance signing
 and disposable-database concurrency testing remain rollout limitations.
+
+## Langfuse verification rerun on 2026-11-17
+
+User requested checking the Docker/Langfuse stack, rerunning exactly Phase A's
+evals and verifying actual trace ingestion, with no merge or push. No executable
+source, prompts, tests, environment files or thresholds changed in this follow-up.
+
+### Environment and exact command
+
+- Tested revision: 9ed04612c5c430eb2fff49ead3b2f2544b1bafe4, tracked source clean.
+  The same four pre-existing untracked files were preserved.
+- Existing launcher: .\start-ai.cmd --check -> Docker READY, Langfuse :3100 READY.
+  docker ps confirmed the web/worker and healthy Postgres/ClickHouse/Redis/Minio.
+- Local health API: HTTP 200, Langfuse 4.76.0. Authenticated projects API:
+  HTTP 200, project keepintax-agent-dev in the local KeepInTax organization.
+- This v4 events_only deployment returns 404 for legacy /api/public/traces.
+  Used the instance's own /api/openapi.yaml and supported
+  /api/public/v2/observations API instead. Credentials stayed in environment
+  memory and were never printed. SDK 6 already exports through OTLP; no
+  dependency upgrade, configuration-file edit or container restart was needed.
+- Process-only overrides: LANGFUSE_SAMPLE_RATE=1, LANGFUSE_ALLOW_REMOTE=false,
+  OTEL_SDK_DISABLED=true. The latter disables the separate Effect/Grafana
+  pipeline; local Langfuse's explicit OTEL provider still ingested successfully.
+- From backend/agent:
+
+      npm run eval -- --variant phase-a-langfuse-20261117 --reps 1 tests/evals/agent/interaction/classification.eval.ts
+
+- Run fingerprint: 168dd09ab8d55327; dataset 4a41d3927b03a8f7.
+- Manifest creation/model phase: 2026-11-17T21:17:16.584Z (23:17 Israel).
+  Runner metadata collection took about three minutes before the model phase;
+  its 99 enumerated dataset slots do not mean 99 paid cases ran.
+- Four cases, one repetition each, seven model answer turns. Model gpt-6-luna;
+  no reruns or wording judges. File duration 62.315 seconds, Vitest 73.30 seconds.
+  Inspection through verified ingestion took about eight minutes total.
+
+### Results and unresolved finding
+
+| Case | Result | Model answer turns |
+| --- | --- | --- |
+| Clear classification request, then approval | PASS | 2 |
+| Denial executes nothing | PASS | 2 |
+| Ambiguous transaction asks before preparing | PASS | 1 |
+| Continue a transaction listing with classification | FAIL | 2 |
+
+The failed case read transactions and categories and called
+prepareTransactionClassification, but never called classifyTransaction.
+Consequently approvals was empty. Its final text nevertheless told the user
+to approve in the card, even though no card existed. This is a real behavior
+gap, not an exporter failure or a wording-judge disagreement. The test failure
+and trace are retained; no assertion was weakened and no second attempt was
+launched to obtain a pass. The runner exited 0 while the recorded result was
+3 passed / 1 failed; that exit code is not reported as an all-pass run.
+
+Open acceptance gap: a typed classification continuation must reach the
+approval tool, and must not claim a card is displayed when it only prepared a
+proposal. This verification request did not include implementing that fix.
+Earlier passing results remain historical evidence, not proof that this rerun
+passed all four cases.
+
+### Verified ingestion rather than an exporter assumption
+
+Before execution the unique run tag had zero observations. After the final
+flush, authenticated API reads found exactly seven trace IDs covering all four
+case sessions and all seven model answer turns, with 73 observations tagged
+phase-a-langfuse-20261117 in environment eval. Both the root and child observation
+queries were checked, including gpt-6-luna generations and queryTransactions,
+listCategories, prepareTransactionClassification and classifyTransaction spans.
+Root input/output presence was inspected without printing their full contents.
+Zero ERROR-level observations were reported; this is telemetry status, not a
+replacement for the failed behavioral assertion above.
+
+| Case | Ingested trace IDs |
+| --- | --- |
+| Clear request / approval | 52eb0b383c40e0c8c6f98b50edbe5a2e; 1292075d91d823551a319332205c2f57 |
+| Denial | 8d73d2ffaff7a5490e44a859632b3585; 5d1c2f3b5cdc82f31667a02fbb3c37e3 |
+| Ambiguity | 5ed7bafadcd2130a8d911c1f60fc0463 |
+| Continuation (failed) | 6d146bac05109a185b253a669119a19e; c7fa45f38087b49e5eb36633b7bb2ed3 |
+
+Evidence: backend/agent/.eval/agent/runs/phase-a-langfuse-20261117 contains
+manifest.json, results.jsonl, attempts.jsonl and summary.json; the runner also
+updated its local .eval/agent/report/index.html. The chat's local deliverables
+folder contains phase-a-langfuse-preflight.json and
+phase-a-langfuse-trace-proof.json with sanitized authenticated API evidence.
+These generated artifacts and credentials are not committed.
+
+Only this task record is changed by the follow-up documentation commit.
+No app servers were started/stopped; no shared application database, demo data,
+schema, main branch, remote branch or production service was changed. No merge,
+push, deployment, broad test suite or extra paid repetition was performed.
