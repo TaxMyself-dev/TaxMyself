@@ -52,6 +52,7 @@ export class GmailSyncCronService {
    * throws — each user's outcome is contained by runIncrementalSync.
    */
   async processEligibleSyncs(): Promise<GmailNightlySyncSummary> {
+    if (process.env.COMPOSIO_EMAIL_ENABLED !== 'true') return { eligible: 0, succeeded: 0, skipped: 0, errors: 0 };
     const candidates = await this.userIntegrationsService.findGmailSyncCandidates();
     const summary: GmailNightlySyncSummary = {
       eligible: candidates.length,

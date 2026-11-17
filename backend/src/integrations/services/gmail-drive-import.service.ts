@@ -163,7 +163,10 @@ export class GmailDriveImportService {
         messagesFailed: 0,
         error: null,
       };
+      let claimed = false;
       try {
+        await this.userIntegrationsService.markSyncRunning(integration.id);
+        claimed = true;
         const result = await this.importFromGmail(integration, {
           businessNumber: options.businessNumber,
           query: options.query,
@@ -176,12 +179,15 @@ export class GmailDriveImportService {
         account.attachmentsFound = result.attachmentsFound;
         account.messagesFound = result.messagesFound;
         account.messagesFailed = result.messagesFailed;
+        if (result.messagesFailed) account.error = 'Some messages could not be read; retry required';
       } catch (error: any) {
         account.error = error?.message ?? String(error);
         this.logger.error(
           `Gmail import-all: account ${integration.accountEmail ?? 'unknown'} ` +
             `(integration ${integration.id}) failed: ${account.error}`,
         );
+      } finally {
+        if (claimed) await this.userIntegrationsService.finishManualSync(integration.id, !!account.error);
       }
 
       aggregate.totalImported += account.imported;

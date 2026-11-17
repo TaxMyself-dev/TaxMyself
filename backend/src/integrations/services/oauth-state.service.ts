@@ -84,4 +84,12 @@ export class OauthStateService {
       this.logger.warn(`Expired oauth_states cleanup failed: ${(error as Error)?.message ?? error}`);
     }
   }
+
+  async bindConnection(state: string, connectedAccountId: string, targetIntegrationId?: number): Promise<void> {
+    const result = await this.oauthStateRepo.update({ state }, {
+      connectedAccountId,
+      targetIntegrationId: targetIntegrationId ?? null,
+    });
+    if (result.affected !== 1) throw new BadRequestException('Invalid connection attempt');
+  }
 }

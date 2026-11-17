@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "skipLibCheck": true, "types": ["jasmine", "node"] },
+  "include": [
+    "src/app/services/integrations.service.spec.ts",
+    "src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

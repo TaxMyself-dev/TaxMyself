@@ -470,9 +470,9 @@ export class SettingsPage implements OnInit {
 
     if (googleIntegration === 'success') {
       this.messageService.add({
-        severity: 'success',
-        summary: 'חשבון Google חובר',
-        detail: 'חשבון ה-Gmail חובר בהצלחה.',
+        severity: 'info',
+        summary: 'חזרה מחיבור Gmail',
+        detail: 'מצב החשבונות מתעדכן לפי החיבור שאומת בשרת.',
         life: 4000,
         key: 'br',
       });
@@ -500,8 +500,8 @@ export class SettingsPage implements OnInit {
     switch (reason) {
       case 'access_denied':
         return 'החיבור בוטל. לא ניתנה הרשאה לחשבון Google.';
-      case 'no_refresh_token':
-        return 'החיבור נכשל: לא התקבלה הרשאה מתמשכת מ-Google. נסה שוב.';
+      case 'account_conflict':
+        return 'החשבון מחובר למשתמש אחר, נבחרה תיבה שונה או שמתבצע סנכרון. בדוק ונסה שוב.';
       case 'missing_code':
       case 'callback_failed':
         return 'חיבור חשבון Google נכשל. נסה שוב.';

@@ -15,6 +15,7 @@ export interface GmailAccountSyncStatus {
   /** ACTIVE או EXPIRED בלבד — חשבונות שנותקו (REVOKED) לא מוחזרים. */
   status: GmailIntegrationStatus;
   connected: boolean;
+  remoteDisconnectPending: boolean;
   initialImportCompleted: boolean;
   initialImportCompletedAt: string | null;
   lastSuccessfulSyncAt: string | null;
@@ -61,8 +62,10 @@ export class IntegrationsService {
   constructor(private http: HttpClient) {}
 
   /** כתובת מסך ההסכמה של Google — הפרונט מנווט אליה כדי לחבר חשבון. */
-  getGoogleConnectUrl(): Observable<{ url: string }> {
-    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`);
+  getGoogleConnectUrl(integrationId?: number): Observable<{ url: string }> {
+    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`, {
+      params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
+    });
   }
 
   /** מצב הסנכרון של Gmail עבור המשתמש הנוכחי (משמש גם ל-polling בזמן ריצה). */

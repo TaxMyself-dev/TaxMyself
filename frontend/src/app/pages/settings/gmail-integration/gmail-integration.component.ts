@@ -8,6 +8,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { GenericService } from 'src/app/services/generic.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
 import {
   GmailAccountSyncStatus,
@@ -39,6 +40,7 @@ import { inputsSize } from 'src/app/shared/enums';
   ],
 })
 export class GmailIntegrationComponent implements OnInit {
+  readonly authService = inject(AuthService);
   readonly syncState = inject(GmailSyncStateService);
   private readonly integrationsService = inject(IntegrationsService);
   private readonly messageService = inject(MessageService);
@@ -80,7 +82,7 @@ export class GmailIntegrationComponent implements OnInit {
 
   ngOnInit(): void {
     // רענון בכל כניסה למסך; אם ייבוא רץ — השירות ממשיך/מחדש את ה-polling.
-    this.syncState.refresh();
+    if (!this.authService.isViewingAsClient()) this.syncState.refresh();
   }
 
   isDisconnecting(integrationId: number): boolean {
@@ -107,10 +109,10 @@ export class GmailIntegrationComponent implements OnInit {
   }
 
   /** מפנה למסך ההסכמה של Google לחיבור חשבון (נוסף); החזרה נוחתת בהגדרות. */
-  connectGmail(): void {
-    if (this.connecting()) return;
+  connectGmail(integrationId?: number): void {
+    if (this.connecting() || this.authService.isViewingAsClient()) return;
     this.connecting.set(true);
-    this.integrationsService.getGoogleConnectUrl().subscribe({
+    this.integrationsService.getGoogleConnectUrl(integrationId).subscribe({
       next: ({ url }) => {
         window.location.href = url;
       },
@@ -258,6 +260,7 @@ export class GmailIntegrationComponent implements OnInit {
       },
       error: () => {
         this.setDisconnecting(integrationId, false);
+        this.syncState.refresh();
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',

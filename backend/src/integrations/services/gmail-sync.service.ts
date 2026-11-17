@@ -59,6 +59,7 @@ export interface GmailAccountSyncStatus {
   /** Integration status — ACTIVE or EXPIRED (REVOKED accounts are excluded). */
   status: IntegrationStatus;
   connected: boolean;
+  remoteDisconnectPending: boolean;
   initialImportCompleted: boolean;
   initialImportCompletedAt: string | null;
   lastSuccessfulSyncAt: string | null;
@@ -132,6 +133,7 @@ export class GmailSyncService {
         accountEmail: integration.accountEmail,
         status: integration.status,
         connected: integration.status === IntegrationStatus.ACTIVE,
+        remoteDisconnectPending: integration.remoteDisconnectPending === true,
         initialImportCompleted: !!integration.initialImportCompletedAt,
         initialImportCompletedAt: integration.initialImportCompletedAt?.toISOString() ?? null,
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
@@ -274,6 +276,8 @@ export class GmailSyncService {
         pdfStats,
       });
 
+      this.assertCompleteScan(result);
+
       // Cursor for the nightly sync. End of the imported range is the day
       // AFTER toDate at midnight; but when toDate is today, mail keeps
       // arriving after the scan — so never place the cursor past the moment
@@ -339,7 +343,11 @@ export class GmailSyncService {
 
     const skipStats = new SkippedAttachmentsAccumulator();
     const pdfStats = new PdfContentScanAccumulator();
-    await this.userIntegrationsService.markSyncRunning(integration.id);
+    try { await this.userIntegrationsService.markSyncRunning(integration.id); }
+    catch (error) {
+      if (error instanceof ConflictException) return { outcome: 'skipped', detail: 'sync claimed by another worker or inactive connection' };
+      return { outcome: 'error', detail: 'Unable to claim synchronization' };
+    }
     this.logRunStart(context);
     try {
       // Epoch seconds, not a YYYY/MM/DD date: after: with a date is
@@ -353,6 +361,8 @@ export class GmailSyncService {
         skipStats,
         pdfStats,
       });
+
+      this.assertCompleteScan(result);
 
       try {
         await this.userIntegrationsService.markSyncSuccess(integration.id, {
@@ -376,6 +386,12 @@ export class GmailSyncService {
   }
 
   // --- Run logging (see gmail-sync-logging.util.ts for the stage vocabulary) ----
+
+  private assertCompleteScan(result: GmailImportResult): void {
+    if (result.messagesFailed > 0) {
+      throw tagGmailSyncError(new Error('Some messages could not be read; synchronization will retry without advancing its cursor.'), 'LOAD_MESSAGE', true);
+    }
+  }
 
   private runPrefix(context: GmailSyncRunContext): string {
     return (

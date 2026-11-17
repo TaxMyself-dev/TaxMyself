@@ -25,14 +25,34 @@ import {
  * User identity via firebase_id (varchar) — no FK to the user table,
  * following the billing module convention.
  *
- * Tokens are stored AES-256-GCM encrypted (see integration-token-encryption.util.ts).
- * Plaintext tokens must never be persisted, logged, or returned by the API.
+ * Composio holds credentials. Legacy nullable token columns are retained for
+ * additive schema safety, but new connections always leave them null.
  */
 @Entity('user_integrations')
 @Index('ux_user_integrations_provider_account', ['provider', 'accountId'], { unique: true })
 @Index('ix_user_integrations_user_provider', ['firebaseId', 'provider'])
 @Index('ix_user_integrations_provider_status', ['provider', 'status'])
+@Index('ux_user_integrations_connected_account', ['connectedAccountId'], { unique: true })
 export class UserIntegration {
+  @Column({ name: 'connection_backend', type: 'varchar', length: 32, nullable: true })
+  connectionBackend: 'COMPOSIO' | null;
+
+  @Column({ name: 'connected_account_id', type: 'varchar', length: 255, nullable: true })
+  connectedAccountId: string | null;
+
+  @Column({ name: 'connection_environment', type: 'varchar', length: 16, nullable: true })
+  connectionEnvironment: string | null;
+
+  @Column({ name: 'connection_verified_at', type: 'datetime', nullable: true })
+  connectionVerifiedAt: Date | null;
+
+  @Column({ name: 'remote_disconnect_pending', type: 'boolean', default: false })
+  remoteDisconnectPending: boolean;
+
+  /** Superseded managed grants retained only until remote cleanup succeeds. */
+  @Column({ name: 'retired_connected_account_ids', type: 'json', nullable: true })
+  retiredConnectedAccountIds: string[] | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -55,13 +75,12 @@ export class UserIntegration {
   accountEmail: string | null;
 
   /**
-   * AES-256-GCM encrypted refresh token. Encrypt/decrypt only via the service.
-   * Null after disconnect: the row is kept (status REVOKED) but tokens are cleared.
+   * Legacy column; new managed connections never store a refresh token.
    */
   @Column({ name: 'refresh_token', type: 'text', nullable: true, default: null })
   refreshToken: string | null;
 
-  /** AES-256-GCM encrypted short-lived access token. Optional cache; may be null. */
+  /** Legacy nullable cache; unused by managed connections. */
   @Column({ name: 'access_token', type: 'text', nullable: true, default: null })
   accessToken: string | null;
 

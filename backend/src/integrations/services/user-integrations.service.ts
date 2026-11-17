@@ -12,10 +12,6 @@ import {
   IntegrationStatus,
   IntegrationSyncStatus,
 } from '../enums/integrations.enums';
-import {
-  decryptIntegrationToken,
-  encryptIntegrationToken,
-} from '../utils/integration-token-encryption.util';
 
 export interface UpsertIntegrationInput {
   firebaseId: string;
@@ -26,10 +22,8 @@ export interface UpsertIntegrationInput {
    * UNIQUE(provider, accountId).
    */
   accountId: string;
-  /** Plaintext refresh token — encrypted here before persisting. */
-  refreshToken: string;
-  /** Plaintext access token — encrypted here before persisting. */
-  accessToken?: string | null;
+  connectedAccountId: string;
+  connectionEnvironment: string;
   accountEmail?: string | null;
   scopes?: string | null;
   expiresAt?: Date | null;
@@ -41,8 +35,8 @@ export interface UpsertIntegrationInput {
  *
  * Provider-agnostic by design: OAuth flows (Phase B) and provider APIs
  * (Gmail, Drive import — later phases) build on top of this service.
- * Tokens are encrypted/decrypted only at this boundary; callers never see
- * or pass ciphertext.
+ * Credentials remain in Composio. This service stores only account pointers
+ * and mailbox state; legacy token columns stay null.
  */
 @Injectable()
 export class UserIntegrationsService {
@@ -84,7 +78,10 @@ export class UserIntegrationsService {
     provider: IntegrationProvider,
   ): Promise<UserIntegration[]> {
     return this.userIntegrationRepo.find({
-      where: { firebaseId, provider, status: Not(IntegrationStatus.REVOKED) },
+      where: [
+        { firebaseId, provider, status: Not(IntegrationStatus.REVOKED) },
+        { firebaseId, provider, remoteDisconnectPending: true },
+      ],
       order: { id: 'ASC' },
     });
   }
@@ -131,22 +128,25 @@ export class UserIntegrationsService {
    * accountId) so a single user can hold many accounts of the same provider.
    *
    * - No existing row → create a new integration for this user (ACTIVE).
-   * - Existing row owned by the SAME user → refresh tokens/scopes/expiry and
+   * - Existing row owned by the SAME user → replace the managed connection and
    *   set ACTIVE; sync state (cursor, initial-import) is PRESERVED, because it
    *   belongs to this same mailbox.
    * - Existing row owned by ANOTHER user → reject: a Gmail account belongs to
    *   exactly one KeepInTax user globally.
    *
-   * Tokens are encrypted before persisting.
+   * Connection updates are conditional and do not overwrite sync state.
    */
   async upsertIntegration(input: UpsertIntegrationInput): Promise<UserIntegration> {
-    if (!input.accountId) {
+    if (!input.accountId || !input.connectedAccountId || !['dev', 'prod'].includes(input.connectionEnvironment)) {
       throw new ConflictException(
         `Cannot connect ${input.provider}: the provider returned no account id.`,
       );
     }
 
     const existing = await this.findByProviderAndAccountId(input.provider, input.accountId);
+    const previousConnectedAccountId = existing?.connectedAccountId ?? null;
+
+    if (existing?.remoteDisconnectPending) throw new ConflictException('Complete the pending disconnection first');
 
     if (existing && existing.firebaseId !== input.firebaseId) {
       this.logger.warn(
@@ -166,16 +166,46 @@ export class UserIntegrationsService {
       });
 
     integration.accountId = input.accountId;
-    integration.refreshToken = encryptIntegrationToken(input.refreshToken);
-    integration.accessToken = input.accessToken
-      ? encryptIntegrationToken(input.accessToken)
-      : null;
+    if (existing?.lastSyncStatus === IntegrationSyncStatus.RUNNING) {
+      throw new ConflictException('Cannot replace a connection while synchronization is running');
+    }
+    integration.connectionBackend = 'COMPOSIO';
+    if (existing?.connectedAccountId && existing.connectedAccountId !== input.connectedAccountId) {
+      integration.retiredConnectedAccountIds = [...new Set([...(existing.retiredConnectedAccountIds || []), existing.connectedAccountId])];
+    }
+    integration.connectedAccountId = input.connectedAccountId;
+    integration.connectionEnvironment = input.connectionEnvironment;
+    integration.connectionVerifiedAt = new Date();
+    integration.remoteDisconnectPending = false;
+    integration.refreshToken = null;
+    integration.accessToken = null;
     integration.accountEmail = input.accountEmail ?? null;
     integration.scopes = input.scopes ?? null;
     integration.expiresAt = input.expiresAt ?? null;
     integration.status = IntegrationStatus.ACTIVE;
 
-    const saved = await this.userIntegrationRepo.save(integration);
+    let saved: UserIntegration;
+    try {
+      if (existing) {
+        const values = {
+          connectionBackend: integration.connectionBackend, connectedAccountId: integration.connectedAccountId,
+          connectionEnvironment: integration.connectionEnvironment, connectionVerifiedAt: integration.connectionVerifiedAt,
+          retiredConnectedAccountIds: integration.retiredConnectedAccountIds, remoteDisconnectPending: false,
+          accountEmail: integration.accountEmail, status: IntegrationStatus.ACTIVE,
+          refreshToken: null, accessToken: null, scopes: integration.scopes, expiresAt: integration.expiresAt,
+        };
+        const result = await this.userIntegrationRepo.createQueryBuilder().update(UserIntegration).set(values)
+          .where('id = :id AND firebase_id = :firebaseId AND connected_account_id <=> :previousConnection AND remote_disconnect_pending = 0 AND (last_sync_status IS NULL OR last_sync_status <> :running)', {
+            id: existing.id, firebaseId: input.firebaseId, running: IntegrationSyncStatus.RUNNING, previousConnection: previousConnectedAccountId,
+          }).execute();
+        if (result.affected !== 1) throw new ConflictException('Connection changed or a synchronization started; retry');
+        saved = integration;
+      } else saved = await this.userIntegrationRepo.save(integration);
+    }
+    catch (error) {
+      if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new ConflictException('Account already connected');
+      throw error;
+    }
     this.logger.log(
       `${existing ? 'Updated' : 'Created'} ${input.provider} integration ` +
         `${saved.id} for firebaseId=${input.firebaseId}`,
@@ -184,51 +214,14 @@ export class UserIntegrationsService {
   }
 
   /**
-   * Updates the cached access token (and optionally a rotated refresh token)
-   * after a token refresh. Tokens are encrypted before persisting.
-   */
-  async updateTokens(
-    integrationId: number,
-    tokens: { accessToken?: string | null; refreshToken?: string; expiresAt?: Date | null },
-  ): Promise<void> {
-    const update: Partial<UserIntegration> = {};
-    if (tokens.accessToken !== undefined) {
-      update.accessToken = tokens.accessToken
-        ? encryptIntegrationToken(tokens.accessToken)
-        : null;
-    }
-    if (tokens.refreshToken !== undefined) {
-      update.refreshToken = encryptIntegrationToken(tokens.refreshToken);
-    }
-    if (tokens.expiresAt !== undefined) {
-      update.expiresAt = tokens.expiresAt;
-    }
-    await this.userIntegrationRepo.update({ id: integrationId }, update);
-  }
-
-  /** Decrypted refresh token. Use immediately before a provider call; never log it. */
-  getDecryptedRefreshToken(integration: UserIntegration): string {
-    if (!integration.refreshToken) {
-      throw new Error(
-        `Integration ${integration.id} has no stored refresh token (status=${integration.status})`,
-      );
-    }
-    return decryptIntegrationToken(integration.refreshToken);
-  }
-
-  /** Decrypted cached access token, or null if none is stored. Never log it. */
-  getDecryptedAccessToken(integration: UserIntegration): string | null {
-    return integration.accessToken
-      ? decryptIntegrationToken(integration.accessToken)
-      : null;
-  }
-
-  /**
    * Marks the integration REVOKED (user disconnect) or EXPIRED (invalid_grant).
    * The row is kept for audit/history; a re-connect goes through upsertIntegration.
    */
   async updateStatus(integrationId: number, status: IntegrationStatus): Promise<void> {
-    await this.userIntegrationRepo.update({ id: integrationId }, { status });
+    await this.userIntegrationRepo.update(
+      status === IntegrationStatus.EXPIRED ? { id: integrationId, status: IntegrationStatus.ACTIVE } : { id: integrationId },
+      { status },
+    );
   }
 
   /**
@@ -256,14 +249,19 @@ export class UserIntegrationsService {
 
   /** A sync run (initial import or nightly) is starting now. */
   async markSyncRunning(integrationId: number): Promise<void> {
-    await this.userIntegrationRepo.update(
-      { id: integrationId },
-      {
+    const result = await this.userIntegrationRepo.createQueryBuilder()
+      .update(UserIntegration)
+      .set({
         lastSyncStatus: IntegrationSyncStatus.RUNNING,
         lastSyncStartedAt: new Date(),
         lastSyncError: null,
-      },
-    );
+      })
+      .where('id = :id AND status = :active AND (last_sync_status IS NULL OR last_sync_status <> :running OR last_sync_started_at < :stale)', {
+        id: integrationId, active: IntegrationStatus.ACTIVE, running: IntegrationSyncStatus.RUNNING,
+        stale: new Date(Date.now() - 6 * 60 * 60 * 1000),
+      })
+      .execute();
+    if (result.affected !== 1) throw new ConflictException('A synchronization is already running or the connection is inactive');
   }
 
   /**
@@ -315,8 +313,29 @@ export class UserIntegrationsService {
         accessToken: null,
         expiresAt: null,
         status: IntegrationStatus.REVOKED,
+        remoteDisconnectPending: true,
       },
     );
     this.logger.log(`Integration ${integrationId} disconnected (tokens cleared, status REVOKED)`);
+  }
+
+  findByConnectedAccountId(connectedAccountId: string, firebaseId: string): Promise<UserIntegration | null> {
+    return this.userIntegrationRepo.findOne({ where: { connectedAccountId, firebaseId } });
+  }
+
+  async finishRemoteDisconnect(integrationId: number): Promise<void> {
+    await this.userIntegrationRepo.update({ id: integrationId, status: IntegrationStatus.REVOKED }, { remoteDisconnectPending: false });
+  }
+
+  async expireConnectedAccount(connectedAccountId: string, firebaseId: string): Promise<void> {
+    await this.userIntegrationRepo.update({ connectedAccountId, firebaseId, status: IntegrationStatus.ACTIVE }, { status: IntegrationStatus.EXPIRED });
+  }
+
+  async clearRetiredConnections(integrationId: number, connectedAccountId: string): Promise<void> {
+    await this.userIntegrationRepo.update({ id: integrationId, connectedAccountId }, { retiredConnectedAccountIds: null });
+  }
+
+  async finishManualSync(integrationId: number, failed: boolean): Promise<void> {
+    await this.userIntegrationRepo.update({ id: integrationId }, { lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS, lastSyncError: failed ? 'Manual scan incomplete; retry required' : null });
   }
 }

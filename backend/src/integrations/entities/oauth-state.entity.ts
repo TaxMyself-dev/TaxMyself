@@ -17,6 +17,12 @@ import { IntegrationProvider } from '../enums/integrations.enums';
 @Index('ux_oauth_states_state', ['state'], { unique: true })
 @Index('ix_oauth_states_expires', ['expiresAt'])
 export class OauthState {
+  @Column({ name: 'connected_account_id', type: 'varchar', length: 255, nullable: true })
+  connectedAccountId: string | null;
+
+  @Column({ name: 'target_integration_id', type: 'int', nullable: true })
+  targetIntegrationId: number | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 

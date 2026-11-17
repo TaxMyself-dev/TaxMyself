@@ -17,7 +17,7 @@ describe('GmailSyncService — incremental sync targets the specific integration
     userIntegrationsService = {
       markSyncRunning: jest.fn(),
       markSyncSuccess: jest.fn(),
-      markSyncError: jest.fn(),
+      markSyncError: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -66,5 +66,29 @@ describe('GmailSyncService — incremental sync targets the specific integration
       55,
       expect.objectContaining({ lastSuccessfulSyncAt: expect.any(Date) }),
     );
+  });
+
+  it('does not advance the cursor when one message fails', async () => {
+    importService.importFromGmail.mockResolvedValue({ messagesFailed: 1 } as any);
+    const result = await service.runIncrementalSync({ id: 55, firebaseId: 'user-1', lastSuccessfulSyncAt: new Date('2026-06-01'), lastSyncStatus: null } as UserIntegration);
+    expect(result.outcome).toBe('error');
+    expect(userIntegrationsService.markSyncSuccess).not.toHaveBeenCalled();
+    expect(userIntegrationsService.markSyncError).toHaveBeenCalledWith(55, expect.any(String));
+  });
+
+  it('does not complete initial import after a partial scan', async () => {
+    importService.importFromGmail.mockResolvedValue({ messagesFailed: 1 } as any);
+    await (service as any).runInitialImport({ id: 55 }, { integrationId: 55, syncType: 'INITIAL' }, '2026-01-01', '2026-02-01');
+    expect(userIntegrationsService.markSyncSuccess).not.toHaveBeenCalled();
+    expect(userIntegrationsService.markSyncError).toHaveBeenCalled();
+  });
+
+  it('contains an atomic claim conflict without running or overwriting another run', async () => {
+    const { ConflictException } = await import('@nestjs/common');
+    userIntegrationsService.markSyncRunning.mockRejectedValue(new ConflictException());
+    const result = await service.runIncrementalSync({ id: 55, lastSuccessfulSyncAt: new Date('2026-06-01') } as UserIntegration);
+    expect(result.outcome).toBe('skipped');
+    expect(importService.importFromGmail).not.toHaveBeenCalled();
+    expect(userIntegrationsService.markSyncError).not.toHaveBeenCalled();
   });
 });

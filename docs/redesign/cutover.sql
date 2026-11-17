@@ -2927,3 +2927,19 @@ ALTER TABLE subscription
   ADD CONSTRAINT ck_subscription_frozen_price CHECK (frozen_monthly_price_agorot IS NULL OR frozen_monthly_price_agorot BETWEEN 0 AND 100000000),
   ADD CONSTRAINT ck_subscription_custom_price CHECK (custom_monthly_price_agorot IS NULL OR custom_monthly_price_agorot BETWEEN 0 AND 100000000),
   ADD CONSTRAINT ck_subscription_custom_window CHECK (custom_price_start_date IS NULL OR custom_price_end_date IS NULL OR custom_price_start_date <= custom_price_end_date);
+
+-- Composio managed Gmail: prepared only; not applied in this task.
+-- Composio managed Gmail schema. Review/apply manually to DEV only after approval.
+-- This file is prepared, not executed. Preserve legacy columns; no data deletion.
+ALTER TABLE user_integrations
+  ADD COLUMN connection_backend VARCHAR(32) NULL,
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN connection_environment VARCHAR(16) NULL,
+  ADD COLUMN connection_verified_at DATETIME NULL,
+  ADD COLUMN remote_disconnect_pending TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN retired_connected_account_ids JSON NULL,
+  ADD UNIQUE INDEX ux_user_integrations_connected_account (connected_account_id);
+
+ALTER TABLE oauth_states
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN target_integration_id INT NULL;

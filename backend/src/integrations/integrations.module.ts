@@ -14,7 +14,11 @@ import { OauthState } from './entities/oauth-state.entity';
 import { IntegrationsController } from './integrations.controller';
 import { UserIntegrationsService } from './services/user-integrations.service';
 import { OauthStateService } from './services/oauth-state.service';
-import { GoogleOauthService } from './services/google-oauth.service';
+import { EmailConnectionsService } from './services/email-connections.service';
+import { ComposioClientService } from './services/composio-client.service';
+import { EmailAttachmentDownloadService } from './services/email-attachment-download.service';
+import { EmailProvider } from './providers/email-provider';
+import { ComposioGmailProvider } from './providers/composio-gmail.provider';
 import { GmailReaderService } from './services/gmail-reader.service';
 import { GmailDriveImportService } from './services/gmail-drive-import.service';
 import { GmailSyncService } from './services/gmail-sync.service';
@@ -39,7 +43,7 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
     DocumentImportModule,
   ],
   controllers: [IntegrationsController],
-  providers: [FirebaseAuthGuard, UserIntegrationsService, OauthStateService, GoogleOauthService, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
-  exports: [UserIntegrationsService, GoogleOauthService, GmailReaderService, GmailDriveImportService, GmailSyncService],
+  providers: [FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, { provide: EmailProvider, useClass: ComposioGmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
+  exports: [UserIntegrationsService, GmailReaderService, GmailDriveImportService, GmailSyncService],
 })
 export class IntegrationsModule {}

@@ -1,0 +1,48 @@
+# Managed Gmail connections through Composio
+
+Status: local implementation; live OAuth, message contracts and download hosts remain unverified. Do not enable in production on the strength of mocked tests.
+
+## Behavior
+
+New Gmail connections use Composio Managed OAuth via the official `@composio/core` SDK (pinned to 0.29.0). The backend requires Node >=22.22.3; Docker stages now use 22.22.3. No users need a connection migration. The Google account's `sub` identifies one mailbox globally; one owner may hold several mailboxes. The local integration ID and sync history survive reconnects.
+
+`EmailConnectionsService` creates an expiring, single-use database state and binds it to the exact connected-account ID returned by `connectedAccounts.link`. The callback verifies the state, the account in Composio's user-scoped listing, Gmail toolkit, managed auth config, activation and the identity returned by `GMAIL_WHO_AM_I`. Reconnecting a selected row requires the same `sub`. No tokens are saved locally; legacy nullable token columns remain untouched structurally. Retired managed account IDs remain recorded until cleanup succeeds. A failed remote disconnect leaves local access revoked and a visible retry action. Removing an already absent remote connection is idempotent.
+
+Every mailbox endpoint is owner-only, including attachment reads. Accountant and admin impersonation cannot authorize access to a client's mailbox. Provider calls also require an ACTIVE local row owned by the user, the same environment and the explicitly selected connected account. Composio user IDs are environment-prefixed hashes of the internal owner ID. SDK results and errors containing signed URLs or credentials never leave the provider boundary.
+
+`EmailProvider` exposes only list, read and download. The SDK boundary allowlists four read tools and always supplies both the internal Composio user ID and connected-account ID. There is no arbitrary tool, proxy, write, delete-mail or send-mail interface for a future agent. Remote deletion of a managed connection is a separate explicit connection-management operation.
+
+Search uses `GMAIL_FETCH_EMAILS` with `ids_only=true`, explicit page size and opaque pagination. Full messages are fetched separately; the bulk detail path can skip failed messages. The adapter requires full MIME payload and preserves nested parts for the existing filename/subject/snippet, image/inline-asset and PDF-content filters. Composio response shapes do not escape the adapter. A downloaded file descriptor is resolved server-side, not returned to the browser/importer.
+
+Downloads require exact configured HTTPS hostnames, public resolved IP addresses, no redirects/proxy/credentials and a bounded 25 MiB stream with a 30-second deadline. Missing/invalid MIME or oversized files fail the scan rather than advancing past unread content. Large-file policy and actual supported provider limits must be validated before enabling live use. No debug attachment copies are written to disk.
+
+Initial, nightly and manual imports claim a database RUNNING marker atomically. Reconnect rejects live runs and uses a conditional connection-pointer update to avoid overwriting concurrent sync state. Existing six-hour stale-marker recovery remains. Any failed message prevents advancing the initial/nightly cursor. Manual scans do not advance it. SHA-256 per-owner/per-business dedup, Drive recovery/compensation and downstream processing stay in `DocumentImportService`.
+
+## Configuration and schema
+
+Start from `backend/.env.composio.example`, keeping secrets in ignored server configuration. Keep `COMPOSIO_EMAIL_ENABLED=false` until a live DEV test is expressly approved. Set separate DEV/PROD projects, keys, auth configs and callback URLs. `COMPOSIO_ENVIRONMENT=dev|prod` is mandatory; a non-production Node environment cannot select prod. The pinned Gmail toolkit version must be an explicit dated version, never latest. Validate the example version against the selected project before live use.
+
+`COMPOSIO_DOWNLOAD_ALLOWED_HOSTS` has no permissive default. Populate exact hostnames only after inspecting an approved DEV file descriptor. Do not store signed URLs in configuration or logs. OAuth callback and frontend-return URLs are server-configured, never accepted from browser redirect parameters.
+
+Prepare schema with `composio-email.sql` (also appended to the repository cutover script). It adds connection pointer/environment/verification, pending revocation, retired grants and connection-attempt fields. No script has been applied. Set `DISABLE_SYNCHRONIZE=true` before any application boot; do not allow automatic TypeORM schema changes. No row or token deletion/backfill is required.
+
+Google Drive remains direct: service-account folder administration and system-account file operations are separate from client Gmail. Keep `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, the system Drive refresh token and other Drive configuration. Firebase Google sign-in and unrelated OAuth integrations are unchanged.
+
+## Verification
+
+Backend: `npm test -- --runInBand --silent --testPathPattern='integrations|document-import'`, then `npm run build`.
+
+Frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/services/integrations.service.spec.ts --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`, then `npm run build -- --configuration production`.
+
+The focused frontend config isolates these specs from legacy unrelated specs and supplies the Node declarations used by existing transitive services. The existing frontend lock lacked encoding dependencies; only the two missing package entries were added. No shared node_modules are used. Local Node is 24.13.0; container image construction has not been tested.
+
+All provider tests use synthetic responses. No application boot, database connection, schema application, mailbox authorization, provider execution, main integration, push or deployment is part of local verification. Live approval remains required for: managed scopes, account activation/revocation, exact MIME/attachmentList shape, WHO_AM_I scope/sub, signed file URL lifetime/hosts/retention, Gmail epoch-date semantics, quota and cost. Interrupted/rejected OAuth flows may leave unused provider-side grants; audit the DEV project's unused attempts during approved live verification. Outlook, agent-branch changes and user-facing filter-rule editing are out of scope.
+
+## Official sources
+
+- [Managed versus custom OAuth](https://docs.composio.dev/docs/authentication/custom-app-vs-managed-app)
+- [ConnectedAccounts TypeScript SDK](https://docs.composio.dev/reference/sdk-reference/typescript/connected-accounts)
+- [Tool execution and version pinning](https://docs.composio.dev/reference/sdk-reference/typescript/tools)
+- [Gmail tool catalog](https://docs.composio.dev/toolkits/gmail)
+
+Input/output contracts were also read directly through Composio MCP Search Tools and Get Tool Schemas; no mailbox tools were executed.

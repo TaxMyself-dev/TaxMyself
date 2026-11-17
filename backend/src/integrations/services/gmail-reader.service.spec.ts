@@ -1,4 +1,4 @@
-import { gmail_v1 } from 'googleapis';
+import { EmailProvider } from '../providers/email-provider';
 import {
   hebrewTextPdf,
   latinTextPdf,
@@ -36,7 +36,10 @@ const INTEGRATION = {
   id: 1,
   accountEmail: 'user@example.com',
   status: IntegrationStatus.ACTIVE,
-  refreshToken: 'encrypted',
+  connectionBackend: 'COMPOSIO',
+  connectedAccountId: 'ca-test',
+  connectionEnvironment: 'dev',
+  firebaseId: 'user-1',
   scopes: 'https://www.googleapis.com/auth/gmail.readonly',
 } as UserIntegration;
 
@@ -104,30 +107,16 @@ describe('GmailReaderService — attachment filtering', () => {
     parts: TestPart[],
     options: { subject?: string | null; snippet?: string | null } = {},
   ) {
-    attachmentsGet = jest.fn(async ({ id }: { id: string }) => {
-      const index = Number(id.replace('att-', ''));
-      return { data: { data: parts[index].content.toString('base64url') } };
+    attachmentsGet = jest.fn(async (_account, _messageId, attachmentId: string) => {
+      const index = Number(attachmentId.replace('att-', ''));
+      return parts[index].content;
     });
-
-    const gmail = {
-      users: {
-        messages: {
-          list: jest
-            .fn()
-            .mockResolvedValue({ data: { messages: [{ id: 'msg-1' }] } }),
-          get: jest.fn().mockResolvedValue({
-            data: buildMessage(
-              parts,
-              options.subject ?? 'Hello',
-              options.snippet ?? 'no signal',
-            ),
-          }),
-          attachments: { get: attachmentsGet },
-        },
-      },
-    } as unknown as gmail_v1.Gmail;
-
-    jest.spyOn(service as any, 'createGmailClient').mockResolvedValue(gmail);
+    const provider = {
+      listMessages: jest.fn().mockResolvedValue({ ids: ['msg-1'] }),
+      getMessage: jest.fn().mockResolvedValue(buildMessage(parts, options.subject ?? 'Hello', options.snippet ?? 'no signal')),
+      downloadAttachment: attachmentsGet,
+    } as EmailProvider;
+    service = new GmailReaderService({} as any, provider);
 
     const results = [];
     for await (const scan of service.scanMessages(INTEGRATION, {

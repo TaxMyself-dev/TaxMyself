@@ -1,5 +1,9 @@
+@if (authService.isViewingAsClient()) {
+  <p class="gmail-muted">חיבור לתיבת מייל וניהולה זמינים לבעל החשבון בלבד.</p>
+} @else {
 <div class="gmail-integration">
   <h3 class="subsection-title">חיבור Gmail לקליטת מסמכים</h3>
+  <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
   @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
@@ -29,7 +33,12 @@
           }
         </p>
 
-        @if (!account.connected) {
+        @if (account.remoteDisconnectPending) {
+          <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
+          <app-p-button [buttonText]="'נסה שוב לנתק'" [severity]="'danger'" [variant]="'outlined'"
+            [disabled]="isDisconnecting(account.id)" [isLoading]="isDisconnecting(account.id)"
+            (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+        } @else if (!account.connected) {
 
           <!-- הרשאה פגה / אבדה (EXPIRED) — יש לחבר מחדש -->
           <div class="gmail-error">
@@ -42,7 +51,7 @@
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
               [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
-              (onButtonClicked)="connectGmail()"></app-p-button>
+              (onButtonClicked)="connectGmail(account.id)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
               [isLoading]="isDisconnecting(account.id)"
@@ -195,7 +204,7 @@
                 ההרשאה פגה או בוטלה — לא ניתן למשוך מחשבון זה עד שיחובר מחדש.
               </span>
               <button type="button" class="gmail-link-button" [disabled]="connecting() || importing()"
-                (click)="connectGmail()">חבר מחדש</button>
+                (click)="connectGmail(account.id)">חבר מחדש</button>
             } @else if (!account.initialImportCompleted) {
               <span class="gmail-import-account-note">
                 <i class="pi pi-info-circle"></i>
@@ -218,3 +227,4 @@
     </div>
   </ng-template>
 </p-dialog>
+}

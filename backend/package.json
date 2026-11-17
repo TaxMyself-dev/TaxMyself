@@ -4,6 +4,7 @@
   "description": "",
   "author": "",
   "private": true,
+  "engines": { "node": ">=22.22.3" },
   "license": "UNLICENSED",
   "scripts": {
     "fetch:cities": "node scripts/fetch-cities.js",
@@ -32,6 +33,7 @@
   "dependencies": {
     "-": "^0.0.1",
     "@anthropic-ai/sdk": "^0.99.0",
+    "@composio/core": "0.29.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/cli": "^9.5.0",
     "@nestjs/common": "^10.3.7",

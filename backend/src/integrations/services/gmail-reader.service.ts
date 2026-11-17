@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { gmail_v1, google } from 'googleapis';
-import * as fs from 'fs';
-import * as path from 'path';
+import { EmailAccountContext, EmailPart, EmailProvider } from '../providers/email-provider';
+import { EmailProviderError } from '../providers/email-provider.error';
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationStatus } from '../enums/integrations.enums';
 import { matchesAccountingDocumentKeyword } from '../utils/accounting-document-keywords.util';
@@ -14,10 +13,8 @@ import {
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
 import { extractPdfText, PdfTextExtractionOutcome } from '../utils/pdf-text-extraction.util';
-import { GoogleOauthService } from './google-oauth.service';
-import { UserIntegrationsService } from './user-integrations.service';
 
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+import { UserIntegrationsService } from './user-integrations.service';
 
 /**
  * Default Gmail search when the caller does not pass one. Deliberately broad:
@@ -47,9 +44,6 @@ const MAX_MAX_RESULTS = 25;
 
 /** messages.list page size — 500 is the Gmail API maximum. */
 const LIST_PAGE_SIZE = 500;
-
-/** Backoff schedule for rate-limited/transient Gmail API failures. */
-const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 /** Guard against pathological/malicious MIME nesting. */
 const MAX_MIME_DEPTH = 20;
@@ -155,7 +149,7 @@ export class GmailReaderService {
 
   constructor(
     private readonly userIntegrationsService: UserIntegrationsService,
-    private readonly googleOauthService: GoogleOauthService,
+    private readonly emailProvider: EmailProvider,
   ) {}
 
   /**
@@ -185,7 +179,7 @@ export class GmailReaderService {
     } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
     this.assertUsableIntegration(integration);
-    const gmail = await this.createGmailClient(integration);
+    const account = this.accountContext(integration);
 
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
     const maxMessages = options.maxMessages;
@@ -197,27 +191,33 @@ export class GmailReaderService {
 
     let pageToken: string | undefined;
     let scanned = 0;
+    const seenPageTokens = new Set<string>();
     do {
       const remaining = maxMessages ? maxMessages - scanned : LIST_PAGE_SIZE;
       const page = await this.listMessagesPage(
-        gmail,
+        account,
         query,
         Math.min(LIST_PAGE_SIZE, remaining),
         pageToken,
       );
       pageToken = page.nextPageToken;
+      if (pageToken && seenPageTokens.has(pageToken)) throw new EmailProviderError('CONTRACT');
+      if (pageToken) seenPageTokens.add(pageToken);
 
       for (const messageId of page.ids) {
         scanned += 1;
         try {
           const collected = await this.collectMessageAttachments(
-            gmail,
+            account,
             messageId,
             options.skipStats,
             options.pdfStats,
           );
           yield { messageId, failed: false, ...collected };
         } catch (error: any) {
+          if (error instanceof EmailProviderError && error.category === 'AUTH') {
+            throw error;
+          }
           // One broken message must not fail the whole scan — contained,
           // counted (messagesFailed) and surfaced in the run's FINISH log.
           this.logger.warn(
@@ -278,10 +278,6 @@ export class GmailReaderService {
       result.attachmentsFound += scan.attachments.length;
       result.attachments.push(...scan.attachments);
 
-      // DEBUG ONLY — remove together with debugSaveToDisk() below.
-      for (const attachment of scan.attachments) {
-        await this.debugSaveToDisk(attachment.filename, attachment.content);
-      }
     }
 
     this.logger.debug(
@@ -299,128 +295,18 @@ export class GmailReaderService {
     return result;
   }
 
-  /** Rejects unusable integration states clearly before any Gmail call. */
   private assertUsableIntegration(integration: UserIntegration): void {
-    // All these states need the user to (re-)connect — retrying won't help.
-    if (integration.status !== IntegrationStatus.ACTIVE || !integration.refreshToken) {
-      throw tagGmailSyncError(
-        new BadRequestException(
-          `Google integration is ${integration.status} — reconnect the Google account.`,
-        ),
-        'LOAD_INTEGRATION',
-        false,
-      );
-    }
-    if (!integration.scopes?.includes(GMAIL_READONLY_SCOPE)) {
-      throw tagGmailSyncError(
-        new BadRequestException(
-          'The connected Google account did not grant Gmail read access. ' +
-            'Disconnect and reconnect the account, approving Gmail access.',
-        ),
-        'LOAD_INTEGRATION',
-        false,
-      );
+    if (integration.status !== IntegrationStatus.ACTIVE || integration.connectionBackend !== 'COMPOSIO' || !integration.connectedAccountId) {
+      throw tagGmailSyncError(new BadRequestException('Reconnect the Gmail account.'), 'LOAD_INTEGRATION', false);
     }
   }
 
-  /**
-   * Builds an authorized Gmail client. Forces a token refresh up front so an
-   * expired grant is detected here (integration marked EXPIRED) instead of
-   * surfacing as an opaque mid-scan failure. Refreshed access tokens are
-   * persisted back onto the integration as a cache.
-   */
-  private async createGmailClient(integration: UserIntegration): Promise<gmail_v1.Gmail> {
-    const refreshToken = this.userIntegrationsService.getDecryptedRefreshToken(integration);
-    const client = this.googleOauthService.createClientWithTokens(refreshToken);
-
-    try {
-      const { token } = await client.getAccessToken();
-      if (token) {
-        const expiryDate = (client.credentials.expiry_date as number | undefined) ?? null;
-        await this.userIntegrationsService.updateTokens(integration.id, {
-          accessToken: token,
-          expiresAt: expiryDate ? new Date(expiryDate) : null,
-        });
-      }
-    } catch (error: any) {
-      const reason = error?.response?.data?.error ?? error?.message ?? String(error);
-      this.logger.error(
-        `Google token refresh failed for integration ${integration.id}: ${reason}`,
-      );
-      if (String(reason).includes('invalid_grant')) {
-        // The refresh token is dead (revoked at Google / expired) — record it.
-        await this.userIntegrationsService.updateStatus(
-          integration.id,
-          IntegrationStatus.EXPIRED,
-        );
-        throw tagGmailSyncError(
-          new BadRequestException(
-            'Google authorization has expired or was revoked — reconnect the Google account.',
-          ),
-          'TOKEN_REFRESH',
-          false, // dead grant — only a user reconnect fixes it
-        );
-      }
-      throw tagGmailSyncError(
-        new BadRequestException(`Google token refresh failed: ${reason}`),
-        'TOKEN_REFRESH',
-      );
-    }
-
-    return google.gmail({ version: 'v1', auth: client });
+  private accountContext(integration: UserIntegration): EmailAccountContext {
+    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: integration.connectionEnvironment };
   }
 
-  /** One messages.list page. nextPageToken is undefined on the last page. */
-  private async listMessagesPage(
-    gmail: gmail_v1.Gmail,
-    query: string,
-    maxResults: number,
-    pageToken: string | undefined,
-  ): Promise<{ ids: string[]; nextPageToken?: string }> {
-    try {
-      const response = await this.withRetry(
-        () => gmail.users.messages.list({ userId: 'me', q: query, maxResults, pageToken }),
-        'messages.list',
-      );
-      return {
-        ids: (response.data.messages ?? [])
-          .map((m) => m.id)
-          .filter((id): id is string => !!id),
-        nextPageToken: response.data.nextPageToken ?? undefined,
-      };
-    } catch (error: any) {
-      const status = Number(error?.response?.status ?? error?.code);
-      const reason = error?.response?.data?.error?.message ?? error?.message ?? String(error);
-      this.logger.error(`Gmail messages.list failed: ${reason}`);
-      throw tagGmailSyncError(
-        new BadRequestException(`Gmail search failed: ${reason}`),
-        'SEARCH_MESSAGES',
-        // Rate limits / transient 5xx exhausted the backoff — a later run succeeds.
-        status === 429 || (status >= 500 && status < 600) ? true : undefined,
-      );
-    }
-  }
-
-  /**
-   * Retries rate-limited (429) and transient (5xx) Gmail API failures with
-   * exponential backoff. Long scans make hundreds of calls, so a burst limit
-   * hit must slow the scan down, not lose the message.
-   */
-  private async withRetry<T>(call: () => Promise<T>, label: string): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await call();
-      } catch (error: any) {
-        const status = Number(error?.response?.status ?? error?.code);
-        const retryable = status === 429 || (status >= 500 && status < 600);
-        if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw error;
-        this.logger.warn(
-          `Gmail ${label} returned ${status} — retry ${attempt + 1}/${RETRY_DELAYS_MS.length} ` +
-            `in ${RETRY_DELAYS_MS[attempt]}ms`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
-      }
-    }
+  private async listMessagesPage(account: EmailAccountContext, query: string, maxResults: number, pageToken?: string): Promise<{ ids: string[]; nextPageToken?: string }> {
+    return this.emailProvider.listMessages(account, query, maxResults, pageToken);
   }
 
   /**
@@ -428,7 +314,7 @@ export class GmailReaderService {
    * that look like receipt/invoice documents (see isLikelyReceiptAttachment).
    */
   private async collectMessageAttachments(
-    gmail: gmail_v1.Gmail,
+    account: EmailAccountContext,
     messageId: string,
     skipStats?: SkippedAttachmentsAccumulator,
     pdfStats?: PdfContentScanAccumulator,
@@ -438,17 +324,14 @@ export class GmailReaderService {
     skippedIrrelevant: number;
     matchedByPdfContent: number;
   }> {
-    const { data: message } = await this.withRetry(
-      () => gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' }),
-      'messages.get',
-    );
+    const message = await this.emailProvider.getMessage(account, messageId);
 
     const header = (name: string): string | null =>
       message.payload?.headers?.find((h) => h.name?.toLowerCase() === name)?.value ?? null;
 
-    const parts: gmail_v1.Schema$MessagePart[] = [];
+    const parts: EmailPart[] = [];
     let skippedWithoutFilename = 0;
-    const walk = (part: gmail_v1.Schema$MessagePart | undefined, depth: number): void => {
+    const walk = (part: EmailPart | undefined, depth: number): void => {
       if (!part || depth > MAX_MIME_DEPTH) return;
       const hasBody = !!part.body?.attachmentId || !!part.body?.data;
       if (hasBody && part.filename) {
@@ -503,7 +386,7 @@ export class GmailReaderService {
       // A PDF with no metadata signal is downloaded ONCE here and gets a
       // second chance from its own text further down — the bytes are needed
       // for the import anyway, so nothing is fetched twice.
-      const content = await this.downloadPartContent(gmail, messageId, part);
+      const content = await this.downloadPartContent(account, messageId, part);
       if (!content) continue;
 
       // Stage 2 — deterministic technical checks that need the actual bytes.
@@ -598,7 +481,7 @@ export class GmailReaderService {
    * substantial enough to be a scan/photo.
    */
   private isLikelyReceiptAttachment(
-    part: gmail_v1.Schema$MessagePart,
+    part: EmailPart,
   ): { ok: boolean; reason?: GmailSkipReason } {
     const filename = part.filename ?? '';
     const ext = this.getExtension(filename);
@@ -635,7 +518,7 @@ export class GmailReaderService {
    * (Content-Disposition: inline) or with mailer-generated names like
    * image001.png.
    */
-  private isInlineAsset(part: gmail_v1.Schema$MessagePart): boolean {
+  private isInlineAsset(part: EmailPart): boolean {
     const filename = (part.filename ?? '').toLowerCase();
     if (/^(image|inline|oleobject)\d+\.(png|jpe?g|gif|bmp)$/.test(filename)) {
       return true;
@@ -655,79 +538,13 @@ export class GmailReaderService {
     return content.subarray(0, 1024).includes('%PDF-');
   }
 
-  /**
-   * DEBUG ONLY — writes a downloaded attachment to backend/debug-imports/ so
-   * the files can be inspected manually. Preserves the original filename;
-   * name collisions get an " (1)", " (2)", ... suffix instead of overwriting.
-   * Never throws — a disk problem must not affect the Gmail scan. Delete this
-   * method and its single call site in fetchAttachments() to remove the feature.
-   */
-  private async debugSaveToDisk(filename: string, content: Buffer): Promise<void> {
-    try {
-      const dir = path.join(process.cwd(), 'debug-imports');
-      await fs.promises.mkdir(dir, { recursive: true });
-
-      // Keep only the basename and strip characters Windows rejects.
-      const safeName =
-        path.basename(filename).replace(/[\\/:*?"<>|]/g, '_').trim() || 'attachment';
-      const ext = path.extname(safeName);
-      const stem = safeName.slice(0, safeName.length - ext.length);
-
-      let target = path.join(dir, safeName);
-      for (let i = 1; fs.existsSync(target); i++) {
-        target = path.join(dir, `${stem} (${i})${ext}`);
-      }
-
-      await fs.promises.writeFile(target, content);
-      this.logger.debug(`Saved Gmail attachment: ${target}`);
-    } catch (error: any) {
-      this.logger.warn(
-        `DEBUG save of Gmail attachment "${filename}" failed: ${error?.message ?? error}`,
-      );
+  /** Inline bytes and provider downloads share the existing filtering pipeline. */
+  private async downloadPartContent(account: EmailAccountContext, messageId: string, part: EmailPart): Promise<Buffer> {
+    if (part.body?.data) return Buffer.from(part.body.data, 'base64url');
+    if (part.body?.attachmentId) {
+      return this.emailProvider.downloadAttachment(account, messageId, part.body.attachmentId, part.filename || 'attachment');
     }
-  }
-
-  /**
-   * Downloads a single attachment part. Small attachments arrive inline in
-   * body.data; larger ones require attachments.get. Gmail returns base64url
-   * either way. Returns null (and logs) on failure instead of throwing so one
-   * bad attachment doesn't sink the message.
-   */
-  private async downloadPartContent(
-    gmail: gmail_v1.Gmail,
-    messageId: string,
-    part: gmail_v1.Schema$MessagePart,
-  ): Promise<Buffer | null> {
-    try {
-      if (part.body?.data) {
-        return Buffer.from(part.body.data, 'base64url');
-      }
-      if (part.body?.attachmentId) {
-        const attachmentId = part.body.attachmentId;
-        const { data } = await this.withRetry(
-          () =>
-            gmail.users.messages.attachments.get({
-              userId: 'me',
-              messageId,
-              id: attachmentId,
-            }),
-          'attachments.get',
-        );
-        if (!data.data) {
-          this.logger.warn(`Attachment ${part.filename} on message ${messageId} returned no data`);
-          return null;
-        }
-        return Buffer.from(data.data, 'base64url');
-      }
-      return null;
-    } catch (error: any) {
-      // Contained per-attachment failure — the message's other files continue.
-      this.logger.warn(
-        `Gmail sync stage=DOWNLOAD_ATTACHMENT failed for "${part.filename}" ` +
-          `(message ${messageId}, attachmentId=${part.body?.attachmentId ?? 'inline'}): ` +
-          `${error?.response?.data?.error?.message ?? error?.message ?? error}`,
-      );
-      return null;
-    }
+    // A declared attachment without retrievable content is a failed message, not a skip.
+    throw new EmailProviderError('CONTRACT');
   }
 }
