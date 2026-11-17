@@ -363,3 +363,79 @@ No app servers were started or stopped. No application database, demo data,
 schema, production, dependencies or environment files changed. Only agent package
 runtime/tests and documentation changed, so unrelated Nest/Angular checks were
 not rerun. Existing untracked files were preserved. No main integration or push.
+
+## Cache/slim consistency root-cause fix — 2026-11-18
+
+User authorized tracing and fixing the source, tests and clearer block messages;
+no main integration or push. Continued new-ai-assistant from 3c54e4b7, preserving
+the same four pre-existing untracked files. No delegation.
+
+Acceptance: approving a payment updates slim and its display confirmation in the
+same transaction; fixture creation projects all final slim state into cache;
+existing local fixture is repaired without changing accounting/source records;
+blocked classification reports the actual reason without guessing.
+
+Root causes independently reviewed:
+- scripts/seed-assistant-qa.ts creates classified slim rows directly, including
+  marking pending/private Expense transfers confirmed, without mirroring cache.
+  Pending Expense approval is different from an untransferred bank transaction.
+- ReportReviewService.approveMatched and approveTxNoDoc created the Expense and
+  confirmed slim through one transaction manager but never confirmed the cache.
+  The transactions screen and agent read that cache; production provider refresh
+  normally overlays slim later, leaving an incorrect interval before refresh.
+
+Fixes: both real approval paths now update the owned cache confirmation and report
+period with the same manager as Expense/slim changes. Cache update errors propagate
+and abort the transaction; absent cache is valid for archived transactions. The
+fixture-specific helper projects final classification, recognition, equipment,
+percentages, reporting, confirmation and lock fields without changing source
+amounts/accounts. It is called on initial and completed additive seed runs; seed
+verification rejects mismatches. Dedicated repair CLI checks keepintax-dev,
+requires --apply, identifies only QA_EMAIL and locks records. No full seed/reset.
+
+Classification eligibility still enforces the same boundaries. The error now
+identifies transferred-to-Expense, report lock, absent account link or incoming
+payment separately. Agent recovery guidance preserves this reason and explains
+that confirmed does not certify the Expense's accounting approval.
+
+Local data repair and proof:
+- node -r ts-node/register -r tsconfig-paths/register scripts/repair-assistant-qa-cache.ts --apply
+- 25 existing display rows projected, among 32 demo cache rows. Confirmation
+  mismatches dropped from 23 to 0. No slim, Expense, journal or rule rows changed:
+  full ordered-row SHA256 comparisons for each table were identical before/after.
+- Read-only proof used the fixed demo email and a read-only SQL transaction.
+  Sanitized artifacts: chat deliverables/cache-consistency-before.json and
+  cache-consistency-after.json. No credentials or generated proof committed.
+
+Verification commands (backend unless specified):
+- npx jest --runInBand --testPathPattern='report-review|agent-classification.service|assistant-qa-cache'
+  10 suites, 70/70 passed. Includes actual approval method calls, both cache-write
+  failure paths, fixture projection/idempotence/account isolation, and slim-only
+  eligibility blocks with exact messages.
+- npm run build: passed on final runtime source.
+- npx jest --runInBand --testPathPattern='src/transactions/|reports.review-scope|assistant-qa.profile'
+  First checkpoint: 14 suites passed, one failed; 99 passed / 1 failed.
+  Reviewed failure: archive test double rejected the newly used cache repository,
+  not an accounting behavior failure. Added affected=0 cache support and assertions
+  preserving archive approval/period. No assertion removed or threshold weakened.
+- npx jest --runInBand src/transactions/pending-transaction-archive.spec.ts
+  Final affected rerun: 4/4 passed. Other 96 adjacent tests retained their passing
+  evidence; executable inputs unchanged. These are combined checkpoints, not a
+  claimed single full-backend run on the final commit.
+- backend/agent: npx vitest run --project unit tests/src/agent/core/tool-runtime tests/src/agent/tools/books
+  14 files, 92/92 passed; npm run build passed.
+- Added tool-error-wrapper regression afterwards; npx vitest run --project unit
+  tests/src/agent/core/tool-runtime/agent-tool-error-next-step.test.ts: 8/8 passed.
+  Reviewed/fixed its spacing lint; no executable source changed afterwards.
+- Agent npm run check: initial documentation formatting and later new-test spacing
+  issues were corrected; final result recorded below. Documentation normalization
+  was necessary for existing Phase A additions, with no prose removed.
+- git diff --check and direct diff review; docs reference existing code/commands.
+
+No paid evals, browser run, full fixture creation, provider/Firebase/Drive call,
+schema change, production operation or environment-file edit was needed. Live
+HTTP/LLM presentation was not retested. App servers were left running untouched;
+the rebuilt bundle and new Nest messages require backend restart to load.
+Main and remotes remain untouched. Local feature commit records this delivery.
+
+Final agent check: npm run check passed (341 files); git diff --check passed. Combined backend evidence covers 170 distinct passing tests across the focused and adjacent checkpoints; agent coverage is 92 passing tests plus the added wrapper regression verified in its 8-test file. No failing checks remain for this scope.

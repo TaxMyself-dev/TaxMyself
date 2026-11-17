@@ -868,6 +868,13 @@ export class ReportReviewService {
         { id: slim.id },
         { confirmed: true, vatReportingDate: slimPeriod as any },
       );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
+        { confirmed: true, vatReportingDate: slimPeriod as any },
+      );
 
       this.logger.log(
         `approveMatched: doc=${doc.id} + tx=${slim.id} → expense=${expense.id} (biz=${businessNumber})`,
@@ -1104,6 +1111,13 @@ export class ReportReviewService {
       );
       await manager.getRepository(SlimTransaction).update(
         { id: slim.id },
+        { confirmed: true, vatReportingDate: reportPeriod as any },
+      );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
         { confirmed: true, vatReportingDate: reportPeriod as any },
       );
 

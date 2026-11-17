@@ -27,6 +27,7 @@ import { Clients } from '../src/clients/clients.entity';
 import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from '../src/documents/extracted-document.entity';
 import { FullTransactionCache } from '../src/transactions/full-transaction-cache.entity';
 import { SlimTransaction } from '../src/transactions/slim-transaction.entity';
+import { assistantQaCacheOverlay, synchronizeAssistantQaCache } from '../src/demo-data/assistant-qa-cache';
 import { Source } from '../src/transactions/source.entity';
 import { Documents } from '../src/documents/documents.entity';
 import { DocPayments } from '../src/documents/doc-payments.entity';
@@ -198,11 +199,20 @@ async function main() {
         }
       }
     }
+    // Also runs on a completed fixture: additive reruns must repair its display
+    // without repeating documents, approvals or accounting work.
+    if (apply) await ds.transaction(m => synchronizeAssistantQaCache(m, uid));
     const expenses=await ds.getRepository(Expense).find({where:{userId:uid},order:{id:'ASC'}});
     const documents=await ds.getRepository(ExtractedDocument).find({where:{userId:user.index}});
     const issued=await ds.getRepository(Documents).find({where:[{issuerBusinessNumber:QA_MAIN},{issuerBusinessNumber:QA_SECOND}]});
     const caches=await ds.getRepository(FullTransactionCache).find({where:{userId:uid}});
     const slims=await ds.getRepository(SlimTransaction).find({where:{userId:uid}});
+    for (const slim of slims) {
+      const cache = caches.find(c => c.externalTransactionId === slim.externalTransactionId);
+      assert(cache, 'Classified transaction missing from demo cache');
+      for (const [key, value] of Object.entries(assistantQaCacheOverlay(slim)))
+        assert(JSON.stringify(cache[key]) === JSON.stringify(value), 'Cache/slim mismatch: ' + slim.externalTransactionId + ' / ' + key);
+    }
     assert(expenses.length===QA_EXPENSES.length,'Expense count mismatch');
     assert(documents.length===QA_EXPENSES.length+1,'Source document count mismatch');
     assert(issued.length===QA_SALES.length,'Issued document count mismatch');

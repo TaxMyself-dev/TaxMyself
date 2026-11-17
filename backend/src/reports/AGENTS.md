@@ -56,3 +56,5 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Review approval confirmation: approveMatched and approveTxNoDoc update both SlimTransaction and the owned FullTransactionCache confirmation/report period through the same transaction manager as Expense creation. Missing cache is allowed for archived transactions; cache write failures must abort the transaction.

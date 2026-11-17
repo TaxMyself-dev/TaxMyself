@@ -126,16 +126,20 @@ export class AgentClassificationService {
         'CLASSIFICATION_FORBIDDEN',
         'transaction belongs to another business',
       );
-    if (
-      !cache.billId ||
-      cache.confirmed ||
-      slim?.confirmed ||
-      cache.isLocked ||
-      slim?.isLocked
-    )
+    if (cache.confirmed || slim?.confirmed)
       fail(
         'CLASSIFICATION_BLOCKED',
-        'only linked, pending, unlocked transactions may be classified',
+        'This transaction has already been transferred to an expense (confirmed). Phase A only classifies transactions not yet transferred to expenses; this does not necessarily mean the expense itself is approved. Nothing changed.',
+      );
+    if (cache.isLocked || slim?.isLocked)
+      fail(
+        'CLASSIFICATION_BLOCKED',
+        'This transaction is locked by a submitted report. Its classification cannot be changed. Nothing changed.',
+      );
+    if (!cache.billId)
+      fail(
+        'CLASSIFICATION_BLOCKED',
+        'This transaction is not linked to a bank/card account. Link it to the correct account in KeepInTax before requesting classification. Nothing changed.',
       );
     if (Number(cache.amount) >= 0)
       fail(

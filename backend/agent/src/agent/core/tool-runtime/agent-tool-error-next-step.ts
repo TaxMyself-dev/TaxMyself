@@ -16,7 +16,7 @@ const agentToolErrorNextSteps = new Map([
   ],
   [
     "CLASSIFICATION_BLOCKED",
-    "This transaction cannot be classified in Phase A (confirmed, locked, unlinked, or not an outgoing payment). Explain the restriction and change nothing; never bypass a report lock.",
+    "Explain the specific reason in this error, not a list of possible causes. Confirmed means transferred to an expense, not necessarily approved in the books. Change nothing; never bypass a report lock.",
   ],
   [
     "CLASSIFICATION_FORBIDDEN",

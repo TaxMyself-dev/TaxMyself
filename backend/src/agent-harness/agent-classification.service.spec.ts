@@ -162,6 +162,31 @@ describe('agent one-time pending classification', () => {
       expect(f.write).not.toHaveBeenCalled();
     },
   );
+  it.each([
+    ['confirmed', 'transferred to an expense'],
+    ['isLocked', 'locked by a submitted report'],
+  ])(
+    'explains a slim-only %s block despite a pending cache',
+    async (field, reason) => {
+      const f = setup();
+      f.setSlim({ businessNumber: query.businessNumber, [field]: true });
+      await expect(f.service.prepare(owner, query)).rejects.toThrow(reason);
+      expect(f.write).not.toHaveBeenCalled();
+    },
+  );
+  it('explains missing account and incoming payment separately', async () => {
+    const f = setup();
+    f.cache.billId = null;
+    await expect(f.service.prepare(owner, query)).rejects.toThrow(
+      'not linked to a bank/card account',
+    );
+    f.cache.billId = 2;
+    f.cache.amount = 118;
+    await expect(f.service.prepare(owner, query)).rejects.toThrow(
+      'outgoing transactions only',
+    );
+    expect(f.write).not.toHaveBeenCalled();
+  });
   it('rejects another business and an ineffective/unmapped category', async () => {
     const f = setup();
     f.cache.businessNumber = 'other';

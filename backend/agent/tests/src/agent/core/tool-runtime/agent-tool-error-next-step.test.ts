@@ -56,6 +56,18 @@ const failure = async (name: string, message: string) => {
 };
 
 describe("agent tool error next step", () => {
+  it("keeps the exact classification block reason and explains confirmed correctly", async () => {
+    const reason =
+      "CLASSIFICATION_BLOCKED: This transaction has already been transferred to an expense (confirmed).";
+
+    const message = await failure("prepareTransactionClassification", reason);
+
+    assert.isTrue(message.startsWith(reason));
+    assert.include(message, "Explain the specific reason");
+    assert.include(message, "not necessarily approved in the books");
+    assert.notInclude(message, "confirmed, locked, unlinked");
+  });
+
   it("a rate-limited search says to wait and not retry", async () => {
     const message = await failure(
       "searchWeb",
