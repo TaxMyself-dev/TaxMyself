@@ -6,7 +6,7 @@
   "scripts": {
     "ng": "ng",
     "mobile": "ng serve --configuration mobile --host 0.0.0.0 --port 4200 -o",
-    "start": "ng serve -o",
+    "start": "ng serve --port 4202 -o",
     "start:billing": "ng serve --port 4200 -o",
     "build": "ng build",
     "build:dev": "ng build --configuration dev",
