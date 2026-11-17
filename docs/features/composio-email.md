@@ -38,6 +38,8 @@ Project key permissions must include Connected accounts Read + Write (link/list)
 
 With a replacement key the 2026-11-18 diagnostic reached ACTIVE managed OAuth and successfully executed identity verification once, but the selected mailbox had a disconnected historical DEV integration owned by a different user. The fresh technical diagnostic identity correctly failed local persistence. Existing revoked rows retain global mailbox ownership and history: use an authorized matching DEV owner context or a clean test mailbox; never delete/reassign the row or weaken ownership checks to force the diagnostic to pass. External connection success and local application activation are separate outcomes.
 
+Only when expressly authorized for that existing DEV owner, run the diagnostic with `--integration-id=<local-id>`. It uses the row's existing owner, requires the same Google identity and compares all sync/history fields after activation. It neither transfers ownership nor resets initial import/cursors. Expired attempts must restart with a fresh consent link; successful Google consent alone is not a completed local callback. Wait for the local page to report successful verification. The harness and OAuth state expire after ten minutes.
+
 Backend: `npm test -- --runInBand --silent --testPathPattern='integrations|document-import'`, then `npm run build`.
 
 Frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/services/integrations.service.spec.ts --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`, then `npm run build -- --configuration production`.

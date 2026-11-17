@@ -9,6 +9,10 @@ const { DataSource } = require('typeorm');
 const cfg = require('dotenv').parse(fs.readFileSync(path.join(__dirname, '../.env')));
 
 async function main() {
+  const args = process.argv.slice(2);
+  if (args.length > 1 || (args.length && !/^--integration-id=[1-9]\d*$/.test(args[0]))) throw Error('Only an explicit existing DEV integration ID is supported');
+  const targetIntegrationId = args.length ? Number(args[0].split('=')[1]) : undefined;
+  if (targetIntegrationId !== undefined && !Number.isSafeInteger(targetIntegrationId)) throw Error('Invalid integration ID');
   if (cfg.DB_DATABASE !== 'keepintax-dev' || cfg.COMPOSIO_ENVIRONMENT !== 'dev' || cfg.DISABLE_SYNCHRONIZE !== 'true') throw Error('DEV safety configuration required');
   if (!cfg.COMPOSIO_API_KEY?.trim() || !cfg.COMPOSIO_GMAIL_AUTH_CONFIG_ID?.trim()) throw Error('DEV Composio configuration missing');
   Object.assign(process.env, cfg, {
@@ -22,6 +26,7 @@ async function main() {
   const { OauthStateService } = require('../dist/integrations/services/oauth-state.service');
   const { UserIntegrationsService } = require('../dist/integrations/services/user-integrations.service');
   const { EmailConnectionsService } = require('../dist/integrations/services/email-connections.service');
+  require('@nestjs/common').Logger.overrideLogger(false);
   const composio = new ComposioClientService();
   const sdk = composio.client();
   const link = sdk.connectedAccounts.link.bind(sdk.connectedAccounts);
@@ -65,8 +70,20 @@ async function main() {
     const [identity] = await db.query('SELECT DATABASE() AS db');
     if (identity.db !== 'keepintax-dev') throw Error('Database identity mismatch');
   } catch (error) { await db.destroy(); throw error; }
-  const testUser = `composio-dev-connection-test-${randomUUID()}`;
   const integrations = new UserIntegrationsService(db.getRepository(UserIntegration));
+  let existing;
+  if (targetIntegrationId !== undefined) {
+    existing = await db.getRepository(UserIntegration).findOne({ where: { id: targetIntegrationId } });
+    if (!existing || existing.provider !== 'GOOGLE' || !existing.firebaseId || !existing.accountId || existing.lastSyncStatus === 'RUNNING' || existing.remoteDisconnectPending || existing.retiredConnectedAccountIds?.length) {
+      await db.destroy(); throw Error('Existing DEV integration unavailable for this connection-only diagnostic');
+    }
+  }
+  const testUser = existing?.firebaseId || `composio-dev-connection-test-${randomUUID()}`;
+  const history = row => JSON.stringify(Object.fromEntries([
+    'initialImportCompletedAt', 'initialImportFromDate', 'initialImportToDate',
+    'lastSyncStartedAt', 'lastSuccessfulSyncAt', 'lastSyncStatus', 'lastSyncError', 'createdAt',
+  ].map(key => [key, row[key]])));
+  const originalHistory = existing ? history(existing) : null;
   const connections = new EmailConnectionsService(composio, new OauthStateService(db.getRepository(OauthState)), integrations);
   let status = 'pending';
   let callbackInFlight = false;
@@ -85,10 +102,14 @@ async function main() {
     callbackInFlight = true;
     try {
       await connections.complete(url.searchParams.get('state') || '', url.searchParams.get('connected_account_id') || '', url.searchParams.get('status') || 'failed');
-      const rows = await integrations.findAllForUser(testUser);
-      if (rows.length !== 1 || rows[0].status !== 'ACTIVE' || rows[0].initialImportCompletedAt || rows[0].refreshToken || rows[0].accessToken) throw Error('Connection verification failed');
+      const rows = existing
+        ? [await integrations.findOwnedByIdOrThrow(targetIntegrationId, testUser)]
+        : await integrations.findAllForUser(testUser);
+      if (rows.length !== 1 || rows[0].status !== 'ACTIVE' || (!existing && rows[0].initialImportCompletedAt) || rows[0].refreshToken || rows[0].accessToken) throw Error('Connection verification failed');
+      const historyPreserved = !existing || (history(rows[0]) === originalHistory && rows[0].accountId === existing.accountId && rows[0].firebaseId === existing.firebaseId && rows[0].id === existing.id);
+      if (!historyPreserved) throw Error('Existing owner or history changed unexpectedly');
       status = 'connected';
-      console.log(JSON.stringify({ status, database: 'keepintax-dev', integrationId: rows[0].id, mailboxIdentityVerified: true, tokensStoredLocally: false, initialImportStarted: false, identityExecutions, messageToolsExecuted: 0 }));
+      console.log(JSON.stringify({ status, database: 'keepintax-dev', integrationId: rows[0].id, mailboxIdentityVerified: true, tokensStoredLocally: false, initialImportStarted: false, existingOwnerPreserved: !!existing, historyPreserved, identityExecutions, messageToolsExecuted: 0 }));
       response.setHeader('Content-Type', 'text/plain; charset=utf-8');
       response.end('DEV Gmail connection verified. No messages searched, read or imported. You can close this tab.');
     } catch (error) {
@@ -104,8 +125,8 @@ async function main() {
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4317, '127.0.0.1', resolve); });
     timer = setTimeout(() => { console.log(JSON.stringify({ status: 'diagnostic-expired' })); close(); }, 10 * 60 * 1000);
-    const result = await connections.connect(testUser);
-    console.log(JSON.stringify({ status: 'awaiting-user-consent', redirectUrl: result.url, callback: 'http://127.0.0.1:4317/integrations/google/callback', toolkitVersion: definition.version, database: 'keepintax-dev', technicalDevUser: true, schedulerStarted: false, messageToolsAllowed: false }));
+    const result = await connections.connect(testUser, targetIntegrationId);
+    console.log(JSON.stringify({ status: 'awaiting-user-consent', redirectUrl: result.url, callback: 'http://127.0.0.1:4317/integrations/google/callback', toolkitVersion: definition.version, database: 'keepintax-dev', technicalDevUser: !existing, existingIntegrationId: targetIntegrationId, schedulerStarted: false, messageToolsAllowed: false }));
   } catch (error) { await close(); throw error; }
 }
 main().catch(error => { console.error(JSON.stringify({ diagnosticFailed: true, safeError: error.category || error.code || error.name || 'unknown' })); process.exitCode = 1; });
