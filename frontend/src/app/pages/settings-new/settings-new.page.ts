@@ -59,6 +59,9 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   readonly personalEditing = signal(false);
   readonly categoriesActivated = signal(false);
   private savedPersonal: Record<string, unknown> | null = null;
+  private savedSpouse: Record<string, unknown> | null = null;
+  private spouseDraft = false;
+  private savedChild: { group: FormGroup; values: Record<string, unknown>; draft: boolean } | null = null;
   readonly spouseEditing = signal(false);
   readonly businessEditing = signal<number | null>(null);
   readonly childEditing = signal<number | null>(null);
@@ -195,6 +198,45 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     if (this.authService.isViewingAsClient() || !this.valid(this.personalFormGroup)) return;
     this.persistAccountForm(false);
   }
+  beginSpouse(): void {
+    if (this.savingSpouse()) return;
+    this.savedSpouse = structuredClone(this.spouseFormGroup.getRawValue());
+    this.spouseDraft = !this.hasSpouse();
+    this.spouseEditing.set(true);
+  }
+  cancelSpouse(): void {
+    if (this.savingSpouse()) return;
+    if (this.savedSpouse) this.spouseFormGroup.reset(this.savedSpouse);
+    if (this.spouseDraft) this.showSpouse.set(false);
+    this.savedSpouse = null;
+    this.spouseDraft = false;
+    this.spouseEditing.set(false);
+  }
+  beginChild(index: number, draft = false): void {
+    if (this.savingChildren()) return;
+    const group = this.childrenFormArray.at(index);
+    if (this.childEditing() === index && this.savedChild) return;
+    this.cancelChild();
+    const currentIndex = this.childrenFormArray.controls.indexOf(group);
+    if (currentIndex < 0) return;
+    this.savedChild = { group, values: structuredClone(group.getRawValue()), draft };
+    this.childEditing.set(currentIndex);
+  }
+  cancelChild(): void {
+    if (this.savingChildren()) return;
+    const saved = this.savedChild;
+    if (saved) {
+      const index = this.childrenFormArray.controls.indexOf(saved.group);
+      if (index >= 0) {
+        if (saved.draft) {
+          this.childrenFormArray.removeAt(index);
+          this.children.update(list => list.filter((_, i) => i !== index));
+        } else saved.group.reset(saved.values);
+      }
+    }
+    this.savedChild = null;
+    this.childEditing.set(null);
+  }
   saveSpouse(): void {
     if (this.authService.isViewingAsClient() || !this.valid(this.spouseFormGroup)) return;
     this.persistAccountForm(true);
@@ -253,12 +295,17 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
   addFamily(kind: 'spouse' | 'child'): void {
     this.familyMenuOpen.set(false);
-    if (kind === 'spouse') { this.showSpouse.set(true); this.spouseEditing.set(true); }
+    if (kind === 'spouse') {
+      if (this.savingSpouse()) return;
+      this.beginSpouse(); this.showSpouse.set(true);
+    }
     else {
+      if (this.savingChildren()) return;
+      this.cancelChild();
       this.addChild();
       const group = this.childrenFormArray.at(this.childrenFormArray.length - 1);
       Object.values(group.controls).forEach(control => { control.addValidators(Validators.required); control.updateValueAndValidity(); });
-      this.childEditing.set(this.childrenFormArray.length - 1);
+      this.beginChild(this.childrenFormArray.length - 1, true);
     }
   }
   hasSpouse(): boolean {

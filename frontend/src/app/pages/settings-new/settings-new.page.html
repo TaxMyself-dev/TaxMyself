@@ -66,8 +66,9 @@
                   @if (spouseEditing()) {
                     <button type="button" (click)="saveSpouse()">{{ savingSpouse() ? 'שומר...' : 'שמור' }}</button>
                     <button type="button" (click)="spouseFormGroup.reset()">נקה</button>
+                    <button type="button" (click)="cancelSpouse()">בטל</button>
                   }
-                  @else { <button type="button" (click)="spouseEditing.set(true)">ערוך</button> }
+                  @else { <button type="button" (click)="beginSpouse()">ערוך</button> }
                 </div>
               </fieldset>
             </article>
@@ -85,7 +86,8 @@
                   @if (childEditing() === i) {
                     <button type="button" (click)="saveFamilyChildren()">{{ savingChildren() ? 'שומר...' : 'שמור' }}</button>
                     <button type="button" (click)="group.reset()">נקה</button>
-                  } @else { <button type="button" (click)="childEditing.set(i)">ערוך</button> }
+                    <button type="button" (click)="cancelChild()">בטל</button>
+                  } @else { <button type="button" (click)="beginChild(i)">ערוך</button> }
 
                 </div>
               </fieldset>

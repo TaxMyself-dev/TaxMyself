@@ -149,3 +149,18 @@ Verification on final implementation:
 - `git diff --check` passed; diff of old settings/shared select against HEAD empty.
 - User's local start port, API environment and spouse heading remain outside commit.
 - No main integration or remote push.
+
+## Family Cancel (2026-11-18)
+
+Added Cancel to spouse and each child's edit actions in new settings only.
+Entry snapshots restore cleared/modified values and calendar dates, reset touched
+and dirty state, and close editing. Canceling a newly added relative discards its
+local draft without a server delete. Switching child editors first cancels the
+previous draft so the whole-family save cannot include an abandoned edit.
+Pending spouse/children saves block cancellation. Existing save APIs unchanged.
+
+Validation on final implementation:
+- `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
+- From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-new.page.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 16/16 passed.
+- `git diff --check`: passed; old settings diff empty. No full suite, production
+  rebuild or live account mutations performed for this focused change.

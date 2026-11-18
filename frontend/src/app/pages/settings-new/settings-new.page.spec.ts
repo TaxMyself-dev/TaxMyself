@@ -156,3 +156,45 @@ describe('cancel new personal settings edits', () => {
     expect(page.personalEditing()).toBeTrue();
   });
 });
+
+
+describe('cancel family edits', () => {
+  function pageWithFamily(): any {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    page.savingSpouse=signal(false);page.savingChildren=signal(false);
+    page.spouseEditing=signal(false);page.showSpouse=signal(false);page.childEditing=signal(null);
+    page.userData={spouseFName:'Saved spouse'};
+    page.spouseFormGroup=new FormGroup({spouseFName:new FormControl('Saved spouse'),spouseDateOfBirth:new FormControl(new Date(1990,1,2))});
+    page.children=signal([{index:1},{index:2}]);
+    page.childrenFormArray=new FormArray([
+      new FormGroup({childFName:new FormControl('First'),childDate:new FormControl(new Date(2020,2,3))}),
+      new FormGroup({childFName:new FormControl('Second')})]);
+    return page;
+  }
+  it('restores spouse values after clearing and exits edit mode', () => {
+    const page=pageWithFamily();page.beginSpouse();page.spouseFormGroup.reset();page.spouseFormGroup.markAllAsTouched();page.cancelSpouse();
+    expect(page.spouseFormGroup.value.spouseFName).toBe('Saved spouse');
+    expect(page.spouseFormGroup.value.spouseDateOfBirth).toEqual(new Date(1990,1,2));
+    expect(page.spouseFormGroup.untouched).toBeTrue();expect(page.spouseEditing()).toBeFalse();
+  });
+  it('restores one child including dates and cancels a prior edit when switching children', () => {
+    const page=pageWithFamily();page.beginChild(0);page.childrenFormArray.at(0).reset();page.beginChild(1);
+    expect(page.childrenFormArray.at(0).value.childFName).toBe('First');
+    expect(page.childrenFormArray.at(0).value.childDate).toEqual(new Date(2020,2,3));
+    page.childrenFormArray.at(1).reset();page.cancelChild();
+    expect(page.childrenFormArray.at(1).value.childFName).toBe('Second');
+    expect(page.childEditing()).toBeNull();
+  });
+  it('discards new family drafts without deleting saved relatives', () => {
+    const page=pageWithFamily();page.userData={};page.spouseFormGroup.reset();page.beginSpouse();page.showSpouse.set(true);page.cancelSpouse();
+    expect(page.hasSpouse()).toBeFalse();
+    page.childrenFormArray.push(new FormGroup({childFName:new FormControl('Draft')}));
+    page.children.update(list=>[...list,{}]);page.beginChild(2,true);page.cancelChild();
+    expect(page.childrenFormArray.length).toBe(2);expect(page.children().length).toBe(2);
+    expect(page.childrenFormArray.at(0).value.childFName).toBe('First');
+  });
+  it('blocks cancellation during pending saves', () => {
+    const page=pageWithFamily();page.beginSpouse();page.beginChild(0);page.savingSpouse.set(true);page.savingChildren.set(true);
+    page.cancelSpouse();page.cancelChild();expect(page.spouseEditing()).toBeTrue();expect(page.childEditing()).toBe(0);
+  });
+});
