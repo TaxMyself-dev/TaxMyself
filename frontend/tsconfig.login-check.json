@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.spec.json","include":["src/app/components/button/button.component.spec.ts","src/app/pages/login/login.page.spec.ts","src/**/*.d.ts"],"compilerOptions":{"skipLibCheck":true,"types":["jasmine","node"]}}

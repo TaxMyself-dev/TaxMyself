@@ -12,6 +12,7 @@ import {
 import { StartupService } from '../../services/startup.service';
 
 const DASHBOARD_ROUTE = '/my-account';
+const PAYMENT_STATUS_ROUTE = '/billing/payment-status';
 
 @Injectable({ providedIn: 'root' })
 export class BillingGuard {
@@ -20,7 +21,7 @@ export class BillingGuard {
   private readonly router = inject(Router);
 
   async canActivate(
-    _route: ActivatedRouteSnapshot,
+    route: ActivatedRouteSnapshot,
     state: RouterStateSnapshot,
   ): Promise<boolean | UrlTree> {
     // Never evaluate billing before auth initialization finished: /billing/me
@@ -38,6 +39,19 @@ export class BillingGuard {
     // Strip query params before comparing so /my-account?foo=bar is still allowed.
     const path = state.url.split('?')[0];
 
+    // The configured CardCom success URL is the dashboard. Intercept the
+    // provider return before MyAccountPage is created, preserving the provider
+    // identifiers for the dedicated resolution screen.
+    const returnedFromCardCom = path === DASHBOARD_ROUTE &&
+      ['ResponseCode', 'responsecode', 'Status', 'status', 'LowProfileCode', 'lowprofilecode',
+        'internalDealNumber', 'internaldealnumber']
+        .some(key => route.queryParamMap?.has(key));
+    if (returnedFromCardCom) {
+      return this.router.createUrlTree([PAYMENT_STATUS_ROUTE], {
+        queryParams: route.queryParams,
+      });
+    }
+
     // Billing state could not be verified (offline, backend down, 401).
     // Do NOT fail open — an unverified subscription must never unlock content.
     // Do NOT redirect to /login either: the Firebase session is still valid and
@@ -54,6 +68,15 @@ export class BillingGuard {
     // browser storage alone can never activate this override.
     if (this.billingStateService.hasBillingOverride()) {
       return true;
+    }
+
+    // A server-owned unresolved hosted checkout always owns navigation. This
+    // also recovers refresh, browser close/reopen and a later login without
+    // trusting sessionStorage as the source of truth.
+    if (billingState.pendingCheckout) {
+      return path === PAYMENT_STATUS_ROUTE
+        ? true
+        : this.router.createUrlTree([PAYMENT_STATUS_ROUTE]);
     }
 
     const status = this.billingStateService.effectiveStatus();

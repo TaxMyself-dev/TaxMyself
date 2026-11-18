@@ -5,6 +5,7 @@
   "include": [
     "src/app/components/generic-table/*.spec.ts",
     "src/app/components/table-row-actions-menu/*.spec.ts",
+    "src/app/pages/book-keeping/incomes/incomes-shaam-confirmation.spec.ts",
     "src/**/*.d.ts"
   ]
 }

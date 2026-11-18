@@ -4,6 +4,11 @@ Local `npm run start:billing` serves port 4200 and the development API targets b
 Open-banking trial enrollment presents concise card/charge/cancellation terms and the shared pricing card with a VAT-inclusive quote. Each eligible plan's CTA selects that plan and approves its displayed terms, then opens existing token-only card collection before Feezback. There is no checkbox. Server verification and the original trial-end billing boundary remain authoritative.
 The enrollment host owns vertical scrolling inside the app's overflow-hidden flex shell; its main content must not shrink, so the plan CTA and cancellation terms remain reachable on short screens.
 Standalone pricing/plans page where a user views available subscription plans and starts checkout for one.
+The plans page presents its header, plan grid and VAT note inside one centered,
+bordered surface. The responsive grid derives its columns from the number of
+available cards and centers incomplete rows, so two plans never occupy two
+positions of an otherwise three-column layout. At tablet/mobile widths it
+collapses to one centered column without changing checkout behavior.
 
 ## Key entities/files
 - `billing-plans.page.ts` — standalone `BillingPlansPage`; fetches plans, builds a display view-model (`PlanVM`) merging module-based access-control items and marketing "feature" flags, and starts checkout.
@@ -107,6 +112,22 @@ recovery, billing-state and admin-subscriptions spec includes.
   server-authoritative `canResume` flag. No second payment attempt or card-only
   action is offered while the reservation remains unresolved; legacy rows that
   lack a durable URL fail closed to concise support guidance.
+- `/billing/payment-status` owns every unresolved hosted-checkout return. It
+  polls the owner-scoped `GET billing/checkout/status`, stays off the dashboard
+  for pending/unknown/provider-unreachable results, and after 90 seconds changes
+  to explanatory delayed copy while continuing slower checks instead of leaving
+  an infinite loading button. It navigates home only after the backend reports
+  the canonical attempt `COMPLETED` and a refreshed billing state is no longer
+  payment-blocked. Provider-proven decline returns to the matching plans or debt
+  flow; manual review never offers another payment.
+- Plans and recovery load billing state before their own data. A durable
+  `pendingCheckout` redirects them to the status page, so direct navigation
+  cannot bypass the gate. Recovery's `pay()` also rejects pending state at the
+  method boundary, in addition to hiding the ordinary payment action.
+- The LowProfile id in the return URL/session storage is correlation help only.
+  Refresh, closed-browser re-entry and later login recover the canonical active
+  attempt from the server. Focused KT-113 tests are isolated by
+  `tsconfig.billing-checkout-status.spec.json`.
 
 ## Related topics
 - Backend `billing` module (`GET billing/plans`, `POST billing/checkout` — Cardcom integration).
@@ -126,3 +147,8 @@ Active and complimentary owners automatically enter the existing Feezback connec
 Referral owners see every active referral plan on the plans page, including the
 basic downgrade and banking upgrade, independent of whether a bank is connected.
 The server keeps public and referral catalogs separate and honors the selected plan.
+
+Admin custom-price support: initial zero-net checkout may return status APPLIED
+without a payment URL. The plans page refreshes billing state, clears checkout
+polling context and shows successful no-charge activation without redirecting.
+Unknown responses without a URL fail locally without navigation.

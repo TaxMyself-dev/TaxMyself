@@ -1,4 +1,4 @@
-import { Component, OnInit, DestroyRef, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, DestroyRef, HostListener, inject, signal, computed } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, AbstractControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/services/auth.service';
@@ -187,6 +187,45 @@ export class LoginPage implements OnInit {
   }
 
 
+  /** Background Enter submits credentials; focused controls keep their native action. */
+  @HostListener('document:keydown.enter', ['$event'])
+  onPageEnter(event: KeyboardEvent): void {
+    if (
+      event.defaultPrevented || event.repeat || event.isComposing ||
+      event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+      this.router.url.split(/[?#]/)[0] !== '/login' ||
+      !this.loginForm.valid || this.isLoading() || this.isLoadingStateResetPassword() ||
+      this.showModal() || this.mfaChallenge() || this.isVisibleDialogRegisterMessage || this.resetMode
+    ) {
+      return;
+    }
+
+    const target = event.target;
+    if (target instanceof Element && target.closest([
+      'input', 'textarea', 'select', 'button', 'a', 'summary', 'app-p-button',
+      '[contenteditable]', '[role="button"]', '[role="link"]', '[role="menuitem"]',
+      '[role="tab"]', '[role="checkbox"]', '[role="radio"]', '[role="switch"]',
+      '[role="textbox"]', '[role="combobox"]', '[role="option"]',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', '))) {
+      // In particular, inputs and the submit button already use ngSubmit.
+      return;
+    }
+    const dialogs = document.querySelectorAll<HTMLElement>(
+      '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], .custom-modal-backdrop',
+    );
+    // PrimeNG keeps an empty dialog host mounted even when its panel is closed.
+    if (Array.from(dialogs).some(dialog =>
+      getComputedStyle(dialog).visibility === 'visible' &&
+      Array.from(dialog.getClientRects()).some(rect => rect.width > 0 && rect.height > 0)
+    )) {
+      return;
+    }
+
+    event.preventDefault();
+    void this.login();
+  }
+
   /**
    * The loading state covers the WHOLE login: credential check, auth-state
    * propagation, profile fetch, businesses, and the routed entry into the app
@@ -197,7 +236,7 @@ export class LoginPage implements OnInit {
   async login(): Promise<void> {
     // A second click while the first login is still running would start a
     // parallel sign-in and a second navigation.
-    if (this.isLoading()) {
+    if (this.loginForm.invalid || this.isLoading()) {
       return;
     }
     if (this.blockIfOffline()) {

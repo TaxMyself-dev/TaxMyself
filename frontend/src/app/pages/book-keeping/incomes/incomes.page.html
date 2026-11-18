@@ -29,7 +29,27 @@
 
 </div>
 
-<!-- Allocation-number entry dialog (for PENDING_ALLOCATION rows) -->
+<!-- Allocation method choice (for PENDING_ALLOCATION rows). -->
+<p-dialog header="הפקת מספר הקצאה" [visible]="showAllocationMethodDialog()" [modal]="true" [rtl]="true"
+    [style]="{ width: '460px' }" (onHide)="cancelAllocationMethodDialog()" [closable]="true">
+    <div class="p-fluid">
+        @if (pendingFinalizeRow(); as row) {
+          <p style="margin: 0 0 1rem 0;">
+            כיצד ברצונך להפיק מספר הקצאה עבור מסמך מספר {{ row.docNumber }}?
+          </p>
+        }
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <app-p-button [buttonText]="'קבל מספר הקצאה מרשות המסים'" [buttonSize]="buttonSize.AUTO"
+                [buttonColor]="buttonColor.BLACK" (onButtonClicked)="chooseAutomaticAllocation()">
+            </app-p-button>
+            <app-p-button [buttonText]="'הפק מספר הקצאה באופן ידני'" [buttonSize]="buttonSize.AUTO"
+                [buttonColor]="buttonColor.WHITE" (onButtonClicked)="chooseManualAllocation()">
+            </app-p-button>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- Manual allocation-number entry dialog. -->
 <p-dialog header="הזנת מספר הקצאה" [visible]="showAllocationInputDialog()" [modal]="true" [rtl]="true"
     [style]="{ width: '460px' }" (onHide)="cancelAllocationInputDialog()" [closable]="true">
     <div class="p-fluid">

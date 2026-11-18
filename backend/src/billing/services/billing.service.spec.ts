@@ -15,7 +15,7 @@ import { ModuleName } from 'src/enum';
 
 describe('BillingService.getMyBillingState — professional-access overrides', () => {
   let service: BillingService;
-  let subscriptionRepo: { findOne: jest.Mock };
+  let subscriptionRepo: { findOne: jest.Mock; manager: any };
   let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; paymentBlockReason: jest.Mock; gracePeriodActive: jest.Mock };
   let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveSubscriptionDiscount: jest.Mock };
   let billingEventService: { findLatestPaymentResultEvent: jest.Mock; findLatestPaymentMethodUpdateResultEvent: jest.Mock };
@@ -37,7 +37,21 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
   };
 
   beforeEach(() => {
-    subscriptionRepo = { findOne: jest.fn().mockResolvedValue({ ...SUBSCRIPTION }) };
+    const attemptQuery = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    subscriptionRepo = {
+      findOne: jest.fn().mockResolvedValue({ ...SUBSCRIPTION }),
+      manager: {
+        getRepository: jest.fn().mockReturnValue({
+          createQueryBuilder: jest.fn().mockReturnValue(attemptQuery),
+        }),
+      },
+    };
     subscriptionAccessService = {
       resolveModulesAccess: jest.fn().mockReturnValue(['EXPENSES', 'ACCOUNTANT']),
       isTrialActive: jest.fn().mockReturnValue(false),
@@ -195,7 +209,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
   let planRepo: { find: jest.Mock; findOne: jest.Mock };
   let subscriptionRepo: { findOne: jest.Mock };
   let userRepo: { findOne: jest.Mock };
-  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveEffectivePlanPrice: jest.Mock };
+  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveMonthlyPrice: jest.Mock };
 
   const PUBLIC_PLANS = [
     { id: 1, slug: 'consumer-basic', displayOrder: 0, isPublic: true },
@@ -219,7 +233,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
     userRepo = { findOne: jest.fn().mockResolvedValue({ hasOpenBanking: false }) };
     pricingService = {
       resolveUserBillingBusinessType: jest.fn().mockResolvedValue('EXEMPT'),
-      resolveEffectivePlanPrice: jest.fn().mockReturnValue(0),
+      resolveMonthlyPrice: jest.fn().mockReturnValue({ baseAmountAgorot: 0 }),
     };
 
     service = new BillingService(

@@ -2701,3 +2701,22 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
 - No backend, schema, data, report, tax-law, production, or deployment change.
   Focused TypeScript validation and Karma tests (5/5) passed, and the Angular
   production build passed with the existing budget/CommonJS warnings.
+
+## 2026-11-15 — Approved non-AI local main integration
+
+- Integrated admin subscription pricing, redesigned settings, browser update
+  notification and guarded background Enter login with current local/remote
+  main. Preserved current hosted-checkout recovery and multi-period debt logic.
+- Subscription-pricing DDL is retained as the approved additive manual section
+  in cutover.sql. Its dev application was previously recorded by the feature;
+  no SQL, database access, production operation, provider call or deployment ran
+  during integration. AI/demo, legal consent, WhatsApp support and PDF timing
+  branches stay excluded; the old PDF renderer experiment is not included.
+- Backend: 51 suites / 661 tests and Nest build passed. Frontend: all 132 selected
+  tests outside the unchanged recovery suite passed; combined result 140/141.
+  The remaining recovery test failed identically in a separate 9-test run using
+  byte-identical original-main page/spec files (8 passed, 1 failed). Angular
+  production build passed, hash 1020e7742d34c3e1; budget/CommonJS warnings remain.
+- Evidence and exact commands: docs/tasks/active/non-ai-main-integration.md.
+  Local main integration is explicitly approved; push still requires Elazar's
+  personal test of the delivered revision and explicit push approval.

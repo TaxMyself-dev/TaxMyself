@@ -1,3 +1,26 @@
+## Admin plan and personal pricing (2026-11-05)
+
+Subscription supports LIVE/FROZEN base policy plus permanent/dated final personal
+net price. PricingService resolves CUSTOM > same-plan FROZEN > catalog, then applies
+legacy discounts only without CUSTOM. Jerusalem DATE boundaries apply. Plan modules
+always stay live (explicit [] grants none). Actual plan transitions atomically
+reset frozen base via frozenPricePlanPatch; debt recovery preserves current plan
+and frozen terms. Fresh reservations validate pricingFingerprint under the subscription
+lock; original obligations, attempts and banking agreements never reprice.
+
+Admin /pricing context/mutations and catalog impact/delete remain behind the real
+admin gate. Price/catalog mutations persist actor/before/after events transactionally.
+Inactive plans stop new admission only, preserving saved commitments and members.
+Soft-delete rejects all current/pending references; historical reads use withDeleted.
+Zero-price periods advance locally without provider/receipt/accounting, with durable
+ZERO_PRICE_PERIOD_V1 evidence for subsequent upgrades. Approved zero banking first
+periods validate their ACTIVATE event rather than current catalog pricing.
+
+Apply the prepared subscription_pricing SQL manually before app startup; no live
+DB or provider work was performed. Full rules/migration/manual checks:
+`docs/features/admin-subscription-pricing.md`. Main integration and any GitHub push
+remain subject to the user approval boundaries recorded in the task.
+
 ## Purpose
 KT-105 billing reliability (2026-11-09): payment-required access now carries an
 explicit reason, including overdue ACTIVE rows, so guards open payment recovery
@@ -30,6 +53,11 @@ CardCom inspection. UNKNOWN/pending state returns that same page, verified
 capture returns processing/completed without another page, and only a
 provider-proven final decline releases the attempt and permits one replacement.
 Missing or unsafe durable checkout identity fails closed for support review.
+The subscription-wide reservation scan must return that exact blocking hosted
+CHECKOUT to the caller before deriving a new date, plan or obligation key; it
+must not throw the generic duplicate-payment conflict first. Other obligation
+kinds, malformed attempt ownership and multiple blocking initial checkouts stay
+fail-closed.
 
 Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
 shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
@@ -791,3 +819,40 @@ Recovery preview and atomic reservation must select the identical set of open
 `RECURRING_PERIOD` obligations. Historical `CHECKOUT` obligations and independent
 `MANUAL_ONE_OFF` charges are not subscription debt and must never enter the
 recovery quote, collection membership or amount.
+
+### Hosted checkout resolution gate (KT-113)
+
+`GET /billing/checkout/status` is an authenticated direct-owner endpoint for
+resolving an already-created hosted CardCom checkout. It accepts an optional
+LowProfile identifier, scopes it to the owner's subscription and canonical
+`CHECKOUT`/`RECOVERY` attempt, and performs only the existing read-only provider
+inspection. It never reserves an obligation, creates a LowProfile page or
+submits a charge. A verified capture is passed to the existing idempotent
+`BillingHostedCompletionService`; only `COMPLETED` is reported as completed.
+Provider-proven decline/cancel/expiry is retryable, while unknown, transport
+failure, concurrent processing, missing provider identity and manual review
+remain blocking.
+
+`GET /billing/me` exposes `pendingCheckout` for the direct owner when the
+canonical obligation still points to an unresolved hosted attempt. This durable
+projection is the re-entry source after refresh, browser close or a later login;
+browser storage is never authoritative. Delegated and admin-impersonated reads
+do not expose this owner checkout projection. No schema, amount, VAT, receipt,
+accounting, credential or CardCom URL change is part of this gate.
+
+KT-114 narrows the terminal non-success case using CardCom's documented
+`GetLpResult` contract. A non-zero top-level `ResponseCode` may release the
+hosted attempt only when the response echoes the exact LowProfile id, terminal
+and JSON ReturnValue for that owner/subscription/plan/attempt, contains no
+transaction id and contains no successful nested transaction. Credential,
+transport, malformed, foreign and conflicting results remain `UNKNOWN` or
+`MANUAL_REVIEW`; they never authorize another checkout. Unknown results persist
+the bounded, sanitized provider response code and description when supplied.
+Reconciliation logs one request and one normalized outcome using the existing
+token-free provider envelope (attempt/subscription/obligation identifiers,
+trigger/mode, opaque provider keys, amount/currency, response code and failure
+category); no card, token or payer data is logged. A correlated terminal
+non-success follows the existing atomic `DECLINED` transition, which releases
+the active obligation and lets the status page return the owner to the matching
+plans/recovery flow. This adds no provider write, schema, amount, VAT, receipt or
+accounting change.

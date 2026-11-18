@@ -91,3 +91,33 @@ and promotion, live compatibility smoke, and frontend rollback.
 
 - `smoke-tests/AGENTS.md` — candidate and post-deployment smoke entrypoints.
 - `docs/operations/production-smoke.md` — operator release and rollback policy.
+
+## Shared test deployment
+
+- `deploy-test.cmd` / `deploy-test.ps1` deploy Full, Backend or Frontend from any
+  clean `test` branch exactly matching freshly fetched `origin/test`. `-Plan` and `-Help` have no side effects.
+- Cloud Run is fixed to `taxmyself-prod/me-west1/taxmys16elf-dev`; Firebase is
+  fixed to `taxmyself-5d8a0`, `hosting:app`, using `build:dev`. Do not replace
+  these with production targets or reuse production smoke jobs.
+- All selected installs/tests/builds finish before deploying. Backend source is
+  archived from the verified commit with local env/secrets excluded. Existing
+  backend runtime settings are preserved. Recheck branch, cleanliness, initial
+  commit and fresh remote equality before each cloud write. No stale-ref fallback
+  on fetch failure; missing origin/test blocks deployment. Never auto-push or merge.
+- Integration into `test` and pushing `test` each require Elazar's explicit
+  approval. Test pushes do not require personal testing of main. The separate
+  main integration/push approval gates continue to apply to main.
+- Native errors fail by exit code. Failures name the stage and stop; there is
+  no automatic rollback for this shared test environment.
+- `tests/deploy-test.Tests.ps1` verifies plans and mocked orchestration offline.
+- Operator instructions: [test deployment](../docs/operations/test-deployment.md).
+
+- Test deployment supports Windows PowerShell 5.1 and PowerShell 7. Detect Windows
+  through env:OS instead of the PowerShell-7-only IsWindows variable. The CMD
+  launcher uses built-in powershell.exe. Run focused tests under both shells.
+
+- Test preflight checks existing target access and opens interactive gcloud auth
+  login or Firebase login --reauth only after that provider's check fails.
+  Invoke login directly in the terminal without capture/pipelines; recheck the
+  exact service/Hosting access once before builds. Cancellation or persistent
+  failure stops; no retry loop, credential storage, or unrelated-provider login.

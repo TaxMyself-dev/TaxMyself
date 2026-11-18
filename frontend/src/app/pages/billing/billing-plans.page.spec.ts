@@ -6,6 +6,7 @@ import { BillingPlansPage } from './billing-plans.page';
 import { BillingStateService } from '../../services/billing-state.service';
 import { GenericService } from '../../services/generic.service';
 import { environment } from 'src/environments/environment';
+import { provideRouter, Router } from '@angular/router';
 
 describe('BillingPlansPage plan changes', () => {
   let page: BillingPlansPage, http: HttpTestingController, state: any, toast: jasmine.Spy;
@@ -18,12 +19,27 @@ describe('BillingPlansPage plan changes', () => {
       effectiveStatus: () => state.billingState()?.subscription?.status ?? null, hasBillingOverride: () => false,
       loadBillingState: jasmine.createSpy().and.resolveTo(), refreshBillingState: jasmine.createSpy().and.resolveTo() };
     toast = jasmine.createSpy();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       { provide: BillingStateService, useValue: state }, { provide: GenericService, useValue: { showToast: toast } }] });
     http = TestBed.inject(HttpTestingController);
     page = TestBed.runInInjectionContext(() => new BillingPlansPage());
   });
   afterEach(() => http.verify());
+
+  it('redirects a server-owned pending checkout without loading or creating another payment', async () => {
+    state.billingState.set({ subscription: { status: 'TRIAL_EXPIRED' }, plan: null,
+      pendingPlanChange: null, pendingCheckout: { status: 'PENDING', flow: 'PLANS' } });
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.resolveTo(true);
+
+    page.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/billing/payment-status'], { replaceUrl: true });
+    http.expectNone(`${environment.apiUrl}billing/plans`);
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
 
   it('loads a preview without starting payment until confirmation', async () => {
     const request = page.checkout(2);
@@ -117,4 +133,28 @@ describe('BillingPlansPage plan changes', () => {
     expect(page.checkingOutPlanId()).toBeNull();
     expect(state.refreshBillingState).toHaveBeenCalledTimes(1);
   });
+  it('refreshes a zero-price initial activation without redirecting to an undefined URL', async () => {
+    state.effectiveStatus = () => 'TRIAL';
+    const beforeUrl = window.location.href;
+    sessionStorage.setItem('tm.checkoutLowProfileId', 'old-checkout');
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush({ status: 'APPLIED', nextBillingDate: '2026-12-05' });
+    await operation;
+    expect(state.refreshBillingState).toHaveBeenCalledTimes(1);
+    expect(page.checkingOutPlanId()).toBeNull();
+    expect(sessionStorage.getItem('tm.checkoutLowProfileId')).toBeNull();
+    expect(window.location.href).toBe(beforeUrl);
+    expect(toast).toHaveBeenCalledWith('התוכנית הופעלה ללא חיוב.', 'success');
+  });
+  it('rejects an invalid initial checkout response without navigation', async () => {
+    state.effectiveStatus = () => 'TRIAL';
+    const beforeUrl = window.location.href;
+    const operation = page.checkout(2);
+    http.expectOne(`${environment.apiUrl}billing/checkout`).flush({});
+    await operation;
+    expect(page.checkingOutPlanId()).toBeNull();
+    expect(window.location.href).toBe(beforeUrl);
+    expect(toast).toHaveBeenCalledWith('לא התקבל עמוד תשלום תקין. יש לנסות שוב.', 'error');
+  });
+
 });

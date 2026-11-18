@@ -23,6 +23,7 @@ import {
   ResumeCapturedAttemptResult,
 } from './billing-lifecycle.service';
 import { BillingReceiptService } from './billing-receipt.service';
+import { frozenPricePlanPatch } from '../domain/subscription-pricing';
 import { recoverySubscriptionPatch } from '../domain/billing-recovery-state';
 import { billingBoundary, billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
 import { upgradeSource } from '../domain/billing-upgrade';
@@ -258,7 +259,7 @@ export class BillingHostedCompletionService {
           !matchesPlanChangeSource(subscription, change) || capturedAt >= new Date(change.sourcePeriodEnd)) {
           throw new Error('Prorated upgrade no longer matches the paid period; manual review required');
         }
-        await manager.update(Subscription, subscription.id, { planId: attempt.planId });
+        await manager.update(Subscription, subscription.id, { planId: attempt.planId, ...await frozenPricePlanPatch(manager, subscription, attempt.planId) });
         await manager.update(BillingObligation, members[0].id, {
           periodStart: billingDate(new Date(change.sourcePeriodStart)), periodEnd: billingDate(new Date(change.sourcePeriodEnd)),
         });
@@ -292,7 +293,7 @@ export class BillingHostedCompletionService {
         const anchor = source ? subscription.billingAnchorDay ?? Number(billingDate(capturedAt).slice(8))
           : Number(billingDate(capturedAt).slice(8));
         const end = nextBillingInstant(capturedAt, anchor);
-        const plan = await manager.findOne(SubscriptionPlan, { where: { id: attempt.planId } });
+        const plan = await manager.findOne(SubscriptionPlan, { where: { id: attempt.planId }, withDeleted: true });
         if (!plan) throw new Error('Purchased plan not found');
         // Checkout dates are provisional until capture; recurring debt dates
         // remain immutable. Save the actual purchased service period atomically.
@@ -301,6 +302,7 @@ export class BillingHostedCompletionService {
         });
         await manager.update(Subscription, subscription.id, {
           status: SubscriptionStatus.ACTIVE, planId: attempt.planId,
+          ...await frozenPricePlanPatch(manager, subscription, attempt.planId),
           currentPeriodStart: capturedAt, currentPeriodEnd: end, nextBillingDate: end,
           billingAnchorDay: anchor, renewalAttempts: 0, gracePeriodEndsAt: null,
           canceledAt: null, endedAt: null,
@@ -321,13 +323,15 @@ export class BillingHostedCompletionService {
         );
       }
       const plan = await manager.findOne(SubscriptionPlan, {
-        where: { id: attempt.planId },
+        where: { id: attempt.planId }, withDeleted: true,
       });
       if (!plan) {
         throw new Error('Plan for the captured attempt not found');
       }
+      const recoveryPatch = recoverySubscriptionPatch(subscription, members);
       await manager.update(Subscription, subscription.id, {
-        ...recoverySubscriptionPatch(subscription, members),
+        ...recoveryPatch,
+        ...await frozenPricePlanPatch(manager, subscription, recoveryPatch.planId ?? subscription.planId),
         billingAnchorDay: subscription.billingAnchorDay ??
           Number(billingDate(subscription.currentPeriodStart ?? capturedAt).slice(8)),
       });
@@ -592,14 +596,14 @@ export class BillingHostedCompletionService {
     ) {
       throw new Error('Subscription is not activated for the captured attempt');
     }
-    const plan = await this.planRepo.findOne({ where: { id: attempt.planId } });
+    const plan = await this.planRepo.findOne({ where: { id: attempt.planId }, withDeleted: true });
     if (!plan) throw new Error('Plan for the captured attempt not found');
     const issuer = await this.billingIssuerConfigService.getKeepintaxIssuer();
     const debts = await this.lifecycle.findAttemptObligations(attempt);
     const change = debts.some(debt => debt.obligationKey?.includes(':prorated:'))
       ? await reservedUpgradeSnapshot(this.dataSource.manager, attempt.id) : null;
     const periods = await Promise.all([...debts].sort((a,b) => a.periodStart.localeCompare(b.periodStart)).map(async debt => ({
-      planName: change ? `שדרוג ל${plan.name} — הפרש יחסי` : (await this.planRepo.findOne({ where: { id: debt.planId } }))?.name ?? plan.name,
+      planName: change ? `שדרוג ל${plan.name} — הפרש יחסי` : (await this.planRepo.findOne({ where: { id: debt.planId }, withDeleted: true }))?.name ?? plan.name,
       periodStart: change ? new Date(change.quotedAt) : debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodStart : billingBoundary(debt.periodStart),
       periodEnd: change ? new Date(change.sourcePeriodEnd) : debt.kind === BillingObligationKind.CHECKOUT ? subscription.currentPeriodEnd : billingBoundary(debt.periodEnd),
       amountBeforeVatAgorot: debt.amountBeforeVatAgorot, vatAmountAgorot: debt.vatAmountAgorot,

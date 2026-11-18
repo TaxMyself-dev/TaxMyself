@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { Subscription } from '../entities/subscription.entity';
 import { VAT_RATES, BusinessType } from 'src/enum';
+import { dateOnly, jerusalemDate, resolveSubscriptionBase, PriceSource, pricingFingerprint } from '../domain/subscription-pricing';
 import { BusinessService } from 'src/business/business.service';
 
 export interface BillingAmounts {
@@ -33,6 +34,8 @@ export interface SubscriptionDiscountInfo {
 }
 
 export interface CheckoutPricingResult {
+  priceSource?: PriceSource;
+  pricingFingerprint?: string;
   originalAmountAgorot: number;
   discountAmountAgorot: number;
   /** VAT-inclusive total — the amount CardCom will charge. */
@@ -113,8 +116,8 @@ export class PricingService {
     }
 
     // TypeORM returns 'YYYY-MM-DD' strings for type:'date' columns — cast defensively.
-    const start = discountStartDate ? String(discountStartDate) : null;
-    const end = discountEndDate ? String(discountEndDate) : null;
+    const start = discountStartDate ? dateOnly(discountStartDate) : null;
+    const end = discountEndDate ? dateOnly(discountEndDate) : null;
     const today = this.getTodayDateString();
     const isActiveNow = (!start || today >= start) && (!end || today <= end);
 
@@ -144,11 +147,10 @@ export class PricingService {
     planId: number,
     at: Date = new Date(),
   ): Promise<CheckoutPricingResult> {
-    const plan = await this.planRepo.findOne({
-      where: { id: planId, isActive: true },
-    });
+    const subscription = await this.subscriptionRepo.findOne({ where: { firebaseId } });
+    const plan = await this.planRepo.findOne({ where: { id: planId } });
 
-    if (!plan) {
+    if (!plan || (plan.isActive === false && subscription?.planId !== planId)) {
       throw new BadRequestException('Subscription plan not found or not available');
     }
 
@@ -159,22 +161,13 @@ export class PricingService {
       `Base price: ${baseAmount} agorot (${plan.name})`,
     ];
 
-    const subscription = await this.subscriptionRepo.findOne({
-      where: { firebaseId },
-    });
-
-    const today = this.getTodayDateString(at);
-    let workingAmount = baseAmount;
-
-    if (subscription) {
-      const result = this.applySubscriptionDiscount(baseAmount, subscription, today);
-      workingAmount = result.finalAmountAgorot;
-      if (result.explanation) explanation.push(result.explanation);
-    }
+    const resolved = this.resolveMonthlyPrice(plan, subscription, billingBusinessType, at);
+    const workingAmount = resolved.amountBeforeVatAgorot;
+    explanation.push(`Price source: ${resolved.source}`);
 
     const unclamped = Math.round(workingAmount);
     const amountBeforeVatAgorot = Math.max(0, unclamped);
-    const discountAmountAgorot = baseAmount - amountBeforeVatAgorot;
+    const discountAmountAgorot = resolved.source === 'CUSTOM' ? 0 : Math.max(0, resolved.baseAmountAgorot - amountBeforeVatAgorot);
 
     if (unclamped < 0) {
       explanation.push('Final amount clamped to 0 agorot (cannot go negative)');
@@ -186,6 +179,8 @@ export class PricingService {
     );
 
     return {
+      priceSource: resolved.source,
+      pricingFingerprint: pricingFingerprint(subscription, plan, billingBusinessType, jerusalemDate(at)),
       originalAmountAgorot: baseAmount,
       discountAmountAgorot,
       finalAmountAgorot: vat.amountIncludingVatAgorot,
@@ -196,6 +191,13 @@ export class PricingService {
       billingBusinessType,
       explanation,
     };
+  }
+
+  resolveMonthlyPrice(plan: SubscriptionPlan, subscription: Partial<Subscription> | null, businessType: BillingBusinessType, at = new Date()) {
+    const resolved = resolveSubscriptionBase(plan.id, this.resolveEffectivePlanPrice(plan, businessType), subscription, jerusalemDate(at));
+    const net = resolved.source === 'CUSTOM' || !subscription ? resolved.baseAmountAgorot
+      : this.applySubscriptionDiscount(resolved.baseAmountAgorot, subscription as Subscription, jerusalemDate(at)).finalAmountAgorot;
+    return { ...resolved, ...this.calculateBillingAmounts(Math.max(0, net), at) };
   }
 
   /**
@@ -244,8 +246,8 @@ export class PricingService {
     }
 
     // TypeORM returns 'YYYY-MM-DD' strings for type:'date' columns — cast defensively.
-    const start = discountStartDate ? String(discountStartDate) : null;
-    const end = discountEndDate ? String(discountEndDate) : null;
+    const start = discountStartDate ? dateOnly(discountStartDate) : null;
+    const end = discountEndDate ? dateOnly(discountEndDate) : null;
 
     const inWindow = (!start || today >= start) && (!end || today <= end);
     if (!inWindow) {
@@ -280,9 +282,6 @@ export class PricingService {
    * with Israel timezone (UTC+3) and the DATE columns in the subscription table.
    */
   private getTodayDateString(now: Date = new Date()): string {
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return jerusalemDate(now);
   }
 }
