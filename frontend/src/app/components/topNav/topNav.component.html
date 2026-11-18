@@ -7,11 +7,16 @@
             @if (!isOnDocCreate() && access.createDocument().visible) {
                 <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
             }
-            <app-menu-button
-                icon="pi pi-cog"
-                ariaLabel="תפריט הגדרות"
-                [items]="settingsMenuItems()">
-            </app-menu-button>
+            @if (isInstalledPwa()) {
+                <app-p-button icon="pi pi-refresh" buttonText="רענון" [iconOnly]="true" variant="text"
+                    [buttonSize]="ButtonSize.SMALL" [disabled]="isRefreshing()" (onButtonClicked)="refreshApp()" />
+            }
+            @if (isAdmin()) {
+                <app-p-button buttonText="הגדרות ישנות" variant="text" [buttonSize]="ButtonSize.SMALL"
+                    (onButtonClicked)="openLegacySettings()" />
+            }
+            <app-p-button icon="pi pi-cog" buttonText="הגדרות" [iconOnly]="true" variant="text"
+                [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="openSettings()" />
         </div>
       </ng-template>
   </p-menubar>

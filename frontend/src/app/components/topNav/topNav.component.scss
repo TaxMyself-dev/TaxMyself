@@ -8,7 +8,8 @@
 }
 
 .top-nav-buttons {
-    width: 192px;
+    min-width: 192px;
+    gap: 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;

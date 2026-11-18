@@ -193,3 +193,20 @@ Verification:
   and unchanged fixed positioning without opt-in. Focused rerun result below.
 - `git diff --check` passed. No live actions or production rebuild for this fix.
 - Focused rerun from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.table-actions.spec.json --include=src/app/components/generic-table/generic-table.component.spec.ts --include=src/app/components/generic-table/table-actions.spec.ts --include=src/app/components/table-row-actions-menu/*.spec.ts --progress=false`: passed (exact total in ignored contained-table-actions-focused.log). This excludes unchanged bookkeeping consumer tests; it does not supersede the broad-run failure above.
+
+## Direct settings entry (2026-11-18)
+
+Removed the top-navigation settings dropdown and its old logout output/binding.
+The cog now navigates directly to /settings-new for every signed-in user. Only
+the actual logged-in ADMIN (AppComponent.realUserIsAdmin, including view-as)
+receives an additional legacy-settings button. The component callback also checks
+the admin input. This changes button visibility, not route authorization: existing
+/settings route/content remain unchanged. New settings logout confirmation stays.
+Installed-PWA refresh remains a separate button with its existing busy state and
+read-only refresh handler. Toolbar width now accommodates the extra admin action.
+
+Verification:
+- `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
+- From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/components/topNav/*.spec.ts --ts-config=.test-tmp/tsconfig.topnav-tests.json --progress=false`: 3/3 passed. Real DOM clicks cover direct customer navigation, no dropdown/logout/legacy entry, admin legacy navigation/removal, PWA refresh/busy state.
+- `git diff --check`: passed. Full suite and production rebuild not repeated for
+  this scoped navigation change. No live account mutations, main merge or push.
