@@ -752,3 +752,52 @@ the real endpoint test drives the exact failed transition with a scripted model.
 No live financial action was submitted. Frontend hot-reloads in the running dev
 server; a running backend needs restart to load the rebuilt agent bundle. Do not
 stop the user's watch processes or sibling servers. No merge or push.
+
+## Local chat startup connection latency — 2026-11-18
+
+User requested fixing the diagnosed localhost startup delay. Continued from
+d441c0ec. Kept worktree ports 4201/3001 and main's defaults/API configuration.
+The backend was stopped before this task; frontend was running and preserved.
+
+Root cause: localhost resolves ::1 before 127.0.0.1 on this Windows machine,
+while Nest binds 0.0.0.0 (IPv4). The measured HTTP client added about two seconds
+to localhost connections. This is a transport measurement, not a full browser
+session-load benchmark or a claim that model/session cold initialization is gone.
+
+Fix: normal worktree npm start now generates API http://127.0.0.1:<backendPort>/.
+The live ignored environment replacement was updated so the running Angular
+server hot-reloaded it. Old local helper output was aligned too, remaining ignored.
+Explicit dev chat ?api=http://localhost:PORT values normalize to 127.0.0.1 only
+after the existing strict local-URL allowlist passes. Remote hosts, user-info,
+paths and HTTPS remain rejected; token destination security is not relaxed.
+With no ignored port config, actual launcher diagnostic still reports frontend
+4200/backend 3000/API http://localhost:3000/. Production environment untouched.
+
+Verification:
+- node --check frontend/scripts/start-local.js passed; actual --print-config
+  reports 4201/3001/API 127.0.0.1. Isolated no-config launcher check preserved
+  4200/3000/localhost API defaults. Existing generated files remain ignored.
+- npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include=src/app/pages/dev-agent/dev-agent.route.spec.ts --include=src/app/pages/dev-agent/classification-card.spec.ts --include=src/app/pages/dev-agent/dev-agent-chat.spec.ts
+  19/19 passed. Added the route spec to the focused tsconfig and retained all
+  card/chat cases. URL tests cover IPv4 normalization and misleading foreign
+  host/user-info inputs. Chrome cleanup warning occurred after passing tests.
+- npm run build -- --configuration production passed, retaining existing bundle,
+  SCSS and CommonJS warnings. No full backend/agent suite or paid eval needed:
+  those executable sources did not change.
+- Started a temporary backend only after confirming 3001 free, using its normal
+  .env with keepintax-dev / synchronize=false and boot seed disabled. Root HTTP
+  on localhost measured 2316ms then 2022ms; on 127.0.0.1 measured 10ms then 7ms,
+  all HTTP 200 against the same process. No authenticated action was submitted.
+- API OPTIONS preflight from localhost:4201 to 127.0.0.1:3001 returned 204 with
+  existing CORS behavior unchanged. Served main.js returned 200, contained the
+  IPv4 API URL and no former localhost:3001 API string.
+- Stopped only that temporary backend after checking its recorded process ID
+  and command line, restoring the user's stopped backend state and leaving
+  port 3001 free for normal start:watch. Running frontend was not restarted.
+
+Sanitized evidence: chat deliverables/ipv4-startup-http-proof.json,
+ipv4-startup-frontend-tests.log and ipv4-startup-frontend-build.log. No schema,
+credentials, business data, permissions or deployment configuration changed.
+Documentation targets and git diff --check reviewed. Original untracked files
+preserved; local feature commit only, no merge or push. Backend should be started
+normally by the user and the chat refreshed; no hidden server occupies their port.

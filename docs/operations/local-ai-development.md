@@ -54,3 +54,13 @@ Run each command from its corresponding package directory. This diagnostic does
 not bind a port. Stop an existing server using the selected ports before starting
 another copy. Local overrides are per checkout; main's pre-integration gate still
 requires frontend 4200, backend 3000 and API http://localhost:3000/.
+
+### IPv4 loopback for worktree API connections
+
+Worktree npm start generates its API URL with 127.0.0.1 and the configured backend
+port. This avoids Windows localhost resolving to ::1 before reaching Nest's
+IPv4-only listener. Explicit local ?api=http://localhost:PORT overrides in the
+chat normalize to 127.0.0.1 as well; the local-only token destination allowlist
+still rejects remote hosts, credentials and paths. The browser frontend origin
+remains localhost and stays in AGENT_APP_ORIGINS. Without worktree overrides,
+main's tracked API URL and 4200/3000 defaults are unchanged.

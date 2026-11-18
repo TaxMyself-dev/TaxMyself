@@ -10,9 +10,10 @@ const ports = custom ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : { front
 for (const key of ['frontendPort', 'backendPort']) {
   if (!Number.isInteger(ports[key]) || ports[key] < 1024 || ports[key] > 65535) throw new Error(`Invalid local ${key}`);
 }
+const apiUrl = custom ? `http://127.0.0.1:${ports.backendPort}/` : 'http://localhost:3000/';
 const args = process.argv.slice(2);
 if (args.includes('--print-config')) {
-  console.log(JSON.stringify({ ...ports, apiUrl: `http://localhost:${ports.backendPort}/`, source: custom ? 'ignored worktree config' : 'main defaults' }));
+  console.log(JSON.stringify({ ...ports, apiUrl, source: custom ? 'ignored worktree config' : 'main defaults' }));
 } else if (!custom) {
   const child = spawn(process.execPath, [path.join(frontend, 'node_modules/@angular/cli/bin/ng.js'), 'serve', '-o', ...args], { cwd: frontend, stdio: 'inherit' });
   child.on('exit', code => process.exit(code ?? 0));
@@ -38,7 +39,7 @@ async function startWorktree() {
   const source = 'src/environments/environment.ts';
   const text = fs.readFileSync(path.join(frontend, source), 'utf8');
   if (!text.includes('http://localhost:3000/')) throw new Error('Expected main API URL http://localhost:3000/ in environment.ts');
-  fs.writeFileSync(path.join(localDirectory, 'environment.worktree.ts'), text.replace('http://localhost:3000/', `http://localhost:${ports.backendPort}/`));
+  fs.writeFileSync(path.join(localDirectory, 'environment.worktree.ts'), text.replace('http://localhost:3000/', apiUrl));
   const { workspace } = await workspaces.readWorkspace(frontend, workspaces.createWorkspaceHost(new NodeJsSyncHost()));
   workspace.projects.get('app').targets.get('build').configurations.worktree = {
     fileReplacements: [{ replace: source, with: '../.local-ai-dev/environment.worktree.ts' }],

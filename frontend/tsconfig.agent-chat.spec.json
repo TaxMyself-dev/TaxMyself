@@ -9,7 +9,8 @@
   },
   "include": [
     "src/app/pages/dev-agent/classification-card.spec.ts",
-    "src/app/pages/dev-agent/dev-agent-chat.spec.ts"
+    "src/app/pages/dev-agent/dev-agent-chat.spec.ts",
+    "src/app/pages/dev-agent/dev-agent.route.spec.ts"
   ],
   "files": [
     "src/test.ts",

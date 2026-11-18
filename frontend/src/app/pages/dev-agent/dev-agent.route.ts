@@ -23,7 +23,9 @@ export const DEV_AGENT_FROM_ADMIN = 'admin-panel';
  */
 export const devAgentApiOverride = (value: string | null | undefined): string | null => {
   if (value && /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}\/?$/.test(value)) {
-    return value.endsWith('/') ? value : `${value}/`;
+    // Nest listens on IPv4 locally; avoid localhost's IPv6 fallback delay.
+    const local = value.replace('http://localhost:', 'http://127.0.0.1:');
+    return local.endsWith('/') ? local : `${local}/`;
   }
 
   return null;
