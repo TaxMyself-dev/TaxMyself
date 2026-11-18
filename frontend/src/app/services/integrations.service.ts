@@ -21,6 +21,7 @@ export interface GmailAccountSyncStatus {
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: GmailSyncRunStatus | null;
   lastSyncError: string | null;
+  syncErrorPredatesConnection?: boolean;
 }
 
 /** Response of GET integrations/google/gmail/sync-status. */

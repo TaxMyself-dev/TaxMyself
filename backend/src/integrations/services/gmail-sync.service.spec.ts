@@ -92,3 +92,22 @@ describe('GmailSyncService — incremental sync targets the specific integration
     expect(userIntegrationsService.markSyncError).not.toHaveBeenCalled();
   });
 });
+
+describe('Gmail status preserves historical errors after reconnect', () => {
+  it.each([
+    ['ACTIVE', '2026-11-17T00:00:00Z', true],
+    ['ACTIVE', '2026-11-19T00:00:00Z', false],
+    ['EXPIRED', '2026-11-17T00:00:00Z', false],
+    ['ACTIVE', null, false],
+  ])('classifies %s / %s without clearing history', async (status, startedAt, expected) => {
+    const row = { id: 17, status, lastSyncStatus: 'ERROR', lastSyncError: 'original failure', connectionVerifiedAt: new Date('2026-11-18T00:00:00Z'), lastSyncStartedAt: startedAt ? new Date(startedAt as string) : null };
+    const before = JSON.stringify(row);
+    const integrations = { findAllVisibleByUserAndProvider: jest.fn().mockResolvedValue([row]) };
+    const service = new GmailSyncService(integrations as any, {} as any);
+    const result = await service.getSyncStatus('owner');
+    expect(result.accounts[0].syncErrorPredatesConnection).toBe(expected);
+    expect(result.accounts[0].lastSyncError).toBe('original failure');
+    expect(result.accounts[0].lastSyncStatus).toBe('ERROR');
+    expect(JSON.stringify(row)).toBe(before);
+  });
+});

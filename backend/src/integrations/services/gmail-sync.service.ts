@@ -65,6 +65,7 @@ export interface GmailAccountSyncStatus {
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: IntegrationSyncStatus | null;
   lastSyncError: string | null;
+  syncErrorPredatesConnection: boolean;
 }
 
 export interface GmailSyncStatusResponse {
@@ -139,6 +140,10 @@ export class GmailSyncService {
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
         lastSyncStatus: integration.lastSyncStatus ?? null,
         lastSyncError: integration.lastSyncError ?? null,
+        syncErrorPredatesConnection: integration.status === IntegrationStatus.ACTIVE
+          && integration.lastSyncStatus === IntegrationSyncStatus.ERROR
+          && !!integration.connectionVerifiedAt && !!integration.lastSyncStartedAt
+          && integration.lastSyncStartedAt.getTime() < integration.connectionVerifiedAt.getTime(),
       })),
     };
   }

@@ -77,6 +77,9 @@
 
         } @else if (account.initialImportCompleted) {
 
+          @if (account.syncErrorPredatesConnection) {
+            <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; טרם בוצע ייבוא נוסף.</p>
+          }
           <!-- ייבוא ראשוני הושלם -->
           <div class="gmail-success">
             <i class="pi pi-check-circle"></i>
@@ -87,7 +90,7 @@
               סנכרון אחרון: {{ account.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
             </p>
           }
-          @if (account.lastSyncStatus === 'ERROR') {
+          @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
@@ -108,8 +111,11 @@
 
         } @else {
 
+          @if (account.syncErrorPredatesConnection) {
+            <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; ניתן להתחיל ייבוא.</p>
+          }
           <!-- מחובר, ייבוא ראשוני טרם בוצע (וגם מצב שגיאה → ניסיון חוזר) -->
-          @if (account.lastSyncStatus === 'ERROR') {
+          @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
