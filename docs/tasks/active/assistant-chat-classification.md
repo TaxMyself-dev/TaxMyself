@@ -841,3 +841,24 @@ Verification on the final executable changes (working tree based on 80d3424f):
 - Post-change live Chrome navigation could not be verified: the browser connection timed out and subsequently reported unavailable. Do not count this as a passing browser journey or cold-start benchmark. Initial authenticated timings were collected before the final changes. No real financial message/action sent.
 - Evidence logs in the chat workspace: startup-frontend-tests-verified.log, startup-agent-tests.log, startup-agent-check.log, startup-agent-types.log, startup-agent-unit.log, startup-agent-build.log. Preserve earlier failure logs. Frontend production build result is recorded below when complete.
 - Frontend final: npm run build -- --configuration production exited 0; existing SCSS, CommonJS and initial-bundle budget warnings remain. Log: startup-frontend-build.log. git diff --check passed. Existing unrelated untracked files preserved. Local feature commit only; no integration or push. Effective worktree ports stay 4201/3001; no server was stopped/restarted by this change.
+
+## Composer below viewport — 2026-11-18
+
+Continued from 26f5c0e2. CSS-only follow-up: the chat used a full viewport height
+inside the space below the app navigation, pushing its composer past the bottom.
+Make its host a shrinking flex column and let the chat fill the allocated space.
+The app shell also gave its empty upgrade-dialog host half of the available
+height; exclude that portal host from flex growth only when the chat is routed.
+No API, authorization, agent logic or ports changed.
+
+Verified in the real authenticated Chrome tab on 4201 after Angular recompiled
+and a reload: viewport height 855px; nav ends at 62px; dialog host 0px; chat fills
+62–855px; composer 774–843px and textarea 783–843px. The complete 60px textarea
+fits with 12px below it, including with an existing error banner present. Screenshot:
+chat workspace/chat-composer-visible.jpg. The running backend still has the old
+empty-history code (requires restart as previously reported); no backend process
+was restarted or financial action sent. CSS compilation succeeded in the running
+dev server and git diff --check passed. No new unit tests or full suite/build:
+this reversible layout-only change is verified by actual browser geometry and
+screenshot; the earlier 23/23 frontend tests are prior-revision evidence only.
+Local commit only, no main integration or push. Existing untracked files preserved.

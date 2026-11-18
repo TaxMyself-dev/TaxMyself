@@ -1,13 +1,16 @@
 :host {
-  display: block;
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  // Let the app shell allocate the space below navigation/client banners.
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
 }
 
 .dev-agent {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
+  flex: 1 1 0;
   min-height: 0;
   width: 100%;
   overflow: hidden;
