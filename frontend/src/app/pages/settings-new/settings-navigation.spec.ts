@@ -68,3 +68,19 @@ describe('new settings logout confirmation', () => {
     expect(page.authService.logout).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('restore settings section', () => {
+  it('restores a section instantly without edit state and ignores intermediate scroll events', () => {
+    const page: any=Object.create(SettingsNewPage.prototype);
+    page.activeSection=signal('account');page.personalEditing=signal(false);page.spouseEditing=signal(false);page.childEditing=signal(null);
+    page.activateSection=jasmine.createSpy('activate');page.navigationSession={remember:jasmine.createSpy('remember')};page.navigationContext='visit';
+    const scrollTo=jasmine.createSpy('scroll');
+    page.scroller={nativeElement:{scrollTop:0,getBoundingClientRect:()=>({top:0}),querySelector:()=>({getBoundingClientRect:()=>({top:700})}),scrollTo}};
+    page.goTo('history',true);page.onScroll();
+    expect(scrollTo).toHaveBeenCalledWith({behavior:'instant',top:668});
+    expect(page.activeSection()).toBe('history');expect(page.personalEditing()).toBeFalse();expect(page.spouseEditing()).toBeFalse();expect(page.childEditing()).toBeNull();
+    page.stopRestoringSection();expect(page.restoringSection).toBeNull();
+    page.goTo('payment');expect(page.restoringSection).toBeNull();
+  });
+});

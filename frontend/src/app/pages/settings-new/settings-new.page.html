@@ -23,7 +23,7 @@
     <button class="logout" type="button" (click)="confirmLogout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
   </aside>
 
-  <main #scroller class="settings-scroll" (scroll)="onScroll()" aria-label="הגדרות אישיות">
+  <main #scroller class="settings-scroll" (scroll)="onScroll()" (wheel)="stopRestoringSection()" (touchstart)="stopRestoringSection()" (pointerdown)="stopRestoringSection()" (keydown)="stopRestoringSection()" aria-label="הגדרות אישיות">
     <div class="settings-content">
       <section data-settings-section="account" id="new-account" aria-labelledby="account-heading">
         @if (authService.isViewingAsClient()) { <p class="view-only" role="status">פרטי החשבון מוצגים לצפייה בלבד.</p> }

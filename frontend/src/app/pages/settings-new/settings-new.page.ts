@@ -1,3 +1,4 @@
+import { SettingsNavigationSessionService } from './settings-navigation-session.service';
 import { SettingsNewCategoriesComponent } from './settings-new-categories.component';
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal, ChangeDetectorRef, inject } from '@angular/core';
@@ -48,6 +49,9 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
 
   readonly activeSection = signal<SettingsSection>('account');
   private readonly navigationCdr = inject(ChangeDetectorRef);
+  private readonly navigationSession = inject(SettingsNavigationSessionService);
+  private navigationContext: string | null = null;
+  private restoringSection: SettingsSection | null = null;
   readonly personalLinks = PERSONAL_SETTINGS_LINKS;
   readonly subscriptionLinks = SUBSCRIPTION_SETTINGS_LINKS;
   readonly subscriptionExpanded = signal(true);
@@ -108,7 +112,13 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
 
   ngAfterViewInit(): void {
-    this.resizeObserver = new ResizeObserver(() => this.onScroll());
+    const visit = this.navigationSession.open();
+    this.navigationContext = visit.context;
+    if (visit.section !== 'account') this.goTo(visit.section, true);
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.restoringSection) this.goTo(this.restoringSection, true);
+      else this.onScroll();
+    });
     this.resizeObserver.observe(this.scroller.nativeElement.firstElementChild!);
   }
   ngOnDestroy(): void { this.resizeObserver?.disconnect(); }
@@ -121,7 +131,9 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     }
     if (section === 'banking') this.bankingActivated.set(true);
   }
+  stopRestoringSection(): void { this.restoringSection = null; }
   onScroll(): void {
+    if (this.restoringSection) return;
     const el = this.scroller.nativeElement;
     const sections = Array.from(el.querySelectorAll<HTMLElement>('[data-settings-section]')).map(node => ({
       key: node.dataset['settingsSection'] as SettingsSection, top: node.getBoundingClientRect().top,
@@ -130,8 +142,11 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     const active = activeSettingsSection(sections, el.getBoundingClientRect().top, atEnd);
     this.activeSection.set(active);
     this.activateSection(active);
+    this.navigationSession?.remember(active, this.navigationContext);
   }
-  goTo(section: SettingsSection): void {
+  goTo(section: SettingsSection, restoring = false): void {
+    this.restoringSection = restoring ? section : null;
+    this.navigationSession?.remember(section, this.navigationContext);
     this.activeSection.set(section);
     this.activateSection(section);
     this.navigationCdr?.detectChanges();
@@ -140,7 +155,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
       : el.querySelector<HTMLElement>('[data-settings-section="' + section + '"]');
     const top = section === 'account' ? 0 : target ? target.getBoundingClientRect().top
       - el.getBoundingClientRect().top + el.scrollTop - 32 : el.scrollTop;
-    el.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    el.scrollTo({ top, behavior: restoring || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   }
   submitNewPermission(): void {
     if (this.addingPermission() || !this.valid(this.addPermissionFormGroup)) return;

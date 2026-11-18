@@ -41,3 +41,15 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
 - See `docs/tasks/active/settings-subscription-redesign.md` for verification.
 - Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Keep old category files unchanged. Load only when its section is reached.
 - Personal Cancel restores the entry snapshot (including after Clear), resets touched/dirty state, and closes editing. It is disabled while saving; explicit image saves remain separate.
+
+## Temporary section memory
+
+- SettingsNavigationSessionService stores only the last section in root-service
+  memory for the current app instance. No DB/localStorage/sessionStorage writes.
+- Reset on Firebase owner changes (including sign-out) and delegated-client
+  changes even while settings is unmounted. Generation-bound visit contexts
+  reject trailing scroll events from previous identities.
+- New page instances restore the section without form/edit state. Keep the
+  restored anchor aligned while async content resizes; stop repositioning on
+  wheel/touch/pointer/keyboard interaction or explicit sidebar navigation.
+- Reloading/reopening starts at account. Do not persist unsaved forms or pixels.
