@@ -634,7 +634,7 @@
   },
   {
     "name": "prepareTransactionClassification",
-    "description": "Prepare a one-time classification or change an existing classification of ONE outgoing bank/card transaction not yet transferred to an expense. Both unclassified and classified states are supported; an existing category is NOT a reason to refuse. Confirmed, locked or unlinked transactions are blocked by the server. Never approve an expense or create a rule. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
+    "description": "Prepare classification or reclassification of an outgoing bank/card transaction not yet transferred to an expense. Default is a permanent merchant rule for this account; explicitly one-time requests use isSingleUpdate=true. Both unclassified and classified states are supported; an existing category is NOT a reason to refuse. Confirmed, locked or unlinked transactions are blocked by the server. Never approve an expense. Permanent rules can update matching existing unconfirmed, unlocked transactions in this business and future matches; the card explains the scope. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
     "openai": {
       "namespace": {
         "name": "books",
@@ -645,6 +645,10 @@
     "inputSchema": {
       "type": "object",
       "properties": {
+        "isSingleUpdate": {
+          "type": "boolean",
+          "description": "Defaults to false: create/update a permanent merchant rule, matching the manual classification page. Set true only when the user explicitly asks for one-time classification. The approval card lets the user change this choice before approval. Never ask permanent or one-time as an extra question."
+        },
         "requestApproval": {
           "type": "boolean",
           "description": "Defaults to true for a request to classify or show an approval card. Set false ONLY when the user explicitly asks for a preview/proposal without an approval card or execution. Preparing alone does not display an approval card."
@@ -674,7 +678,7 @@
   },
   {
     "name": "classifyTransaction",
-    "description": "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It sets or changes this outgoing transaction's classification while it has not been transferred to an expense, never approves an expense or creates a rule. If stale, prepare again and obtain a new card. Report success only from the actual result.",
+    "description": "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It applies the mode selected on the approval card: permanent merchant/account rule by default, or one-time when checked. It never approves an expense. If stale, prepare again and obtain a new card. Report success only from the actual result.",
     "inputSchema": {
       "type": "object",
       "properties": {

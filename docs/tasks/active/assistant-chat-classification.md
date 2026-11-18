@@ -1,18 +1,18 @@
-# Assistant Phase A one-time transaction classification
+# Assistant Phase A transaction classification
 
 - Status: WORKER_COMPLETE — narrow orchestration fix verified; awaiting user review, no main integration or push
 - Task manager and worker: Codex, same agent; no delegation
 - Worktree: existing TaxMyself-new-ai-assistant feature worktree
 - Branch: new-ai-assistant
 - Base: 366f2748c32f57bc3afc7fa20d9793f4f53e6f49
-- User approval: 2026-11-17, implementation, tests and documentation only.
+- User approval: 2026-11-17 implementation/tests/docs; 2026-11-18 permanent default and one-time checkbox. No main integration or push.
 
 ## Business outcome
 
 Chat can find a pending outgoing bank/card transaction, propose an existing
-effective category and apply its one-time classification after the user's card
-approval. It uses the catalog/card's existing accounting defaults. It never
-approves an expense, changes a confirmed transaction or creates a standing rule.
+effective category and apply classification after the user's card approval.
+Permanent merchant/account rule is the default; a checkbox selects one-time. It
+uses catalog defaults and never approves an expense or changes confirmed rows.
 
 ## Acceptance criteria
 
@@ -33,7 +33,8 @@ classifyTransaction. The successful assistant tool result stores the original
 signed, expiring proposal and its display. The model passes only a short ID;
 execution and the frontend independently resolve the original preparation.
 Only a successful assistant result in this owned conversation is accepted.
-The client may send an approval decision, never replacement action input.
+The client may send an approval decision and its strict classification mode token,
+never replacement business/transaction/category input.
 
 AgentClassificationService rechecks access, OPEN_BANKING and current ACTIVE
 delegation EXPENSES_APPROVE scope. An owner represented by an accountant retains
@@ -42,16 +43,17 @@ account-linked, pending and unlocked; the target is an effective existing
 mapped/private subcategory. Percentages/recognition/equipment come from its card.
 
 TransactionProcessingService.classifyPendingForAgent locks owner/cache/slim in
-one DataSource transaction, performs preflight and runs existing classifyManually
-on transaction-scoped repositories with classificationOnly=true. No new expense,
-journal or rule path is called. Existing UI paths are unchanged.
+one DataSource transaction, performs preflight and runs classifyManually (one-time)
+or classifyWithRule (permanent) on scoped repositories with classificationOnly=true.
+No expense/journal path is called. Agent rule backfill is business-scoped and skips
+confirmed/locked rows and other one-time classifications.
 
 Proposals expire after 30 minutes. Signing is process-local: restart/deployment
 or another backend instance invalidates an outstanding proposal safely. A new
 card is then required. Shared/persistent signing for multi-instance rollout is
 not part of this local feature delivery.
 
-No batches, standing rules, confirmed-row edits, expense approval, document
+No arbitrary batches, confirmed-row edits, expense approval, document
 actions, profile, learning or monitors. No schema, production, provider or
 environment-file changes. The main/push approval gates remain binding.
 
@@ -491,3 +493,122 @@ Executable source was unchanged after passing typecheck/build/model/unit checks;
 final docs were formatted and git diff --check passed. Local feature commit only.
 The running backend must be restarted to load the rebuilt agent bundle. Manual
 browser verification remains for the user; no actual demo classification changed.
+
+
+## Permanent default and one-time checkbox — 2026-11-18
+
+The user explicitly changed the previous one-time-only scope: default behavior
+must create/update the same merchant/account rule as manual classification, and
+the approval card must offer a one-time checkbox. Continued the existing feature
+branch from a3faf8dd. Same original untracked files preserved; no delegation.
+
+Acceptance: unchecked default creates/updates a permanent rule after approval;
+explicit one-time request prechecks the box; the user can change the checkbox
+before approving; denial writes nothing; the model asks no redundant mode
+question; legacy cards cannot gain permanent-rule authorization; catalog,
+actor/owner/business/module/write scope, source snapshots, period locks and
+no-expense-approval boundaries hold. Rule scope/overrides are disclosed on-card.
+
+Implementation reviewed across tool, server, transaction and UI boundaries:
+- New signed proposal version 2 carries mode defaults, account/merchant,
+  backfill-from date, existing-rule/one-time override signals and rule snapshot.
+- The classifier still accepts only proposalId. Its execution reads the strict
+  mode token from the authenticated stored approved decision matching the exact
+  proposalId AND toolCallId. Foreign/user parts, other invocations and denials
+  cannot select the mode or substitute the signed operation. Existing generic
+  approval parsing is unchanged. SDK reason is the transport for this one choice.
+- Old signed proposals without version 2 execute one-time and reject expansion;
+  legacy card checkbox is checked/disabled. New checkbox is unchecked by default,
+  or prechecked for an explicit one-time request. No additional mode question.
+- Permanent execution reuses classifyWithRule with explicit approved override,
+  classificationOnly=true and the focus business as backfill scope. Rule, slim
+  and cache writes share the existing agent transaction. It returns real rule ID
+  and backfill count. One-time executes classifyManually and creates no rule.
+- Backfill retains merchant/account and one-year effective lower bound and
+  excludes confirmed/locked rows and other one-time classifications. The agent
+  additionally restricts it to the approved business. Future matching uses the
+  existing rule engine, not a new supplier-name matching mechanism.
+- Exact unconstrained-rule identity requires SQL IS NULL. TypeORM ignored raw
+  null predicates previously, risking selection of a constrained rule; both
+  lookup paths now use IsNull. Updated the reviewed cashflow assertion to
+  require the operator, retaining tenant/bill/merchant/no-source checks.
+
+Verification:
+- Backend focused mode/transaction checks: 25/25 passed; added business/cache
+  protection and null-rule identity tests then broadened once.
+- Final combined backend: npx jest --runInBand --testPathPattern='src/agent-harness/|src/transactions/'
+  19 suites, 183/183 passed, 218.01s. npm run build passed. The only later backend
+  change was comment/EOF normalization; executable behavior unchanged.
+- Agent npm run typecheck -- --pretty false passed with existing Effect
+  suggestions. npm run check passed after new test spacing/boolean lint fixes.
+- Prompt/schema snapshots first failed as expected; reviewed capability text,
+  tool descriptions and optional isSingleUpdate before -u. No approval flag or
+  classifier input-ID boundary changed. A focused run passed 70 tests.
+- Full agent: npm test -- --maxWorkers=2: 67 files passed / 3 skipped,
+  362 tests passed / 22 skipped, 228.36s. Runtime was then changed only to remove
+  stale one-time wording from the dynamic card-step instruction; its two affected
+  files and permanent-default model case were selected for final verification
+  rather than repeating the full suite. Record those results below.
+- Frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include=src/app/pages/dev-agent/classification-card.spec.ts --include=src/app/pages/dev-agent/dev-agent-chat.spec.ts
+  Final 13/13 passed, including actual page checkbox/default/approval handlers,
+  denial payload and legacy behavior. First checkpoint's optional reason return
+  typing error was fixed before the passing run. Chrome shutdown warnings were
+  cleanup-only; runner exited 0. Angular production build passed (hash
+  64fd52e0ee714835) with existing SCSS/bundle-budget and CommonJS warnings.
+- Real MySQL: local standalone guarded script invoked the actual transaction
+  boundary/repository classification methods for demo-assistant-qa-30 in
+  keepintax-dev. ONE_TIME mode created no rule; RULE mode created a merchant/
+  account rule and a RULE slim. Both transactions deliberately threw after
+  asserting writes, and rolled back. Full ordered-row hashes for cache, slim,
+  rules, Expense and journal tables for this demo were identical before/after.
+  Auth/catalog tests are separate: this SQL proof uses minimal read-only service
+  fixtures for metadata/period resolution, not a full browser/Nest auth flow.
+  Proof: chat deliverables/classification-mode-mysql-rollback.json. No retained
+  application data, approvals, rule rows or schema changed.
+
+Bounded model evals:
+- npm run eval -- --variant classification-mode-20261118 --reps 1 tests/evals/agent/interaction/classification.eval.ts -t 'clear request|reclassifies'
+  Fingerprint 9ec5cd6298c4b9fe: 3/3 passed, 8 answer turns, one repetition;
+  4 sibling tests skipped. 102 enumerated metadata slots are not paid cases.
+  Permanent default and explicit one-time checked exact prepared mode, no extra
+  question, real card, no write before approval and exactly one approved write.
+  Reclassification checked denial, a fresh card and later approval. 92.26s model
+  file duration; p50 22.81s / p95 35.669s per case. No thresholds weakened.
+- Authenticated local Langfuse v2 reads found all 8 traces / 78 observations for
+  this tag. Sanitized evidence: classification-mode-20261118-trace-proof.json.
+  The eval harness retains its previously documented stored-proposal approximation.
+- Final neutral wording rerun: classification-mode-final-20261118, only the
+  permanent-default case. This is verification of an actual wording correction,
+  not judge-noise repetition. Results pending below.
+
+Final wording verification: fingerprint f123396d00aba7bc, permanent-default
+case 1/1 passed with two answer turns (six siblings skipped), 33.51s Vitest,
+14.674s case latency. Two affected orchestration files passed 10/10 tests;
+agent build/check passed. This targeted evidence supplements, and does not
+misrepresent, the earlier 362-pass full suite before the wording-only change.
+
+The final implementation is loaded on the existing local ports: backend 3001
+restarted only after verifying its parent is this worktree's ignored launcher;
+frontend 4201 hot-reloaded. Backend root returned HTTP 200 and logged
+keepintax-dev / synchronize=false. The served frontend lazy chunk returned 200
+and contains both mode tokens. No sibling app process was stopped. Old cards
+must be prepared again after restart. No live user approval was submitted.
+
+Final local tracing proof, Git diff review/whitespace/link checks and feature
+commit complete this delivery. Security impact: one new user-selectable approval
+mode for a signed operation, bound to exact persisted invocation; all existing
+permission and no-expense-write guards retained. Accounting impact: reuses
+existing rule/slim/cache classification logic; no Expense/journal mutations.
+No schema change. Existing process-local signing-key rollout limitation remains.
+
+No schema, dependency, production or environment-file change. Existing local
+4201/3001 startup configuration remains ignored. Only this worktree's backend
+was reloaded on 3001; sibling servers are untouched. Main
+integration, remote push and deployment remain unauthorized and unperformed.
+
+Final authenticated Langfuse proof: classification-mode-final-20261118 ingested
+2/2 traces and 20 observations, zero ERRORs. Trace IDs:
+6618db13f4bc79b70ab01d301053eddc and 2c82cc62a46f2644e02584d1f6575364.
+Proof file: chat deliverables/classification-mode-final-20261118-trace-proof.json.
+The earlier 3-case run ingested 8 traces / 78 observations / 20 generations with
+zero ERRORs. No extra paid repetitions were launched after final success.

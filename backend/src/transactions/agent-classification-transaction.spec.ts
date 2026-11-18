@@ -57,6 +57,58 @@ describe('agent classification transaction boundary', () => {
     expect(f.transaction).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalledWith('owner', dto, true);
   });
+
+  it('uses the existing rule path with explicit override, classification-only and business scope', async () => {
+    const f = setup();
+    const single = jest
+      .spyOn(TransactionProcessingService.prototype, 'classifyManually')
+      .mockResolvedValue();
+    const permanent = jest
+      .spyOn(TransactionProcessingService.prototype, 'classifyWithRule')
+      .mockResolvedValue({
+        status: 'applied',
+        ruleId: 7,
+        backfillCount: 2,
+        message: 'done',
+      });
+    Object.assign(f.cache, { businessNumber: 'biz' });
+    const dto: any = {
+      externalTransactionId: 'tx',
+      category: 'משרד',
+      subCategory: 'תוכנה',
+    };
+    const result = await f.service.classifyPendingForAgent(
+      'owner',
+      'tx',
+      async () => ({ result: { status: 'classified' }, dto }),
+      false,
+    );
+    expect(single).not.toHaveBeenCalled();
+    expect(permanent).toHaveBeenCalledWith(
+      'owner',
+      { ...dto, confirmOverride: true },
+      true,
+      'biz',
+    );
+    expect(result).toMatchObject({ ruleId: 7, backfillCount: 2 });
+  });
+  it('a rule guard failure propagates out of the shared transaction', async () => {
+    const f = setup();
+    jest
+      .spyOn(TransactionProcessingService.prototype, 'classifyWithRule')
+      .mockResolvedValue({ status: 'blocked_vat_reported', message: 'locked' });
+    await expect(
+      f.service.classifyPendingForAgent(
+        'owner',
+        'tx',
+        async () => ({
+          result: {},
+          dto: { externalTransactionId: 'tx' } as any,
+        }),
+        false,
+      ),
+    ).rejects.toThrow('CLASSIFICATION_BLOCKED');
+  });
   it('a stale/forbidden preflight reaches no write and propagates transaction failure', async () => {
     const f = setup();
     const write = jest
@@ -92,5 +144,25 @@ describe('agent classification transaction boundary', () => {
         dto: { externalTransactionId: 'tx' } as any,
       })),
     ).rejects.toThrow('report locked');
+  });
+});
+
+describe('agent rule scope and identity', () => {
+  it('restricts backfill to the approved business and excludes confirmed/locked cache rows', async () => {
+    const service:any = Object.create(TransactionProcessingService.prototype);
+    const qb:any = {where:jest.fn().mockReturnThis(),andWhere:jest.fn().mockReturnThis(),getMany:jest.fn().mockResolvedValue([])};
+    Object.assign(service,{cacheRepo:{createQueryBuilder:()=>qb},getEffectiveBackfillStartDate:()=>new Date('2025-11-10')});
+    await service.applyRuleToExistingTransactions('owner',{billId:2,merchantName:'merchant'},{id:5},{externalTransactionId:'tx'},true,'biz');
+    expect(qb.where).toHaveBeenCalledWith('c.userId = :userId',{userId:'owner'});
+    expect(qb.andWhere).toHaveBeenCalledWith('c.businessNumber = :agentBusinessNumber',{agentBusinessNumber:'biz'});
+    expect(qb.andWhere).toHaveBeenCalledWith('c.confirmed = :agentConfirmed AND c.isLocked = :agentLocked',{agentConfirmed:false,agentLocked:false});
+  });
+  it('does not select a constrained rule when creating the default unconstrained rule', async () => {
+    const service:any = Object.create(TransactionProcessingService.prototype);
+    const lookup=jest.fn().mockRejectedValue(new Error('stop before writes'));
+    Object.assign(service,{cacheRepo:{findOne:jest.fn().mockResolvedValue({billId:2,merchantName:'merchant'})},slimRepo:{findOne:jest.fn().mockResolvedValue(null)},rulesRepo:{findOne:lookup}});
+    await expect(service.classifyWithRule('owner',{externalTransactionId:'tx'})).rejects.toThrow('stop before writes');
+    const where=lookup.mock.calls[0][0].where;
+    for(const field of ['startDate','endDate','minAbsSum','maxAbsSum','commentPattern']) expect(where[field]._type).toBe('isNull');
   });
 });

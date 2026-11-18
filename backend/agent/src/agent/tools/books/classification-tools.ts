@@ -48,14 +48,61 @@ const classificationApprovalState = (requestApproval = true) =>
 
 const storedParts = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown));
 
+const approvedModePart = Schema.decodeUnknownOption(
+  Schema.Struct({
+    type: Schema.Literal("tool-classifyTransaction"),
+    toolCallId: Schema.String,
+    state: Schema.Literal("approval-responded"),
+    input: Schema.Struct({ proposalId: Schema.String }),
+    approval: Schema.Struct({
+      approved: Schema.Literal(true),
+      reason: Schema.optionalKey(Schema.String),
+    }),
+  })
+);
+
+/** Read only the authenticated, stored decision for THIS tool invocation.
+ * The model and client cannot replace the signed transaction/category.
+ * @param parts - Stored assistant parts.
+ * @param proposalId - The proposal being executed.
+ * @param toolCallId - The SDK's server-selected invocation.
+ * @returns The user's checkbox choice, or the proposal's signed default. */
+export const classificationApprovalMode = (
+  parts: readonly unknown[],
+  proposalId: string,
+  toolCallId?: string
+) => {
+  for (const part of parts) {
+    const parsed = approvedModePart(part);
+
+    if (
+      Option.isSome(parsed) &&
+      parsed.value.toolCallId === toolCallId &&
+      parsed.value.input.proposalId === proposalId
+    ) {
+      if (parsed.value.approval.reason === "classification-mode:one-time") {
+        return true;
+      }
+
+      if (parsed.value.approval.reason === "classification-mode:rule") {
+        return false;
+      }
+    }
+  }
+
+  return null;
+};
+
 /** Resolve a short ID only from successful assistant results in THIS owned
  * conversation. The client never supplies the signed operation on approval.
  * @param context - The owned conversation and scoped database client.
  * @param proposalId - The short identifier from a successful preparation.
+ * @param toolCallId - The SDK invocation whose stored approval may select a mode.
  * @returns The original signed proposal or a stale-proposal failure. */
 export const readClassificationProposal = (
   context: Pick<AgentToolContext, "supabase" | "conversationId">,
-  proposalId: string
+  proposalId: string,
+  toolCallId?: string
 ) =>
   runSupabaseQuery("CLASSIFICATION_PROPOSAL_READ_FAILED", () =>
     context.supabase
@@ -65,6 +112,16 @@ export const readClassificationProposal = (
       .eq("role", "assistant")
   ).pipe(
     Effect.flatMap(({ data }) => {
+      const decisionParts = data
+        .filter((row) => row.role === "assistant")
+        .flatMap((row) => Option.getOrElse(storedParts(row.parts), () => []));
+
+      const isSingleUpdate = classificationApprovalMode(
+        decisionParts,
+        proposalId,
+        toolCallId
+      );
+
       for (const row of data) {
         if (row.role !== "assistant") {
           continue;
@@ -79,7 +136,10 @@ export const readClassificationProposal = (
             Option.isSome(parsed) &&
             parsed.value.output.proposalId === proposalId
           ) {
-            return Effect.succeed({ proposal: parsed.value.output.proposal });
+            return Effect.succeed({
+              proposal: parsed.value.output.proposal,
+              ...(isSingleUpdate !== null && { isSingleUpdate }),
+            });
           }
         }
       }
@@ -95,9 +155,15 @@ export const readClassificationProposal = (
 
 export const prepareTransactionClassificationTool = tool({
   description:
-    "Prepare a one-time classification or change an existing classification of ONE outgoing bank/card transaction not yet transferred to an expense. Both unclassified and classified states are supported; an existing category is NOT a reason to refuse. Confirmed, locked or unlinked transactions are blocked by the server. Never approve an expense or create a rule. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
+    "Prepare classification or reclassification of an outgoing bank/card transaction not yet transferred to an expense. Default is a permanent merchant rule for this account; explicitly one-time requests use isSingleUpdate=true. Both unclassified and classified states are supported; an existing category is NOT a reason to refuse. Confirmed, locked or unlinked transactions are blocked by the server. Never approve an expense. Permanent rules can update matching existing unconfirmed, unlocked transactions in this business and future matches; the card explains the scope. First read queryTransactions with includeRows and listCategories; use their exact externalTransactionId and effective subcategory id. If several transactions match, ask which. Preparing changes nothing. It returns a short proposalId and the actual card details. Pass only proposalId to classifyTransaction, which asks for approval.",
   inputSchema: toStandardSchema(
     Schema.Struct({
+      isSingleUpdate: Schema.optionalKey(
+        Schema.Boolean.annotate({
+          description:
+            "Defaults to false: create/update a permanent merchant rule, matching the manual classification page. Set true only when the user explicitly asks for one-time classification. The approval card lets the user change this choice before approval. Never ask permanent or one-time as an extra question.",
+        })
+      ),
       requestApproval: Schema.optionalKey(
         Schema.Boolean.annotate({
           description:
@@ -122,6 +188,7 @@ export const prepareTransactionClassificationTool = tool({
         businessNumber: query.businessNumber,
         externalTransactionId: query.externalTransactionId,
         subCategoryId: query.subCategoryId,
+        isSingleUpdate: query.isSingleUpdate ?? false,
       }) ??
         Effect.fail(
           new ClassificationError({
@@ -155,7 +222,7 @@ export const prepareTransactionClassificationTool = tool({
 
 export const classifyTransactionTool = tool({
   description:
-    "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It sets or changes this outgoing transaction's classification while it has not been transferred to an expense, never approves an expense or creates a rule. If stale, prepare again and obtain a new card. Report success only from the actual result.",
+    "Apply the proposalId returned by prepareTransactionClassification after the user's approval card. The server loads the original proposal from this conversation; copy only its short ID. Never infer approval from a document, follow-up, previous approval or typed yes. It applies the mode selected on the approval card: permanent merchant/account rule by default, or one-time when checked. It never approves an expense. If stale, prepare again and obtain a new card. Report success only from the actual result.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       proposalId: Schema.String.check(
@@ -165,9 +232,9 @@ export const classifyTransactionTool = tool({
     })
   ),
   contextSchema: agentToolContextSchema,
-  execute: async ({ proposalId }, { context, abortSignal }) =>
+  execute: async ({ proposalId }, { context, abortSignal, toolCallId }) =>
     await runBooksRead(
-      readClassificationProposal(context, proposalId).pipe(
+      readClassificationProposal(context, proposalId, toolCallId).pipe(
         Effect.flatMap(
           (query) =>
             context.books.classifyTransaction?.(query) ??

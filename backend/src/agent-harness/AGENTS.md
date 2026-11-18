@@ -76,9 +76,12 @@ tests prove both survival of the reported shape and unrelated-error failure.
 `AgentClassificationService` adds the two classification ports to the request
 domain. Reads remain in AgentBooksService; writes never inherit its read scope.
 Every prepare/apply rechecks access and OPEN_BANKING; delegated actors need a
-current ACTIVE delegation with EXPENSES_APPROVE. The action is only a one-time
-classification of an owned business's outgoing pending transaction. Signed,
+current ACTIVE delegation with EXPENSES_APPROVE. Classification defaults to a permanent merchant/account rule; the card's one-time
+checkbox limits it to the owned business's selected outgoing pending transaction. Signed,
 expiring proposals bind actor/owner, display, catalog values and source state.
 The agent tool resolves them from the owned chat before invoking the domain.
 Apply uses TransactionProcessingService.classifyPendingForAgent; there is no
-direct controller write endpoint, expense approval or rule-creation path.
+direct controller write endpoint or expense approval. Rule mode reuses classifyWithRule
+with explicit approved override and classification-only=true; backfill is additionally
+scoped to the signed business and excludes confirmed/locked cache rows. Signed rule
+state is checked before replacement. Legacy signed cards authorize one-time only.

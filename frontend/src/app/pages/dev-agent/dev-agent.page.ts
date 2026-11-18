@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { classificationCard } from './classification-card';
+import { classificationCard, classificationApprovalDecision, ClassificationCard } from './classification-card';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -416,8 +416,20 @@ export class DevAgentPage implements OnInit, OnDestroy {
     void this.chat()?.stop();
   }
 
-  answerApproval(approvalId: string, approved: boolean) {
-    void this.chat()?.addToolApprovalResponse({ id: approvalId, approved });
+  readonly classificationModes = signal<Record<string, boolean>>({});
+
+  classificationSingle(approvalId: string, card: ClassificationCard) {
+    return this.classificationModes()[approvalId] ?? card.isSingleUpdate ?? true;
+  }
+
+  setClassificationSingle(approvalId: string, checked: boolean) {
+    this.classificationModes.update(modes => ({...modes, [approvalId]: checked}));
+  }
+
+  answerApproval(approvalId: string, approved: boolean, card: ClassificationCard | null = null) {
+    void this.chat()?.addToolApprovalResponse(classificationApprovalDecision(
+      approvalId, approved, card, card ? this.classificationSingle(approvalId, card) : true,
+    ));
   }
 
   isBusy(chat: Chat<UIMessage>) {

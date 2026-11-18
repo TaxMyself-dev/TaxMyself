@@ -591,6 +591,7 @@ type BooksRead<Q, R> = (query: Q) => Effect.Effect<R, Error>;
  * coming up and what still needs review before one.
  */
 export interface ClassificationQuery {
+  readonly isSingleUpdate?: boolean;
   readonly businessNumber?: string;
   readonly externalTransactionId: string;
   readonly subCategoryId: number;
@@ -598,11 +599,15 @@ export interface ClassificationQuery {
 
 /** The signed, expiring input copied unchanged into the approval tool. */
 export interface ClassificationProposal {
+  readonly isSingleUpdate?: boolean;
   readonly proposal: string;
 }
 
 /** The actual classification outcome; expense approval is never performed. */
 export interface ClassificationResult {
+  readonly isSingleUpdate?: boolean;
+  readonly ruleId?: number;
+  readonly backfillCount?: number;
   readonly status: "classified" | "already_applied";
   readonly expenseApproved: false;
   readonly category: string;

@@ -3,6 +3,8 @@ export interface ClassificationCard {
   amount: number; currency: string; currentCategory: string | null;
   currentSubCategory: string | null; category: string; subCategory: string;
   vatPercent: number; taxPercent: number;
+  modeChoice?: boolean; isSingleUpdate?: boolean; account?: string; backfillFrom?: string;
+  replacesOneTime?: boolean; replacesRule?: boolean;
   reductionPercent?: number; isEquipment?: boolean; isRecognized?: boolean;
 }
 /** Resolve approval presentation from the original preparation, including after reload. */
@@ -20,4 +22,11 @@ export function classificationCard(part: { type: string }, messages: readonly { 
     }
   }
   return null;
+}
+
+/** Only the mode checkbox is submitted alongside the existing approval decision. */
+export function classificationApprovalDecision(id: string, approved: boolean, card: ClassificationCard | null, single: boolean): {id: string; approved: boolean; reason?: string} {
+  return { id, approved, ...(approved && card?.modeChoice === true && {
+    reason: single ? 'classification-mode:one-time' : 'classification-mode:rule',
+  }) };
 }

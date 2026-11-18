@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager, IsNull } from 'typeorm';
+import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
+import { subYears } from 'date-fns';
 import { BillingService } from 'src/billing/services/billing.service';
 import { CatalogContextService } from 'src/bookkeeping/catalog-context.service';
 import { CatalogService } from 'src/bookkeeping/catalog.service';
@@ -22,6 +24,7 @@ type Query = {
   businessNumber?: string;
   externalTransactionId: string;
   subCategoryId: number;
+  isSingleUpdate?: boolean;
 };
 const fail = (code: string, detail: string): never => {
   throw new AgentDomainError(code, detail);
@@ -78,8 +81,10 @@ export class AgentClassificationService {
     return {
       prepareTransactionClassification: (query: Query) =>
         this.prepare(user, query),
-      classifyTransaction: (query: { proposal: string }) =>
-        this.apply(user, query.proposal),
+      classifyTransaction: (query: {
+        proposal: string;
+        isSingleUpdate?: boolean;
+      }) => this.apply(user, query.proposal, query.isSingleUpdate),
     };
   }
 
@@ -189,6 +194,38 @@ export class AgentClassificationService {
     };
   }
 
+  private ruleFor(
+    user: AgentHarnessUser,
+    cache: FullTransactionCache,
+    data: Pick<EntityManager, 'getRepository'> = this.data,
+  ) {
+    return data.getRepository(ClassifiedTransactions).findOne({
+      where: {
+        userId: user.firebaseId,
+        billId: cache.billId,
+        transactionName: cache.merchantName,
+        startDate: IsNull(),
+        endDate: IsNull(),
+        minAbsSum: IsNull(),
+        maxAbsSum: IsNull(),
+        commentPattern: IsNull(),
+        commentMatchType: 'equals',
+      },
+    });
+  }
+
+  private ruleState(rule: ClassifiedTransactions | null) {
+    return createHash('sha256')
+      .update(
+        JSON.stringify(
+          rule
+            ? Object.entries(rule).sort(([a], [b]) => a.localeCompare(b))
+            : null,
+        ),
+      )
+      .digest('hex');
+  }
+
   private sign(payload: string) {
     return createHmac('sha256', this.key).update(payload).digest('hex');
   }
@@ -213,7 +250,10 @@ export class AgentClassificationService {
       },
     });
     this.eligible(cache, slim, business.businessNumber);
+    const rule = await this.ruleFor(user, cache);
     const payload = JSON.stringify({
+      version: 2,
+      ruleSnapshot: this.ruleState(rule),
       actor: user.actorFirebaseId,
       owner: user.firebaseId,
       expires: Date.now() + 30 * 60_000,
@@ -222,6 +262,15 @@ export class AgentClassificationService {
       snapshot: snapshot(cache, slim),
       source: sourceSnapshot(cache),
       display: {
+        modeChoice: true,
+        isSingleUpdate: query.isSingleUpdate ?? false,
+        account: cache.billName ?? String(cache.billId),
+        backfillFrom: subYears(new Date(cache.transactionDate), 1)
+          .toISOString()
+          .slice(0, 10),
+        replacesOneTime:
+          slim?.classificationType === ClassificationType.ONE_TIME,
+        replacesRule: rule !== null,
         businessNumber: business.businessNumber,
         businessName: business.businessName,
         date: cache.transactionDate,
@@ -249,7 +298,11 @@ export class AgentClassificationService {
     };
   }
 
-  async apply(user: AgentHarnessUser, proposal: string) {
+  async apply(
+    user: AgentHarnessUser,
+    proposal: string,
+    isSingleUpdate?: boolean,
+  ) {
     // The only caller exposed to the model is an approval-effect tool. The
     // server persists the requested tool input; clients can submit a decision,
     // never substitute the action/input when accepting its card.
@@ -277,15 +330,26 @@ export class AgentClassificationService {
         'CLASSIFICATION_STALE',
         'proposal expired or belongs to another user; prepare again',
       );
+    if (isSingleUpdate !== undefined && typeof isSingleUpdate !== 'boolean')
+      fail('CLASSIFICATION_STALE', 'invalid classification mode');
+    const single =
+      isSingleUpdate ??
+      (parsed.version === 2 ? parsed.query.isSingleUpdate ?? false : true);
+    if (parsed.version !== 2 && !single)
+      fail(
+        'CLASSIFICATION_STALE',
+        'this older card authorizes one-time classification only; prepare again',
+      );
     return this.processing.classifyPendingForAgent<{
       status: 'classified' | 'already_applied';
       expenseApproved: false;
+      isSingleUpdate: boolean;
       category: string;
       subCategory: string;
     }>(
       user.firebaseId,
       parsed.query.externalTransactionId,
-      async (cache, slim) => {
+      async (cache, slim, manager) => {
         await this.authorize(user);
         const { business, dto } = await this.target(user, parsed.query);
         this.eligible(cache, slim, business.businessNumber);
@@ -298,27 +362,44 @@ export class AgentClassificationService {
           fail('CLASSIFICATION_STALE', 'catalog changed; prepare again');
         const result = {
           expenseApproved: false as const,
+          isSingleUpdate: single,
           category: dto.category,
           subCategory: dto.subCategory,
           business: {
             number: business.businessNumber,
             name: business.businessName,
           },
-          transaction: parsed.display,
+          transaction: { ...parsed.display, isSingleUpdate: single },
         };
         const same =
-          slim?.classificationType === ClassificationType.ONE_TIME &&
+          slim?.classificationType ===
+            (single ? ClassificationType.ONE_TIME : ClassificationType.RULE) &&
           Object.entries(dto).every(
             ([key, value]) =>
               key === 'externalTransactionId' ||
               (slim as unknown as Record<string, unknown>)[key] === value,
           );
-        if (same)
+        const rule = single
+          ? null
+          : await this.ruleFor(user, cache, manager ?? this.data);
+        const sameRule =
+          single ||
+          (rule !== null &&
+            rule.id === slim?.classificationRuleId &&
+            Object.entries(dto).every(
+              ([key, value]) =>
+                key === 'externalTransactionId' ||
+                (rule as unknown as Record<string, unknown>)[key] === value,
+            ));
+        if (same && sameRule)
           return { result: { ...result, status: 'already_applied' as const } };
+        if (!single && this.ruleState(rule) !== parsed.ruleSnapshot)
+          fail('CLASSIFICATION_STALE', 'merchant rule changed; prepare again');
         if (snapshot(cache, slim) !== parsed.snapshot)
           fail('CLASSIFICATION_STALE', 'transaction changed; prepare again');
         return { dto, result: { ...result, status: 'classified' as const } };
       },
+      single,
     );
   }
 }

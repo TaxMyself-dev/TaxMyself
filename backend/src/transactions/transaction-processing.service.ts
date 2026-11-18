@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { DataSource, EntityManager, IsNull, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 import { subYears } from 'date-fns';
 
 import { SlimTransaction } from './slim-transaction.entity';
@@ -614,20 +614,21 @@ export class TransactionProcessingService {
     return result;
   }
 
-  /** Agent-only transaction boundary. No expense approval or rule creation.
+  /** Agent-only transaction boundary. No expense approval. Mode is chosen on its card.
    * Row locks serialize repeated approvals across requests and instances.
    * preflight runs after locks; failure rolls the entire classification back. */
   async classifyPendingForAgent<T>(
     userId: string,
     externalTransactionId: string,
-    preflight: (cache: FullTransactionCache, slim: SlimTransaction | null) => Promise<{ result: T; dto?: ClassifyManuallyDto }>,
+    preflight: (cache: FullTransactionCache, slim: SlimTransaction | null, manager: EntityManager) => Promise<{ result: T; dto?: ClassifyManuallyDto }>,
+    isSingleUpdate = true,
   ): Promise<T> {
     return this.dataSource.transaction(async (manager) => {
       await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
       const cache = await manager.getRepository(FullTransactionCache).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
       if (!cache) throw new NotFoundException('CLASSIFICATION_STALE: transaction no longer available');
       const slim = await manager.getRepository(SlimTransaction).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
-      const { result, dto } = await preflight(cache, slim);
+      const { result, dto } = await preflight(cache, slim, manager);
       if (dto) {
         const scoped = new TransactionProcessingService(
           manager.getRepository(SlimTransaction), manager.getRepository(FullTransactionCache),
@@ -636,7 +637,13 @@ export class TransactionProcessingService {
           manager.getRepository(Expense), this.userSyncStateService, this.sharedService,
           this.fxRateService, this.dataSource, this.expensesService,
         );
-        await scoped.classifyManually(userId, dto, true);
+        if (isSingleUpdate) await scoped.classifyManually(userId, dto, true);
+        else {
+          const applied = await scoped.classifyWithRule(userId, { ...dto, confirmOverride: true }, true, cache.businessNumber);
+          if (applied.status !== 'applied') throw new ConflictException('CLASSIFICATION_BLOCKED: ' + applied.message);
+          if (result !== null && typeof result === 'object')
+            Object.assign(result, { ruleId: applied.ruleId, backfillCount: applied.backfillCount });
+        }
       }
       return result;
     });
@@ -806,6 +813,7 @@ export class TransactionProcessingService {
     userId: string,
     dto: ClassifyWithRuleDto,
     classificationOnly = false,
+    agentBusinessNumber?: string,
   ): Promise<ClassifyWithRuleResult> {
     // 1. Locate in cache.
     const cacheRow = await this.cacheRepo.findOne({
@@ -875,7 +883,7 @@ export class TransactionProcessingService {
       commentMatchType: dto.commentMatchType ?? 'equals',
     };
 
-    let rule = await this.rulesRepo.findOne({ where: constraintWhere });
+    let rule = await this.rulesRepo.findOne({ where: Object.fromEntries(Object.entries(constraintWhere).map(([key, value]) => [key, value === null ? IsNull() : value])) });
 
     // Guard: existing rule with same signature → require explicit confirmation before override.
     if (rule && !dto.confirmOverride) {
@@ -991,6 +999,7 @@ export class TransactionProcessingService {
       savedRule,
       dto,
       classificationOnly,
+      agentBusinessNumber,
     );
 
     return {
@@ -1433,6 +1442,7 @@ export class TransactionProcessingService {
     savedRule: ClassifiedTransactions,
     dto: ClassifyWithRuleDto,
     classificationOnly = false,
+    agentBusinessNumber?: string,
   ): Promise<number> {
     // טווח תאריכים ל־SQL: transactionDate >= effectiveStart (וגם <= endDate אם הוגדר).
     const effectiveStart = this.getEffectiveBackfillStartDate(dto, cacheRow);
@@ -1459,6 +1469,10 @@ export class TransactionProcessingService {
       });
     }
 
+    if (agentBusinessNumber !== undefined) {
+      qb.andWhere('c.businessNumber = :agentBusinessNumber', { agentBusinessNumber });
+      qb.andWhere('c.confirmed = :agentConfirmed AND c.isLocked = :agentLocked', { agentConfirmed: false, agentLocked: false });
+    }
     const candidates = await qb.getMany();
     if (candidates.length === 0) return 0;
 

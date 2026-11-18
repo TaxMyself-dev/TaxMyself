@@ -122,3 +122,14 @@ DataSource transaction, runs the action's stale/permission preflight, and calls
 the existing `classifyManually` on transaction-scoped repositories with
 `classificationOnly=true`. A preflight or domain failure aborts the transaction;
 an already-applied result writes nothing. Normal UI classification is unchanged.
+
+## Agent classification mode (2026-11-18)
+
+classifyPendingForAgent retains one transaction and owner/cache/slim locks. The
+agent passes the signed/default or stored approval-selected isSingleUpdate mode:
+one-time uses classifyManually; permanent uses classifyWithRule with explicit
+confirmOverride, classificationOnly=true and the focus business as backfill scope.
+Only this agent path adds business/unconfirmed/unlocked cache predicates; normal
+manual rule scope is unchanged. Rule lookup uses SQL IS NULL for absent conditions,
+so a default rule cannot accidentally replace a more constrained rule. Failure
+rolls rule/slim/cache writes back together; no expense confirmation is performed.

@@ -132,19 +132,31 @@
                   <div class="approval">
                       @if (classificationCard(part, c.messages); as card) {
                         <div dir="rtl">
-                          <b>אישור סיווג חד־פעמי של תנועה</b>
+                          <b>אישור סיווג תנועה</b>
                           <p>{{ card.businessName }} · {{ card.businessNumber }}</p>
                           <p>{{ card.date | date:'dd/MM/yyyy' }} · {{ card.merchant }} · {{ card.amount | number:'1.2-2' }} {{ card.currency }}</p>
                           <p>סיווג נוכחי: {{ card.currentCategory || 'ללא סיווג' }} / {{ card.currentSubCategory || '—' }}</p>
                           <p>סיווג מבוקש: {{ card.category }} / {{ card.subCategory }}</p>
                           <p>אחוז מע״מ: {{ card.vatPercent }}% · אחוז הכרה למס: {{ card.taxPercent }}%</p>
                           <p>מוכר למס: {{ card.isRecognized === undefined ? 'לא זמין' : card.isRecognized ? 'כן' : 'לא' }} · ציוד: {{ card.isEquipment === undefined ? 'לא זמין' : card.isEquipment ? 'כן' : 'לא' }} · פחת: {{ card.reductionPercent === undefined ? 'לא זמין' : card.reductionPercent + '%' }}</p>
-                          <p>הפעולה מסווגת תנועה אחת בלבד. היא אינה מאשרת הוצאה ואינה יוצרת כלל קבוע.</p>
+                          <label>
+                            <input type="checkbox" [checked]="classificationSingle(approvalId, card)" [disabled]="!card.modeChoice" (change)="setClassificationSingle(approvalId, $any($event.target).checked)" />
+                            סיווג חד־פעמי
+                          </label>
+                          @if (classificationSingle(approvalId, card)) {
+                            <p>השינוי יחול על התנועה הזו בלבד, ללא יצירת כלל קבוע.</p>
+                          } @else {
+                            <p>סיווג קבוע: ייווצר או יעודכן כלל לשם ״{{ card.merchant }}״ בחשבון ״{{ card.account }}״. הכלל יחול על תנועות חדשות תואמות, ועשוי לעדכן גם תנועות קיימות בעסק הזה החל מ־{{ card.backfillFrom | date:'dd/MM/yyyy' }}.</p>
+                            <p>תנועות שהועברו להוצאה, תנועות נעולות וסיווגים חד־פעמיים אחרים לא ישתנו.</p>
+                            @if (card.replacesOneTime) { <p>הסיווג החד־פעמי הקיים של התנועה הנבחרת יוחלף בכלל הקבוע.</p> }
+                            @if (card.replacesRule) { <p>קיים כלל תואם; האישור יחליף את הסיווג שלו בסיווג המבוקש.</p> }
+                          }
+                          <p>הפעולה אינה מאשרת הוצאה.</p>
                         </div>
                       } @else {
                         <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
                       }
-                    <button type="button" class="approve" [disabled]="tool.name === 'classifyTransaction' && !classificationCard(part, c.messages)" (click)="answerApproval(approvalId, true)">Approve</button>
+                    <button type="button" class="approve" [disabled]="tool.name === 'classifyTransaction' && !classificationCard(part, c.messages)" (click)="answerApproval(approvalId, true, classificationCard(part, c.messages))">Approve</button>
                     <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
                   </div>
                 }

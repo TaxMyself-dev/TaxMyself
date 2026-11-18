@@ -68,7 +68,7 @@ export const prepareClassificationApprovalStep = (
       ...messages,
       {
         role: "system" as const,
-        content: `The requested one-time classification has a successful prepared proposal. Present its real approval card now by calling classifyTransaction with proposalId=${JSON.stringify(pending.proposalId)}. No action has executed and no card exists until this tool requests approval. Do not produce a completion message instead.`,
+        content: `The requested classification has a successful prepared proposal. Present its real approval card now by calling classifyTransaction with proposalId=${JSON.stringify(pending.proposalId)}. No action has executed and no card exists until this tool requests approval. Do not produce a completion message instead.`,
       },
     ],
   };

@@ -91,7 +91,7 @@ describe('Unchanged classification rule scope', () => {
     });
     await expect(service.classifyWithRule('owner', { externalTransactionId: 'tx' })).resolves.toMatchObject({ status: 'confirm_rule_override' });
     const scope = findRule.mock.calls[0][0].where;
-    expect(scope).toMatchObject({ userId: 'owner', billId: 5, transactionName: 'כרטיס', minAbsSum: null, commentPattern: null });
+    expect(scope).toMatchObject({ userId: 'owner', billId: 5, transactionName: 'כרטיס', minAbsSum: expect.objectContaining({_type: 'isNull'}), commentPattern: expect.objectContaining({_type: 'isNull'}) });
     expect(scope).not.toHaveProperty('sourceRecordId');
   });
 

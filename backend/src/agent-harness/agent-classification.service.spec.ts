@@ -1,3 +1,4 @@
+import { ClassifiedTransactions } from 'src/transactions/classified-transactions.entity';
 import { AgentClassificationService } from './agent-classification.service';
 import { ApprovalStatus, RecognitionType } from 'src/enum';
 import { DelegationScope } from 'src/delegation/delegation.entity';
@@ -18,6 +19,7 @@ describe('agent one-time pending classification', () => {
     businessNumber: '123456789',
     externalTransactionId: 'tx',
     subCategoryId: 7,
+    isSingleUpdate: true,
   };
   function setup() {
     const cache: any = {
@@ -35,6 +37,7 @@ describe('agent one-time pending classification', () => {
       subCategory: null,
     };
     let slim: any = null;
+    let rule: any = null;
     const domain: any = {
       assertAccessStillHolds: jest.fn(),
       resolveBusiness: jest.fn().mockResolvedValue({
@@ -69,19 +72,29 @@ describe('agent one-time pending classification', () => {
             ? cache
             : entity === SlimTransaction
             ? slim
+            : entity === ClassifiedTransactions
+            ? rule
             : delegation,
       }),
     };
     const write = jest.fn();
+    const ruleWrite = jest.fn();
     const processing: any = {
       classifyPendingForAgent: jest.fn(
-        async (_u: any, _id: any, check: any) => {
+        async (_u: any, _id: any, check: any, single = true) => {
           const action = await check(cache, slim);
           if (action.dto) {
             write(action.dto);
+            if (!single) {
+              ruleWrite(action.dto);
+              rule = { ...action.dto, id: 5 };
+            }
             slim = {
               ...action.dto,
-              classificationType: ClassificationType.ONE_TIME,
+              classificationType: single
+                ? ClassificationType.ONE_TIME
+                : ClassificationType.RULE,
+              classificationRuleId: single ? null : 5,
               confirmed: false,
               isLocked: false,
             };
@@ -113,6 +126,10 @@ describe('agent one-time pending classification', () => {
       delegation,
       write,
       processing,
+      ruleWrite,
+      setRule: (value: any) => {
+        rule = value;
+      },
       billing,
       setSlim: (value: any) => {
         slim = value;
@@ -155,11 +172,82 @@ describe('agent one-time pending classification', () => {
     const f = setup();
     f.cache.category = 'משרד';
     f.cache.subCategory = 'ציוד';
-    f.setSlim({businessNumber: query.businessNumber, category: 'משרד', subCategory: 'ציוד', confirmed: false, isLocked: false});
+    f.setSlim({
+      businessNumber: query.businessNumber,
+      category: 'משרד',
+      subCategory: 'ציוד',
+      confirmed: false,
+      isLocked: false,
+    });
     const p = await f.service.prepare(owner, query);
     expect(f.write).not.toHaveBeenCalled();
-    await expect(f.service.apply(owner, p.proposal)).resolves.toMatchObject({status: 'classified', expenseApproved: false});
+    await expect(f.service.apply(owner, p.proposal)).resolves.toMatchObject({
+      status: 'classified',
+      expenseApproved: false,
+    });
     expect(f.write).toHaveBeenCalledTimes(1);
+  });
+
+  it('defaults to a permanent rule, while the checkbox can narrow it to one-time', async () => {
+    for (const selected of [undefined, true]) {
+      const f = setup();
+      const { isSingleUpdate, ...defaultQuery } = query;
+      const prepared = await f.service.prepare(owner, defaultQuery);
+      expect(
+        JSON.parse(JSON.parse(prepared.proposal).payload).display,
+      ).toMatchObject({ modeChoice: true, isSingleUpdate: false });
+      expect(f.write).not.toHaveBeenCalled();
+      const result = await f.service.apply(owner, prepared.proposal, selected);
+      expect(result.isSingleUpdate).toBe(selected === true);
+      expect(f.ruleWrite).toHaveBeenCalledTimes(selected === true ? 0 : 1);
+      expect(f.processing.classifyPendingForAgent.mock.calls[0][3]).toBe(
+        selected === true,
+      );
+      await expect(
+        f.service.apply(owner, prepared.proposal, selected),
+      ).resolves.toMatchObject({ status: 'already_applied' });
+      expect(f.write).toHaveBeenCalledTimes(1);
+    }
+  });
+  it('allows the approving user to uncheck an explicitly one-time proposal', async () => {
+    const f = setup();
+    const p = await f.service.prepare(owner, query);
+    await f.service.apply(owner, p.proposal, false);
+    expect(f.ruleWrite).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a changed merchant rule before creating or replacing a rule', async () => {
+    const f = setup();
+    const p = await f.service.prepare(owner, {
+      ...query,
+      isSingleUpdate: false,
+    });
+    f.setRule({ id: 9, category: 'changed' });
+    await expect(f.service.apply(owner, p.proposal)).rejects.toThrow(
+      'merchant rule changed',
+    );
+    expect(f.write).not.toHaveBeenCalled();
+    expect(f.ruleWrite).not.toHaveBeenCalled();
+  });
+  it('never upgrades a signed legacy one-time card to a permanent rule', async () => {
+    const f = setup();
+    const p = await f.service.prepare(owner, query);
+    const envelope = JSON.parse(p.proposal);
+    const payload = JSON.parse(envelope.payload);
+    delete payload.version;
+    delete payload.query.isSingleUpdate;
+    const raw = JSON.stringify(payload);
+    const legacy = JSON.stringify({
+      payload: raw,
+      signature: (f.service as any).sign(raw),
+    });
+    await expect(f.service.apply(owner, legacy, false)).rejects.toThrow(
+      'older card authorizes one-time',
+    );
+    expect(f.write).not.toHaveBeenCalled();
+    await expect(f.service.apply(owner, legacy)).resolves.toMatchObject({
+      isSingleUpdate: true,
+    });
+    expect(f.ruleWrite).not.toHaveBeenCalled();
   });
   it.each(['confirmed', 'isLocked'])(
     'refuses %s transactions',

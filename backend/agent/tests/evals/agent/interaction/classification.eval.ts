@@ -12,9 +12,10 @@ import {
 import type { AgentEvalScenario } from "../harness/agent-eval-scenario";
 import { emptyEvalSettings } from "../harness/agent-eval-settings-fixtures";
 
-const fixture = (ambiguous = false, classified = false) => {
+const fixture = (ambiguous = false, classified = false, single = true) => {
   const business = evalDesignerBusiness;
   let applied = 0;
+  const preparedModes: boolean[] = [];
 
   const rows = [
     {
@@ -43,7 +44,11 @@ const fixture = (ambiguous = false, classified = false) => {
 
   const proposal = JSON.stringify({
     payload: JSON.stringify({
+      version: 2,
+      query: { isSingleUpdate: single },
       display: {
+        modeChoice: true,
+        isSingleUpdate: single,
         businessNumber: business.number,
         businessName: business.name,
         date: rows[0].date,
@@ -121,10 +126,14 @@ const fixture = (ambiguous = false, classified = false) => {
         subCategoryCount: 1,
         omitted: 0,
       }),
-    prepareTransactionClassification: (query) =>
-      query.externalTransactionId === "adobe-101" && query.subCategoryId === 7
+    prepareTransactionClassification: (query) => {
+      preparedModes.push(query.isSingleUpdate ?? false);
+
+      return query.externalTransactionId === "adobe-101" &&
+        query.subCategoryId === 7
         ? Effect.succeed({ proposal })
-        : Effect.die(new Error("Wrong transaction/category")),
+        : Effect.die(new Error("Wrong transaction/category"));
+    },
     classifyTransaction: (query) =>
       Effect.sync(() => {
         expect(query.proposal).toBe(proposal);
@@ -163,7 +172,7 @@ const fixture = (ambiguous = false, classified = false) => {
     settings: emptyEvalSettings,
   };
 
-  return { scenario, applied: () => applied };
+  return { scenario, preparedModes, applied: () => applied };
 };
 
 const request =
@@ -171,7 +180,7 @@ const request =
 
 describe("Phase A classification", () => {
   it("reclassifies an existing category with denial then fresh approval", async () => {
-    const f = fixture(false, true);
+    const f = fixture(false, true, false);
 
     const message =
       "בעסק סטודיו נועה שנה את הסיווג הקיים של התשלום ל-Adobe מ-12 בספטמבר 2026 בסך 118 ש״ח מציוד משרדי לתוכנה. הצג כרטיס אישור לפני ביצוע.";
@@ -231,37 +240,42 @@ describe("Phase A classification", () => {
     );
     expect(f.applied()).toBe(1);
   });
-  it("clear request waits for approval, then executes the exact proposal", async () => {
-    const f = fixture();
+  it.each([false, true])(
+    "clear request single=%s waits for approval, then executes the exact proposal",
+    async (single) => {
+      const f = fixture(false, false, single);
 
-    const first = await runAgentEvalStep(
-      f.scenario,
-      { message: request },
-      startAgentEvalConversation(f.scenario)
-    );
+      const first = await runAgentEvalStep(
+        f.scenario,
+        { message: single ? request : request.replace("באופן חד פעמי ", "") },
+        startAgentEvalConversation(f.scenario)
+      );
 
-    expect(first.run.approvals).toContain("classifyTransaction");
-    expect(f.applied()).toBe(0);
+      expect(first.run.question).toBeNull();
+      expect(f.preparedModes).toStrictEqual([single]);
+      expect(first.run.approvals).toContain("classifyTransaction");
+      expect(f.applied()).toBe(0);
 
-    const card = first.run.approvalRequests.find(
-      (requestCard) => requestCard.toolName === "classifyTransaction"
-    );
+      const card = first.run.approvalRequests.find(
+        (requestCard) => requestCard.toolName === "classifyTransaction"
+      );
 
-    expect(card).toBeDefined();
+      expect(card).toBeDefined();
 
-    if (!card) {
-      throw new Error("Missing approval card");
+      if (!card) {
+        throw new Error("Missing approval card");
+      }
+
+      const done = await runAgentEvalStep(
+        f.scenario,
+        { decisions: [{ approvalId: card.approvalId, approved: true }] },
+        first.conversation
+      );
+
+      expect(f.applied()).toBe(1);
+      expect(done.run.answer.length).toBeGreaterThan(0);
     }
-
-    const done = await runAgentEvalStep(
-      f.scenario,
-      { decisions: [{ approvalId: card.approvalId, approved: true }] },
-      first.conversation
-    );
-
-    expect(f.applied()).toBe(1);
-    expect(done.run.answer.length).toBeGreaterThan(0);
-  });
+  );
   it("denial executes nothing", async () => {
     const f = fixture();
 
