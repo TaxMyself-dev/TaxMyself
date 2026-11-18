@@ -225,3 +225,24 @@ Final verification:
 - `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
 - From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/components/topNav/*.spec.ts --ts-config=.test-tmp/tsconfig.topnav-tests.json --progress=false`: 3/3 passed. Tests assert the original trigger styles, customer direct navigation/no popup, admin popup/no immediate navigation then real menu-item click to legacy settings, no logout, and PWA refresh/busy state.
 - `git diff --check` passed. No full suite/build/live mutations. Local feature only.
+
+## Authorized local main integration (2026-11-18)
+
+Elazar explicitly approved merging to local main. Base local main was 1b170ac4;
+reviewed feature tip was 30ed00d3 plus b5c8eaaf preserving the reviewed spouse
+heading. Main updates were merged into the feature at c55a8599. The only conflict
+was generic-table/AGENTS.md; preserved both contained-action and mobile-performance
+instructions. No executable conflict. No environment, port, dependency or backend
+changes are introduced relative to main. User local ports are kept in a scoped
+stash during integration and restored to the feature worktree afterward.
+
+Verified integrated executable tree: c55a8599cf5d7c30f27c21c8f388be48fa53c8b4.
+- From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/*.spec.ts --include=src/app/pages/settings/my-categories-tab/*.spec.ts --include=src/app/pages/settings/my-subscription-tab/*.spec.ts --include=src/app/pages/settings/settings-*.spec.ts --include=src/app/components/topNav/*.spec.ts --include=src/app/components/generic-table/*.spec.ts --include=src/app/components/table-row-actions-menu/*.spec.ts --ts-config=.test-tmp/tsconfig.settings-integration-tests.json --progress=false`: exit 0, 125/125 passed. This includes the formerly failing invoice consumer test, fixed by incoming main changes.
+- `npm run build -- --configuration production --progress=false`: exit 0;
+  hash 71c67560d8dbd215. Existing budget/CommonJS warnings remain; limits unchanged.
+- `git diff --check main..HEAD` and `git show --check HEAD`: passed.
+- No schema, accounting, backend, provider contract or permission weakening.
+  No live account/financial mutation. Full repository suite not claimed.
+- This final record is documentation-only after executable verification.
+- Local main update is authorized; remote push is NOT authorized. Elazar must
+  personally test the resulting local main revision before explicit push approval.
