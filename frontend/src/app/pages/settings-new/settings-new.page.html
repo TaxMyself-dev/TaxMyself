@@ -85,7 +85,7 @@
                 <div class="actions">
                   @if (childEditing() === i) {
                     <button type="button" (click)="saveFamilyChildren()">{{ savingChildren() ? 'שומר...' : 'שמור' }}</button>
-                    <button type="button" (click)="group.reset()">נקה</button>
+                    <button type="button" (click)="clearChild(i)">נקה</button>
                     <button type="button" (click)="cancelChild()">בטל</button>
                   } @else { <button type="button" (click)="beginChild(i)">ערוך</button> }
 

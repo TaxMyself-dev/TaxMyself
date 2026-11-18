@@ -164,3 +164,14 @@ Validation on final implementation:
 - From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-new.page.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 16/16 passed.
 - `git diff --check`: passed; old settings diff empty. No full suite, production
   rebuild or live account mutations performed for this focused change.
+
+## Clear child names (2026-11-18)
+
+Child names are nonNullable controls whose reset default is the saved name.
+New settings Clear now explicitly resets childFName/childLName to empty strings
+and childDate to null. It remains in edit mode, guards pending saves and leaves
+siblings untouched. Cancel still restores the entry snapshot. Old settings and
+shared form builders unchanged.
+
+Focused command from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-new.page.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 17/17 passed, including actual nonNullable names, sibling preservation and Cancel restoration.
+`git diff --check` passed. No broad build/full suite rerun for this focused fix.

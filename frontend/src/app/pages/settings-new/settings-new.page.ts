@@ -222,6 +222,10 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     this.savedChild = { group, values: structuredClone(group.getRawValue()), draft };
     this.childEditing.set(currentIndex);
   }
+  clearChild(index: number): void {
+    if (this.savingChildren() || this.childEditing() !== index) return;
+    this.childrenFormArray.at(index)?.reset({ childFName: '', childLName: '', childDate: null });
+  }
   cancelChild(): void {
     if (this.savingChildren()) return;
     const saved = this.savedChild;

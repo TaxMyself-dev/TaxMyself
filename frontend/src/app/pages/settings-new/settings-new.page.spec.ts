@@ -198,3 +198,20 @@ describe('cancel family edits', () => {
     page.cancelSpouse();page.cancelChild();expect(page.spouseEditing()).toBeTrue();expect(page.childEditing()).toBe(0);
   });
 });
+
+
+describe('clear child fields', () => {
+  it('clears non-nullable names and the date, keeps other children and supports cancel', () => {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    page.savingChildren=signal(false);page.childEditing=signal(null);
+    const date=new Date(2020,2,3);
+    const child=new FormGroup({childFName:new FormControl('First',{nonNullable:true}),childLName:new FormControl('Last',{nonNullable:true}),childDate:new FormControl(date)});
+    const sibling=new FormGroup({childFName:new FormControl('Sibling',{nonNullable:true})});
+    page.childrenFormArray=new FormArray([child,sibling]);
+    page.beginChild(0);page.clearChild(0);
+    expect(child.getRawValue()).toEqual({childFName:'',childLName:'',childDate:null});
+    expect(sibling.value.childFName).toBe('Sibling');expect(page.childEditing()).toBe(0);
+    page.cancelChild();expect(child.getRawValue()).toEqual({childFName:'First',childLName:'Last',childDate:date});
+    expect(page.childEditing()).toBeNull();
+  });
+});
