@@ -42,6 +42,14 @@ entitlements, referral consent, offline navigation and view-only delegation.
   first calls the provider-free overdue preparation endpoint, refreshes billing
   state to `PAST_DUE`, and only then navigates to `/billing/recovery`. The
   blocking billing dialog contains no unrelated open-banking management action.
+- BillingGuard intercepts CardCom checkout return parameters on `/my-account`
+  before the dashboard component is created and sends them to
+  `/billing/payment-status`. Independently, a server-reported
+  `pendingCheckout` owns authenticated navigation after refresh or a later
+  login, so the user cannot land on the dashboard or open another payment page
+  while the canonical hosted attempt is unresolved. The status route remains
+  authenticated but outside BillingGuard so it can perform the owner-scoped
+  resolution check.
 
 ## Related topics
 

@@ -239,6 +239,22 @@ export class BillingController {
     );
   }
 
+  /** Read-only resolution of the owner's existing hosted checkout. */
+  @Get('checkout/status')
+  @UseGuards(FirebaseAuthGuard)
+  checkoutStatus(
+    @Req() request: AuthenticatedRequest,
+    @Query('lowProfileId') lowProfileId?: string,
+  ) {
+    if (lowProfileId && (lowProfileId.length > 255 || !/^[a-zA-Z0-9-]+$/.test(lowProfileId))) {
+      throw new BadRequestException('Invalid checkout identifier');
+    }
+    return this.billingService.getCheckoutResolution(
+      this.assertDirectOwner(request),
+      lowProfileId,
+    );
+  }
+
   @Post('subscription/cancel')
   @UseGuards(FirebaseAuthGuard)
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

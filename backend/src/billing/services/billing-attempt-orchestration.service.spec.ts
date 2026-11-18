@@ -112,6 +112,7 @@ describe('BillingAttemptOrchestrationService', () => {
       cardcomTransactionId: null,
       providerTerminalRef: null,
       providerResponseCode: null,
+      providerDescription: null,
       failureCategory: null,
       reconciliationAttempts: 0,
       lastReconciledAt: null,
@@ -771,6 +772,8 @@ describe('BillingAttemptOrchestrationService', () => {
       leaseExpiresAt: new Date('2026-09-18T00:01:00Z'),
       reconciliationAttempts: 4,
       unknownSince: new Date('2026-09-17T00:00:00Z'),
+      providerResponseCode: 603,
+      providerDescription: 'Invalid API credentials',
     });
     manager.findOne.mockResolvedValue(row);
 
@@ -785,6 +788,8 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(row.reconciliationAttempts).toBe(5);
     expect(row.status).toBe(BillingAttemptStatus.MANUAL_REVIEW);
     expect(row.nextActionAt).toBeNull();
+    expect(row.providerResponseCode).toBe(603);
+    expect(row.providerDescription).toBe('Invalid API credentials');
   });
 
   it('uses the approved 1m, 5m, 30m, 2h and 24h reconciliation schedule', () => {

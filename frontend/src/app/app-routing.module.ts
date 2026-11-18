@@ -150,6 +150,10 @@ const appRoutes: Routes = [
         loadComponent: () => import('./pages/billing/billing-recovery.page').then(m => m.BillingRecoveryPage),
       },
       {
+        path: 'payment-status',
+        loadComponent: () => import('./pages/billing/billing-payment-status.page').then(m => m.BillingPaymentStatusPage),
+      },
+      {
         path: 'plans',
         loadComponent: () => import('./pages/billing/billing-plans.page').then(m => m.BillingPlansPage),
       },

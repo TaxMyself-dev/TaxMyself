@@ -235,6 +235,10 @@ export class BillingProviderRuntimeService {
       subscriptionId: input.subscriptionId ?? null,
     };
     let outcome: NormalizedChargeOutcome;
+    this.logProviderEvent('BILLING_PROVIDER_RECONCILIATION_REQUESTED', request, {
+      chargeMode: request.chargeMode ?? null,
+      lowProfileId: request.lowProfileId ?? null,
+    });
     try {
       outcome = normalizeCardComReconciliation(
         await this.executor.reconcileCharge(request),
@@ -242,6 +246,7 @@ export class BillingProviderRuntimeService {
     } catch {
       outcome = { kind: 'UNKNOWN', failureCategory: 'RECONCILIATION_ERROR' };
     }
+    this.logReconciliationOutcome(request, outcome);
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
   }
@@ -276,13 +281,32 @@ export class BillingProviderRuntimeService {
       subscriptionId: input.subscriptionId ?? null,
     };
     let outcome: NormalizedChargeOutcome;
+    this.logProviderEvent('BILLING_PROVIDER_RECONCILIATION_REQUESTED', request, {
+      chargeMode: request.chargeMode ?? null,
+      lowProfileId: request.lowProfileId ?? null,
+    });
     try {
       outcome = normalizeCardComReconciliation(await this.executor.reconcileCharge(request));
     } catch {
       outcome = { kind: 'UNKNOWN', failureCategory: 'RECONCILIATION_ERROR' };
     }
+    this.logReconciliationOutcome(request, outcome);
     const attempt = await this.applyOutcome(lease.attempt, input, outcome);
     return { kind: 'APPLIED', outcome, attempt };
+  }
+
+  private logReconciliationOutcome(
+    request: CardComChargeRequest,
+    outcome: NormalizedChargeOutcome,
+  ): void {
+    this.logProviderEvent('BILLING_PROVIDER_RECONCILIATION_OUTCOME', request, {
+      chargeMode: request.chargeMode ?? null,
+      lowProfileId: request.lowProfileId ?? null,
+      outcome: outcome.kind,
+      providerResponseCode: outcome.providerResponseCode ?? null,
+      failureCategory:
+        outcome.kind === 'CAPTURED' ? null : outcome.failureCategory ?? null,
+    });
   }
 }
 

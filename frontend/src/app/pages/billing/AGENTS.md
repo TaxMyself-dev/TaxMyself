@@ -112,6 +112,22 @@ recovery, billing-state and admin-subscriptions spec includes.
   server-authoritative `canResume` flag. No second payment attempt or card-only
   action is offered while the reservation remains unresolved; legacy rows that
   lack a durable URL fail closed to concise support guidance.
+- `/billing/payment-status` owns every unresolved hosted-checkout return. It
+  polls the owner-scoped `GET billing/checkout/status`, stays off the dashboard
+  for pending/unknown/provider-unreachable results, and after 90 seconds changes
+  to explanatory delayed copy while continuing slower checks instead of leaving
+  an infinite loading button. It navigates home only after the backend reports
+  the canonical attempt `COMPLETED` and a refreshed billing state is no longer
+  payment-blocked. Provider-proven decline returns to the matching plans or debt
+  flow; manual review never offers another payment.
+- Plans and recovery load billing state before their own data. A durable
+  `pendingCheckout` redirects them to the status page, so direct navigation
+  cannot bypass the gate. Recovery's `pay()` also rejects pending state at the
+  method boundary, in addition to hiding the ordinary payment action.
+- The LowProfile id in the return URL/session storage is correlation help only.
+  Refresh, closed-browser re-entry and later login recover the canonical active
+  attempt from the server. Focused KT-113 tests are isolated by
+  `tsconfig.billing-checkout-status.spec.json`.
 
 ## Related topics
 - Backend `billing` module (`GET billing/plans`, `POST billing/checkout` — Cardcom integration).

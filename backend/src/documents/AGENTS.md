@@ -65,10 +65,13 @@ allocation, retries perform local work only and never call SHAAM again.
 - `GET|POST /documents/get-setting-doc-by-type/:typeDoc`, `setting-initial-index` — manage per-business running-number counters.
 - `POST /documents/rollback`, `POST /documents/finalize-allocation`, `PATCH /documents/update-status` — document lifecycle/allocation-number operations.
 - Allocation-required issuance first persists the header/lines/final running
-  number with `PENDING_ALLOCATION`. SHAAM saves `allocationNum` independently
-  before `finalizeAllocation` generates PDFs, posts the existing journal flow
-  and changes the status. Finalization never clears an already persisted
-  allocation number, so a PDF/upload failure is safely retryable.
+  number with `PENDING_ALLOCATION` and posts the journal entry in the same
+  transaction, so the numbered document participates in accounting reports
+  while its PDF waits for allocation. SHAAM saves `allocationNum`
+  independently before `finalizeAllocation` generates PDFs and changes the
+  status. Finalization reuses the existing journal link and creates one only
+  for legacy pending rows that do not have it. It never clears an already
+  persisted allocation number, so a PDF/upload failure is safely retryable.
 - `allocationNum` is `varchar(50)` because the production Invoice Information
   v2 portal schema permits `confirmation_number` values up to 50 characters;
   never truncate an upstream allocation number in storage. The issued PDF

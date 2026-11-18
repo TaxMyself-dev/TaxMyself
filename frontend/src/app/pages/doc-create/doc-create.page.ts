@@ -2230,7 +2230,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }
   }
 
-  // Manual allocation-number dialog: 3 buttons (Cancel / Get number / Create without).
+  // Allocation-number dialog: defer, get a number now, or issue without one.
   // Opens a signal-controlled <p-dialog> in the template since PrimeNG's
   // ConfirmDialog only supports 2 buttons.
   showAllocationNumberDialog(): void {
@@ -2238,11 +2238,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
   /**
-   * Button 1: Cancel — save the document with status PENDING_ALLOCATION (no PDF
-   * yet). The user will see a "needs action" indicator on the incomes page and
-   * can later either enter an allocation number or finalize without one.
+   * Defer allocation-number completion while recording the final numbered
+   * document and its journal entry. PDF issuance waits for the later choice.
    */
-  onCancelAllocationDecision(): void {
+  onDeferAllocationDecision(): void {
     this.showAllocationDecisionDialog.set(false);
     this.createPendingAllocationDoc({ requestAllocation: false });
   }
@@ -2283,7 +2282,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   /**
    * Sends the doc to the backend with docStatus=PENDING_ALLOCATION so the
-   * server skips PDF generation / journal entry. After success, navigates to
+   * server records the journal entry but skips PDF generation. After success, navigates to
    * the incomes page, or immediately asks the backend to allocate and finalize
    * that exact persisted document.
    */

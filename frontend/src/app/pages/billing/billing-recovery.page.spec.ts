@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { BillingRecoveryPage } from './billing-recovery.page';
 import { BillingStateService } from '../../services/billing-state.service';
 import { environment } from 'src/environments/environment';
+import { provideRouter, Router } from '@angular/router';
 
 describe('BillingRecoveryPage', () => {
   let http: HttpTestingController;
@@ -15,7 +16,7 @@ describe('BillingRecoveryPage', () => {
     state = { billingState: signal({ subscription: { status: 'PAST_DUE' }, plan: { id: 3, name: 'Basic' } }),
       loadBillingState: jasmine.createSpy().and.resolveTo(), refreshBillingState: jasmine.createSpy().and.resolveTo(),
       hasBillingOverride: () => false };
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       { provide: BillingStateService, useValue: state }] });
     http = TestBed.inject(HttpTestingController);
     page = TestBed.runInInjectionContext(() => new BillingRecoveryPage());
@@ -32,6 +33,21 @@ describe('BillingRecoveryPage', () => {
       recoveryQuote: 'a'.repeat(64), periods: [{ periodStart: '2026-09-15', periodEnd: '2026-10-15', amountAgorot: 11800 }] });
     await Promise.resolve();
   }
+
+  it('redirects a server-owned pending checkout without previewing or submitting debt', async () => {
+    state.billingState.set({ subscription: { status: 'PAST_DUE' }, plan: { id: 3 },
+      pendingCheckout: { status: 'PENDING', flow: 'RECOVERY' } });
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.resolveTo(true);
+
+    page.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/billing/payment-status'], { replaceUrl: true });
+    http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
 
   it('shows the server debt amount and does not initiate payment while loading', async () => {
     await page.pay();

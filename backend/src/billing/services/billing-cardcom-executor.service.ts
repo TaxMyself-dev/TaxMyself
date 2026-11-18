@@ -5,6 +5,7 @@ import { PaymentMethod } from '../entities/payment-method.entity';
 import { BillingChargeMode } from '../enums/billing.enums';
 import {
   isDefinitiveHostedDecline,
+  isDefinitiveHostedNoCharge,
   validateHostedTransactionResult,
 } from '../utils/billing-hosted-card-result.util';
 import { decryptCardcomToken } from '../utils/billing-token-encryption.util';
@@ -214,10 +215,15 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
   private async reconcileHostedAttempt(
     request: CardComChargeRequest,
   ): Promise<CardComChargeResponse> {
-    const unresolved = (failureCategory: string): CardComChargeResponse => ({
+    const unresolved = (
+      failureCategory: string,
+      responseCode: number | null = null,
+      providerDescription: string | null = null,
+    ): CardComChargeResponse => ({
       success: false,
-      responseCode: null,
+      responseCode,
       failureCategory,
+      providerDescription,
     });
     if (!request.lowProfileId) return unresolved('NO_LOW_PROFILE_ID');
     if (
@@ -230,6 +236,15 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
     const result = await this.cardcomService.getLowProfileResult(
       request.lowProfileId,
     );
+    const credentials = this.cardcomService.getApiCredentials();
+    const providerSecrets = [credentials.apiName, credentials.apiPassword];
+    const responseCode =
+      typeof result?.ResponseCode === 'number' &&
+      Number.isFinite(result.ResponseCode)
+        ? result.ResponseCode
+        : null;
+    const providerDescription =
+      sanitizeCardcomDescription(result?.Description, providerSecrets) ?? null;
     const expected = {
       lowProfileId: request.lowProfileId,
       amountAgorot: request.amountAgorot,
@@ -237,7 +252,7 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
       subscriptionId: request.subscriptionId,
       planId: request.planId,
       billingAttemptId: request.attemptId,
-      terminalNumber: this.cardcomService.getApiCredentials().terminalNumber,
+      terminalNumber: credentials.terminalNumber,
     };
     const captured = validateHostedTransactionResult(result, expected);
     if ('transactionId' in captured) {
@@ -255,9 +270,29 @@ export class BillingCardcomExecutorService implements BillingCardComExecutor {
         success: false,
         responseCode: decline.responseCode,
         failureCategory: 'PROVIDER_DECLINED',
+        providerDescription:
+          sanitizeCardcomDescription(
+            result?.TranzactionInfo?.Description,
+            providerSecrets,
+          ) ??
+          providerDescription,
         definitiveDecline: true,
       };
     }
-    return unresolved(`HOSTED_${captured.reason}`);
+    const noCharge = isDefinitiveHostedNoCharge(result, expected);
+    if (noCharge) {
+      return {
+        success: false,
+        responseCode: noCharge.responseCode,
+        failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+        providerDescription,
+        definitiveDecline: true,
+      };
+    }
+    return unresolved(
+      `HOSTED_${captured.reason}`,
+      responseCode,
+      providerDescription,
+    );
   }
 }

@@ -2,6 +2,7 @@ import { BillingAttemptStatus } from '../enums/billing.enums';
 import {
   BillingProviderRuntimeService,
   normalizeCardComCharge,
+  normalizeCardComReconciliation,
 } from './billing-provider-runtime.service';
 
 describe('BillingProviderRuntimeService', () => {
@@ -39,6 +40,35 @@ describe('BillingProviderRuntimeService', () => {
     ],
   ])('normalizes %s deterministically', (_name, response, expected) => {
     expect(normalizeCardComCharge(response as any)).toEqual(expected);
+  });
+
+  it('keeps unverified hosted failures unknown with their sanitized diagnostics', () => {
+    expect(normalizeCardComReconciliation({
+      success: false,
+      responseCode: 603,
+      providerDescription: 'Invalid API credentials',
+      failureCategory: 'HOSTED_RESULT_NOT_SUCCESSFUL',
+    })).toEqual({
+      kind: 'UNKNOWN',
+      providerResponseCode: 603,
+      providerDescription: 'Invalid API credentials',
+      failureCategory: 'HOSTED_RESULT_NOT_SUCCESSFUL',
+    });
+  });
+
+  it('accepts only executor-proven hosted no-charge results as declined', () => {
+    expect(normalizeCardComReconciliation({
+      success: false,
+      responseCode: 10,
+      providerDescription: 'Payment page expired',
+      failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+      definitiveDecline: true,
+    })).toEqual({
+      kind: 'DECLINED',
+      providerResponseCode: 10,
+      providerDescription: 'Payment page expired',
+      failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+    });
   });
 
   it('maps executor transport failure to UNKNOWN and never retries the charge', async () => {

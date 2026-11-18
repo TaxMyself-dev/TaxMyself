@@ -1,0 +1,27 @@
+<main class="status-shell" dir="rtl">
+  <section class="status-card" aria-live="polite">
+    <span class="status-icon" aria-hidden="true">₪</span>
+    @if (terminal() === 'DECLINED') {
+      <h1>התשלום לא הושלם</h1>
+      <p>לא בוצע חיוב. ניתן לחזור לעמוד התשלום ולנסות שוב.</p>
+      <button type="button" (click)="continueAfterDecline()">חזרה לתשלום</button>
+    } @else if (terminal() === 'REVIEW') {
+      <h1>התשלום נמצא בבדיקה</h1>
+      <p>לא ניתן לקבוע כרגע אם התשלום הושלם. אין לבצע תשלום נוסף. יש לפנות לתמיכה.</p>
+      <button type="button" [disabled]="checking()" (click)="checkNow()">בדיקה מחדש</button>
+    } @else if (terminal() === 'SUCCESS_BLOCKED') {
+      <h1>התשלום הושלם</h1>
+      <p>התשלום אומת, אך עדיין נדרשת השלמה של מצב המנוי. אין לבצע תשלום נוסף.</p>
+      <button type="button" [disabled]="checking()" (click)="checkNow()">בדיקה מחדש</button>
+    } @else {
+      <h1>מאמתים את התשלום</h1>
+      @if (delayed()) {
+        <p>האימות נמשך יותר מהרגיל. אנחנו ממשיכים לבדוק את אותו התשלום מול CardCom. אין לבצע תשלום נוסף.</p>
+        <button type="button" [disabled]="checking()" (click)="checkNow()">בדיקה מחדש</button>
+      } @else {
+        <p>יש להמתין בזמן שאנחנו מאמתים את התשלום ומשלימים את הפעלת המנוי.</p>
+        <div class="spinner" aria-label="טוען"></div>
+      }
+    }
+  </section>
+</main>

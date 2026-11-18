@@ -5,6 +5,7 @@ import { environment } from 'src/environments/environment';
 import { BillingStateService } from '../../services/billing-state.service';
 import { ButtonComponent } from '../../components/button/button.component';
 import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
+import { Router } from '@angular/router';
 
 @Component({
   standalone: true,
@@ -128,6 +129,7 @@ import { ButtonColor, ButtonSize } from '../../components/button/button.enum';
 export class BillingRecoveryPage implements OnInit {
   readonly billing = inject(BillingStateService);
   private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
   readonly buttonColor = ButtonColor;
   readonly buttonSize = ButtonSize;
   readonly loading = signal(true);
@@ -158,6 +160,10 @@ export class BillingRecoveryPage implements OnInit {
     try {
       await this.billing.loadBillingState();
       const state = this.billing.billingState();
+      if (state?.pendingCheckout) {
+        await this.router.navigate(['/billing/payment-status'], { replaceUrl: true });
+        return;
+      }
       if (!['PAST_DUE', 'CANCELED'].includes(state?.subscription?.status ?? '') || !state?.plan || this.billing.hasBillingOverride()) {
         this.error.set('אין חוב זמין להסדרה בחשבון זה.');
         return;
@@ -215,7 +221,7 @@ export class BillingRecoveryPage implements OnInit {
   }
 
   async pay(): Promise<void> {
-    if (this.submitting() || this.loading() || this.error() || !this.planId) return;
+    if (this.pendingPayment() || this.submitting() || this.loading() || this.error() || !this.planId) return;
     this.submitting.set(true);
     try {
       const result = await firstValueFrom(this.http.post<{ paymentUrl: string; lowProfileId?: string }>(

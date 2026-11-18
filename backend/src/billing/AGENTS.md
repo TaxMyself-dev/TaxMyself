@@ -819,3 +819,40 @@ Recovery preview and atomic reservation must select the identical set of open
 `RECURRING_PERIOD` obligations. Historical `CHECKOUT` obligations and independent
 `MANUAL_ONE_OFF` charges are not subscription debt and must never enter the
 recovery quote, collection membership or amount.
+
+### Hosted checkout resolution gate (KT-113)
+
+`GET /billing/checkout/status` is an authenticated direct-owner endpoint for
+resolving an already-created hosted CardCom checkout. It accepts an optional
+LowProfile identifier, scopes it to the owner's subscription and canonical
+`CHECKOUT`/`RECOVERY` attempt, and performs only the existing read-only provider
+inspection. It never reserves an obligation, creates a LowProfile page or
+submits a charge. A verified capture is passed to the existing idempotent
+`BillingHostedCompletionService`; only `COMPLETED` is reported as completed.
+Provider-proven decline/cancel/expiry is retryable, while unknown, transport
+failure, concurrent processing, missing provider identity and manual review
+remain blocking.
+
+`GET /billing/me` exposes `pendingCheckout` for the direct owner when the
+canonical obligation still points to an unresolved hosted attempt. This durable
+projection is the re-entry source after refresh, browser close or a later login;
+browser storage is never authoritative. Delegated and admin-impersonated reads
+do not expose this owner checkout projection. No schema, amount, VAT, receipt,
+accounting, credential or CardCom URL change is part of this gate.
+
+KT-114 narrows the terminal non-success case using CardCom's documented
+`GetLpResult` contract. A non-zero top-level `ResponseCode` may release the
+hosted attempt only when the response echoes the exact LowProfile id, terminal
+and JSON ReturnValue for that owner/subscription/plan/attempt, contains no
+transaction id and contains no successful nested transaction. Credential,
+transport, malformed, foreign and conflicting results remain `UNKNOWN` or
+`MANUAL_REVIEW`; they never authorize another checkout. Unknown results persist
+the bounded, sanitized provider response code and description when supplied.
+Reconciliation logs one request and one normalized outcome using the existing
+token-free provider envelope (attempt/subscription/obligation identifiers,
+trigger/mode, opaque provider keys, amount/currency, response code and failure
+category); no card, token or payer data is logged. A correlated terminal
+non-success follows the existing atomic `DECLINED` transition, which releases
+the active obligation and lets the status page return the owner to the matching
+plans/recovery flow. This adds no provider write, schema, amount, VAT, receipt or
+accounting change.
