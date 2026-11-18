@@ -1,6 +1,6 @@
 # Temporary settings section memory
 
-Status: complete in existing feature worktree; NOT merged into main.
+Status: verified by Elazar; approved for local main integration, without push.
 Date: 2026-11-18
 Branch: codex/settings-personal-redesign
 Base: 8f9e5bd6 (previous authorized main integration).
@@ -39,4 +39,15 @@ section with read-only fields. Sign out/in, switch user or represented client,
 or reload the tab: account is the default. Verify wheel/keyboard scrolling after
 restoration and sidebar jumps still update the highlighted section.
 
-No main integration or remote push authorized for this change.
+Elazar confirmed this works and explicitly approved local main integration on 2026-11-18. Remote push remains forbidden.
+
+
+## Local integration approval
+
+Main remains at the original tested base 8f9e5bd6; feature executable revision is
+ca67f911. There are no incoming main commits, executable conflicts or changes
+since the recorded 37/37 tests and successful production build. Reused that
+unchanged verification evidence, plus Elazar's manual feature confirmation.
+Only this approval record changed afterward. Fast-forward local main to this
+feature; leave worktree ports uncommitted and the unrelated untracked main
+.codex-remote-attachments folder untouched. No push or deployment.
