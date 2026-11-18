@@ -1,3 +1,4 @@
+import { SettingsNewCategoriesComponent } from './settings-new-categories.component';
 import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal, ChangeDetectorRef, inject } from '@angular/core';
 import { FormGroup } from '@angular/forms';
@@ -26,7 +27,7 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
 
 @Component({
   selector: 'app-settings-new', standalone: true,
-  imports: [CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
+  imports: [SettingsNewCategoriesComponent, CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
   templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss', './settings-new-connections.scss'],
 })
 export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
@@ -56,6 +57,8 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   readonly familyMenuOpen = signal(false);
   readonly showSpouse = signal(false);
   readonly personalEditing = signal(false);
+  readonly categoriesActivated = signal(false);
+  private savedPersonal: Record<string, unknown> | null = null;
   readonly spouseEditing = signal(false);
   readonly businessEditing = signal<number | null>(null);
   readonly childEditing = signal<number | null>(null);
@@ -108,6 +111,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   ngOnDestroy(): void { this.resizeObserver?.disconnect(); }
 
   private activateSection(section: SettingsSection): void {
+    if (section === 'categories') this.categoriesActivated.set(true);
     if ((section === 'permissions' || section === 'banking') && !this.connectionsActivated()) {
       this.connectionsActivated.set(true);
       this.onTabChange('permissions');
@@ -177,6 +181,16 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     this.deleteBusiness(business);
   }
   valid(group: FormGroup): boolean { group.markAllAsTouched(); return group.valid; }
+  beginPersonal(): void {
+    this.savedPersonal = structuredClone(this.personalFormGroup.getRawValue());
+    this.personalEditing.set(true);
+  }
+  cancelPersonal(): void {
+    if (this.savingPersonal()) return;
+    if (this.savedPersonal) this.personalFormGroup.reset(this.savedPersonal);
+    this.savedPersonal = null;
+    this.personalEditing.set(false);
+  }
   savePersonal(): void {
     if (this.authService.isViewingAsClient() || !this.valid(this.personalFormGroup)) return;
     this.persistAccountForm(false);

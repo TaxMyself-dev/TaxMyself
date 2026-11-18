@@ -130,3 +130,29 @@ describe('new personal settings', () => {
     expect(page.savingChildren()).toBeFalse();
     expect(page.childrenFormArray.at(0).get('childFName').value).toBe('Child');
   });});
+
+
+describe('cancel new personal settings edits', () => {
+  it('restores values including dates after clear, resets validation, and exits without saving', () => {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    page.personalFormGroup = new FormGroup({name: new FormControl('Saved'), dateOfBirth: new FormControl(new Date(1990, 2, 4))});
+    page.personalEditing = signal(false);
+    page.savingPersonal = signal(false);
+    page.beginPersonal();
+    page.personalFormGroup.reset();
+    page.personalFormGroup.markAllAsTouched();
+    page.cancelPersonal();
+    expect(page.personalFormGroup.value.name).toBe('Saved');
+    expect(page.personalFormGroup.value.dateOfBirth).toEqual(new Date(1990, 2, 4));
+    expect(page.personalFormGroup.pristine).toBeTrue();
+    expect(page.personalFormGroup.untouched).toBeTrue();
+    expect(page.personalEditing()).toBeFalse();
+  });
+  it('does not cancel while a save is pending', () => {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    page.savingPersonal = signal(true);
+    page.personalEditing = signal(true);
+    page.cancelPersonal();
+    expect(page.personalEditing()).toBeTrue();
+  });
+});

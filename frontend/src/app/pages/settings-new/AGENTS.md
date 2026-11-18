@@ -6,7 +6,7 @@ files under `pages/settings/` unchanged during the design trial.
 - `SettingsNewPage` reuses the existing `SettingsPage` form builders and
   persistence methods, with a separate standalone template and scoped styles.
 - Includes personal/family/business settings and subscription/payment/history,
-  permissions and banking. Category-rule redesign remains deferred.
+  permissions, banking and category-rule settings.
 - Side navigation has collapsible personal and subscription groups.
   Content scrolls inside `.settings-scroll`; never scroll the document root.
 - Preserve company-specific field visibility, represented-client restrictions,
@@ -32,10 +32,12 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
 - `SettingsNewSubscriptionComponent` inherits the existing subscription handlers.
   Preserve cancellation confirmation, pending-change event IDs, owner/complimentary
   restrictions and provider-verified card replacement. No new billing calculations.
-- Seven section markers drive navigation; the subscription group's five links are
+- Eight section markers drive navigation; the subscription group's six links are
   separate from the personal group's account/business links. Lazy connection
   activation must retain the existing module gate for bank-source reads.
 - Reuse Gmail/inbound-email components and inherited permission/SHAAM handlers.
   Keep OpenBankingManagementComponent's saved reads and verified cancellation
   previews; do not call provider refresh or disconnect on page entry.
 - See `docs/tasks/active/settings-subscription-redesign.md` for verification.
+- Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Keep old category files unchanged. Load only when its section is reached.
+- Personal Cancel restores the entry snapshot (including after Clear), resets touched/dirty state, and closes editing. It is disabled while saving; explicit image saves remain separate.

@@ -1,0 +1,230 @@
+<p-confirmDialog></p-confirmDialog>
+<p-toast></p-toast>
+<div class="my-categories-tab">
+  @if (hasDirectCard()) {
+  <section class="cashflow-preference" dir="rtl">
+    <h3>חיובי כרטיס דיירקט</h3>
+    <label>
+      <input type="checkbox" [checked]="excludeDirect()" [disabled]="!cashflowLoaded() || savingCashflow() || authService.isViewingAsClient()"
+        (change)="saveCashflowPreference($any($event.target).checked)" />
+      החרג מהתזרים חיובי בנק שסווגו ככרטיס דיירקט
+    </label>
+    @if (authService.isViewingAsClient()) {
+      <p role="note">מצב צפייה בלבד: כדי לשנות את ההגדרה ולבדוק את הפופאפ, התחברו ישירות עם פרטי המשתמש. הכפתור ״כניסה כמשתמש״ במסך הדמו פותח מצב צפייה.</p>
+    }
+    <p>סווגו את חיובי הדיירקט בבנק לתת־הקטגוריה ״כרטיס דיירקט״ תחת ״בנק, אשראי ותנועות״. סיווג קבוע יחול גם על תנועות תואמות בעתיד.</p>
+    @if (cashflowError()) { <p role="alert">{{ cashflowError() }}</p> }
+    @if (!cashflowLoaded()) { <button type="button" (click)="loadCashflowPreference()">טען הגדרה מחדש</button> }
+  </section>
+  }
+
+  <!-- Business selector -->
+  <div class="biz-selector-row">
+    <label class="biz-label">עסק:</label>
+    <app-settings-new-select [items]="businessOptions()" [value]="selectedBusinessNumber()" (valueChange)="onBusinessChange($event)" placeholder="בחר/י עסק" />
+  </div>
+
+  @if (loading()) {
+    <div class="loading-row">טוען...</div>
+  }
+
+  @if (errorText()) {
+    <div class="error-row">{{ errorText() }}</div>
+  }
+
+  <!-- Section A: classification rules -->
+  <section class="cat-section">
+    <h3 class="cat-section-title">כללי סיווג</h3>
+
+    @if (rulesTableData().length === 0 && !loading()) {
+      <div class="empty-row">אין כללי סיווג עבור העסק הזה.</div>
+    } @else {
+      <!-- <div class="table-wrap"> -->
+        <app-generic-table
+          [dataTable]="rulesTableData()"
+          [columnsTitle]="$any(rulesColumns)"
+          [actions]="rulesRowActions"
+          [mobileCardConfig]="rulesMobileCardConfig"
+          [isLoadingState]="loading()" [tableHeight]="'auto'">
+        </app-generic-table>
+      <!-- </div> -->
+    }
+  </section>
+
+  <!-- Section B: user categories + sub-categories -->
+  <section class="cat-section">
+    <h3 class="cat-section-title">קטגוריות ותתי-קטגוריות שלי</h3>
+
+    @if (categoriesTableData().length === 0 && !loading()) {
+      <div class="empty-row">לא הוספת עדיין קטגוריות מותאמות.</div>
+    } @else {
+      <div class="table-wrap">
+        <app-generic-table
+          [dataTable]="categoriesTableData()"
+          [columnsTitle]="$any(categoriesColumns)"
+          [actions]="categoriesRowActions"
+          [mobileCardConfig]="categoriesMobileCardConfig"
+          [rowClass]="categoriesRowClass"
+          [isLoadingState]="loading()" [tableHeight]="'auto'">
+        </app-generic-table>
+      </div>
+    }
+  </section>
+
+  <!-- ===========================================
+       Edit rule dialog
+       =========================================== -->
+  <p-dialog header="עריכת כלל סיווג"
+            [visible]="editRuleVisible()"
+            (visibleChange)="editRuleVisible.set($event)"
+            [modal]="true"
+            [style]="{ width: '560px', maxWidth: 'calc(100vw - 32px)' }"
+            [closable]="!editRuleSaving()">
+    @if (editRuleForm(); as form) {
+      <div class="edit-form">
+        <div class="edit-row">
+          <label>שם עסק (בתנועה):</label>
+          <span class="edit-readonly">{{ editRuleOriginal()?.transactionName }}</span>
+        </div>
+        <div class="edit-row">
+          <label>חשבון:</label>
+          <span class="edit-readonly">{{ editRuleOriginal()?.billName ?? '—' }}</span>
+        </div>
+
+        <div class="edit-row">
+          <label>קטגוריה:</label>
+          <app-settings-new-select [items]="editRuleCategoryOptions()" [value]="form.category" (valueChange)="onEditRuleCategoryChange($event)" placeholder="בחר/י קטגוריה" />
+        </div>
+        <div class="edit-row">
+          <label>תת-קטגוריה:</label>
+          <app-settings-new-select [items]="editRuleSubCategoryOptions()" [value]="form.subCategory" (valueChange)="updateEditRuleField('subCategory', $event)" placeholder="בחר/י תת-קטגוריה" />
+        </div>
+
+        <div class="edit-row-3">
+          <div>
+            <label>מע"מ %</label>
+            <p-inputNumber [ngModel]="form.vatPercent" (ngModelChange)="updateEditRuleField('vatPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+          <div>
+            <label>מס %</label>
+            <p-inputNumber [ngModel]="form.taxPercent" (ngModelChange)="updateEditRuleField('taxPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+          <div>
+            <label>הפחתה %</label>
+            <p-inputNumber [ngModel]="form.reductionPercent" (ngModelChange)="updateEditRuleField('reductionPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+        </div>
+
+        <div class="edit-row-3">
+          <div>
+            <label>סכום מינ׳</label>
+            <p-inputNumber [ngModel]="form.minAbsSum" (ngModelChange)="updateEditRuleField('minAbsSum', $event)"
+                           mode="decimal"></p-inputNumber>
+          </div>
+          <div>
+            <label>סכום מקס׳</label>
+            <p-inputNumber [ngModel]="form.maxAbsSum" (ngModelChange)="updateEditRuleField('maxAbsSum', $event)"
+                           mode="decimal"></p-inputNumber>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="edit-row-3">
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isEquipment" (ngModelChange)="updateEditRuleField('isEquipment', $event)" [binary]="true"></p-checkbox>
+            ציוד
+          </label>
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isRecognized" (ngModelChange)="updateEditRuleField('isRecognized', $event)" [binary]="true"></p-checkbox>
+            מוכרת
+          </label>
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isExpense" (ngModelChange)="updateEditRuleField('isExpense', $event)" [binary]="true"></p-checkbox>
+            הוצאה
+          </label>
+        </div>
+      </div>
+    }
+    <ng-template pTemplate="footer">
+      <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="editRuleSaving()"
+        (onButtonClicked)="editRuleVisible.set(false)"></app-p-button>
+      <app-p-button [buttonText]="'שמור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="editRuleSaving()" [disabled]="editRuleSaving()"
+        (onButtonClicked)="saveEditRule()"></app-p-button>
+    </ng-template>
+  </p-dialog>
+
+  <!-- ===========================================
+       Edit sub-category dialog
+       =========================================== -->
+  <p-dialog header="עריכת תת-קטגוריה"
+            [visible]="editSubVisible()"
+            (visibleChange)="editSubVisible.set($event)"
+            [modal]="true"
+            [style]="{ width: '500px', maxWidth: 'calc(100vw - 32px)' }"
+            [closable]="!editSubSaving()">
+    @if (editSubForm(); as form) {
+      <div class="edit-form">
+        <div class="edit-row">
+          <label>שם:</label>
+          <span class="edit-readonly">{{ editSubOriginal()?.subCategoryName }}</span>
+        </div>
+        <div class="edit-row">
+          <label>קטגוריה:</label>
+          <span class="edit-readonly">{{ editSubOriginal()?.categoryName }}</span>
+        </div>
+
+        <div class="edit-row-3">
+          <div>
+            <label>מע"מ %</label>
+            <p-inputNumber [ngModel]="form.vatPercent" (ngModelChange)="updateEditSubField('vatPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+          <div>
+            <label>מס %</label>
+            <p-inputNumber [ngModel]="form.taxPercent" (ngModelChange)="updateEditSubField('taxPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+          <div>
+            <label>הפחתה %</label>
+            <p-inputNumber [ngModel]="form.reductionPercent" (ngModelChange)="updateEditSubField('reductionPercent', $event)"
+                           [min]="0" [max]="100"></p-inputNumber>
+          </div>
+        </div>
+
+        <div class="edit-row-3">
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isEquipment" (ngModelChange)="updateEditSubField('isEquipment', $event)" [binary]="true"></p-checkbox>
+            ציוד
+          </label>
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isRecognized" (ngModelChange)="updateEditSubField('isRecognized', $event)" [binary]="true"></p-checkbox>
+            מוכרת
+          </label>
+          <label class="edit-check">
+            <p-checkbox [ngModel]="form.isExpense" (ngModelChange)="updateEditSubField('isExpense', $event)" [binary]="true"></p-checkbox>
+            הוצאה
+          </label>
+        </div>
+
+        <div class="edit-row">
+          <label>הכרחיות:</label>
+          <app-settings-new-select [items]="necessityOptions" [value]="form.necessity" (valueChange)="updateEditSubField('necessity', $event)" placeholder="בחר/י אפשרות" />
+        </div>
+      </div>
+    }
+    <ng-template pTemplate="footer">
+      <app-p-button [buttonText]="'ביטול'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+        [disabled]="editSubSaving()"
+        (onButtonClicked)="editSubVisible.set(false)"></app-p-button>
+      <app-p-button [buttonText]="'שמור'" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL"
+        [isLoading]="editSubSaving()" [disabled]="editSubSaving()"
+        (onButtonClicked)="saveEditSub()"></app-p-button>
+    </ng-template>
+  </p-dialog>
+
+</div>

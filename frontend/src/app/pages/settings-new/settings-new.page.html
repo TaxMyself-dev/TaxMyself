@@ -46,7 +46,8 @@
               @if (personalEditing()) {
                 <button type="button" (click)="savePersonal()">{{ savingPersonal() ? 'שומר...' : 'שמור' }}</button>
                 <button type="button" (click)="personalFormGroup.reset()">נקה</button>
-              } @else { <button type="button" (click)="personalEditing.set(true)">ערוך</button> }
+                <button type="button" (click)="cancelPersonal()">בטל</button>
+              } @else { <button type="button" (click)="beginPersonal()">ערוך</button> }
             </div>
           </fieldset>
         </article>
@@ -157,6 +158,12 @@
       </section>
 
       <div class="subscription-section"><app-settings-new-subscription (navigateSection)="goTo($event)" /></div>
+
+      <section class="panel categories-panel" data-settings-section="categories" id="new-categories" aria-labelledby="categories-heading">
+        <h2 id="categories-heading">הקטגוריות שלי</h2>
+        @if (categoriesActivated()) { <app-settings-new-categories [businesses]="businesses()" /> }
+        @else { <p class="empty-state">הקטגוריות ייטענו בעת מעבר לאזור זה.</p> }
+      </section>
 
       <section data-settings-section="permissions" id="new-permissions" class="subscription-section panel" aria-labelledby="permissions-heading">
         <h2 id="permissions-heading">הרשאות וחשבונות</h2>

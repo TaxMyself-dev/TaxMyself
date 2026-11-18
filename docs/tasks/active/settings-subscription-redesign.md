@@ -119,3 +119,33 @@ and AuthService remain unchanged.
 Verification: `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit` passed.
 Focused command from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-navigation.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 5/5 passed.
 `git diff --cached --check` passed. No full-suite or live logout test performed.
+
+## Categories and personal Cancel (2026-11-18)
+
+Continued from local feature commit 94ba7cc4. Added Cancel beside Save/Clear only
+in personal details: restores a structured-cloned entry snapshot, including dates,
+resets touched/dirty state and closes editing; pending saves block cancellation.
+Image saves remain explicit and separate, as in the existing account image UI.
+
+Added My Categories after payment history under subscription (personal remains
+account/businesses only). It participates in the continuous scroller and loads on
+first arrival. SettingsNewCategoriesComponent inherits the existing category/rule
+handlers and local confirmation/toast providers. Separate template/styles match
+history's neutral bordered panel, auto-height generic tables and mobile cards.
+Business selection, rule/subcategory edit, deletion confirmations and direct-card
+cashflow preference retain existing APIs and access behavior. The new select
+adapter uses app-input-select with search for all four category selectors. Old
+settings and shared components are unchanged; no backend/ENV/schema changes.
+
+Verification on final implementation:
+- `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
+- From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/*.spec.ts --include=src/app/pages/settings/my-categories-tab/*.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 31/31 passed. Shared reactive disabled warning remains. Full legacy suite not run.
+- `npm run build -- --configuration production --progress=false`: completed;
+  build hash 4f8a89c3d56f4e41, main d772fef566228705. Existing budget/CommonJS warnings remain; thresholds unchanged.
+- Synthetic isolated preview: desktop 1440x1000/mobile 390x844, both tables,
+  searchable business selector, category active link, subcategory edit dialog,
+  personal cancel restoring saved name, no document/content horizontal overflow
+  or runtime exceptions. Screenshots reviewed. No live mutation executed.
+- `git diff --check` passed; diff of old settings/shared select against HEAD empty.
+- User's local start port, API environment and spouse heading remain outside commit.
+- No main integration or remote push.

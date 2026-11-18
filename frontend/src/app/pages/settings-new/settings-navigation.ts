@@ -6,6 +6,7 @@ export const SUBSCRIPTION_SETTINGS_LINKS = [
   { key: 'subscription', label: 'פרטי המנוי' },
   { key: 'payment', label: 'אמצעי תשלום' },
   { key: 'history', label: 'היסטוריית תשלומים' },
+  { key: 'categories', label: 'הקטגוריות שלי' },
   { key: 'permissions', label: 'הרשאות' },
   { key: 'banking', label: 'בנקאות פתוחה' },
 ] as const;

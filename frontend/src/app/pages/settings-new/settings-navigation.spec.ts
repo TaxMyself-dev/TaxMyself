@@ -6,7 +6,7 @@ import { SettingsNewPage } from './settings-new.page';
 describe('new settings subscription navigation', () => {
   it('keeps exactly account/business under personal and all other sections under subscription', () => {
     expect(PERSONAL_SETTINGS_LINKS.map(x => x.key)).toEqual(['account', 'businesses']);
-    expect(SUBSCRIPTION_SETTINGS_LINKS.map(x => x.key)).toEqual(['subscription', 'payment', 'history', 'permissions', 'banking']);
+    expect(SUBSCRIPTION_SETTINGS_LINKS.map(x => x.key)).toEqual(['subscription', 'payment', 'history', 'categories', 'permissions', 'banking']);
   });
   it('tracks each section and selects a short final section at scroll end', () => {
     const keys: SettingsSection[] = ['account', 'businesses', 'subscription', 'payment', 'history', 'permissions', 'banking'];
