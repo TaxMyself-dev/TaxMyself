@@ -638,3 +638,41 @@ and its heading anchor were checked; git diff --check passed. No repository-wide
 Markdown-link runner was available. No application source changed, so unit tests,
 paid evals and production builds were not rerun for this configuration/docs task.
 Original untracked files preserved. Local feature commit only; no merge/push.
+
+## Normal npm startup honors worktree ports — 2026-11-18
+
+User reported normal startup still collided with 4200/3000. Root cause: the prior
+ignored helper launchers selected 4201/3001, but frontend npm start remained
+ng serve -o and backend/.env still had PORT=3000 and only origin 4200. The previous
+runtime-only change did not fix the commands the user actually runs.
+
+Frontend npm start now uses scripts/start-local.js, reading ignored
+.local-ai-dev/ports.json and generating only an ignored API environment replacement.
+Backend start:watch reads the same ignored port config, overrides even a stale
+shell PORT, retains DISABLE_SYNCHRONIZE=true and appends the local chat origins.
+Without a local port file the frontend delegates to its original Angular CLI
+behavior and tracked API localhost:3000 remains unchanged. No machine-specific
+4201/3001 preferences are committed. The existing pre-main 4200/3000 gate holds.
+
+Only this worktree's ignored config sets frontendPort=4201/backendPort=3001.
+Its ignored backend/.env now has PORT=3001, matching chat origins and the same
+no-schema/no-boot-seed safeguards previously supplied by the helper process.
+No credentials were printed or committed. Generic launcher code and diagnostics
+are versioned; generated configuration, .env and logs remain ignored.
+
+Verification: npm start -- --print-config reports frontend 4201 / backend 3001;
+npm run start:watch -- --print-config reports 3001 even with shell PORT=3000.
+Isolated no-config execution of the actual frontend launcher reported 4200/3000.
+Both launchers passed node --check. The first live smoke exposed a literal Angular
+configuration interpolation error; corrected it before final verification.
+Actual new frontend launcher compiled successfully, returned HTTP 200 on 4201
+and served main.js with API localhost:3001. Backend using its ordinary .env
+returned HTTP 200 on 3001 and logged keepintax-dev / synchronize=false. No full
+production build, paid eval or application unit rerun: startup tooling only,
+verified by actual startup and effective-config checks.
+
+Stopped only the verified earlier helper processes and our temporary smoke
+processes. Left 4201/3001 free for the user's own terminals. Existing servers on
+4200/3000 were not stopped. User commands: npm start from frontend; npm run
+start:watch from backend. Full diff/whitespace and documentation targets checked.
+Original untracked files preserved. Local feature commit only; no merge or push.

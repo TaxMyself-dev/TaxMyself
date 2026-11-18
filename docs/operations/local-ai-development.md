@@ -35,3 +35,22 @@ environment overrides; record the result. The binding gate is in
 Feature worktrees may use other ports through ignored local overrides. Keep
 those overrides out of the integration diff. Deployment PORT/API configuration
 is separate. Port verification does not replace explicit integration/push approval.
+
+### Normal application startup with worktree overrides
+
+Use npm start in frontend and npm run start:watch in backend. Both now read
+.local-ai-dev/ports.json when it exists; it contains integer frontendPort and
+backendPort values. The frontend uses an ignored generated environment file,
+and backend watch overrides a stale shell PORT and permits the configured local
+frontend origin for chat. With no local port file, normal main startup defaults
+and the tracked API URL are preserved. Do not commit the port file or backend/.env.
+
+Inspect effective settings before starting or integrating:
+
+    npm start -- --print-config
+    npm run start:watch -- --print-config
+
+Run each command from its corresponding package directory. This diagnostic does
+not bind a port. Stop an existing server using the selected ports before starting
+another copy. Local overrides are per checkout; main's pre-integration gate still
+requires frontend 4200, backend 3000 and API http://localhost:3000/.
