@@ -69,6 +69,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   readonly displayedEmptyText = computed(() => this.dataTable()?.length
     ? 'אויש, לא מצאנו את מה שחיפשת' : this.emptyText());
   actions = input<IGenericTableAction[]>([]);
+  /** Keep desktop hover actions inside this table; legacy consumers retain viewport positioning. */
+  rowActionsWithinTable = input(false);
   /** Opt-in legacy attach fallback; ordinary row actions never create an upload control. */
   fileAttachmentEnabled = input<boolean>(false);
   immediateActions = input<boolean>(true);
@@ -203,7 +205,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   expandedRows = new Set<number>();
   hoverTimeout: any;
-  hoveredRowInfo = signal<{ row: any, top: number } | null>(null);
+  hoveredRowInfo = signal<{ row: any, top: number, height?: number } | null>(null);
   isRowHovered = signal<boolean>(false);
   isFloatingHovered = signal<boolean>(false);
   isSlideIn = signal<boolean>(false);
@@ -477,7 +479,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
     clearTimeout(this.hoverTimeout);
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.hoveredRowInfo.set({ row, top: rect.top + window.scrollY });
+    const table = this.rowActionsWithinTable()
+      ? (event.currentTarget as HTMLElement).closest<HTMLElement>('.table') : null;
+    this.hoveredRowInfo.set({ row,
+      top: table ? rect.top - table.getBoundingClientRect().top + table.scrollTop : rect.top + window.scrollY,
+      height: table ? rect.height : undefined,
+    });
     this.isRowHovered.set(true);
     this.isSlideIn.set(false);
     setTimeout(() => {

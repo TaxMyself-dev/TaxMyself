@@ -175,3 +175,21 @@ shared form builders unchanged.
 
 Focused command from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/pages/settings-new/settings-new.page.spec.ts --ts-config=.test-tmp/tsconfig.subscription-tests.json --progress=false`: 17/17 passed, including actual nonNullable names, sibling preservation and Cancel restoration.
 `git diff --check` passed. No broad build/full suite rerun for this focused fix.
+
+## Contained table hover actions (2026-11-18)
+
+The fixed left:4% actions were anchored to the browser instead of the narrower
+settings tables. Added opt-in rowActionsWithinTable on generic-table; enabled
+only for new settings classification rules, categories and payment history.
+Actions now use relative table/row coordinates and actual row height, with an
+absolute left-edge overlay clipped to the table. Scrolling its parent moves row
+and controls together. Mobile menus and action resolution/execution unchanged.
+Default false preserves old settings and other consumers.
+
+Verification:
+- `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
+- Required shared command from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.table-actions.spec.json --include=src/app/components/generic-table/*.spec.ts --include=src/app/components/table-row-actions-menu/*.spec.ts --progress=false`: 47/48 passed. One unchanged consumer test fails: Migrated page action contracts / keeps both allocation actions on pending tax invoices without a file. Its prototype mock stubs resumeAutomaticAllocation but current IncomesPage first invokes confirmResumeAutomaticAllocation, which requires messageService.add. Neither consumer source nor its test changed in this task. Do not treat the whole run as passing.
+- The new DOM tests passed: narrow 320px table bounds, row alignment, action click,
+  and unchanged fixed positioning without opt-in. Focused rerun result below.
+- `git diff --check` passed. No live actions or production rebuild for this fix.
+- Focused rerun from frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.table-actions.spec.json --include=src/app/components/generic-table/generic-table.component.spec.ts --include=src/app/components/generic-table/table-actions.spec.ts --include=src/app/components/table-row-actions-menu/*.spec.ts --progress=false`: passed (exact total in ignored contained-table-actions-focused.log). This excludes unchanged bookkeeping consumer tests; it does not supersede the broad-run failure above.

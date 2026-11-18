@@ -624,3 +624,18 @@
 .generic-source-badge__icon.pi-envelope { color: #2563eb; }
 .generic-source-badge__icon.pi-arrow-right-arrow-left { color: #7c3aed; }
 .generic-source-badge__icon.pi-pencil { color: #f59e0b; }
+
+// Opt-in for embedded tables in the new settings layout.
+.table--contained-actions {
+    position: relative;
+    overflow: clip;
+    .floating-buttons {
+        position: absolute;
+        left: 0;
+        right: auto;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+        z-index: 2;
+    }
+}

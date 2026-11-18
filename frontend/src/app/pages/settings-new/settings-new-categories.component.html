@@ -40,7 +40,7 @@
       <div class="empty-row">אין כללי סיווג עבור העסק הזה.</div>
     } @else {
       <!-- <div class="table-wrap"> -->
-        <app-generic-table
+        <app-generic-table [rowActionsWithinTable]="true"
           [dataTable]="rulesTableData()"
           [columnsTitle]="$any(rulesColumns)"
           [actions]="rulesRowActions"
@@ -59,7 +59,7 @@
       <div class="empty-row">לא הוספת עדיין קטגוריות מותאמות.</div>
     } @else {
       <div class="table-wrap">
-        <app-generic-table
+        <app-generic-table [rowActionsWithinTable]="true"
           [dataTable]="categoriesTableData()"
           [columnsTitle]="$any(categoriesColumns)"
           [actions]="categoriesRowActions"

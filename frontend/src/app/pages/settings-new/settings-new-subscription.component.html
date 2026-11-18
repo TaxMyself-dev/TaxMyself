@@ -251,7 +251,7 @@
         <p class="pm-empty-text">אין תשלומים להצגה.</p>
       </div>
     } @else {
-      <app-generic-table
+      <app-generic-table [rowActionsWithinTable]="true"
         [dataTable]="historyRows()"
         [columnsTitle]="$any(historyColumns)"
         [actions]="historyRowActions"
