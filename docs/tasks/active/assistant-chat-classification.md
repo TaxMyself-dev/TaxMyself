@@ -612,3 +612,29 @@ Final authenticated Langfuse proof: classification-mode-final-20261118 ingested
 Proof file: chat deliverables/classification-mode-final-20261118-trace-proof.json.
 The earlier 3-case run ingested 8 traces / 78 observations / 20 generations with
 zero ERRORs. No extra paid repetitions were launched after final success.
+
+## Local ports and mandatory pre-main port gate — 2026-11-18
+
+User requested this worktree on frontend 4201/backend 3001 and a mandatory
+pre-integration check for main's frontend 4200/backend 3000. Continued from
+6997c0a9. Reused existing ignored local launchers and Angular in-memory file
+replacement; the application processes were stopped before this request and
+were started only after confirming both target ports were free. No sibling
+server was stopped. Backend reports keepintax-dev / synchronize=false.
+
+Added a binding gate in root AGENTS.md and linked it from local development
+documentation: inspect effective serve/start settings, backend local PORT,
+frontend API URL and environment/process overrides before ANY main integration;
+correct failures and record evidence. Worktree overrides stay ignored. Production
+PORT/API values remain deployment-controlled. This does not grant merge or push
+approval, and no local main integration was attempted.
+
+Verification: frontend/backend HTTP roots returned 200; served frontend main.js
+contains API http://localhost:3001/. Tracked frontend source still points to
+localhost:3000; backend/.env was inspected for PORT only (3000), not changed.
+Feature launchers override these at runtime. git check-ignore confirmed both
+launchers and generated environment file are ignored. Root documentation target
+and its heading anchor were checked; git diff --check passed. No repository-wide
+Markdown-link runner was available. No application source changed, so unit tests,
+paid evals and production builds were not rerun for this configuration/docs task.
+Original untracked files preserved. Local feature commit only; no merge/push.

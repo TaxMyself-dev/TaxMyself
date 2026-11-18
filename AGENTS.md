@@ -1,5 +1,22 @@
 # Keepintax — AGENTS.md
 
+## Required local port check before main integration
+
+- Before any merge, cherry-pick, rebase, fast-forward or other feature integration
+  into main, verify that main's effective local development configuration serves
+  the frontend on 4200 and the backend on 3000, and that the frontend API URL
+  points to http://localhost:3000/.
+- Inspect frontend serve options/start scripts, the local backend PORT setting
+  and any environment/process overrides. Do not infer the result from package
+  defaults alone. Record the effective ports and the verification in the task.
+- Keep feature-worktree port overrides in ignored local launch/config files.
+  They must not replace main's defaults or be staged/committed for integration.
+- If the check fails, correct the candidate configuration before integrating.
+  This check does not authorize integration or push; Elazar's separate explicit
+  main-integration and push approval gates remain binding.
+- These are local development ports. Preserve deployment-provided PORT values
+  and production API URLs.
+
 ## Parallel task coordination (MANDATORY)
 
 - The binding workflow for manager/worker chats is
