@@ -259,3 +259,14 @@ The checkbox סיווג חד־פעמי is unchecked by default and checked for a
 ### Approval cards after a clarification (2026-11-18)
 
 An approval can continue only the newest assistant answer. A typed user message closes that answer's open approvals before the next answer starts; completed actions remain unchanged. Superseded is a system closure, distinguished from an explicit denial by the reserved approval reason. Reopening one through a stale submission returns AGENT_APPROVAL_SUPERSEDED (409) without running a model/action. The frontend also derives inactivity for older persisted requests immediately, including historical conversations from before server closure was implemented. It hides obsolete approve/deny controls, disables mode editing and offers a classification-specific fresh-card request. That request asks for current data and a new approval card, never treats typed text or the old click as approval.
+
+### Empty conversation reads and initial dev UI (2026-11-18)
+
+KeepInTax's dev page assigns a conversation UUID before its first saved message.
+Reading such a conversation returns [] after the existing owner-scoped query,
+without applying SDK nonempty-payload validation to an absent history. Nonempty
+histories retain full validation. The Angular dev page renders a loading body and
+editable draft immediately, enables sending only with a ready chat and discards
+obsolete asynchronous loads. Credential-free session/history timings appear as
+[dev-agent startup] in the dev console. These timings do not benchmark cold
+bundle initialization or model-answer latency. See the Phase A task record.

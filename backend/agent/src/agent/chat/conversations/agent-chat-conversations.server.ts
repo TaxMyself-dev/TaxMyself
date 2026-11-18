@@ -64,9 +64,11 @@ export const readStoredAgentChatConversationMessages = Effect.fn(
   AgentChatMessage[],
   SupabaseQueryError | AgentChatMessageInvalidError
 > {
-  return yield* readAgentChatMessageRows(
-    yield* readStoredAgentChatRows(supabase, [conversationId])
-  );
+  const rows = yield* readStoredAgentChatRows(supabase, [conversationId]);
+
+  // Unsaved/empty conversations are valid reads; the SDK requires at least
+  // one message only when validating an actual conversation payload.
+  return rows.length === 0 ? [] : yield* readAgentChatMessageRows(rows);
 });
 
 /**

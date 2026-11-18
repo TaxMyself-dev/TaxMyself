@@ -43,6 +43,13 @@
     </details>
   }
 
+  @if (loading(); as stage) {
+    <div class="messages loading" role="status" aria-live="polite" dir="rtl">
+      <p>{{ stage === 'session' ? 'מתחבר לצ׳אט…' : 'טוען את השיחה…' }}</p>
+      <p>אפשר כבר לכתוב הודעה. השליחה תתאפשר כשהצ׳אט יהיה מוכן.</p>
+    </div>
+  }
+
   @if (chat(); as c) {
     <div class="messages" #scroller>
       @if (c.messages.length === 0) {
@@ -201,21 +208,26 @@
       }
     </div>
 
-    <footer class="composer">
-      <textarea
-        [(ngModel)]="draft"
-        (keydown)="onComposerKey($event)"
-        [dir]="locale() === 'he' ? 'rtl' : 'ltr'"
-        rows="2"
-        [disabled]="contextChanged"
-        placeholder="Message the agent (Enter sends, Shift+Enter is a new line)"
-      ></textarea>
+    <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>
+  }
+
+  <footer class="composer">
+    <textarea
+      [(ngModel)]="draft"
+      (keydown)="onComposerKey($event)"
+      [dir]="locale() === 'he' ? 'rtl' : 'ltr'"
+      rows="2"
+      [disabled]="contextChanged"
+      placeholder="Message the agent (Enter sends, Shift+Enter is a new line)"
+    ></textarea>
+    @if (chat(); as c) {
       @if (isBusy(c)) {
         <button type="button" class="stop" (click)="stop()">Stop</button>
       } @else {
         <button type="button" (click)="send()" [disabled]="!draft.trim() || contextChanged">Send</button>
       }
-    </footer>
-    <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>
-  }
+    } @else {
+      <button type="button" disabled>Send</button>
+    }
+  </footer>
 </div>

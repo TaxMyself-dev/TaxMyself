@@ -98,6 +98,14 @@ export class DevAgentPage implements OnInit, OnDestroy {
   // Opened from the admin panel's "צ׳אט AI" tab: offer the way back.
   readonly fromAdminPanel = this.query.get('from') === DEV_AGENT_FROM_ADMIN;
 
+  loading = signal<'session' | 'history' | null>('session');
+  private loadGeneration = 0;
+
+  // Dev-only, credential-free timings distinguish server waits from rendering.
+  private recordStartup(stage: string, started: number) {
+    console.info('[dev-agent startup]', stage, Math.round(performance.now() - started), 'ms');
+  }
+
   chat = signal<Chat<UIMessage> | null>(null);
   // The context the chat belongs to (agent user, client), read once per
   // session: a chat never moves to another client. The business is the
@@ -145,9 +153,13 @@ export class DevAgentPage implements OnInit, OnDestroy {
   // Reads the agent's user for the app's current client, and starts a chat
   // for it.
   async startSession() {
+    const started = performance.now();
+    const generation = ++this.loadGeneration;
+    this.loading.set('session');
     void this.chat()?.stop();
     this.chat.set(null);
     this.context.set(null);
+    this.conversations.set([]);
     this.setupError.set(null);
 
     const live = { clientId: this.auth.clientId() };
@@ -162,6 +174,12 @@ export class DevAgentPage implements OnInit, OnDestroy {
         throw new Error(`${response.status}: ${JSON.stringify(body)}`);
       }
 
+      if (generation !== this.loadGeneration) return;
+      if (live.clientId !== this.auth.clientId()) {
+        void this.startSession();
+        return;
+      }
+      this.recordStartup('session', started);
       this.context.set({ agentUserId: body.userId, ...live });
       void this.refreshConversations();
 
@@ -173,6 +191,12 @@ export class DevAgentPage implements OnInit, OnDestroy {
         this.newChat();
       }
     } catch (error) {
+      if (generation !== this.loadGeneration) return;
+      if (live.clientId !== this.auth.clientId()) {
+        void this.startSession();
+        return;
+      }
+      this.loading.set(null);
       this.setupError.set(
         `The agent did not answer readAgentSession (${error instanceof Error ? error.message : String(error)}). ` +
           'Is the backend running with the agent built (npm run build in backend/agent) and its tables applied?',
@@ -181,6 +205,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    ++this.loadGeneration;
     void this.chat()?.stop();
   }
 
@@ -202,6 +227,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
       return;
     }
 
+    ++this.loadGeneration;
     void this.chat()?.stop();
     this.startChat(context, crypto.randomUUID(), []);
   }
@@ -215,7 +241,11 @@ export class DevAgentPage implements OnInit, OnDestroy {
       return;
     }
 
+    const generation = ++this.loadGeneration;
+    const started = performance.now();
     void this.chat()?.stop();
+    this.chat.set(null);
+    this.loading.set('history');
     this.setupError.set(null);
 
     try {
@@ -225,9 +255,20 @@ export class DevAgentPage implements OnInit, OnDestroy {
         context.agentUserId,
         conversationId,
       );
+      if (generation !== this.loadGeneration || this.context() !== context) return;
+      if (this.contextChanged) {
+        this.loading.set(null);
+        return;
+      }
+      this.recordStartup('history', started);
       const chat = this.startChat(context, conversationId, messages);
       void chat.resumeStream();
     } catch (error) {
+      if (generation !== this.loadGeneration || this.context() !== context) return;
+      if (this.contextChanged) {
+        this.loading.set(null);
+        return;
+      }
       this.setupError.set(
         `The conversation could not be opened (${error instanceof Error ? error.message : String(error)}). A new chat was started.`,
       );
@@ -249,8 +290,10 @@ export class DevAgentPage implements OnInit, OnDestroy {
         'listAgentChatConversations',
         { userId: context.agentUserId },
       );
+      if (this.context() !== context || this.contextChanged) return;
       this.conversations.set(Array.isArray(rows) ? (rows as DevAgentConversationRow[]).slice(0, 15) : []);
     } catch {
+      if (this.context() !== context || this.contextChanged) return;
       this.conversations.set([]);
     }
   }
@@ -282,6 +325,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
     });
 
     this.chat.set(chat);
+    this.loading.set(null);
     // The conversation in the URL, so a reload reopens it.
     void this.router.navigate([], {
       queryParams: { chat: conversationId },

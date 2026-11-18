@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { ProviderMetadata } from "ai";
 import { Effect } from "effect";
 
+import { readStoredAgentChatConversationMessages } from "@/agent/chat/conversations/agent-chat-conversations.server";
+
 import {
   readAgentChatMessageRows,
   readStoredAgentChatMessages,
@@ -187,4 +189,23 @@ test("long conversations retain every message past the database row limit", () =
     assert.deepStrictEqual(offsets, [0, 1000]);
     assert.strictEqual(messages.length, 1003);
     assert.deepStrictEqual<unknown>(messages.at(-1)?.parts, rows.at(-1)?.parts);
+  }));
+
+test("empty conversation reads return no messages instead of SDK validation failure", () =>
+  Effect.gen(function* emptyConversationRead() {
+    const supabase = createClient<Database>(
+      "https://chat-test.supabase.co",
+      "test-key",
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { fetch: async () => await Promise.resolve(Response.json([])) },
+      }
+    );
+
+    const messages = yield* readStoredAgentChatConversationMessages(
+      supabase,
+      "empty"
+    );
+
+    assert.deepStrictEqual(messages, []);
   }));

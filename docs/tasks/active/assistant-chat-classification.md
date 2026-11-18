@@ -801,3 +801,43 @@ credentials, business data, permissions or deployment configuration changed.
 Documentation targets and git diff --check reviewed. Original untracked files
 preserved; local feature commit only, no merge or push. Backend should be started
 normally by the user and the chat refreshed; no hidden server occupies their port.
+
+## Initial chat UI rendering — 2026-11-18
+
+Follow-up to 80d3424f: user reports about ten seconds of header-only UI on the
+first opening of the chat tab (not just reopening a long conversation).
+
+Diagnostic sample in the authenticated Chrome tab on 4201: session 167ms,
+chat-ready about 410ms after startup began (10:13:23.447–10:13:23.857 UTC).
+This was a warm backend/browser observation, not proof of cold-start latency.
+The header already contained the agent user ID in the user's screenshot.
+All conversation content and the composer were conditional on chat(), so they
+were absent until session/history finished. No loading view existed. The same
+sample also exposed a real empty-history 500: new chat UUIDs enter the URL before
+any message is saved; the conversation reader passed [] to SDK validation,
+which requires at least one message.
+
+Changes: show the loading body and editable draft composer immediately; sending
+remains unavailable until the authenticated chat/history is ready. Drafts survive
+the transition. Loading history clears old actionable cards. Generation/context
+guards discard stale session/history/list responses after New chat, client change
+or destruction. Session/history durations are logged on the dev page with no
+identifiers, message content or credentials. Empty stored conversation reads now
+return [] after the same scoped query; nonempty messages retain SDK validation.
+No financial action, authorization, schema, production URL or port change.
+
+Limits: the reported ten-second cold wait was not reproduced in the diagnostic
+sample. This change removes header-only rendering; it does not claim to remove
+all backend cold-start time. Keep runtime initialization lazy and preserve user
+watch processes. A backend restart is needed for the rebuilt empty-history fix;
+the frontend hot-reloads. No model eval is needed for these deterministic UI and
+history-read changes. No merge or push.
+
+Verification on the final executable changes (working tree based on 80d3424f):
+- Frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include=src/app/pages/dev-agent/*.spec.ts — 23/23 passed, including the real Angular loading template, draft preservation, no premature send, history resume and stale-load guards. Two earlier attempts had 22/23 because AngularFireAuth's standalone injector needed a component-level mock; corrected the test providers without changing the assertions. A failed edit command used an extra frontend/ prefix and changed nothing; corrected before the passing compile. The only later template edit was whitespace/indentation.
+- Agent focused: npm test -- tests/src/agent/chat/messages/agent-chat-message-storage.test.ts — 5/5 passed, including the empty-history regression.
+- Agent final: npm run check passed (341 files); npm run typecheck -- --pretty false exited 0 (existing Effect suggestions); npm test -- --maxWorkers=2 — 365 passed, 22 skipped across 67 passing/3 skipped files, 169.05s (94% import time); npm run build passed. The 22 existing skips were not enabled or counted as passing. No MySQL integration or paid model eval run.
+- The first focused formatter check flagged require-await in the new fake fetch; corrected and reran the required checks. No criteria or snapshots weakened.
+- Post-change live Chrome navigation could not be verified: the browser connection timed out and subsequently reported unavailable. Do not count this as a passing browser journey or cold-start benchmark. Initial authenticated timings were collected before the final changes. No real financial message/action sent.
+- Evidence logs in the chat workspace: startup-frontend-tests-verified.log, startup-agent-tests.log, startup-agent-check.log, startup-agent-types.log, startup-agent-unit.log, startup-agent-build.log. Preserve earlier failure logs. Frontend production build result is recorded below when complete.
+- Frontend final: npm run build -- --configuration production exited 0; existing SCSS, CommonJS and initial-bundle budget warnings remain. Log: startup-frontend-build.log. git diff --check passed. Existing unrelated untracked files preserved. Local feature commit only; no integration or push. Effective worktree ports stay 4201/3001; no server was stopped/restarted by this change.
