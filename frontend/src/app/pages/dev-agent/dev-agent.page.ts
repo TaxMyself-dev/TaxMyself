@@ -1,3 +1,4 @@
+import { devAgentApprovalView } from './dev-agent-chat-parts';
 import { CommonModule } from '@angular/common';
 import { classificationCard, classificationApprovalDecision, ClassificationCard } from './classification-card';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject, signal } from '@angular/core';
@@ -426,8 +427,28 @@ export class DevAgentPage implements OnInit, OnDestroy {
     this.classificationModes.update(modes => ({...modes, [approvalId]: checked}));
   }
 
-  answerApproval(approvalId: string, approved: boolean, card: ClassificationCard | null = null) {
-    void this.chat()?.addToolApprovalResponse(classificationApprovalDecision(
+  approvalView(part: MessagePart, message: UIMessage, chat: Chat<UIMessage>) {
+    return devAgentApprovalView(part, message.id, chat.messages);
+  }
+
+  requestFreshClassification(card: ClassificationCard, single: boolean) {
+    this.setupError.set(null);
+    this.send('הצג כרטיס אישור חדש ועדכני בעסק ' + card.businessNumber + ' לתנועה ' + card.merchant + ' מתאריך ' + card.date + ' בסך ' + Math.abs(card.amount) + ' ' + card.currency + ', לסיווג ' + card.category + ' / ' + card.subCategory + (single ? ' באופן חד פעמי.' : ' כסיווג קבוע.') + ' בדוק את המצב הנוכחי ואל תבצע שינוי בלי אישור חדש בכרטיס.');
+  }
+
+  answerApproval(approvalId: string, approved: boolean, card: ClassificationCard | null = null, messageId?: string) {
+    const chat = this.chat();
+    if (!chat || this.isBusy(chat) || this.contextChanged) return;
+    if (messageId !== undefined) {
+      const message = chat.messages.find(item => item.id === messageId);
+      const part = message?.parts.find(item => (item as unknown as {approval?: {id?: string}}).approval?.id === approvalId);
+      if (!part || !devAgentApprovalView(part, messageId, chat.messages)?.active) {
+        this.setupError.set('כרטיס האישור הזה כבר אינו פעיל כי השיחה המשיכה. בקש כרטיס עדכני; לא בוצעה פעולה מהלחיצה הזו.');
+        return;
+      }
+    }
+    this.setupError.set(null);
+    void chat.addToolApprovalResponse(classificationApprovalDecision(
       approvalId, approved, card, card ? this.classificationSingle(approvalId, card) : true,
     ));
   }

@@ -1,6 +1,10 @@
 import { assert, it, describe } from "@effect/vitest";
 
-import { applyAgentChatApprovals } from "../../../../../src/agent/chat/turn/agent-chat-approvals";
+import {
+  applyAgentChatApprovals,
+  supersedeOpenAgentApprovals,
+  supersededAgentApprovalReason,
+} from "../../../../../src/agent/chat/turn/agent-chat-approvals";
 import type { AgentChatMessage } from "../../../../../src/lib/agent-chat/conversation/agent-chat-messages";
 
 const deleteTasksTool = "tool-deleteTrackingTasks";
@@ -49,5 +53,31 @@ describe("agent chat approvals", () => {
     ]);
 
     assert.deepStrictEqual(answered, stored);
+  });
+});
+
+describe("superseded approval cards", () => {
+  it("closes only open approvals without executing, mutating inputs or reopening completed work", () => {
+    const closed = supersedeOpenAgentApprovals(stored);
+    assert.ok(closed);
+    const part = closed.parts.find((item) => "approval" in item);
+    assert.ok(part && "approval" in part);
+    assert.strictEqual(part.state, "output-denied");
+    assert.deepStrictEqual(part.approval, {
+      id: "approval_1",
+      approved: false,
+      reason: supersededAgentApprovalReason,
+    });
+    assert.deepStrictEqual(
+      applyAgentChatApprovals(closed, [
+        {
+          type: deleteTasksTool,
+          approval: { id: "approval_1", approved: true },
+        },
+      ]),
+      closed
+    );
+    assert.strictEqual(supersedeOpenAgentApprovals(closed), null);
+    assert.strictEqual(supersedeOpenAgentApprovals(), null);
   });
 });

@@ -1,3 +1,4 @@
+import { devAgentApprovalView } from './dev-agent-chat-parts';
 import {
   DevAgentMessage,
   DevAgentPart,
@@ -128,5 +129,22 @@ describe('dev agent chat request headers (business selection)', () => {
       'x-client-user-id': 'client-1',
     });
     expect(Object.keys(headers).map((name) => name.toLowerCase())).not.toContain('businessnumber');
+  });
+});
+
+describe('approval cards after clarification',()=>{
+  const part:any={type:'tool-classifyTransaction',state:'approval-requested',approval:{id:'a'}};
+  const original:any={id:'old',role:'assistant',parts:[part]};
+  it('allows only the latest assistant card and immediately closes it after a typed question',()=>{
+    expect(devAgentApprovalView(part,'old',[original])).toEqual({id:'a',active:true});
+    const question:any={id:'q',role:'user',parts:[{type:'text',text:'למה פעמיים?'}]};
+    const answer:any={id:'new',role:'assistant',parts:[{type:'text',text:'שני שמות'}]};
+    expect(devAgentApprovalView(part,'old',[original,question])).toEqual({id:'a',active:false});
+    expect(devAgentApprovalView(part,'old',[original,question,answer])).toEqual({id:'a',active:false});
+  });
+  it('keeps historical and persisted superseded cards inactive after reload',()=>{
+    const closed:any={...part,state:'output-denied',approval:{id:'a',approved:false,reason:'Superseded by a newer user message; request a fresh approval card.'}};
+    expect(devAgentApprovalView(closed,'old',[{...original,parts:[closed]}])).toEqual({id:'a',active:false});
+    expect(devAgentApprovalView({...part,state:'output-available'},'old',[original])).toBeNull();
   });
 });

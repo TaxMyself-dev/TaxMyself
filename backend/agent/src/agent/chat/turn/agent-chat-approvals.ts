@@ -5,6 +5,8 @@ import type {
   AgentChatMessagePart,
 } from "@/lib/agent-chat/conversation/agent-chat-messages";
 
+const approvalRequestedState = "approval-requested";
+
 const agentChatApprovalDecisionSchema = Schema.Struct({
   type: Schema.String,
   approval: Schema.Struct({
@@ -44,7 +46,7 @@ export const applyAgentChatApprovals = (
   return {
     ...stored,
     parts: stored.parts.map((part): AgentChatMessagePart => {
-      if (!("approval" in part) || part.state !== "approval-requested") {
+      if (!("approval" in part) || part.state !== approvalRequestedState) {
         return part;
       }
 
@@ -62,5 +64,43 @@ export const applyAgentChatApprovals = (
           }
         : part;
     }),
+  };
+};
+
+/** System closure, distinct from an explicit user denial. */
+export const supersededAgentApprovalReason =
+  "Superseded by a newer user message; request a fresh approval card.";
+
+/** Close approval requests that cannot be continued after a new typed turn.
+ * Completed actions and explicit decisions remain unchanged.
+ * @param message - The last stored message before the new user turn.
+ * @returns The closed message, or null if it had no open approvals. */
+export const supersedeOpenAgentApprovals = (
+  message?: AgentChatMessage
+): AgentChatMessage | null => {
+  if (
+    message?.role !== "assistant" ||
+    !message.parts.some(
+      (part) => "approval" in part && part.state === approvalRequestedState
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    ...message,
+    parts: message.parts.map((part): AgentChatMessagePart =>
+      "approval" in part && part.state === approvalRequestedState
+        ? {
+            ...part,
+            state: "output-denied",
+            approval: {
+              ...part.approval,
+              approved: false,
+              reason: supersededAgentApprovalReason,
+            },
+          }
+        : part
+    ),
   };
 };

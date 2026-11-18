@@ -128,7 +128,8 @@
                     }
                   </div>
                 }
-                @if (tool.approvalId; as approvalId) {
+                @if (approvalView(part, message, c); as approval) {
+                  @let approvalId = approval.id;
                   <div class="approval">
                       @if (classificationCard(part, c.messages); as card) {
                         <div dir="rtl">
@@ -140,7 +141,7 @@
                           <p>אחוז מע״מ: {{ card.vatPercent }}% · אחוז הכרה למס: {{ card.taxPercent }}%</p>
                           <p>מוכר למס: {{ card.isRecognized === undefined ? 'לא זמין' : card.isRecognized ? 'כן' : 'לא' }} · ציוד: {{ card.isEquipment === undefined ? 'לא זמין' : card.isEquipment ? 'כן' : 'לא' }} · פחת: {{ card.reductionPercent === undefined ? 'לא זמין' : card.reductionPercent + '%' }}</p>
                           <label>
-                            <input type="checkbox" [checked]="classificationSingle(approvalId, card)" [disabled]="!card.modeChoice" (change)="setClassificationSingle(approvalId, $any($event.target).checked)" />
+                            <input type="checkbox" [checked]="classificationSingle(approvalId, card)" [disabled]="!card.modeChoice || !approval.active || isBusy(c) || contextChanged" (change)="setClassificationSingle(approvalId, $any($event.target).checked)" />
                             סיווג חד־פעמי
                           </label>
                           @if (classificationSingle(approvalId, card)) {
@@ -156,8 +157,15 @@
                       } @else {
                         <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
                       }
-                    <button type="button" class="approve" [disabled]="tool.name === 'classifyTransaction' && !classificationCard(part, c.messages)" (click)="answerApproval(approvalId, true, classificationCard(part, c.messages))">Approve</button>
-                    <button type="button" class="deny" (click)="answerApproval(approvalId, false)">Deny</button>
+                    @if (approval.active) {
+                      <button type="button" class="approve" [disabled]="isBusy(c) || contextChanged || (tool.name === 'classifyTransaction' && !classificationCard(part, c.messages))" (click)="answerApproval(approvalId, true, classificationCard(part, c.messages), message.id)">Approve</button>
+                      <button type="button" class="deny" [disabled]="isBusy(c) || contextChanged" (click)="answerApproval(approvalId, false, null, message.id)">Deny</button>
+                    } @else {
+                      <p dir="rtl">כרטיס האישור הזה כבר אינו פעיל כי השיחה המשיכה. לא ניתן לבצע ממנו פעולה.</p>
+                      @if (classificationCard(part, c.messages); as card) {
+                        <button type="button" [disabled]="isBusy(c) || contextChanged" (click)="requestFreshClassification(card, classificationSingle(approvalId, card))">הצג כרטיס אישור עדכני</button>
+                      }
+                    }
                   </div>
                 }
               }

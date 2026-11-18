@@ -676,3 +676,79 @@ processes. Left 4201/3001 free for the user's own terminals. Existing servers on
 4200/3000 were not stopped. User commands: npm start from frontend; npm run
 start:watch from backend. Full diff/whitespace and documentation targets checked.
 Original untracked files preserved. Local feature commit only; no merge or push.
+
+## Stale approval after a clarification — 2026-11-18
+
+User reported an older Libra approval remaining visible after asking why a second
+card appeared, then doing nothing when clicked. Continued from 78f80ef8. User
+also requested a reminder about the separate localhost latency issue; a one-shot
+thread reminder was created, without changing API host settings in this task.
+
+Diagnosis: the UI showed approval controls on any approval-requested tool part,
+while the server only continues the last assistant message. SDK automatic
+continuation checks the latest answer; the custom transport sends messages.at(-1).
+An old card could change client state without submitting the intended approval,
+or fail last-answer validation. New typed turns previously superseded questions
+but left approvals open in stored history. This was a lifecycle mismatch, not a
+reason to bypass approval or repeat a classification.
+
+Read-only keepintax-dev inspection was scoped to the provided affected owner and
+business and used SET SESSION TRANSACTION READ ONLY. It found a first completed
+Libra rule (13 transactions including focus), the abandoned second pending card,
+and a later fresh approval that completed the second rule (8 transactions).
+Both merchant/account rules and all 21 classifications already existed when
+inspected. No rule, classification, expense, journal or stored approval was
+changed during diagnosis; the first completed action must never be replayed.
+The user-provided OCR/sync/export warnings do not explain this old-card behavior.
+No raw user logs, credentials, conversation parts or diagnostic script committed.
+
+Acceptance: older cards are visibly inactive immediately after a new user turn
+and after reload; no stale click can run or imply an approval. New typed turns
+persist closure of open approvals, leave completed actions unchanged, and reject
+old submissions with a specific error. Recovery requests only a fresh proposal
+and requires a new explicit card approval. Existing last-answer, identity and
+signed-proposal boundaries remain intact.
+
+Implementation: supersedeOpenAgentApprovals stores output-denied with a reserved
+system reason, composed with existing question supersession and persisted before
+the new answer. No historical database migration is needed. UI computes active
+status from latest assistant/message identity or persisted closure, hides old
+approve/deny buttons, disables stale checkbox edits and offers a fresh-card
+request. Handler guards stale IDs even if called directly; busy/context changes
+remain blocked. No new execution endpoint, no old-history resumption and no
+approval inferred from text. Multiple merchant names still have separate rules.
+
+Verification checkpoints:
+- Initial agent lint/type checks caught statement-spacing, duplicate-literal,
+  nested-conditional and an optional-argument test issue; fixed before passing.
+- Agent focused: npx vitest run --project unit tests/src/agent/chat/turn/agent-chat-approvals.test.ts tests/src/agent/chat/turn/agent-chat-question-flow.test.ts
+  2 files / 9 tests passed, including real endpoint + mocked model: completed
+  classification, pending second card, typed clarification, persisted closure,
+  stale decision returns 409 with zero new model prompts and no replay.
+- Frontend focused: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include=src/app/pages/dev-agent/classification-card.spec.ts --include=src/app/pages/dev-agent/dev-agent-chat.spec.ts
+  Final 17/17 passed: old/reloaded/new cards, stale-handler refusal, active-handler
+  success, mode selection and a nonexecuting fresh-card request.
+- Frontend npm run build -- --configuration production passed. Existing bundle,
+  SCSS budget and CommonJS warnings retained; no unrelated style fixes.
+
+Final consolidated agent checks: npm run check and npm run typecheck -- --pretty
+false passed (existing Effect suggestions only); npm test -- --maxWorkers=2
+passed 364 tests with 22 skipped across 67 passed / 3 skipped files, 68.11s.
+Agent npm run build passed. Frontend production build passed at
+2026-11-18T09:48:57.313Z, hash 8c0b09753099eea3, 42.673s. No executable changes
+after these passing checkpoints. Full diffs and git diff --check reviewed;
+updated documentation targets exist. No broad Nest suite was needed: no Nest
+source changed. No standalone repository Markdown-link runner was available.
+
+At final inspection frontend 4201 was running; backend 3001 had already been
+stopped by the user. Its stopped state was preserved. The rebuilt agent will
+load on the user's normal backend startup; no hidden server was started to
+occupy their port. Reminder scheduling is independent of this code change.
+Local feature commit contains this fix, tests and documentation only.
+
+No application database writes, schema, dependency, production, environment or
+port changes. No paid eval was required for this deterministic lifecycle defect;
+the real endpoint test drives the exact failed transition with a scripted model.
+No live financial action was submitted. Frontend hot-reloads in the running dev
+server; a running backend needs restart to load the rebuilt agent bundle. Do not
+stop the user's watch processes or sibling servers. No merge or push.

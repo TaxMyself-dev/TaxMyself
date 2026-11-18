@@ -177,3 +177,14 @@ export const devAgentShouldContinue = (
 
   return answered.length > 0;
 };
+
+/** Only approvals in the latest assistant answer can be continued. Older
+ * persisted requests are shown closed even before server-side cleanup. */
+export function devAgentApprovalView(part: MessagePart, messageId: string, messages: readonly DevAgentMessage[]): {id: string; active: boolean} | null {
+  const tool = part as unknown as {state?: string; approval?: {id?: string; reason?: string}};
+  if (typeof tool.approval?.id !== 'string') return null;
+  const superseded = tool.state === 'output-denied' && tool.approval.reason === 'Superseded by a newer user message; request a fresh approval card.';
+  if (tool.state !== 'approval-requested' && !superseded) return null;
+  const last = messages.at(-1);
+  return {id:tool.approval.id,active:tool.state === 'approval-requested' && last?.role === 'assistant' && last.id === messageId};
+}

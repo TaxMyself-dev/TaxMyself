@@ -33,7 +33,7 @@ describe('classification checkbox handler',()=>{
   it('starts unchecked for new cards and submits a changed selection on approval',()=>{
     const page:any=Object.create(DevAgentPage.prototype);
     const send=jasmine.createSpy('addToolApprovalResponse');
-    Object.assign(page,{classificationModes:signal({}),chat:()=>({addToolApprovalResponse:send})});
+    Object.assign(page,{classificationModes:signal({}),context:signal(null),setupError:signal(null),chat:()=>({addToolApprovalResponse:send})});
     const card:any={modeChoice:true,isSingleUpdate:false};
     expect(page.classificationSingle('id',card)).toBeFalse();
     page.answerApproval('id',true,card);
@@ -45,5 +45,32 @@ describe('classification checkbox handler',()=>{
     page.answerApproval('id',false,card);
     expect(send).toHaveBeenCalledWith({id:'id',approved:false});
     expect(page.classificationSingle('legacy',{})).toBeTrue();
+  });
+});
+
+describe('stale card action guard and fresh request',()=>{
+  it('does not submit an approval for an older message even if its handler is invoked',()=>{
+    const page:any=Object.create(DevAgentPage.prototype);
+    const send=jasmine.createSpy('addToolApprovalResponse');
+    const chat:any={status:'ready',messages:[{id:'old',role:'assistant',parts:[{type:'tool-classifyTransaction',state:'approval-requested',approval:{id:'a'}}]},{id:'new',role:'assistant',parts:[{type:'text',text:'שני שמות'}]}],addToolApprovalResponse:send};
+    Object.assign(page,{context:signal(null),setupError:signal(null),chat:()=>chat});
+    page.answerApproval('a',true,null,'old');
+    expect(send).not.toHaveBeenCalled();
+    expect(page.setupError()).toContain('כבר אינו פעיל');
+    chat.messages=[chat.messages[0]];
+    page.answerApproval('a',false,null,'old');
+    expect(send).toHaveBeenCalledOnceWith({id:'a',approved:false});
+    expect(page.setupError()).toBeNull();
+  });
+  it('requests a new proposal rather than turning a typed message into approval',()=>{
+    const page:any=Object.create(DevAgentPage.prototype);
+    page.send=jasmine.createSpy('send');
+    page.setupError=signal('old error');
+    page.requestFreshClassification({businessNumber:'123456789',merchant:'ליברה ביטוח חובה',date:'2026-06-11',amount:-143.58,currency:'ILS',category:'רכב',subCategory:'ביטוח'},true);
+    const text=page.send.calls.mostRecent().args[0];
+    expect(text).toContain('כרטיס אישור חדש ועדכני');
+    expect(text).toContain('ליברה ביטוח חובה');
+    expect(text).toContain('באופן חד פעמי');
+    expect(text).toContain('אל תבצע שינוי בלי אישור חדש');
   });
 });

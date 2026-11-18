@@ -6,7 +6,10 @@ import {
   validateAgentChatMessages,
   writeStoredAgentChatMessages,
 } from "@/agent/chat/messages/agent-chat-message-storage.server";
-import { applyAgentChatApprovals } from "@/agent/chat/turn/agent-chat-approvals";
+import {
+  applyAgentChatApprovals,
+  supersedeOpenAgentApprovals,
+} from "@/agent/chat/turn/agent-chat-approvals";
 import {
   applyAgentChatQuestionAnswers,
   sendsAgentQuestionAnswer,
@@ -91,13 +94,23 @@ const continueStoredAgentChatAnswer = (
   const answersQuestion = sendsAgentQuestionAnswer(sentParts);
 
   if (stored !== history.at(-1)) {
-    return answersQuestion
-      ? agentQuestionClosed()
-      : agentChatError(
-          "AGENT_INVALID_INPUT",
-          "Only the last answer can be continued.",
-          400
-        );
+    if (answersQuestion) {
+      return agentQuestionClosed();
+    }
+
+    if (stored.parts.some((part) => "approval" in part)) {
+      return agentChatError(
+        "AGENT_APPROVAL_SUPERSEDED",
+        "This approval card is no longer active because the conversation continued. Request a fresh card; this attempt performed no action.",
+        409
+      );
+    }
+
+    return agentChatError(
+      "AGENT_INVALID_INPUT",
+      "Only the last answer can be continued.",
+      400
+    );
   }
 
   const answers = applyAgentChatQuestionAnswers(
@@ -225,7 +238,10 @@ export const prepareAgentChatMessages = Effect.fn("prepareAgentChatMessages")(
       // A message typed while a question is open answers it as superseded:
       // the question is closed, and the newer message is what the agent
       // follows.
-      superseded = supersedeOpenAgentQuestions(history.at(-1));
+      const closedQuestions = supersedeOpenAgentQuestions(history.at(-1));
+      superseded =
+        supersedeOpenAgentApprovals(closedQuestions ?? history.at(-1)) ??
+        closedQuestions;
 
       const earlier =
         superseded === null ? history : [...history.slice(0, -1), superseded];
@@ -262,8 +278,8 @@ export const prepareAgentChatMessages = Effect.fn("prepareAgentChatMessages")(
       )
     );
 
-    // The closed question is saved before the answer starts, so a reload
-    // shows it answered as replaced whatever happens to the answer.
+    // Closed questions/approvals are saved before the answer starts, so reload
+    // cannot make an earlier card appear active again.
     if (!(validated instanceof Response) && superseded !== null) {
       const closed = validated.at(-2);
 

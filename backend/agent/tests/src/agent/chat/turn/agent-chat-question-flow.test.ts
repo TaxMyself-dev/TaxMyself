@@ -529,3 +529,106 @@ describe("askUserQuestion answered by the page", () => {
       }
     }));
 });
+
+describe("classification approval followed by clarification", () => {
+  test("a typed question closes only the pending second card and a stale click cannot resume older work", () =>
+    Effect.gen(function* staleClassificationApproval() {
+      const id = crypto.randomUUID();
+
+      const done = {
+        type: "tool-classifyTransaction" as const,
+        toolCallId: "libra-done",
+        state: "output-available" as const,
+        input: { proposalId: "first" },
+        approval: { id: "first-approval", approved: true as const },
+        output: {
+          status: "classified" as const,
+          expenseApproved: false as const,
+          category: "רכב",
+          subCategory: "ביטוח",
+        },
+      };
+
+      const waiting = {
+        type: "tool-classifyTransaction" as const,
+        toolCallId: "libra-waiting",
+        state: "approval-requested" as const,
+        input: { proposalId: "second" },
+        approval: { id: "second-approval" },
+      };
+
+      const chat = startChat(
+        () => reply("לליברה שני שמות. לקבלת כרטיס פעיל יש לבקש הצעה עדכנית."),
+        [
+          {
+            id: crypto.randomUUID(),
+            role: "user",
+            parts: [{ type: "text", text: "הצע סיווג לליברה" }],
+          },
+          { id, role: "assistant", parts: [done, waiting] },
+        ]
+      );
+
+      const replyToQuestion = yield* chat.send(
+        userMessage("למה אתה מציג פעמיים אישור?")
+      );
+
+      assert.strictEqual(replyToQuestion.status, 200);
+      const rows = yield* chat.messages;
+      const original = rows.find((row) => row.id === id);
+      assert.ok(original);
+
+      const decodePart = Schema.decodeUnknownOption(
+        Schema.Struct({
+          toolCallId: Schema.String,
+          state: Schema.String,
+          approval: Schema.Struct({
+            id: Schema.String,
+            approved: Schema.Boolean,
+            reason: Schema.optionalKey(Schema.String),
+          }),
+        })
+      );
+
+      const parts = original.parts.flatMap((part) =>
+        Option.toArray(decodePart(part))
+      );
+
+      assert.strictEqual(
+        parts.find((part) => part.toolCallId === "libra-done")?.state,
+        "output-available"
+      );
+      assert.strictEqual(
+        parts.find((part) => part.toolCallId === "libra-waiting")?.state,
+        "output-denied"
+      );
+      assert.strictEqual(
+        parts.find((part) => part.toolCallId === "libra-waiting")?.approval
+          .approved,
+        false
+      );
+
+      const stale = yield* chat.send({
+        id,
+        role: "assistant",
+        parts: [
+          {
+            ...waiting,
+            state: "approval-responded",
+            approval: { id: "second-approval", approved: true },
+          },
+        ],
+      });
+
+      assert.strictEqual(stale.status, 409);
+      assert.strictEqual(
+        decodeChatError(stale.text).error.code,
+        "AGENT_APPROVAL_SUPERSEDED"
+      );
+      assert.deepStrictEqual(stale.newPrompts, []);
+      assert.strictEqual(
+        (yield* chat.messages).find((row) => row.id === id)?.parts.length,
+        original.parts.length
+      );
+    }));
+});
