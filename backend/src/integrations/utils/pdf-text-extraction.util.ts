@@ -36,6 +36,7 @@ export type PdfTextExtractionOutcome =
   | 'EXTRACTED'
   /** Parsed fine but has no text layer — a scan/photo. OCR is out of scope. */
   | 'NO_TEXT'
+  | 'PASSWORD_REQUIRED'
   /** Skipped before parsing: over MAX_PDF_BYTES_FOR_TEXT. */
   | 'TOO_LARGE'
   /** Malformed, encrypted, or slower than EXTRACTION_TIMEOUT_MS. */
@@ -49,12 +50,13 @@ export interface PdfTextExtractionResult {
   text: string;
   /** Short failure label for logs — an error message, never document content. */
   error?: string;
+  pages?: number;
 }
 
 type PdfParseFn = (
   data: Uint8Array,
   options?: { max?: number },
-) => Promise<{ text?: string }>;
+) => Promise<{ text?: string; numpages?: number }>;
 
 /** Cached module handle: undefined = not tried yet, null = unavailable. */
 let cachedPdfParse: PdfParseFn | null | undefined;
@@ -116,10 +118,13 @@ export async function extractPdfText(
     );
     const text = (parsed?.text ?? '').slice(0, MAX_TEXT_CHARS);
     if (!text.trim()) {
-      return { outcome: 'NO_TEXT', text: '' };
+      return { outcome: 'NO_TEXT', text: '', pages: parsed.numpages };
     }
-    return { outcome: 'EXTRACTED', text };
+    return { outcome: 'EXTRACTED', text, pages: parsed.numpages };
   } catch (error: any) {
+    if (error?.name === 'PasswordException') {
+      return { outcome: 'PASSWORD_REQUIRED', text: '', error: 'password required' };
+    }
     // Encrypted, truncated, structurally broken or too slow — all contained
     // here. Only the error message is surfaced, never any document content.
     return { outcome: 'FAILED', text: '', error: shortError(error) };

@@ -85,6 +85,13 @@ export class DocumentImportService {
     private readonly businessResolver: BusinessResolverService,
   ) {}
 
+  async hasImportedContent(firebaseId: string, businessNumber: string | undefined, content: Buffer): Promise<boolean> {
+    const target = await this.resolveBusinessNumber({ firebaseId, businessNumber } as DocumentImportRequest);
+    return !!await this.importedDocumentRepo.findOne({ where: {
+      firebaseId, businessNumber: target, contentHash: createHash('sha256').update(content).digest('hex'),
+    } });
+  }
+
   /**
    * Import one document into the business's Drive inbox.
    *

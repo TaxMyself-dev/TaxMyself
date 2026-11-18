@@ -32,6 +32,9 @@ export interface GmailImportFileResult {
 }
 
 export interface GmailImportResult {
+  filteredAttachments?: number;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
   query: string;
   messagesFound: number;
   /** Messages that could not be fetched/parsed (logged and skipped by the reader). */
@@ -54,6 +57,9 @@ export interface GmailImportResult {
 
 /** One connected mailbox's outcome inside a user-level "import all" run. */
 export interface GmailAccountImportResult {
+  filteredAttachments?: number;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
   integrationId: number;
   accountEmail: string | null;
   imported: number;
@@ -179,6 +185,10 @@ export class GmailDriveImportService {
         account.attachmentsFound = result.attachmentsFound;
         account.messagesFound = result.messagesFound;
         account.messagesFailed = result.messagesFailed;
+        account.filteredAttachments = result.filteredAttachments || 0;
+        account.reviewRequired = result.reviewRequired || 0;
+        account.aiReviewQueued = result.aiReviewQueued || 0;
+        if (result.reviewRequired) account.error = `${result.reviewRequired} קבצים דורשים בדיקה; סמן הסנכרון לא התקדם`;
         if (result.messagesFailed) account.error = 'Some messages could not be read; retry required';
       } catch (error: any) {
         account.error = error?.message ?? String(error);
@@ -187,7 +197,7 @@ export class GmailDriveImportService {
             `(integration ${integration.id}) failed: ${account.error}`,
         );
       } finally {
-        if (claimed) await this.userIntegrationsService.finishManualSync(integration.id, !!account.error);
+        if (claimed) await this.userIntegrationsService.finishManualSync(integration.id, !!account.error, account.error || undefined);
       }
 
       aggregate.totalImported += account.imported;
@@ -232,6 +242,9 @@ export class GmailDriveImportService {
     const result: GmailImportResult = {
       query,
       messagesFound: 0,
+      reviewRequired: 0,
+      filteredAttachments: 0,
+      aiReviewQueued: 0,
       messagesFailed: 0,
       failedMessageIds: [],
       attachmentsFound: 0,
@@ -249,8 +262,12 @@ export class GmailDriveImportService {
       maxMessages: options.maxMessages,
       skipStats: options.skipStats,
       pdfStats: options.pdfStats,
+      isAlreadyImported: content => this.documentImportService.hasImportedContent(firebaseId, options.businessNumber, content),
     })) {
       result.messagesFound += 1;
+      result.reviewRequired += scan.reviewRequired || 0;
+      result.filteredAttachments += Math.max(0, (scan.skippedIrrelevant || 0) - (scan.reviewRequired || 0)) + (scan.skippedWithoutFilename || 0);
+      result.aiReviewQueued += scan.aiReviewQueued || 0;
       result.matchedByPdfContent += scan.matchedByPdfContent;
       if (scan.failed) {
         result.messagesFailed += 1;

@@ -333,7 +333,7 @@ export class UserIntegrationsService {
     await this.userIntegrationRepo.update({ id: integrationId, connectedAccountId }, { retiredConnectedAccountIds: null });
   }
 
-  async finishManualSync(integrationId: number, failed: boolean): Promise<void> {
-    await this.userIntegrationRepo.update({ id: integrationId }, { lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS, lastSyncError: failed ? 'Manual scan incomplete; retry required' : null });
+  async finishManualSync(integrationId: number, failed: boolean, reason?: string): Promise<void> {
+    await this.userIntegrationRepo.update({ id: integrationId }, { lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS, lastSyncError: failed ? (reason || 'Manual scan incomplete; retry required').slice(0, 2000) : null });
   }
 }

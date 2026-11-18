@@ -393,6 +393,9 @@ export class GmailSyncService {
   // --- Run logging (see gmail-sync-logging.util.ts for the stage vocabulary) ----
 
   private assertCompleteScan(result: GmailImportResult): void {
+    if (result.reviewRequired) {
+      throw tagGmailSyncError(new Error(`${result.reviewRequired} קבצים דורשים בדיקה; סמן הסנכרון לא התקדם.`), 'LOAD_MESSAGE', false);
+    }
     if (result.messagesFailed > 0) {
       throw tagGmailSyncError(new Error('Some messages could not be read; synchronization will retry without advancing its cursor.'), 'LOAD_MESSAGE', true);
     }

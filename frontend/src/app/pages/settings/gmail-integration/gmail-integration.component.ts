@@ -178,11 +178,16 @@ export class GmailIntegrationComponent implements OnInit {
         this.importing.set(false);
         this.importDialogVisible.set(false);
         const failed = result.perAccount.filter((a) => a.error);
+        const reviewRequired = result.perAccount.reduce((total, account) => total + (account.reviewRequired || 0), 0);
+        const filtered = result.perAccount.reduce((total, account) => total + (account.filteredAttachments || 0), 0);
         this.messageService.add({
           severity: failed.length > 0 ? 'warn' : 'success',
           summary: 'ייבוא הושלם',
           detail:
             `יובאו ${result.totalImported} מסמכים חדשים` +
+            `; ${result.totalAlreadyImported} כבר קיימים; ${result.totalSkipped} דולגו בעת קליטה` +
+            `; ${filtered} סוננו לפני קליטה` +
+            (reviewRequired ? `; ${reviewRequired} קבצים דורשים בדיקה ולא סומנו כלא רלוונטיים` : '') +
             (failed.length > 0
               ? ` (נכשלו: ${failed.map((a) => a.accountEmail ?? `חשבון ${a.integrationId}`).join(', ')})`
               : ''),

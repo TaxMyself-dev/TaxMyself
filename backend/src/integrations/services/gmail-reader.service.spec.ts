@@ -111,7 +111,7 @@ describe('GmailReaderService — attachment filtering', () => {
   /** Runs one message through the real scan pipeline with a fake Gmail client. */
   async function scanOneMessage(
     parts: TestPart[],
-    options: { subject?: string | null; snippet?: string | null } = {},
+    options: { subject?: string | null; snippet?: string | null; isAlreadyImported?: (content: Buffer) => Promise<boolean> } = {},
   ) {
     attachmentsGet = jest.fn(async (_account, _messageId, attachmentId: string) => {
       const index = Number(attachmentId.replace('att-', ''));
@@ -128,6 +128,7 @@ describe('GmailReaderService — attachment filtering', () => {
     for await (const scan of service.scanMessages(INTEGRATION, {
       skipStats,
       pdfStats,
+      isAlreadyImported: options.isAlreadyImported,
     })) {
       results.push(scan);
     }
@@ -143,7 +144,7 @@ describe('GmailReaderService — attachment filtering', () => {
 
   // --- existing metadata-based behavior, unchanged ----------------------------
 
-  it('still imports on a filename match, without reading the PDF text', async () => {
+  it('validates PDF readability even on a filename match', async () => {
     const pdf = await latinTextPdf('Some unrelated body copy');
 
     const scan = await scanOneMessage([
@@ -153,7 +154,7 @@ describe('GmailReaderService — attachment filtering', () => {
     expect(scan.attachments).toHaveLength(1);
     expect(scan.attachments[0].matchedBy).toBe('filename');
     expect(scan.matchedByPdfContent).toBe(0);
-    expect(extractPdfTextMock).not.toHaveBeenCalled();
+    expect(extractPdfTextMock).toHaveBeenCalled();
   });
 
   it('still imports on a subject match', async () => {
@@ -168,7 +169,7 @@ describe('GmailReaderService — attachment filtering', () => {
 
     expect(scan.attachments).toHaveLength(1);
     expect(scan.attachments[0].matchedBy).toBe('subject');
-    expect(extractPdfTextMock).not.toHaveBeenCalled();
+    expect(extractPdfTextMock).toHaveBeenCalled();
   });
 
   it('still imports on a body/snippet match', async () => {
@@ -184,7 +185,7 @@ describe('GmailReaderService — attachment filtering', () => {
 
     expect(scan.attachments).toHaveLength(1);
     expect(scan.attachments[0].matchedBy).toBe('body');
-    expect(extractPdfTextMock).not.toHaveBeenCalled();
+    expect(extractPdfTextMock).toHaveBeenCalled();
   });
 
   it('leaves JPG/JPEG/PNG behavior untouched — no keyword means no download', async () => {
@@ -198,7 +199,7 @@ describe('GmailReaderService — attachment filtering', () => {
     expect(scan.skippedIrrelevant).toBe(3);
     expect(attachmentsGet).not.toHaveBeenCalled();
     expect(extractPdfTextMock).not.toHaveBeenCalled();
-    expect(skipReasons()).toContain(GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+    expect(skipReasons()).toContain(GmailSkipReason.REVIEW_REQUIRED);
   });
 
   it('still imports an image when the metadata names a document', async () => {
@@ -279,7 +280,7 @@ describe('GmailReaderService — attachment filtering', () => {
 
     expect(scan.attachments).toHaveLength(0);
     expect(scan.skippedIrrelevant).toBe(1);
-    expect(skipReasons()).toContain(GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+    expect(skipReasons()).toContain(GmailSkipReason.REVIEW_REQUIRED);
     expect(pdfOutcomes()).toContain(GmailPdfScanOutcome.NO_KEYWORD);
   });
 
@@ -297,7 +298,7 @@ describe('GmailReaderService — attachment filtering', () => {
     );
 
     expect(scan.attachments).toHaveLength(0);
-    expect(skipReasons()).toContain(GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+    expect(skipReasons()).toContain(GmailSkipReason.REVIEW_REQUIRED);
     expect(pdfOutcomes()).toContain(GmailPdfScanOutcome.NO_KEYWORD);
   });
 
@@ -310,7 +311,7 @@ describe('GmailReaderService — attachment filtering', () => {
 
     expect(scan.attachments).toHaveLength(0);
     expect(scan.skippedIrrelevant).toBe(1);
-    expect(skipReasons()).toContain(GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+    expect(skipReasons()).toContain(GmailSkipReason.REVIEW_REQUIRED);
     expect(pdfOutcomes()).toContain(GmailPdfScanOutcome.NO_TEXT);
   });
 
@@ -327,7 +328,7 @@ describe('GmailReaderService — attachment filtering', () => {
     expect(scan.attachments).toHaveLength(1);
     expect(scan.attachments[0].filename).toBe('invoice-77.pdf');
     expect(pdfOutcomes()).toContain(GmailPdfScanOutcome.FAILED);
-    expect(skipReasons()).toContain(GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
+    expect(skipReasons()).toContain(GmailSkipReason.REVIEW_REQUIRED);
   });
 
   // --- technical skips still win, and short-circuit before extraction ----------
@@ -383,5 +384,39 @@ describe('GmailReaderService — attachment filtering', () => {
     expect(scan.attachments).toHaveLength(0);
     expect(extractPdfTextMock).not.toHaveBeenCalled();
     expect(skipReasons()).toContain(GmailSkipReason.PDF_INVALID);
+  });
+
+  it('queues an ambiguous readable PDF for a single downstream AI pass only when opted in', async () => {
+    process.env.GMAIL_AI_REVIEW_ENABLED = 'true';
+    try {
+      const scan = await scanOneMessage([{ filename: 'scan.pdf', content: await scannedPdf() }]);
+      expect(scan.attachments).toHaveLength(1);
+      expect(scan.attachments[0].matchedBy).toBe('ai-review');
+      expect(scan.aiReviewQueued).toBe(1);
+      expect(scan.reviewRequired).toBe(0);
+    } finally { delete process.env.GMAIL_AI_REVIEW_ENABLED; }
+  });
+  it('retains a password PDF even when its filename says invoice', async () => {
+    extractPdfTextMock.mockResolvedValueOnce({ outcome: 'PASSWORD_REQUIRED', text: '' });
+    const scan = await scanOneMessage([{ filename: 'invoice.pdf', content: await latinTextPdf('Invoice') }]);
+    expect(scan.attachments).toHaveLength(0);
+    expect(scan.reviewRequired).toBe(1);
+  });
+  it('accepts a small image with a strong accounting signal', async () => {
+    const scan = await scanOneMessage([{ filename: 'invoice.png', content: Buffer.alloc(2048) }]);
+    expect(scan.attachments).toHaveLength(1);
+    expect(scan.attachments[0].matchedBy).toBe('filename');
+  });
+
+  it('bounds new ambiguous files while allowing already-imported files past the budget', async () => {
+    process.env.GMAIL_AI_REVIEW_ENABLED = 'true';
+    try {
+      const pdf = await scannedPdf();
+      const known = jest.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false);
+      const scan = await scanOneMessage(Array.from({ length: 12 }, (_, index) => ({ filename: 'scan-' + index + '.pdf', content: pdf })), { isAlreadyImported: known });
+      expect(scan.attachments).toHaveLength(12);
+      expect(scan.aiReviewQueued).toBe(10);
+      expect(scan.reviewRequired).toBe(0);
+    } finally { delete process.env.GMAIL_AI_REVIEW_ENABLED; }
   });
 });

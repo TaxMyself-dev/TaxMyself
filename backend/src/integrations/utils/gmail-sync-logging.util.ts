@@ -75,6 +75,7 @@ export const GmailSkipReason = {
   PDF_TOO_SMALL: 'pdf too small',
   PDF_INVALID: 'invalid pdf content',
   NOT_INVOICE_OR_RECEIPT: 'filename/email text not invoice or receipt',
+  REVIEW_REQUIRED: 'requires review; not classified as irrelevant',
 } as const;
 
 export type GmailSkipReason = (typeof GmailSkipReason)[keyof typeof GmailSkipReason];
@@ -89,6 +90,7 @@ export const GmailKeywordMatchSource = {
   SUBJECT: 'subject',
   BODY: 'body',
   PDF_CONTENT: 'pdf-content',
+  AI_REVIEW: 'ai-review',
 } as const;
 
 export type GmailKeywordMatchSource =
@@ -105,6 +107,7 @@ export const GmailPdfScanOutcome = {
   MATCHED: 'matched by pdf text',
   NO_KEYWORD: 'pdf text has no accounting keyword',
   NO_TEXT: 'pdf has no extractable text',
+  PASSWORD_REQUIRED: 'pdf requires a password',
   TOO_LARGE: 'pdf too large to scan',
   FAILED: 'pdf text extraction failed',
   UNAVAILABLE: 'pdf text extraction unavailable',

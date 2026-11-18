@@ -111,3 +111,15 @@ describe('Gmail status preserves historical errors after reconnect', () => {
     expect(JSON.stringify(row)).toBe(before);
   });
 });
+
+describe('Unresolved intake prevents successful synchronization', () => {
+  it('persists a review count without advancing the incremental cursor', async () => {
+    const integrations = { markSyncRunning: jest.fn().mockResolvedValue(undefined), markSyncSuccess: jest.fn(), markSyncError: jest.fn().mockResolvedValue(undefined) };
+    const importer = { importFromGmail: jest.fn().mockResolvedValue({ messagesFailed: 0, reviewRequired: 2 }) };
+    const service = new GmailSyncService(integrations as any, importer as any);
+    const result = await service.runIncrementalSync({ id: 17, firebaseId: 'owner', lastSuccessfulSyncAt: new Date('2026-09-01'), lastSyncStatus: null } as UserIntegration);
+    expect(result.outcome).toBe('error');
+    expect(integrations.markSyncSuccess).not.toHaveBeenCalled();
+    expect(integrations.markSyncError).toHaveBeenCalledWith(17, expect.stringContaining('2 קבצים דורשים בדיקה'));
+  });
+});

@@ -3164,13 +3164,26 @@ ${finalOwnerName}`;
           recordSource,
         );
         if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
-        const { invoices, rawResponse } = await this.documentProcessor.extract(
+        const { invoices, rawResponse, intakeDecision } = await this.documentProcessor.extract(
           buffer,
           file.mimeType,
           catalog,
+          process.env.GMAIL_AI_REVIEW_ENABLED === 'true'
+            && importRows.some(row => row.driveFileId === file.id && row.source === DocumentImportSource.GMAIL),
         );
 
+        if (intakeDecision === 'not_accounting') {
+          ocrClaim.status = ExtractedDocStatus.REJECTED;
+          ocrClaim.rejectionReason = 'זוהה אוטומטית כמסמך שאינו חשבונאי';
+          ocrClaim.rawResponse = rawResponse;
+          await this.extractedDocRepo.save(ocrClaim);
+          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+          skipped++;
+          continue;
+        }
+
         if (!invoices) {
+          if (intakeDecision === 'uncertain') ocrClaim.rejectionReason = 'ai_uncertain';
           await this.finalizeOcrClaimAsError(ocrClaim, rawResponse);
           await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
           failed++;

@@ -36,6 +36,9 @@ export interface GmailSyncStatus {
 
 /** תוצאת ייבוא מהחשבונות שנבחרו (POST integrations/google/gmail/import). */
 export interface GmailAccountImportResult {
+  filteredAttachments?: number;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
   integrationId: number;
   accountEmail: string | null;
   imported: number;

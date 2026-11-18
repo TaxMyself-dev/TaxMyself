@@ -184,9 +184,12 @@ export class ArchivedDocumentsPage implements OnInit {
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
         sourceIconClass: sourceIcon?.iconClass ?? null,
         sourceIconUrl: sourceIcon?.iconUrl ?? null,
-        statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
+        statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
+          ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
+          : item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
+            ? 'ה־AI לא הצליח להכריע אם זהו מסמך חשבונאי. הקובץ נשמר לבדיקה.'
           : item.status === 'APPROVED'
             ? [
                 vatPeriodIsRelevant && item.vatReportPeriod

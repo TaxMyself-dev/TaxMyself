@@ -274,4 +274,17 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       RecordSource.DRIVE,
     );
   });
+
+  it('persists an explicit not-accounting decision as rejected without a second AI call', async () => {
+    const file = { id: 'gmail-form', name: 'form.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
+    const test = subject([[], [], []], file, [{ driveFileId: file.id, source: DocumentImportSource.GMAIL }]);
+    process.env.GMAIL_AI_REVIEW_ENABLED = 'true';
+    try {
+      test.fakeThis.documentProcessor.extract.mockResolvedValue({ intakeDecision: 'not_accounting', invoices: [], rawResponse: '{"decision":"not_accounting","invoices":[]}' });
+      await expect(test.run()).resolves.toMatchObject({ failed: 0, skipped: 1 });
+      expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledTimes(1);
+      expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf', [], true);
+      expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.REJECTED, rejectionReason: 'זוהה אוטומטית כמסמך שאינו חשבונאי', source: RecordSource.EMAIL }));
+    } finally { delete process.env.GMAIL_AI_REVIEW_ENABLED; }
+  });
 });

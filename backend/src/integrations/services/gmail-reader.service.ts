@@ -15,6 +15,7 @@ import {
 import { extractPdfText, PdfTextExtractionOutcome } from '../utils/pdf-text-extraction.util';
 
 import { UserIntegrationsService } from './user-integrations.service';
+import { decideEmailIntake } from '../utils/email-intake-decision';
 
 /**
  * Default Gmail search when the caller does not pass one. Deliberately broad:
@@ -28,15 +29,10 @@ export const DEFAULT_GMAIL_QUERY = 'has:attachment newer_than:90d';
 const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 
 /** Filename fragments that mark email assets rather than documents. */
-const ASSET_NAME_PATTERN = /(logo|icon|banner|signature|templogo|temp)/i;
+const ASSET_NAME_PATTERN = /(?:^|[\/_. -])(logo|icon|banner|signature|templogo)(?:[\d_. -]|$)/i;
 
-/** PDFs below this are unlikely to be real documents (empty/broken). */
-const MIN_PDF_BYTES = 20 * 1024;
-/**
- * Images need to be substantial to be a scanned/photographed receipt —
- * this also drops tiny logos, tracking pixels and signature images.
- */
-const MIN_IMAGE_BYTES = 80 * 1024;
+/** Tiny technical image payloads with no accounting signal are not documents. */
+const MIN_TECHNICAL_IMAGE_BYTES = 256;
 
 /** contentBase64 responses get large fast — keep the page size modest. */
 const DEFAULT_MAX_RESULTS = 10;
@@ -54,6 +50,7 @@ const PDF_OUTCOME_TO_SCAN_OUTCOME: Record<
   GmailPdfScanOutcome
 > = {
   NO_TEXT: GmailPdfScanOutcome.NO_TEXT,
+  PASSWORD_REQUIRED: GmailPdfScanOutcome.PASSWORD_REQUIRED,
   TOO_LARGE: GmailPdfScanOutcome.TOO_LARGE,
   FAILED: GmailPdfScanOutcome.FAILED,
   UNAVAILABLE: GmailPdfScanOutcome.UNAVAILABLE,
@@ -135,6 +132,8 @@ export interface GmailMessageScanResult {
   matchedByPdfContent: number;
   /** True when the message could not be fetched/parsed — logged, attachments empty. */
   failed: boolean;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
 }
 
 /**
@@ -176,6 +175,7 @@ export class GmailReaderService {
       maxMessages?: number;
       skipStats?: SkippedAttachmentsAccumulator;
       pdfStats?: PdfContentScanAccumulator;
+      isAlreadyImported?: (content: Buffer) => Promise<boolean>;
     } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
     this.assertUsableIntegration(integration);
@@ -191,6 +191,7 @@ export class GmailReaderService {
 
     let pageToken: string | undefined;
     let scanned = 0;
+    const aiBudget = { remaining: 10 };
     const seenPageTokens = new Set<string>();
     do {
       const remaining = maxMessages ? maxMessages - scanned : LIST_PAGE_SIZE;
@@ -212,6 +213,8 @@ export class GmailReaderService {
             messageId,
             options.skipStats,
             options.pdfStats,
+            aiBudget,
+            options.isAlreadyImported,
           );
           yield { messageId, failed: false, ...collected };
         } catch (error: any) {
@@ -318,11 +321,15 @@ export class GmailReaderService {
     messageId: string,
     skipStats?: SkippedAttachmentsAccumulator,
     pdfStats?: PdfContentScanAccumulator,
+    aiBudget = { remaining: 10 },
+    isAlreadyImported?: (content: Buffer) => Promise<boolean>,
   ): Promise<{
     attachments: GmailAttachmentFile[];
     skippedWithoutFilename: number;
     skippedIrrelevant: number;
     matchedByPdfContent: number;
+    reviewRequired: number;
+    aiReviewQueued: number;
   }> {
     const message = await this.emailProvider.getMessage(account, messageId);
 
@@ -355,6 +362,8 @@ export class GmailReaderService {
     const attachments: GmailAttachmentFile[] = [];
     let skippedIrrelevant = 0;
     let matchedByPdfContent = 0;
+    let reviewRequired = 0;
+    let aiReviewQueued = 0;
     // Expected skips are aggregated into the run's single SKIPPED SUMMARY
     // (see SkippedAttachmentsAccumulator) — never one log line per attachment,
     // which would flood production during a multi-year import.
@@ -367,59 +376,45 @@ export class GmailReaderService {
       const filename = part.filename as string;
 
       // Stage 1 — metadata gate, before spending a download on it.
-      const verdict = this.isLikelyReceiptAttachment(part);
+      const verdict = this.isLikelyReceiptAttachment(part, !!findKeywordMatchSource(filename, subject, snippet));
       if (!verdict.ok) {
         skip(filename, verdict.reason as GmailSkipReason);
         continue;
       }
 
-      // Stage 1b — accounting-document keyword in the filename, subject or
-      // body snippet. Still decided before any download, so a non-PDF that
-      // nothing points at never reaches the network or the Drive upload.
       const ext = this.getExtension(filename);
       const metadataMatch = findKeywordMatchSource(filename, subject, snippet);
-      if (!metadataMatch && ext !== 'pdf') {
-        skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
-        continue;
+      if (ext !== 'pdf' && !metadataMatch && process.env.GMAIL_AI_REVIEW_ENABLED !== 'true') {
+        reviewRequired++; skip(filename, GmailSkipReason.REVIEW_REQUIRED); continue;
       }
-
-      // A PDF with no metadata signal is downloaded ONCE here and gets a
-      // second chance from its own text further down — the bytes are needed
-      // for the import anyway, so nothing is fetched twice.
       const content = await this.downloadPartContent(account, messageId, part);
       if (!content) continue;
-
-      // Stage 2 — deterministic technical checks that need the actual bytes.
-      // These run BEFORE any text extraction: a too-small or non-PDF payload
-      // is skipped on its technical merits, exactly as before.
-      if (ext === 'pdf') {
-        if (content.length < MIN_PDF_BYTES) {
-          skip(filename, GmailSkipReason.PDF_TOO_SMALL);
-          continue;
-        }
-        if (!this.looksLikePdf(content)) {
-          skip(filename, GmailSkipReason.PDF_INVALID);
-          continue;
-        }
-      } else if (content.length < MIN_IMAGE_BYTES) {
-        skip(filename, GmailSkipReason.IMAGE_TOO_SMALL);
+      if (ext === 'pdf' && !this.looksLikePdf(content)) { skip(filename, GmailSkipReason.PDF_INVALID); continue; }
+      // Tiny images without any accounting signal remain obvious technical noise.
+      if (ext !== 'pdf' && content.length < MIN_TECHNICAL_IMAGE_BYTES && !metadataMatch) { skip(filename, GmailSkipReason.IMAGE_TOO_SMALL); continue; }
+      const extraction = ext === 'pdf' ? await extractPdfText(content, this.logger) : undefined;
+      let matchedBy = metadataMatch;
+      if (extraction && !metadataMatch) {
+        if (extraction.outcome === 'EXTRACTED') {
+          const matches = matchesAccountingDocumentKeyword(extraction.text);
+          pdfStats?.record(matches ? GmailPdfScanOutcome.MATCHED : GmailPdfScanOutcome.NO_KEYWORD, filename);
+          if (matches) { matchedBy = GmailKeywordMatchSource.PDF_CONTENT; matchedByPdfContent++; }
+        } else pdfStats?.record(PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome], filename, extraction.error);
+      }
+      const alreadyImported = !matchedBy && process.env.GMAIL_AI_REVIEW_ENABLED === 'true'
+        && !!isAlreadyImported && await isAlreadyImported(content);
+      const decision = decideEmailIntake({ keyword: !!matchedBy, pdf: extraction, bytes: content.length,
+        aiEnabled: process.env.GMAIL_AI_REVIEW_ENABLED === 'true', remaining: alreadyImported ? 1 : aiBudget.remaining });
+      if (decision.kind === 'review_required') {
+        reviewRequired++;
+        // Kept in the source mailbox; importer persists an incomplete run and does not advance its cursor.
+        skip(filename, GmailSkipReason.REVIEW_REQUIRED);
         continue;
       }
-
-      // Stage 3 — last resort for a technically valid PDF nothing else
-      // pointed at: look for the same keywords inside its own text. Any
-      // failure here (scanned, encrypted, malformed, too large) falls back to
-      // the pre-existing skip, never to an exception.
-      let matchedBy = metadataMatch;
-      if (!matchedBy) {
-        matchedBy = await this.matchPdfContent(filename, content, pdfStats);
-        if (!matchedBy) {
-          skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
-          continue;
-        }
-        matchedByPdfContent += 1;
+      if (decision.kind === 'ai_review') {
+        matchedBy = GmailKeywordMatchSource.AI_REVIEW;
+        if (!alreadyImported) { aiBudget.remaining--; aiReviewQueued++; }
       }
-
       attachments.push({
         messageId,
         threadId: message.threadId ?? null,
@@ -428,47 +423,14 @@ export class GmailReaderService {
         date: header('date'),
         attachmentId: part.body?.attachmentId ?? null,
         filename,
-        mimeType: part.mimeType ?? null,
+        mimeType: ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg',
         size: content.length,
         matchedBy,
         content,
       });
     }
 
-    return { attachments, skippedWithoutFilename, skippedIrrelevant, matchedByPdfContent };
-  }
-
-  /**
-   * Extracts text from an already-downloaded, already-validated PDF and looks
-   * for an accounting-document keyword in it. Returns 'pdf-content' on a hit
-   * and null for every other outcome (no keyword, no text layer, oversized,
-   * unreadable, extractor unavailable) — the caller then applies the existing
-   * skip. Outcomes are tallied for the run's PDF CONTENT SCAN summary; the
-   * extracted text itself is never logged or persisted.
-   */
-  private async matchPdfContent(
-    filename: string,
-    content: Buffer,
-    pdfStats?: PdfContentScanAccumulator,
-  ): Promise<GmailKeywordMatchSource | null> {
-    const extraction = await extractPdfText(content, this.logger);
-
-    if (extraction.outcome !== 'EXTRACTED') {
-      pdfStats?.record(
-        PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome],
-        filename,
-        extraction.error,
-      );
-      return null;
-    }
-
-    if (!matchesAccountingDocumentKeyword(extraction.text)) {
-      pdfStats?.record(GmailPdfScanOutcome.NO_KEYWORD, filename);
-      return null;
-    }
-
-    pdfStats?.record(GmailPdfScanOutcome.MATCHED, filename);
-    return GmailKeywordMatchSource.PDF_CONTENT;
+    return { attachments, skippedWithoutFilename, skippedIrrelevant, matchedByPdfContent, reviewRequired, aiReviewQueued };
   }
 
   /**
@@ -482,6 +444,7 @@ export class GmailReaderService {
    */
   private isLikelyReceiptAttachment(
     part: EmailPart,
+    metadataSignal = false,
   ): { ok: boolean; reason?: GmailSkipReason } {
     const filename = part.filename ?? '';
     const ext = this.getExtension(filename);
@@ -489,7 +452,7 @@ export class GmailReaderService {
     if (!DOCUMENT_EXTENSIONS.includes(ext)) {
       return { ok: false, reason: GmailSkipReason.UNSUPPORTED_EXTENSION };
     }
-    if (ASSET_NAME_PATTERN.test(filename)) {
+    if (ASSET_NAME_PATTERN.test(filename) && !findKeywordMatchSource(filename, null, null)) {
       return { ok: false, reason: GmailSkipReason.ASSET_FILENAME };
     }
 
@@ -498,7 +461,7 @@ export class GmailReaderService {
     const declaredSize = part.body?.size ?? 0;
 
     if (ext === 'pdf') {
-      if (declaredSize > 0 && declaredSize < MIN_PDF_BYTES) {
+      if (declaredSize > 0 && declaredSize < 32) {
         return { ok: false, reason: GmailSkipReason.PDF_TOO_SMALL };
       }
       return { ok: true };
@@ -507,7 +470,7 @@ export class GmailReaderService {
     if (this.isInlineAsset(part)) {
       return { ok: false, reason: GmailSkipReason.INLINE_ASSET };
     }
-    if (declaredSize > 0 && declaredSize < MIN_IMAGE_BYTES) {
+    if (declaredSize > 0 && declaredSize < MIN_TECHNICAL_IMAGE_BYTES && !metadataSignal) {
       return { ok: false, reason: GmailSkipReason.IMAGE_TOO_SMALL };
     }
     return { ok: true };
