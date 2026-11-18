@@ -210,3 +210,18 @@ Verification:
 - From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/components/topNav/*.spec.ts --ts-config=.test-tmp/tsconfig.topnav-tests.json --progress=false`: 3/3 passed. Real DOM clicks cover direct customer navigation, no dropdown/logout/legacy entry, admin legacy navigation/removal, PWA refresh/busy state.
 - `git diff --check`: passed. Full suite and production rebuild not repeated for
   this scoped navigation change. No live account mutations, main merge or push.
+
+## Restore original settings trigger (2026-11-18)
+
+Correction to the preceding navigation change: the exact original app-menu-button
+trigger is restored for both roles, with its untouched WHITE_BORDER / ICON /
+null-variant appearance. Customers use menuEnabled=false and triggered navigates
+immediately to /settings-new without an overlay. Admins retain the popup with new
+and old settings entries. No old logout entry. Installed-PWA refresh is in the
+admin menu and remains separate for customers. The shared menu defaults to enabled;
+other consumers keep their existing popup behavior and appearance.
+
+Final verification:
+- `node frontend/node_modules/@angular/compiler-cli/bundles/src/bin/ngc.js -p frontend/tsconfig.app.json --noEmit`: passed.
+- From frontend: `node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --include=src/app/components/topNav/*.spec.ts --ts-config=.test-tmp/tsconfig.topnav-tests.json --progress=false`: 3/3 passed. Tests assert the original trigger styles, customer direct navigation/no popup, admin popup/no immediate navigation then real menu-item click to legacy settings, no logout, and PWA refresh/busy state.
+- `git diff --check` passed. No full suite/build/live mutations. Local feature only.

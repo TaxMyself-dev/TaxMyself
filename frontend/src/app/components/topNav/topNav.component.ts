@@ -3,6 +3,8 @@ import { Menubar, MenubarModule } from 'primeng/menubar';
 import { ButtonModule } from 'primeng/button';
 import { IMenuItem } from './topNav-interface';
 import { ImageModule } from 'primeng/image';
+import { MenuButtonComponent } from '../menu-button/menu-button.component';
+import { MenuButtonItem } from '../menu-button/menu-button.model';
 import { ButtonComponent } from '../button/button.component';
 import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { NavigationEnd, Router } from '@angular/router';
@@ -19,7 +21,7 @@ import { AppRefreshService } from 'src/app/services/pwa/app-refresh.service';
     standalone: true,
     templateUrl: './topNav.component.html',
     styleUrls: ['./topNav.component.scss'],
-    imports: [ButtonModule, MenubarModule, ImageModule, ButtonComponent],
+    imports: [ButtonModule, MenubarModule, ImageModule, ButtonComponent, MenuButtonComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNavComponent {
@@ -42,6 +44,15 @@ export class TopNavComponent {
     readonly isInstalledPwa = computed(() => this.runtime.isInstalledPwa());
     readonly isRefreshing = computed(() => this.appRefresh.isRefreshing());
 
+    readonly settingsMenuItems = computed<MenuButtonItem[]>(() => this.isAdmin() ? [
+        ...(this.isInstalledPwa() ? [{type: 'action' as const, id: 'refresh', label: 'רענון', icon: 'pi pi-refresh', disabled: this.isRefreshing(), action: () => this.refreshApp()}] : []),
+        {type: 'action', id: 'settings-new', label: 'הגדרות חדש', icon: 'pi pi-cog', action: () => this.openSettings()},
+        {type: 'action', id: 'settings', label: 'הגדרות ישנות', icon: 'pi pi-cog', action: () => this.openLegacySettings()},
+    ] : []);
+
+    onSettingsTrigger(): void {
+        if (!this.isAdmin()) this.openSettings();
+    }
     openSettings(): void { void this.router.navigate(['/settings-new']); }
     openLegacySettings(): void {
         if (this.isAdmin()) void this.router.navigate(['/settings']);

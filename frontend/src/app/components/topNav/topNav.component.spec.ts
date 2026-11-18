@@ -4,6 +4,8 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { TopNavComponent } from './topNav.component';
+import { MenuButtonComponent } from '../menu-button/menu-button.component';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { ButtonComponent } from '../button/button.component';
 import { AccessService } from '../../services/access.service';
 import { AccessHandlerService } from '../../services/access-handler.service';
@@ -26,20 +28,29 @@ describe('settings navigation entry', () => {
     const f=TestBed.createComponent(TopNavComponent);f.detectChanges();
     const navigate=spyOn(TestBed.inject(Router),'navigate').and.returnValue(Promise.resolve(true));
     const buttons=f.debugElement.queryAll(By.directive(ButtonComponent));
-    expect(buttons.length).toBe(1);expect(buttons[0].componentInstance.buttonText()).toBe('הגדרות');
+    expect(buttons.length).toBe(1);
+    expect(buttons[0].componentInstance.buttonColor()).toBe(ButtonColor.WHITE_BORDER);
+    expect(buttons[0].componentInstance.buttonSize()).toBe(ButtonSize.ICON);
+    expect(buttons[0].componentInstance.variant()).toBeNull();
     buttons[0].query(By.css('button')).nativeElement.click();
     expect(navigate).toHaveBeenCalledOnceWith(['/settings-new']);
-    expect(f.nativeElement.querySelector('app-menu-button')).toBeNull();
+    expect(f.debugElement.query(By.directive(MenuButtonComponent)).componentInstance.open()).toBeFalse();
     expect(f.nativeElement.textContent).not.toContain('הגדרות ישנות');
     expect(f.nativeElement.textContent).not.toContain('התנתקות');
     f.componentInstance.openLegacySettings();expect(navigate).toHaveBeenCalledTimes(1);
   });
-  it('adds legacy settings only for an admin', () => {
+  it('opens the original settings menu for an admin and navigates only after choosing an entry', () => {
     const f=TestBed.createComponent(TopNavComponent);f.componentRef.setInput('isAdmin',true);f.detectChanges();
     const navigate=spyOn(TestBed.inject(Router),'navigate').and.returnValue(Promise.resolve(true));
-    const old=f.debugElement.queryAll(By.directive(ButtonComponent)).find(x=>x.componentInstance.buttonText()==='הגדרות ישנות')!;
-    old.query(By.css('button')).nativeElement.click();expect(navigate).toHaveBeenCalledOnceWith(['/settings']);
-    f.componentRef.setInput('isAdmin',false);f.detectChanges();expect(f.nativeElement.textContent).not.toContain('הגדרות ישנות');
+    const menu=f.debugElement.query(By.directive(MenuButtonComponent));
+    menu.query(By.css('button')).nativeElement.click();f.detectChanges();
+    expect(menu.componentInstance.open()).toBeTrue();expect(navigate).not.toHaveBeenCalled();
+    const legacy=Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(x=>x.textContent.includes('הגדרות ישנות'))!;
+    expect(legacy).toBeTruthy();legacy.click();
+    expect(navigate).toHaveBeenCalledOnceWith(['/settings']);
+    expect(f.componentInstance.settingsMenuItems().some(x=>x.type==='action' && x.id==='settings-new')).toBeTrue();
+    expect(f.componentInstance.settingsMenuItems().some(x=>x.type==='action' && x.id==='logout')).toBeFalse();
+    f.componentRef.setInput('isAdmin',false);f.detectChanges();expect(f.componentInstance.settingsMenuItems()).toEqual([]);
   });
   it('retains a separate installed-PWA refresh action and busy guard', () => {
     installed.set(true);const f=TestBed.createComponent(TopNavComponent);f.detectChanges();
