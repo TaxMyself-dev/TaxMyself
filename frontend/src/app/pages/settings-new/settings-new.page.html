@@ -55,7 +55,7 @@
         @if (!isCompany()) {
           @if (hasSpouse()) {
             <article class="panel family-panel">
-              <h2>בני משפחה</h2>
+              <h2>בן / בת זוג</h2>
               <fieldset [disabled]="authService.isViewingAsClient() || savingSpouse()">
                 <div class="fields-grid">
                   @for (field of spouseFields; track field.key) {
