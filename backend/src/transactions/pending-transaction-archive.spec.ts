@@ -27,6 +27,7 @@ describe('pending classified transaction archive', () => {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const fakeThis = {
+      expensesService: { effectiveTransactionClassification: jest.fn().mockResolvedValue({}) },
       cacheRepo,
       slimRepo: { findOne: jest.fn().mockResolvedValue(null) },
       resolveStampPeriod: jest.fn().mockResolvedValue('9-10/2026'),

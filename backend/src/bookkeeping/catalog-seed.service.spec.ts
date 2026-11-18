@@ -1,3 +1,7 @@
+import { Category } from './category.entity';
+import { SubCategory } from './sub-category.entity';
+import { BookingAccount } from './account.entity';
+import { AccountingSection } from './accounting-section.entity';
 /**
  * Unit tests: CatalogSeedService (Phase 2.7 / D13)
  *
@@ -80,7 +84,13 @@ describe('CatalogSeedService', () => {
       accountRepo as any,
       sectionRepo as any,
       allocator,
-      { transaction: jest.fn() } as any,
+      { transaction: jest.fn(async work => work({
+        connection: { driver: { escape: name => name } },
+        getRepository: entity => new Map<any, any>([
+          [Category, categoryRepo], [SubCategory, subCategoryRepo],
+          [BookingAccount, accountRepo], [AccountingSection, sectionRepo],
+        ]).get(entity) ?? { find: async () => [], metadata: { tableName: entity.name } },
+      })) } as any,
       { createQueryBuilder: jest.fn() } as any,
       makeRepo<any>([]) as any,
       makeRepo<any>([]) as any,

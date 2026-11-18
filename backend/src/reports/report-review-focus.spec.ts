@@ -84,7 +84,7 @@ describe('ReportReviewService focused archive preview', () => {
       catalogContextService: {
         forUser: jest.fn().mockResolvedValue({ accountantIds: [] }),
       },
-      catalogService: { getMergedExpenseCatalog: jest.fn().mockResolvedValue([]) },
+      catalogService: { refreshPendingClassifications: jest.fn(), getMergedExpenseCatalog: jest.fn().mockResolvedValue([]) },
     };
 
     const result = await ReportReviewService.prototype.getReportPreview.call(

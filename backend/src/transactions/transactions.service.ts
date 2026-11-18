@@ -976,7 +976,7 @@ export class TransactionsService {
     // then derive externalTransactionId for all slim state operations.
     const cacheIds = transactionData.map(td => td.id);
 
-    const cacheRows = await this.cacheRepo.findBy({
+    let cacheRows = await this.cacheRepo.findBy({
       id: In(cacheIds),
       userId,
     });
@@ -989,6 +989,8 @@ export class TransactionsService {
       .where('c.userId = :userId', { userId }).andWhere('c.id IN (:...ids)', { ids: cacheIds })
       .andWhere(cashflowExcludedSql('c')).getCount();
     if (excluded > 0) throw new BadRequestException('לא ניתן לאשר חיובי בנק שהוחרגו מהתזרים');
+    await this.catalogService.refreshPendingClassifications({ userId });
+    cacheRows = await this.cacheRepo.findBy({ id: In(cacheIds), userId });
 
     // Load existing slim rows so we can use the period label already stamped
     // at classification time. Confirm-trans no longer (re)computes the period;
@@ -1046,6 +1048,7 @@ export class TransactionsService {
       expense.supplierID = '';
       expense.category = row.category;
       expense.subCategory = row.subCategory;
+      expense.subCategoryId = row.subCategoryId;
       expense.sum = sumIls;
       expense.taxPercentSnapshot = row.taxPercent;
       expense.vatPercentSnapshot = row.vatPercent;

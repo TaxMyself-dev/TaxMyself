@@ -202,7 +202,7 @@ describe('Exclusion at service boundaries', () => {
     const save = jest.fn();
     Object.assign(service, {
       subCategoryRepo: { find: async () => [], findOne: async () => special, save },
-      categoryRepo: { findOne: async () => ({ id: 99, name: 'בנק, אשראי ותנועות' }) },
+      categoryRepo: { find: async () => [{ id: 99 }], findOne: async () => ({ id: 99, chartOwnerKey: 'CLIENT_123', name: 'בנק, אשראי ותנועות' }) },
     });
     await expect(service.getMergedSubCategories({ userId: 'owner', businessNumber: '123' }, 99)).resolves.toEqual([special]);
     await expect(service.deleteSubCategory(special)).rejects.toThrow();

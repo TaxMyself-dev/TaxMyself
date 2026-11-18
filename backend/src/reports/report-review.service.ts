@@ -340,6 +340,8 @@ export class ReportReviewService {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     await this.assertBusinessOwnership(firebaseId, businessNumber);
+    if (options.readOnly !== true)
+      await this.catalogService.refreshPendingClassifications({ userId: firebaseId, businessNumber });
     const runsWritingSteps = options.focusDocumentId == null && options.readOnly !== true;
 
     // Step 1 — pull anything new from inbox/. Failures here don't sink the

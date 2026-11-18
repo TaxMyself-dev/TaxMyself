@@ -2,6 +2,7 @@ import { TransactionProcessingService } from './transaction-processing.service';
 import { FullTransactionCache } from './full-transaction-cache.entity';
 import { SlimTransaction } from './slim-transaction.entity';
 import { User } from 'src/users/user.entity';
+import { Expense } from 'src/expenses/expenses.entity';
 
 describe('agent classification transaction boundary', () => {
   function setup() {
@@ -13,7 +14,7 @@ describe('agent classification transaction boundary', () => {
           calls.push({ entity, options });
           return entity === FullTransactionCache
             ? cache
-            : entity === SlimTransaction
+            : entity === SlimTransaction || entity === Expense
             ? null
             : { firebaseId: 'owner' };
         }),
@@ -46,9 +47,10 @@ describe('agent classification transaction boundary', () => {
           User,
           FullTransactionCache,
           SlimTransaction,
+          Expense,
         ]);
         expect(
-          f.calls.every((c) => c.options.lock.mode === 'pessimistic_write'),
+          f.calls.filter(c => c.entity !== Expense).every((c) => c.options.lock.mode === 'pessimistic_write'),
         ).toBe(true);
         return { result: 'done', dto };
       },
@@ -91,6 +93,23 @@ describe('agent classification transaction boundary', () => {
       'biz',
     );
     expect(result).toMatchObject({ ruleId: 7, backfillCount: 2 });
+  });
+  it('blocks an approved cache row before agent preflight even if slim is missing', async () => {
+    const f = setup();
+    Object.assign(f.cache, { confirmed: true });
+    const preflight = jest.fn();
+    await expect(f.service.classifyPendingForAgent('owner', 'tx', preflight)).rejects.toThrow('agent cannot edit');
+    expect(preflight).not.toHaveBeenCalled();
+  });
+  it.each([true, false])('blocks an approved expense for agent mode single=%s', async single => {
+    const f = setup();
+    (f.service as any).dataSource.transaction = async (work: any) => work({
+      getRepository: (entity: any) => ({ findOne: async () => entity === FullTransactionCache ? f.cache
+        : entity === Expense ? { approvalStatus: 'APPROVED' } : null }),
+    });
+    const preflight = jest.fn();
+    await expect(f.service.classifyPendingForAgent('owner', 'tx', preflight, single)).rejects.toThrow('agent cannot edit');
+    expect(preflight).not.toHaveBeenCalled();
   });
   it('a rule guard failure propagates out of the shared transaction', async () => {
     const f = setup();
@@ -160,7 +179,7 @@ describe('agent rule scope and identity', () => {
   it('does not select a constrained rule when creating the default unconstrained rule', async () => {
     const service:any = Object.create(TransactionProcessingService.prototype);
     const lookup=jest.fn().mockRejectedValue(new Error('stop before writes'));
-    Object.assign(service,{cacheRepo:{findOne:jest.fn().mockResolvedValue({billId:2,merchantName:'merchant'})},slimRepo:{findOne:jest.fn().mockResolvedValue(null)},rulesRepo:{findOne:lookup}});
+    Object.assign(service,{expensesService:{effectiveTransactionClassification:jest.fn().mockResolvedValue({})},cacheRepo:{findOne:jest.fn().mockResolvedValue({billId:2,merchantName:'merchant'})},slimRepo:{findOne:jest.fn().mockResolvedValue(null)},rulesRepo:{findOne:lookup}});
     await expect(service.classifyWithRule('owner',{externalTransactionId:'tx'})).rejects.toThrow('stop before writes');
     const where=lookup.mock.calls[0][0].where;
     for(const field of ['startDate','endDate','minAbsSum','maxAbsSum','commentPattern']) expect(where[field]._type).toBe('isNull');

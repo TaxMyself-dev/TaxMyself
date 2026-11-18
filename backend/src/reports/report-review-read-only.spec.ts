@@ -44,7 +44,7 @@ const fakeService = () => {
       catalogContextService: {
         forUser: jest.fn().mockResolvedValue({ accountantIds: ['acc-1'] }),
       },
-      catalogService: {
+      catalogService: { refreshPendingClassifications: jest.fn(),
         getMergedExpenseCatalog: jest.fn().mockResolvedValue([]),
       },
     } as any,
@@ -82,6 +82,7 @@ describe('ReportReviewService.getReportPreview readOnly', () => {
       '123456789',
       { from, to },
     );
+    expect(fakeThis.catalogService.refreshPendingClassifications).not.toHaveBeenCalled();
     expect(result.mode).toBe('with_banking');
     expect(result.clientHasActiveDelegation).toBe(true);
     expect(result.duplicatesSkipped).toBe(0);
