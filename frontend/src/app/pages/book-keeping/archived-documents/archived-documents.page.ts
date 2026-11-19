@@ -21,7 +21,7 @@ import { ReportReviewService } from 'src/app/services/report-review.service';
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
   PASSWORD_REQUIRED: 'נדרשת סיסמה',
-  NO_INVOICE_FOUND: 'לא זוהתה חשבונית',
+  NO_INVOICE_FOUND: 'לא זוהה מסמך חשבונאי',
   DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
@@ -84,7 +84,7 @@ export class ArchivedDocumentsPage implements OnInit {
   get replacementError(): string { return this.replacementFlow.error; }
 
   protectedOperationLabel(upload?: string, processing?: string): string {
-    if (processing === 'NO_INVOICE_FOUND') return 'העיבוד הסתיים; לא זוהתה חשבונית בעותק הפתוח';
+    if (processing === 'NO_INVOICE_FOUND') return 'העיבוד הסתיים; לא זוהה מסמך חשבונאי בעותק הפתוח';
     if (processing === 'SUCCEEDED') return 'העיבוד הושלם';
     if (processing === 'FAILED') return 'העותק נשמר, אך עיבודו נכשל';
     if (upload === 'DELIVERY_FAILED') return 'העותק נשמר; העברתו לעיבוד לא הושלמה';
@@ -232,7 +232,7 @@ export class ArchivedDocumentsPage implements OnInit {
         statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
           ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
         statusDetail: item.status === 'NO_INVOICE_FOUND'
-          ? 'העיבוד הסתיים ללא חשבונית מזוהה. המסמך נשמר לבדיקה; זו אינה שגיאה טכנית.'
+          ? 'העיבוד הסתיים ללא מסמך חשבונאי מזוהה. המסמך נשמר לבדיקה; זו אינה שגיאה טכנית.'
           : item.status === 'PASSWORD_REQUIRED'
           ? 'נדרש עותק PDF שניתן לפתוח ללא סיסמה. המקור נשמר.'
           : item.protectedDocumentId && item.replacementUploadStatus

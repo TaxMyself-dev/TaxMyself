@@ -3715,7 +3715,7 @@ ${finalOwnerName}`;
       ocrClaim.rejectionReason = null;
       await this.extractedDocRepo.save(ocrClaim);
       await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-      throw new BadRequestException('העיבוד הסתיים, אך לא זוהתה חשבונית במסמך');
+      throw new BadRequestException('העיבוד הסתיים, אך לא זוהה מסמך חשבונאי בקובץ');
     }
     if (!invoices) {
       ocrClaim.rejectionReason = 'invalid_ai_response';
