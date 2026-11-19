@@ -507,6 +507,7 @@ export interface ReportReadinessResult {
 
 /** The domain one agent request may use, bound to its verified user. */
 export interface AgentDomain {
+  readOnboardingContext?: (businessNumber: string | null) => Promise<string>;
   prepareTransactionClassification?: (query: { businessNumber?: string; externalTransactionId: string; subCategoryId: number }) => Promise<{ proposal: string }>;
   classifyTransaction?: (query: { proposal: string }) => Promise<{ status: 'classified' | 'already_applied'; expenseApproved: false; category: string; subCategory: string }>;
   queryExpenses: (query: ExpenseQuery) => Promise<ExpenseQueryAnswer>;

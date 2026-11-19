@@ -40,6 +40,7 @@ import {
   withAgentBusinessContext,
 } from "@/agent/tools/books/agent-conversation-business";
 import { createKeepInTaxBooks } from "@/server/agent-ports.server";
+import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
 import { readStoredUserSettings } from "@/server/user-data/user-settings-storage.server";
 
@@ -252,12 +253,20 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
         withBusinesses
       );
 
+      const onboardingContext = yield* Effect.promise(
+        async () =>
+          (await currentAgentDomain()?.readOnboardingContext?.(
+            business.current
+          )) ?? ""
+      );
+
       const validated = withAgentUserContext(
         withBusinesses,
         agentUserContextText(
           settings,
           memories,
-          agentBusinessesSection(directory, business.current)
+          agentBusinessesSection(directory, business.current) +
+            onboardingContext
         )
       );
 

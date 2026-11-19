@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/onboarding-spec",
+    "types": ["jasmine"],
+    "skipLibCheck": true
+  },
+  "include": ["src/app/pages/agent-onboarding/*.spec.ts", "src/polyfills.ts"],
+  "files": ["src/test.ts"]
+}

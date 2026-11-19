@@ -48,3 +48,7 @@ Pending outgoing transactions can be classified through `prepareTransactionClass
 Classification orchestration: successful current-turn preparation requires the actual approval-tool step unless explicitly preview-only. classifyTransaction stays eager for that forced step; approval and backend checks still apply. New steers supersede old proposals. Keep this transition classification-specific; see GUIDE.md and classification-orchestration.ts.
 
 Approval lifecycle: only the latest assistant answer may receive decisions. A new typed user message supersedes its open approvals (output-denied with the reserved system reason), preserving already completed actions. Older cards must be inactive in the page, with fresh-proposal recovery for classification; never execute an old card or infer approval from a clarification.
+
+## Onboarding extension
+
+The profile context callback in src/server/runtime/agent-domain.ts and agent-chat-response.server.ts, and the onboarding instructions, are intentional KeepInTax extensions. The profile store itself is owner-scoped Nest code; its tables are not exposed through the generic gateway. Ordinary chat remains free of onboarding questions. See GUIDE.md and ../src/agent-onboarding/README.md.

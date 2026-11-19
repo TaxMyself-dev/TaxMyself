@@ -12,7 +12,7 @@ The product chat UI and the remaining agent phases are not implemented here. A d
 | **KeepInTax isolation** | The agent's user is the pair (actor, data owner): conversations and memory never cross to another client. One conversation covers any of that owner's businesses; the business is the one the user names or established in the conversation, never the page's header ("Business selection"). Revoked access stops even an answer already running (see "Isolation"). |
 | **Working business capability** | `queryExpenses` retains its existing single/multiple-business behavior. Nine further read-only books/report tools use the existing Nest services; see "Books and reports reads" below. Paid Hebrew evals use fake ports and local traces; exact results and limitations are in KT-089. |
 | **Chat interaction (Phase 3.1, KT-108)** | No profile or onboarding questions in ordinary requests; one list of supported capabilities; the template's web, email, tracking and playbook tools kept registered but not offered; `askUserQuestion` answered by the page with validated values, continuing the same answer; turn origins recorded; tool-call idempotency keys for created rows; memory `kind` (`business_fact`) held in the content. See "Phase 3.1: chat interaction" below. |
-| **Not built** | The remaining phases of `docs/plans/ai-agent-tools-plan.md` (3.2 onward), the product chat UI, the background jobs and business profile. The template's example tools (`searchWeb`, `sendEmail`, tracking tasks) still have no real domain sources and are not offered in chat. |
+| **Not built** | The remaining phases of `docs/plans/ai-agent-tools-plan.md` (3.2 onward), the product chat UI, the background jobs. The template's example tools (`searchWeb`, `sendEmail`, tracking tasks) still have no real domain sources and are not offered in chat. |
 
 **For a coding agent:** treat every file under `src/agent`, `src/lib`, `src/server` (except the files named under "What KeepInTax changed"), `backend/monitor`, `backend/shared` (except `mysql/` and `supabase/`) and `tests` as the template's reviewed code. Read the comment at the top of each file before changing it. When the template changes, port its change file for file.
 
@@ -262,11 +262,8 @@ An approval can continue only the newest assistant answer. A typed user message 
 
 ### Empty conversation reads and initial dev UI (2026-11-18)
 
-KeepInTax's dev page assigns a conversation UUID before its first saved message.
-Reading such a conversation returns [] after the existing owner-scoped query,
-without applying SDK nonempty-payload validation to an absent history. Nonempty
-histories retain full validation. The Angular dev page renders a loading body and
-editable draft immediately, enables sending only with a ready chat and discards
-obsolete asynchronous loads. Credential-free session/history timings appear as
-[dev-agent startup] in the dev console. These timings do not benchmark cold
-bundle initialization or model-answer latency. See the Phase A task record.
+KeepInTax's dev page assigns a conversation UUID before its first saved message. Reading such a conversation returns [] after the existing owner-scoped query, without applying SDK nonempty-payload validation to an absent history. Nonempty histories retain full validation. The Angular dev page renders a loading body and editable draft immediately, enables sending only with a ready chat and discards obsolete asynchronous loads. Credential-free session/history timings appear as [dev-agent startup] in the dev console. These timings do not benchmark cold bundle initialization or model-answer latency. See the Phase A task record.
+
+## Onboarding profile
+
+The owner-only onboarding conversation and MySQL memory are served by the Nest module at backend/src/agent-onboarding. The development page links to /dev/agent/onboarding. An optional readOnboardingContext domain callback adds the current story and dated history to each ordinary chat turn; it does not start profile questions or change accounting data. AGENT_ONBOARDING_ENABLED defaults off, and SQL must be applied to an authorized development database first. Profile updates and scoped forgetting use the dedicated onboarding page, not the legacy generic memory tools. See ../src/agent-onboarding/README.md for tables, APIs, activation, test commands and deletion limits.

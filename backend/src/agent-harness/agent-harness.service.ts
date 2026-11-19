@@ -1,3 +1,4 @@
+import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
@@ -65,6 +66,7 @@ export class AgentHarnessService implements OnModuleDestroy {
     private readonly agentDomain: AgentDomainService,
     private readonly agentBooks: AgentBooksService,
     private readonly classification: AgentClassificationService,
+    private readonly onboarding?: OnboardingService,
   ) {}
 
   private bundlePath() {
@@ -105,6 +107,8 @@ export class AgentHarnessService implements OnModuleDestroy {
         ...this.agentDomain.forUser(user),
         ...this.agentBooks.forUser(user),
         ...this.classification.forUser(user),
+        readOnboardingContext: (businessNumber: string | null) =>
+          this.onboarding?.context(user, businessNumber) ?? Promise.resolve(''),
       });
     });
   }

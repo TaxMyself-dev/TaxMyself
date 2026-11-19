@@ -85,3 +85,7 @@ direct controller write endpoint or expense approval. Rule mode reuses classifyW
 with explicit approved override and classification-only=true; backfill is additionally
 scoped to the signed business and excludes confirmed/locked cache rows. Signed rule
 state is checked before replacement. Legacy signed cards authorize one-time only.
+
+## Owner onboarding profile
+
+OnboardingController serves /api/agent-profile through FirebaseAuthGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. The onboarding feature is off unless AGENT_ONBOARDING_ENABLED=true and uses its own manual SQL migration, never synchronize. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.

@@ -19,5 +19,8 @@ type PromiseOf<Read> = Read extends (
  * CODE:.
  */
 export type AgentDomain = {
+  // Optional Keepintax onboarding context, bound to the verified owner.
+  readOnboardingContext?: (businessNumber: string | null) => Promise<string>;
+} & {
   [Read in keyof KeepInTaxBooks]: PromiseOf<KeepInTaxBooks[Read]>;
 };

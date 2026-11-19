@@ -1,0 +1,244 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background: #f5f8fa;
+  color: #183744;
+  font-family: inherit;
+}
+.onboarding {
+  max-width: 1240px;
+  margin: auto;
+  padding: 24px 32px 60px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #d8e3e8;
+  padding-bottom: 18px;
+}
+header span {
+  font-size: 21px;
+  font-weight: 700;
+  color: #086a78;
+}
+a {
+  color: #086a78;
+}
+h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.2;
+  margin: 32px 0 12px;
+}
+h2 {
+  font-size: 23px;
+  margin: 0 0 16px;
+}
+h3 {
+  font-size: 17px;
+  margin: 24px 0 10px;
+}
+p {
+  line-height: 1.8;
+  margin: 8px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.intro {
+  margin-bottom: 30px;
+}
+.intro p {
+  color: #506a75;
+  font-size: 18px;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  gap: 36px;
+}
+.conversation {
+  background: white;
+  padding: 28px;
+  border: 1px solid #d8e3e8;
+  border-radius: 12px;
+}
+aside {
+  padding: 22px 0;
+  min-width: 0;
+}
+.muted,
+small {
+  color: #526e79;
+}
+.turns {
+  max-height: 460px;
+  overflow: auto;
+  padding: 8px 0;
+}
+.turn {
+  margin: 16px 0;
+  padding: 14px 18px;
+  border-radius: 10px;
+}
+.turn span {
+  font-size: 12px;
+  font-weight: 700;
+}
+.user {
+  background: #edf6f8;
+  margin-left: 24px;
+}
+.assistant {
+  border-right: 3px solid #128294;
+  border-radius: 0;
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+button {
+  background: #fff;
+  border: 1px solid #a5bcc5;
+  border-radius: 7px;
+  padding: 10px 16px;
+  color: #183744;
+  font: inherit;
+  cursor: pointer;
+}
+button.primary {
+  background: #086a78;
+  border-color: #086a78;
+  color: white;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #c58a15;
+  outline-offset: 3px;
+}
+form {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #d8e3e8;
+}
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 14px;
+  resize: vertical;
+  border: 1px solid #a5bcc5;
+  border-radius: 7px;
+  font: inherit;
+  line-height: 1.7;
+  color: inherit;
+}
+.welcome {
+  background: #e8f3f5;
+  border: 1px solid #b8d6dd;
+  padding: 26px;
+  margin-bottom: 28px;
+  border-radius: 12px;
+  max-width: 850px;
+}
+.preview {
+  padding: 18px 0;
+  margin: 20px 0;
+  border-top: 2px solid #086a78;
+  border-bottom: 1px solid #d8e3e8;
+}
+.preview h3 {
+  margin-top: 0;
+}
+.preview small {
+  display: block;
+}
+.story {
+  font-size: 14px;
+}
+.progress {
+  font-size: 13px;
+  color: #526e79;
+}
+details {
+  border-top: 1px solid #cbdbe1;
+  padding: 16px 0;
+  margin-top: 16px;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+dl div {
+  padding: 10px 0;
+  border-bottom: 1px solid #e1e9ed;
+}
+dt {
+  font-size: 13px;
+  color: #526e79;
+}
+dd {
+  margin: 4px 0;
+}
+.fact {
+  border-bottom: 1px solid #d8e3e8;
+  padding: 10px 0;
+}
+.fact p {
+  font-size: 14px;
+}
+.fact small {
+  font-size: 12px;
+}
+.error {
+  background: #fff0ec;
+  color: #8b2e1c;
+  padding: 16px;
+  margin: 18px 0;
+  border-radius: 7px;
+}
+.business {
+  margin-bottom: 24px;
+}
+select {
+  font: inherit;
+  margin-right: 12px;
+  padding: 8px;
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .onboarding {
+    padding: 18px 16px 40px;
+  }
+  .workspace {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .conversation {
+    padding: 18px;
+  }
+  .intro p {
+    font-size: 16px;
+  }
+  .turns {
+    max-height: 340px;
+  }
+  aside {
+    border-top: 1px solid #cbdbe1;
+  }
+  button {
+    min-height: 44px;
+  }
+}

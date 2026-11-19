@@ -25,7 +25,7 @@ const appRoutes: Routes = [
   // turns it on (local development and dev-cloud); never in production builds.
   // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
   ...(devAgentRouteEnabled()
-    ? [{
+    ? [{ path: 'dev/agent/onboarding', canActivate: [AuthGuard], loadComponent: () => import('./pages/agent-onboarding/onboarding.page').then(m => m.OnboardingPage) }, {
         path: DEV_AGENT_PATH,
         canActivate: [AuthGuard],
         loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),

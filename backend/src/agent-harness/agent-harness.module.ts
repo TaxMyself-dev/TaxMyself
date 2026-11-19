@@ -1,3 +1,6 @@
+import { OnboardingController } from '../agent-onboarding/onboarding.controller';
+import { OnboardingService } from '../agent-onboarding/onboarding.service';
+import { OnboardingExtractor } from '../agent-onboarding/onboarding.extractor';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountantTasksModule } from 'src/accountant-tasks/accountant-tasks.module';
@@ -39,7 +42,14 @@ import { AgentHarnessService } from './agent-harness.service';
     BillingModule,
     SharedModule,
   ],
-  controllers: [AgentHarnessController],
-  providers: [AgentHarnessService, AgentDomainService, AgentBooksService, AgentClassificationService],
+  controllers: [AgentHarnessController, OnboardingController],
+  providers: [
+    OnboardingService,
+    OnboardingExtractor,
+    AgentHarnessService,
+    AgentDomainService,
+    AgentBooksService,
+    AgentClassificationService,
+  ],
 })
 export class AgentHarnessModule {}
