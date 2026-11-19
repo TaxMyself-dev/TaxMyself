@@ -105,6 +105,7 @@ export class EmailIntakeRunsService {
         id: run.id,
         integrationId: run.integration_id,
         businessNumber: run.business_number,
+        processingPaused: process.env.GMAIL_DURABLE_PROCESS_ENABLED !== 'true',
         query: run.query_text,
         ...(await this.store.summary(run)),
         ...(

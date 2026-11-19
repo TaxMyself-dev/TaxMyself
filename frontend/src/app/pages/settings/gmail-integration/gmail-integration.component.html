@@ -7,11 +7,18 @@
 
   @for (run of syncState.status()?.runs ?? []; track run.id) {
     <section class="gmail-card" aria-label="התקדמות משיכת מסמכים">
+      <p>סטטוס משיכה: {{durableState(run.pull_state)}}</p>
+      <p>סטטוס עיבוד: {{run.processingPaused && run.processing_state !== 'COMPLETE' ? 'מושהה' : durableState(run.processing_state)}}</p>
+      <p>קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}}</p>
+      @if (showRunDiagnostics) {
+        <details>
+          <summary>פרטי ריצה לפיתוח</summary>
       <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
-      <p>משיכה מהמייל: {{durableState(run.pull_state)}} · עיבוד מסמכים: {{durableState(run.processing_state)}}</p>
       <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
       <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
       <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
+        </details>
+      }
     </section>
   }
   @if (syncState.loading()) {

@@ -1,3 +1,4 @@
+import { environment } from 'src/environments/environment';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -48,6 +49,7 @@ export class GmailIntegrationComponent implements OnInit {
   private readonly genericService = inject(GenericService);
   private readonly fb = inject(FormBuilder);
 
+  readonly showRunDiagnostics = environment.enableDevTools;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
   readonly inputsSize = inputsSize;

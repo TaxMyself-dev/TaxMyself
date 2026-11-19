@@ -266,3 +266,9 @@ it('rejects an existing run for a different business before claiming or download
  try{const t=simulation();await expect(t.create().step(t.run)).rejects.toThrow('scope');expect(t.store.leaseRun).not.toHaveBeenCalled();expect(t.reader.durablePage).not.toHaveBeenCalled();}
  finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER;else process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER=saved}
 });
+
+it.each(['false','true'])('reports whether processing is paused without starting it (%s)',async(value)=>{
+ const saved=process.env.GMAIL_DURABLE_PROCESS_ENABLED;process.env.GMAIL_DURABLE_PROCESS_ENABLED=value;
+ try{const t=simulation();t.store.query.mockResolvedValue([{pull_state:'RUNNING',processing_state:'RUNNING'}]);const status=await t.create().status('owner');expect(status[0].processingPaused).toBe(value!=='true');expect(t.reader.durablePage).not.toHaveBeenCalled();expect(t.storage.accept).not.toHaveBeenCalled();}
+ finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_PROCESS_ENABLED;else process.env.GMAIL_DURABLE_PROCESS_ENABLED=saved}
+});
