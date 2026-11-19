@@ -61,3 +61,8 @@ Final no-output TypeScript compilation: PASS (exit 0): node backend/node_modules
 A final Nest artifact build failed solely on ENOSPC writing four generated dist files. The user separately approved deleting only frontend/.angular/cache in this worktree. Resolved exact path and checked for reparse points before native PowerShell cleanup; approximately 3.3 GiB cache removed, over 4 GB free afterwards. No other files or Drive objects were deleted. Final artifact build retried after this cleanup; result below.
 
 Final artifact build after authorized cache cleanup: PASS (exit 0): npm --prefix backend run build. Final staged whitespace check passed. Implementation is ready for review; schema application and live DEV activation remain unapproved and were not performed. No main merge, push or deploy.
+
+
+## Separately authorized DEV schema application (2026-11-19)
+
+User approved DEV schema only after implementation. All three prepared DDL statements applied successfully to guarded keepintax-dev; metadata/FKs/indexes/defaults verified, counts unchanged (91 imported / 188 extracted), 0 runs/items and 0 active work. Full evidence and controlled 4202 UI plan: docs/features/gmail-intake-durable-dev-schema.md. Four new flags explicitly false in ignored DEV .env; no application start, import, AI or Drive deletion. Earlier unexecuted-schema notes above describe the implementation checkpoint, superseded for DEV DDL only by this separate approval. No production, main integration, push or deploy.

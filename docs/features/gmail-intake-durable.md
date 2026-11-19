@@ -1,6 +1,6 @@
 # Durable Gmail intake
 
-Implemented on codex/composio-email, based on 7ae55357. Runtime activation and database application are NOT part of this delivery. No user data or files were changed during implementation.
+Implemented on codex/composio-email, based on 7ae55357. DEV schema was separately authorized and applied on 2026-11-19; see docs/features/gmail-intake-durable-dev-schema.md. Runtime activation remains disabled. Other environments require separate schema approval. No user data or files were changed during implementation.
 
 ## Runtime boundaries
 
@@ -42,4 +42,4 @@ Pull completion is independent from processing completion. A persisted integrati
 
 Nest cron ticks require a running server. A platform that scales to zero needs a separately configured and authorized wake-up mechanism before production readiness. No infrastructure or deployment settings were changed. Do not switch back to the legacy scanner while managed files are in flight without a reviewed drain/reconciliation plan.
 
-Offline tests cover a 300-attachment multi-page scan with restart, deduplication and at most two concurrent downloads; stale leases/cursor cycles; default-off no-I/O; no repeat AI for saved/unknown outcomes; strict deletion and shared-reference guards; existing import/protected-PDF/accounting paths; empty-field manual approval and UI polling. Actual SQL application/transaction behavior, live Composio pagination, Drive operations, real AI and browser end-to-end validation remain deliberately unexecuted and require separate approval.
+Offline tests cover a 300-attachment multi-page scan with restart, deduplication and at most two concurrent downloads; stale leases/cursor cycles; default-off no-I/O; no repeat AI for saved/unknown outcomes; strict deletion and shared-reference guards; existing import/protected-PDF/accounting paths; empty-field manual approval and UI polling. The schema was subsequently applied and metadata-verified in DEV only; real processing transaction behavior, live Composio pagination, Drive operations, real AI and browser end-to-end validation remain unexecuted and require separate approval.
