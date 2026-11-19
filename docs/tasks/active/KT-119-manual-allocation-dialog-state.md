@@ -1,6 +1,6 @@
 # KT-119 - Preserve manual-allocation dialog state
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt119-worker`
@@ -39,8 +39,13 @@ Authority link, all copyable document details and the allocation-number input.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `38326e0e` (fix commit `06f9f3cd`)
+- Combined verification: component-behavior tier; only the focused allocation
+  Karma spec was run (`8 SUCCESS`), followed by the Angular production build,
+  which passed with existing budget/CommonJS warnings. No other suites ran.
+- `origin/main` verification: local `main`, tracking `origin/main` and remote
+  `refs/heads/main` all resolved to `38326e0e` after the code push.
+- User-visible run instructions: refresh/restart the frontend, choose manual
+  allocation and verify the details remain visible beside the Tax Authority
+  link and allocation-number input. This Git push is not a production deployment.

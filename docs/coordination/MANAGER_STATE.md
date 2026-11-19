@@ -517,3 +517,15 @@ the isolated allocation-flow Karma spec (7 tests) and Angular production build;
 no unrelated suites were run under the component-behavior tier. No schema,
 database, accounting, authorization, Tax Authority write, production change or
 deployment occurred.
+
+## KT-119 manual allocation dialog state — 2026-11-19
+
+Fixed the PrimeNG dialog transition that cleared `pendingFinalizeRow` after the
+user chose manual allocation, leaving only the Tax Authority link and
+allocation-number input visible. The method-choice `onHide` now preserves the
+row while the manual dialog is open, so all copyable portal fields remain in
+that same popup; explicit dismissal still clears state. Fix commit `06f9f3cd`
+reached `origin/main` at `38326e0e`. Only the focused allocation-flow Karma
+spec ran (8 tests), followed by the Angular production build; both passed. No
+backend, schema, database, accounting, authorization, Tax Authority write,
+production change or deployment occurred.
