@@ -149,7 +149,6 @@ export class PnLReportJournalPage implements OnInit {
     });
     
     const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
     const returnParams = this.route.snapshot.queryParamMap;
     const isReviewReturn = !!returnParams.get('reviewed');
     const returnedBusinessNumber = isReviewReturn
@@ -165,8 +164,8 @@ export class PnLReportJournalPage implements OnInit {
     }
 
     const defaultPeriodConfig = this.gs.getDefaultPeriodConfig({
+      periodMode: ReportingPeriodType.ANNUAL,
       year: currentYear,
-      month: String(currentMonth),
     });
 
     this.filterConfig = [

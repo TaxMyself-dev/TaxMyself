@@ -1,6 +1,5 @@
 import { ReportingPeriodType } from './enums';
 import {
-  getCurrentAnnualReportYear,
   getPreviousVatPeriodDefault,
 } from './report-period-defaults';
 
@@ -29,9 +28,5 @@ describe('report period defaults', () => {
       new Date(2026, 0, 15),
       ReportingPeriodType.BIMONTHLY,
     )).toEqual({ year: 2025, month: '11' });
-  });
-
-  it('uses the current calendar year for the annual report', () => {
-    expect(getCurrentAnnualReportYear(new Date(2026, 10, 19))).toBe(2026);
   });
 });

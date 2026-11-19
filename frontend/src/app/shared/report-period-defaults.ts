@@ -26,7 +26,3 @@ export function getPreviousVatPeriodDefault(
     month: String(previousPeriodStart.getMonth() + 1),
   };
 }
-
-export function getCurrentAnnualReportYear(now: Date): number {
-  return now.getFullYear();
-}

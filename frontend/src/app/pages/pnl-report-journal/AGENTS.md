@@ -8,6 +8,7 @@ Renders the profit-and-loss (P&L) report for a business/period: fetches income +
 - `pnl-report-journal.module.ts` / `-routing.module.ts` — Angular module wiring (non-standalone page); imports `FilterTabComponent`, `PeriodSelectComponent`, `ButtonComponent`, PrimeNG Dialog/ConfirmDialog/Checkbox.
 
 ## Main flows
+- Initial entry defaults to annual mode for the current calendar year. A return from report review still restores the explicit period carried in the query parameters.
 - Select business + period (`app-filter-tab`) → `onSubmit` runs `reportReviewService.previewCheck` (cheap pending-docs/unconfirmed-expenses check) → either proceeds straight to the report or, on accept, navigates to the `/report-review` page (`returnTo: 'pnl-report'`). `ngOnInit` detects a `reviewed` query param on return and re-fetches the report for the carried-back business/period.
 - Fallback legacy path: `getTransToConfirm` / `confirmTrans` against `TransactionsService` for confirming pending expense transactions before rendering the report (redirect-prompt dialog if the user cancels with items still pending).
 - `getPnLReportData` fetches income/expenses and, in parallel, `getReportSubmissionStatus` to drive the "סמן כדווח" vs "הדוח הוגש" badge.

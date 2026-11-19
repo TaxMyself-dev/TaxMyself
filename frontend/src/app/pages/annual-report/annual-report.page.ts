@@ -17,7 +17,6 @@ import {
   RequiredCategoryEntry,
 } from 'src/app/shared/enums';
 import { IAnnualReport, IAnnualReportFile } from 'src/app/shared/interface';
-import { getCurrentAnnualReportYear } from 'src/app/shared/report-period-defaults';
 
 type WizardStep = 'questions' | 'docs' | 'review';
 
@@ -49,8 +48,8 @@ export class AnnualReportPage implements OnInit, OnDestroy {
   readonly loading = signal<boolean>(false);
   readonly busy = signal<boolean>(false);
 
-  /** השנה הנבחרת לשאלון – ברירת מחדל: שנת המס הנוכחית */
-  readonly taxYear = signal<number>(getCurrentAnnualReportYear(new Date()));
+  /** השנה הנבחרת לשאלון – ברירת מחדל: שנת המס שזה עתה הסתיימה */
+  readonly taxYear = signal<number>(new Date().getFullYear() - 1);
   readonly availableYears = signal<number[]>(this.computeAvailableYears());
 
   /** תשובות גולמיות – ערך לכל שאלה: boolean או number (תלוי ב-question.type) */
