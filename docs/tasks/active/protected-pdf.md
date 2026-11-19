@@ -25,3 +25,16 @@
 - New reproducible DEV-only harness: backend/scripts/protected-pdf-dev-smoke.cjs. `node --check` PASSED; exact modes, commands and limitations documented in docs/features/protected-pdf.md. The harness is not run as part of ordinary tests and requires explicit live-operation authorization for reuse.
 - Running listeners on 3003/4203 belong to existing sessions; the backend is from another worktree. Did not restart/alter them or boot this worktree's Nest server. UI/live AI were not tested.
 - Status: IMPLEMENTED / DEV SCHEMA APPLIED / CONTROLLED UPLOAD VERIFIED. Automatic delivery remains off. No PROD/main/push/deploy.
+
+## Local integration into Composio Email — 2026-11-19
+
+- Elazar explicitly requested merging this feature into COMPOSIO-EMAIL. Both worktrees were clean; codex/composio-email at be87eef7 was the exact ancestor of codex/protected-pdf at 455b1c09. `git merge --ff-only codex/protected-pdf` succeeded without conflicts in TaxMyself-composio-email.
+- Preserved Composio Email's existing frontend 4202/backend 3002 by restoring its two tracked port settings after the fast-forward. No dependencies/lockfiles or production configuration changed.
+- Updated only the two protected-PDF flags in the target's existing ignored DEV backend/.env, after asserting keepintax-dev/dev/port 3002. Feature true; dispatcher false. Did not copy/overwrite credentials. Already-applied DEV schema was not executed again; no live import/AI/data mutation was performed during integration.
+- Source protected-PDF worktree/branch retained. No main integration, push, deploy or server restart.
+- Merged frontend isolated HTTP/upload-flow tests: 7 SUCCESS, with the same two explicit spec paths and protected tsconfig recorded above.
+- Initial merged backend test/build process handles became unavailable after a tool refresh before final results could be collected. They were confirmed no longer running; the bounded backend batch/build was rerun with a durable temporary log. Unobserved initial results are not counted as passing evidence.
+- Final merged backend batch: 11 suites / 76 tests PASSED, 58.05s, TEST_EXIT=0. Command was the eight protected-PDF spec paths recorded in the feature guide plus `src/integrations/services/gmail-reader.service.spec.ts`, `src/integrations/services/gmail-drive-import.service.spec.ts`, `src/integrations/services/gmail-sync.service.spec.ts`, with `npm --prefix backend test -- --runInBand --silent --runTestsByPath`.
+- Merged frontend production build: `npm run build -- --configuration production --progress=false` PASSED (exit 0). Existing bundle/component-style budget and CommonJS warnings remain; no new build errors. Port-only adjustments were already present during all final merged checks.
+- Final merged backend `npm --prefix backend run build` PASSED, BUILD_EXIT=0. `git diff --check` PASSED. No executable changes after final verification; the final local commit only records preserved ports and integration evidence.
+- Integration status: complete in codex/composio-email; source feature history retained, DEV feature enabled/dispatcher off. Manual UI verification and any further activation remain separate from this local merge.

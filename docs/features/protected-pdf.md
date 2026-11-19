@@ -59,3 +59,7 @@ Elazar explicitly approved creating the three tables in DEV and enabling a contr
 - Reusable smoke harness performs explicit mode, DEV database/Composio, business identity and dispatch-off checks, disables synchronize/migrations/logging, and loads only three entities/services without booting Nest. Running the synthetic mode again intentionally creates a fresh synthetic pair; do not rerun it as a read-only health check.
 - `node --check backend/scripts/protected-pdf-dev-smoke.cjs` passed. No production code changes since the previously passing feature/regression tests/builds; those checks were not repeated for this diagnostic script/documentation update.
 - No PROD operation, main integration, push or deploy. Original email and other running feature worktrees were untouched.
+
+## Composio Email integration
+
+The feature was locally fast-forwarded into `codex/composio-email` on 2026-11-19 at Elazar's request. That worktree retains frontend **4202** / backend **3002**, and its existing ignored DEV environment now has protected handling enabled and automatic delivery disabled. The earlier **4203/3003** settings describe the separate protected-PDF source worktree. No credentials were copied, schema reapplied, live import/AI started, or application server restarted during the merge. For interactive use, start/restart the backend from the Composio Email worktree so it reads its updated environment.
