@@ -122,7 +122,7 @@ describe('Admin resolution runtime and authorization', () => {
     const sub = { id: 7, firebaseId: 'owner', status, planId: 5, currentPeriodEnd: new Date('2026-10-05'),
       canceledAt: status === 'CANCELED' ? new Date('2026-10-07') : null };
     const tx = { findOneOrFail: jest.fn().mockResolvedValue(sub), update: jest.fn() };
-    const ds = { manager: { findOneByOrFail: jest.fn(async entity => entity === BillingAttempt ? row
+    const ds = { manager: { findOneOrFail: jest.fn().mockResolvedValue({ id: 5, name: 'Plan' }), findOneByOrFail: jest.fn(async entity => entity === BillingAttempt ? row
       : entity === BillingObligation ? debt : { id: 5, name: 'Plan' }) }, transaction: async callback => callback(tx) };
     const cardcom = { chargeByToken: jest.fn() };
     const lifecycle = { findAttemptObligations: jest.fn().mockResolvedValue([debt]),

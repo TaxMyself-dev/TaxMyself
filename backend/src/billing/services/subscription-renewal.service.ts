@@ -28,6 +28,7 @@ import { BillingPlanChangeService } from './billing-plan-change.service';
 import { BillingCancellationService } from './billing-cancellation.service';
 import { OpenBankingEnrollmentService } from './open-banking-enrollment.service';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
+import { applyZeroPricePeriod } from '../domain/zero-price-period';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
@@ -371,11 +372,23 @@ export class SubscriptionRenewalService {
           subscription.firebaseId,
           plan.id,
         );
+    if (!reuseDebtSnapshot && pricing.finalAmountAgorot === 0) {
+      const applied = await this.dataSource.transaction(manager => applyZeroPricePeriod(manager, {
+        subscriptionId, planId: plan.id, start: periodStart, end: periodEnd, anchor, initial: false,
+        fingerprint: 'pricingFingerprint' in pricing ? pricing.pricingFingerprint as string : undefined,
+        agreementEventId: 'zeroPriceAgreementEventId' in pricing ? pricing.zeroPriceAgreementEventId as number : undefined,
+        actorFirebaseId: subscription.firebaseId,
+      }));
+      return { subscriptionId, outcome: applied ? 'success' : 'skipped', billingPeriod,
+        nextBillingDate: periodEnd, message: 'תקופת מנוי ללא חיוב' };
+    }
+    if (pricing.finalAmountAgorot === 0) throw new Error('Existing zero debt requires review; no provider submission');
     const result = await this.billingLifecycleService.executeRenewal(
       {
         actor,
         subscriptionId,
         planId: plan.id,
+        ...('pricingFingerprint' in pricing ? { pricingFingerprint: pricing.pricingFingerprint as string } : {}),
         periodStart: periodStartDate,
         periodEnd: existing?.obligation.periodEnd ?? billingDate(periodEnd),
         amountAgorot: pricing.finalAmountAgorot,
@@ -682,7 +695,7 @@ export class SubscriptionRenewalService {
     if (!debts.length) throw new Error('Captured attempt has no billing obligations');
     const debt = debts[0];
     const subscription = await this.subscriptionRepo.findOneByOrFail({ id: debt.subscriptionId });
-    const plan = await this.dataSource.manager.findOneByOrFail(SubscriptionPlan, { id: attempt.planId });
+    const plan = await this.dataSource.manager.findOneOrFail(SubscriptionPlan, { where: { id: attempt.planId }, withDeleted: true });
     const orderedDebts = [...debts].sort((a, b) => a.periodStart.localeCompare(b.periodStart));
     const start = billingBoundary(orderedDebts[0].periodStart);
     const end = billingBoundary(orderedDebts[orderedDebts.length - 1].periodEnd);

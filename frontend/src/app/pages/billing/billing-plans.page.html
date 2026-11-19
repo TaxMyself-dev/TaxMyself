@@ -8,6 +8,13 @@
       }
     </header>
 
+    @if (feedback(); as message) {
+      <section class="plans-feedback" [class.plans-feedback--error]="message.kind === 'error'"
+        role="status" aria-live="polite">
+        {{ message.text }}
+      </section>
+    }
+
     @if (billing.billingState()?.pendingCancellation) {
       <section class="plan-change-panel">
         <p>המנוי מיועד לביטול. כדי לשנות תוכנית, יש לבטל קודם את בקשת הביטול בלשונית המנוי שלי.</p>

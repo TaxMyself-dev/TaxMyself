@@ -239,6 +239,27 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
       BillingAttemptStatus.DECLINED,
       { tx: null, lookup: 'getLowProfileResult', arg: 'lp-1' },
     ],
+    [
+      'a correlated terminal hosted result without a charge',
+      {
+        chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        cardcomLowProfileId: 'lp-1',
+        paymentMethodId: null,
+      },
+      (c: any) =>
+        c.getLowProfileResult.mockResolvedValue(
+          hostedResult({
+            ResponseCode: 500,
+            TranzactionId: undefined,
+            TranzactionInfo: undefined,
+          }),
+        ),
+      BillingAttemptStatus.DECLINED,
+      {
+        tx: null, lookup: 'getLowProfileResult', arg: 'lp-1',
+        responseCode: 500, failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+      },
+    ],
   ])(
     '%s is applied once through the state machine, resumes completion and never charges',
     async (_name, overrides, arrange, status, expected: any) => {
@@ -261,6 +282,14 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
       );
       if (status === BillingAttemptStatus.DECLINED) {
         expect(obligation.activeAttemptId).toBeNull();
+        expect(attempts[0].nextActionAt).toBeNull();
+        if (expected.responseCode !== undefined) {
+          expect(attempts[0]).toEqual(expect.objectContaining({
+            providerResponseCode: expected.responseCode,
+            failureCategory: expected.failureCategory,
+            leaseOwner: null,
+          }));
+        }
       }
       expect(cardcom[expected.lookup]).toHaveBeenCalledWith(expected.arg);
       // Hosted captures resume the shared completion path; a token renewal is
@@ -327,7 +356,24 @@ describe('BillingReconciliationService — read-only reconciliation of UNKNOWN a
       (c: any) =>
         c.getLowProfileResult.mockResolvedValue(
           hostedResult({
+            ResponseCode: 0,
+            TranzactionId: undefined,
+            TranzactionInfo: undefined,
+          }),
+        ),
+    ],
+    [
+      'hosted non-success result cannot be correlated to the attempt',
+      {
+        chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        cardcomLowProfileId: 'lp-1',
+        paymentMethodId: null,
+      },
+      (c: any) =>
+        c.getLowProfileResult.mockResolvedValue(
+          hostedResult({
             ResponseCode: 500,
+            ReturnValue: undefined,
             TranzactionId: undefined,
             TranzactionInfo: undefined,
           }),

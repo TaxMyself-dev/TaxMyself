@@ -6,6 +6,11 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 The incomes page reads the sanitized allocation status before acting. It never
 calls customer-side recovery. `PROCESSING` and `UNKNOWN_OUTCOME` block resend
 and finalization without an allocation; a stored allocation resumes local work.
+Pending documents already have their journal entry and participate in reports,
+but have no PDF until allocation is completed or the user explicitly finalizes
+without one. The allocation action opens one choice: automatic SHAAM allocation
+(or navigation to the connection settings when disconnected) or the manual
+document-details, Tax Authority link and allocation-number entry flow.
 
 ## Key entities/files
 - `book-keeping.page.ts` — `BookKeepingPage`; renders the current PrimeNG `Tabs` navigation for child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL. Do not reintroduce deprecated `TabMenu`: in PrimeNG 19 it collides with legacy `TabView` dynamic styles under the shared `tabs` style key.

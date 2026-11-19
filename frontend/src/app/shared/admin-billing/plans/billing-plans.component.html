@@ -31,6 +31,8 @@
   [visible]="showDialog()"
   (visibleChange)="showDialog.set($event)"
   [modal]="true"
+  [closable]="!saving() && !confirmingPriceChange()"
+  [closeOnEscape]="!saving() && !confirmingPriceChange()"
   [style]="{ width: '540px' }"
   [draggable]="false"
   [resizable]="false"
@@ -64,7 +66,7 @@
 
     <!-- Price -->
     <div class="form-row">
-      <label>מחיר חודשי (₪) <span class="required">*</span></label>
+      <label>מחיר חודשי לעוסק פטור, לפני מע״מ (₪) <span class="required">*</span></label>
       <p-inputNumber
         formControlName="priceMonthlyShekels"
         mode="currency"
@@ -77,6 +79,31 @@
       @if (fieldInvalid('priceMonthlyShekels')) {
         <small class="field-error">מחיר חובה (מינימום 0)</small>
       }
+    </div>
+
+    <div class="form-row">
+      <label>מחיר חודשי לעוסק מורשה, לפני מע״מ (₪)</label>
+      <p-inputNumber formControlName="licensedPriceShekels" mode="currency" currency="ILS" locale="he-IL" [min]="0" [maxFractionDigits]="2"></p-inputNumber>
+      <small>השאר ריק כדי להשתמש במחיר הבסיס.</small>
+    </div>
+    <div class="form-row">
+      <div class="check-item">
+        <p-checkbox formControlName="featureSupport" [binary]="true" inputId="planFeatureSupport"></p-checkbox>
+        <label for="planFeatureSupport">הצגת תמיכה בכרטיס התוכנית</label>
+      </div>
+      <small>יתר היכולות בכרטיס נקבעות לפי המודולים. הגדרות תצוגה קודמות נשמרות.</small>
+    </div>
+    <div class="form-row">
+      <label for="planBadge">תגית בכרטיס התוכנית</label>
+      <input id="planBadge" pInputText formControlName="badge" maxlength="100" />
+    </div>
+    <div class="form-row check-item">
+      <p-checkbox formControlName="recommended" [binary]="true" inputId="planRecommended"></p-checkbox>
+      <label for="planRecommended">תוכנית מומלצת</label>
+    </div>
+    <div class="form-row">
+      <label for="planNotes">הערה מתחת למחיר</label>
+      <textarea id="planNotes" pTextarea formControlName="notes" rows="2"></textarea>
     </div>
 
     <!-- Modules — appendTo="body" prevents panel from closing on dialog scroll -->
@@ -93,21 +120,15 @@
       </p-multiselect>
     </div>
 
-    <div class="form-row-inline">
-      <div class="form-row">
-        <label>ימי ניסיון</label>
-        <p-inputNumber formControlName="trialDays" [min]="0" [max]="365" [useGrouping]="false"></p-inputNumber>
-      </div>
-      <div class="form-row">
-        <label>סדר תצוגה</label>
-        <p-inputNumber formControlName="displayOrder" [useGrouping]="false"></p-inputNumber>
-      </div>
+    <div class="form-row">
+      <label>סדר תצוגה</label>
+      <p-inputNumber formControlName="displayOrder" [useGrouping]="false"></p-inputNumber>
     </div>
 
     <div class="form-row check-row-group">
       <div class="check-item">
         <p-checkbox formControlName="isActive" [binary]="true" inputId="planIsActive"></p-checkbox>
-        <label for="planIsActive">פעיל</label>
+        <label for="planIsActive">פתוח להצטרפות</label>
       </div>
       <div class="check-item">
         <p-checkbox formControlName="isPublic" [binary]="true" inputId="planIsPublic"></p-checkbox>
@@ -120,6 +141,7 @@
   <ng-template pTemplate="footer">
     <app-p-button
       [buttonText]="'ביטול'"
+      [disabled]="saving() || confirmingPriceChange()"
       [buttonSize]="buttonSize.SMALL"
       (onButtonClicked)="closeDialog()">
     </app-p-button>
@@ -127,6 +149,7 @@
       [buttonText]="isEditMode ? 'עדכן' : 'צור תוכנית'"
       [buttonSize]="buttonSize.SMALL"
       [isLoading]="saving()"
+      [disabled]="confirmingPriceChange()"
       (onButtonClicked)="savePlan()">
     </app-p-button>
   </ng-template>

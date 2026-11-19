@@ -62,6 +62,11 @@ const appRoutes: Routes = [
     canActivate: [AuthGuard, BillingGuard]
   },
   {
+    path: 'settings-new',
+    loadComponent: () => import('./pages/settings-new/settings-new.page').then(m => m.SettingsNewPage),
+    canActivate: [AuthGuard, BillingGuard]
+  },
+  {
     path: 'settings',
     loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
     canActivate: [AuthGuard, BillingGuard]
@@ -154,6 +159,10 @@ const appRoutes: Routes = [
       {
         path: 'recovery',
         loadComponent: () => import('./pages/billing/billing-recovery.page').then(m => m.BillingRecoveryPage),
+      },
+      {
+        path: 'payment-status',
+        loadComponent: () => import('./pages/billing/billing-payment-status.page').then(m => m.BillingPaymentStatusPage),
       },
       {
         path: 'plans',

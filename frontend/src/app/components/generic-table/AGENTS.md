@@ -70,6 +70,10 @@ it no longer suppresses effectiveIsLoading. Running syncs and subsequent table
 reads show the existing desktop/mobile loaders even with prior rows. aria-busy
 tracks this state. Feedback belongs to the table and outlives the banking toast.
 
+- `rowActionsWithinTable` is opt-in for embedded new settings tables. It anchors
+  hover actions absolutely at the table's left edge, using row coordinates
+  relative to the table and actual row height. Legacy consumers default to the
+  existing viewport positioning. Mobile action menus and predicates are unchanged.
 
 ## Mobile interaction performance
 

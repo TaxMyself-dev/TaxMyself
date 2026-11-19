@@ -16,6 +16,7 @@ import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingPayerProfile } from '../entities/billing-payer-profile.entity';
 import { Documents } from '../../documents/documents.entity';
 import { PLAN_CHANGE_POLICY, PlanChangeSnapshot } from '../domain/billing-plan-change';
+import { billingDebtQuote } from '../domain/billing-debt-quote';
 import {
   BillingAttemptOrchestrationService,
   OpenBillingAttemptInput,
@@ -111,6 +112,7 @@ describe('BillingAttemptOrchestrationService', () => {
       cardcomTransactionId: null,
       providerTerminalRef: null,
       providerResponseCode: null,
+      providerDescription: null,
       failureCategory: null,
       reconciliationAttempts: 0,
       lastReconciledAt: null,
@@ -180,6 +182,68 @@ describe('BillingAttemptOrchestrationService', () => {
         ForbiddenException,
       );
     }
+  });
+
+  it('reserves only recurring debt when an unrelated legacy checkout is still open', async () => {
+    const sub = Object.assign(subscription(), {
+      status: SubscriptionStatus.PAST_DUE,
+    });
+    const recurring = obligation({
+      id: 20,
+      periodStart: '2026-10-27',
+      periodEnd: '2026-11-27',
+      amountAgorot: 2950,
+      amountBeforeVatAgorot: 2500,
+      vatAmountAgorot: 450,
+    });
+    const legacyCheckout = obligation({
+      id: 4,
+      kind: BillingObligationKind.CHECKOUT,
+      periodStart: '2026-10-26',
+      periodEnd: '2026-11-26',
+      amountAgorot: 122,
+      amountBeforeVatAgorot: 103,
+      vatAmountAgorot: 19,
+      activeAttemptId: 2,
+    });
+    manager.find.mockImplementation(async (entity, options) => {
+      if (entity !== BillingObligation) return [];
+      return [legacyCheckout, recurring].filter(row =>
+        row.subscriptionId === options.where.subscriptionId &&
+        row.status === options.where.status &&
+        row.kind === options.where.kind);
+    });
+    manager.findOne
+      .mockResolvedValueOnce(sub)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    manager.save.mockImplementation(async (entity, value) => {
+      if (entity === BillingAttempt && !value.id) value.id = 21;
+      return value;
+    });
+
+    const result = await service.createRecoveryCollection(
+      owner,
+      sub.id,
+      [recurring.id],
+      billingDebtQuote([recurring]),
+    );
+
+    expect(result.obligation.id).toBe(recurring.id);
+    expect(result.attempt.amountAgorot).toBe(2950);
+    expect(manager.find).toHaveBeenCalledWith(BillingObligation, {
+      where: {
+        subscriptionId: sub.id,
+        status: BillingObligationStatus.OPEN,
+        kind: BillingObligationKind.RECURRING_PERIOD,
+      },
+      order: { id: 'ASC' },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(manager.save).not.toHaveBeenCalledWith(
+      BillingObligation,
+      legacyCheckout,
+    );
   });
 
   it('creates one canonical obligation and one numbered active attempt under row locks', async () => {
@@ -323,13 +387,59 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
   });
 
-  it('blocks an initial purchase for a pending checkout on a different date or plan', async () => {
-    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL })
-      .mockResolvedValueOnce(attempt({ status: BillingAttemptStatus.UNKNOWN }));
-    manager.find.mockResolvedValueOnce([obligation({ kind: BillingObligationKind.CHECKOUT, activeAttemptId: 21 })]);
+  it('returns the existing hosted initial checkout before deriving a new date or plan', async () => {
+    const prior = obligation({ id: 21, kind: BillingObligationKind.CHECKOUT, activeAttemptId: 31,
+      planId: 2, periodStart: '2026-11-14', periodEnd: '2026-12-14' });
+    const active = attempt({ id: 31, obligationId: prior.id, operation: 'CHARGE',
+      trigger: BillingAttemptTrigger.CHECKOUT, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+      status: BillingAttemptStatus.UNKNOWN, cardcomLowProfileId: 'lp-existing',
+      hostedPaymentUrl: 'https://secure.cardcom.solutions/EA/pay/existing' });
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL_EXPIRED })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(active);
+    manager.find.mockResolvedValueOnce([prior]);
+
+    const result = await service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED, paymentMethodId: null,
+      periodStart: '2026-11-15', periodEnd: '2026-12-15', planId: 3 });
+
+    expect(result).toEqual({ obligation: prior, attempt: active, created: false });
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unrelated unresolved obligation fail-closed during initial purchase', async () => {
+    const recurring = obligation({ kind: BillingObligationKind.RECURRING_PERIOD, activeAttemptId: 21 });
+    const active = attempt({ operation: 'CHARGE', trigger: BillingAttemptTrigger.RENEWAL,
+      chargeMode: BillingChargeMode.TOKEN_TRANSACTION, status: BillingAttemptStatus.UNKNOWN });
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL_EXPIRED })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(active);
+    manager.find.mockResolvedValueOnce([recurring]);
+
     await expect(service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
       kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
-      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED })).rejects.toThrow('תהליך תשלום קודם');
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED, paymentMethodId: null }))
+      .rejects.toThrow('תהליך תשלום קודם');
+    expect(manager.save).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when more than one hosted initial checkout is unresolved', async () => {
+    const first = obligation({ id: 21, kind: BillingObligationKind.CHECKOUT, activeAttemptId: 31 });
+    const second = obligation({ id: 22, kind: BillingObligationKind.CHECKOUT, activeAttemptId: 32 });
+    const hosted = (id: number, obligationId: number) => attempt({ id, obligationId,
+      operation: 'CHARGE', trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED, status: BillingAttemptStatus.UNKNOWN });
+    manager.findOne.mockResolvedValueOnce({ ...subscription(), status: SubscriptionStatus.TRIAL_EXPIRED })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(hosted(31, 21))
+      .mockResolvedValueOnce(hosted(32, 22));
+    manager.find.mockResolvedValueOnce([first, second]);
+
+    await expect(service.createOrGetAttempt({ ...openInput(), enforceInitialPurchase: true,
+      kind: BillingObligationKind.CHECKOUT, trigger: BillingAttemptTrigger.CHECKOUT,
+      chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED, paymentMethodId: null }))
+      .rejects.toThrow('Multiple unresolved initial checkout attempts require review');
     expect(manager.save).not.toHaveBeenCalled();
   });
 
@@ -662,6 +772,8 @@ describe('BillingAttemptOrchestrationService', () => {
       leaseExpiresAt: new Date('2026-09-18T00:01:00Z'),
       reconciliationAttempts: 4,
       unknownSince: new Date('2026-09-17T00:00:00Z'),
+      providerResponseCode: 603,
+      providerDescription: 'Invalid API credentials',
     });
     manager.findOne.mockResolvedValue(row);
 
@@ -676,6 +788,8 @@ describe('BillingAttemptOrchestrationService', () => {
     expect(row.reconciliationAttempts).toBe(5);
     expect(row.status).toBe(BillingAttemptStatus.MANUAL_REVIEW);
     expect(row.nextActionAt).toBeNull();
+    expect(row.providerResponseCode).toBe(603);
+    expect(row.providerDescription).toBe('Invalid API credentials');
   });
 
   it('uses the approved 1m, 5m, 30m, 2h and 24h reconciliation schedule', () => {

@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { convertToParamMap } from '@angular/router';
 import { BillingStateService } from '../../services/billing-state.service';
 import { StartupService } from '../../services/startup.service';
 import { BillingGuard } from './billing.guard';
@@ -13,6 +14,7 @@ describe('BillingGuard professional-access override', () => {
     billingState: jasmine.Spy;
     hasBillingOverride: jasmine.Spy;
     effectiveStatus: jasmine.Spy;
+    isPaymentRequired: jasmine.Spy;
   };
 
   beforeEach(() => {
@@ -21,6 +23,7 @@ describe('BillingGuard professional-access override', () => {
       billingState: jasmine.createSpy().and.returnValue({}),
       hasBillingOverride: jasmine.createSpy().and.returnValue(false),
       effectiveStatus: jasmine.createSpy().and.returnValue('TRIAL_EXPIRED'),
+      isPaymentRequired: jasmine.createSpy().and.returnValue(true),
     };
 
     TestBed.configureTestingModule({
@@ -36,8 +39,8 @@ describe('BillingGuard professional-access override', () => {
     router = TestBed.inject(Router);
   });
 
-  async function activate(url: string): Promise<boolean | UrlTree> {
-    return guard.canActivate({} as any, { url } as any);
+  async function activate(url: string, query: Record<string, string> = {}): Promise<boolean | UrlTree> {
+    return guard.canActivate({ queryParams: query, queryParamMap: convertToParamMap(query) } as any, { url } as any);
   }
 
   it('allows an admin impersonating an expired client to enter protected routes', async () => {
@@ -54,5 +57,19 @@ describe('BillingGuard professional-access override', () => {
   it('preserves access for an accountant using an active delegation', async () => {
     billingState.hasBillingOverride.and.returnValue(true);
     expect(await activate('/book-keeping/expenses')).toBeTrue();
+  });
+
+  it('intercepts a CardCom dashboard return before the dashboard component renders', async () => {
+    const result = await activate('/my-account?LowProfileCode=lp-1&ResponseCode=0', {
+      LowProfileCode: 'lp-1', ResponseCode: '0',
+    });
+    expect(router.serializeUrl(result as UrlTree)).toContain('/billing/payment-status');
+    expect(router.serializeUrl(result as UrlTree)).toContain('LowProfileCode=lp-1');
+  });
+
+  it('recovers a server-owned pending checkout after a later login', async () => {
+    billingState.billingState.and.returnValue({ pendingCheckout: { status: 'PENDING', flow: 'PLANS' } });
+    const result = await activate('/my-account');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/billing/payment-status');
   });
 });

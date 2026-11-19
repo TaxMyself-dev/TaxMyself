@@ -40,13 +40,21 @@ when they render no visible content.
 - Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
 - Mobile (the shared `isMobile()` breakpoint) additionally offers "צילום והעלאה ל-Drive". A hidden single-image input with `capture="environment"` opens synchronously in the menu action after the existing access/business checks. Cancel sends no request; confirmed capture passes the file to the quick-upload dialog. One business uploads automatically; multiple businesses require selection. Native camera behavior requires Android/iPhone verification.
 - For LAN phone testing, `npm run mobile` selects Angular's `mobile` configuration and `environment.mobile.ts`, which reaches port 3000 on the hostname serving the frontend. Ordinary `npm start` keeps `environment.ts` and `localhost:3000`. Restart the mobile dev server after changing its configuration; connect phone and computer to the same Wi-Fi.
-- Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
+- Billing: ordinary dashboard billing dialogs, receipt-email resend and invoice
+  retry remain here. Canonical hosted-checkout returns are intercepted by
+  BillingGuard and resolved on `/billing/payment-status` before this component
+  is created; the dashboard is entered only after server-confirmed completion.
 - Canonical checkout return consumes tm.checkoutLowProfileId and scopes
   BillingStateService refreshes to that hosted attempt via GET /billing/me.
   An older result cannot satisfy the return; the freshness window applies
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
+  This older dashboard polling path is retained only for legacy callbacks.
+  While that exact legacy checkout-return context is active, the app shell suppresses
+  its generic expired-trial billing dialog so it cannot cover the authoritative
+  payment-result banner or invite another payment. Ordinary expired-trial
+  sessions without a return context keep the normal blocking dialog.
 - Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 

@@ -102,7 +102,7 @@ export class UsersService {
 
     const referralPlan = await manager
       .getRepository(SubscriptionPlan)
-      .findOne({ where: { slug: 'referral-basic', isActive: true } });
+      .findOne({ where: { slug: 'referral-basic', isActive: true }, lock: { mode: 'pessimistic_read' } });
 
     if (!referralPlan) {
       this.logger.error(

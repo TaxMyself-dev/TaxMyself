@@ -21,15 +21,15 @@ describe('Migrated page action contracts', () => {
     resolveTableActions(actions, row, config, () => {}).map(action => action.name);
 
   it('keeps both allocation actions on pending tax invoices without a file', () => {
-    const resume = jasmine.createSpy('resume SHAAM allocation');
-    const actions = pageActions(IncomesPage, { resumeAutomaticAllocation: resume });
+    const openChoice = jasmine.createSpy('open allocation choice');
+    const actions = pageActions(IncomesPage, { openAllocationMethodDialog: openChoice });
     const row = { id: 1, docTypeOriginal: DocumentType.TAX_INVOICE, docStatusOriginal: 'PENDING_ALLOCATION' };
     expect(names(actions, row))
       .toEqual(['get-allocation-from-tax', 'finalize-no-allocation']);
     const allocation = actions.find(action => action.name === 'get-allocation-from-tax');
     expect(allocation.icon).toBe('pi pi-refresh');
     allocation.action(null, row);
-    expect(resume).toHaveBeenCalledOnceWith(row);
+    expect(openChoice).toHaveBeenCalledOnceWith(row);
   });
   it('retains document action order and hides the opposite action for raw CLOSE status', () => {
     const actions = pageActions(IncomesPage);

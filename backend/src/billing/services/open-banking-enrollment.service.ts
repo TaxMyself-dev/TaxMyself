@@ -3,6 +3,7 @@ import { ConflictException, InternalServerErrorException, Injectable, Logger } f
 import { DataSource, EntityManager, In, Raw } from 'typeorm';
 import { createHash } from 'crypto';
 import { ModuleName } from 'src/enum';
+import { frozenPricePlanPatch } from '../domain/subscription-pricing';
 import { Subscription } from '../entities/subscription.entity';
 import { SubscriptionPlan } from '../entities/subscription-plan.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
@@ -71,7 +72,7 @@ export class OpenBankingEnrollmentService {
 
   private async quote(sub: Subscription, plan: SubscriptionPlan) {
     const amounts = await this.pricing.calculateCheckoutPrice(sub.firebaseId, plan.id, sub.trialEnd ?? new Date());
-    if (amounts.currency !== 'ILS' || !Number.isSafeInteger(amounts.finalAmountAgorot) || amounts.finalAmountAgorot <= 0) {
+    if (amounts.currency !== 'ILS' || !Number.isSafeInteger(amounts.finalAmountAgorot) || amounts.finalAmountAgorot < 0) {
       throw new ConflictException('התוכנית אינה נתמכת במסלול הרשמה זה.');
     }
     const snapshot = { planId: plan.id, trialEnd: sub.trialEnd?.toISOString() ?? null,
@@ -89,7 +90,7 @@ export class OpenBankingEnrollmentService {
       }
       const options = await this.options(sub.firebaseId);
       if (!options.plans.some(plan => plan.id === planId)) throw new ConflictException('יש לבחור תוכנית הכוללת בנקאות פתוחה.');
-      const plan = await manager.findOneOrFail(SubscriptionPlan, { where: { id: planId, isActive: true } });
+      const plan = await manager.findOneOrFail(SubscriptionPlan, { where: { id: planId, isActive: true }, lock: { mode: 'pessimistic_read' } });
       const snapshot = await this.quote(sub, plan);
       if (snapshot.quote !== quote) throw new ConflictException('פרטי התוכנית השתנו. יש לרענן ולאשר מחדש.');
       const previous = await this.latest(sub.id, manager);
@@ -116,9 +117,9 @@ export class OpenBankingEnrollmentService {
       const debts = await manager.find(BillingObligation, { where: { subscriptionId: sub.id,
         status: BillingObligationStatus.OPEN }, lock: { mode: 'pessimistic_write' } });
       if (debts.some(debt => debt.activeAttemptId != null)) return;
-      const plan = await manager.findOne(SubscriptionPlan, { where: { id: request.metadata.planId, isActive: true } });
+      const plan = await manager.findOne(SubscriptionPlan, { where: { id: request.metadata.planId }, lock: { mode: 'pessimistic_read' } });
       if (!plan?.modules?.includes(ModuleName.OPEN_BANKING)) throw new ConflictException('התוכנית אינה זמינה.');
-      await manager.update(Subscription, sub.id, { planId: plan.id, nextBillingDate: sub.trialEnd });
+      await manager.update(Subscription, sub.id, { planId: plan.id, ...await frozenPricePlanPatch(manager, sub, plan.id), nextBillingDate: sub.trialEnd });
       await this.write(manager, sub, 'READY', { ...request.metadata, requestEventId: request.id });
     });
   }
@@ -159,7 +160,9 @@ export class OpenBankingEnrollmentService {
       }
       const options = await this.options(sub.firebaseId);
       if (!options.nonBankingPlans.some(plan => plan.id === planId)) throw new ConflictException('יש לבחור תוכנית ללא בנקאות פתוחה.');
-      await manager.update(Subscription, sub.id, { nextBillingDate: null, planId });
+      const target = await manager.findOne(SubscriptionPlan, { where: { id: planId, isActive: true }, lock: { mode: 'pessimistic_read' } });
+      if (!target) throw new ConflictException('התוכנית אינה זמינה');
+      await manager.update(Subscription, sub.id, { nextBillingDate: null, planId, ...await frozenPricePlanPatch(manager, sub, planId) });
       await this.write(manager, sub, 'CANCEL', { requestEventId: request.id, planId, actorFirebaseId: actor.actorFirebaseId });
       return { status: 'CANCELED' };
     });
@@ -175,7 +178,7 @@ export class OpenBankingEnrollmentService {
       const ready = await this.latest(sub.id, manager);
       if (ready?.metadata?.command !== 'READY' || ready.metadata.trialEnd !== sub.trialEnd.toISOString() ||
         ready.metadata.planId !== sub.planId || !sub.paymentMethodId) return false;
-      const plan = await manager.findOne(SubscriptionPlan, { where: { id: sub.planId!, isActive: true } });
+      const plan = await manager.findOne(SubscriptionPlan, { where: { id: sub.planId! }, lock: { mode: 'pessimistic_read' } });
       if (!plan?.modules?.includes(ModuleName.OPEN_BANKING)) return false;
       const pending = await manager.find(BillingObligation, { where: { subscriptionId: sub.id,
         status: BillingObligationStatus.OPEN }, lock: { mode: 'pessimistic_write' } });
@@ -202,7 +205,8 @@ export class OpenBankingEnrollmentService {
     const event = await this.latest(sub.id);
     const data = event?.metadata;
     if (data?.command !== 'ACTIVATE' || data.planId !== sub.planId || data.trialEnd !== periodStart.toISOString()) return null;
-    return { finalAmountAgorot: data.amountAgorot as number,
+    return { ...(data.amountAgorot === 0 ? { zeroPriceAgreementEventId: event!.id } : {}),
+      finalAmountAgorot: data.amountAgorot as number,
       amountBeforeVatAgorot: data.amountBeforeVatAgorot as number, vatAmountAgorot: data.vatAmountAgorot as number };
   }
 

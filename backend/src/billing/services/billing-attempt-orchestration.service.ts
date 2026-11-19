@@ -41,6 +41,7 @@ import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { billingDate } from '../domain/billing-debt-periods';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
+import { assertPricingFingerprint } from '../domain/subscription-pricing';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { Documents } from '../../documents/documents.entity';
@@ -177,6 +178,7 @@ export class BillingRenewalDeferredError extends Error {
 }
 
 export interface OpenBillingAttemptInput {
+  pricingFingerprint?: string;
   actor: BillingMutationActorContext;
   subscriptionId: number;
   kind: BillingObligationKind;
@@ -341,7 +343,8 @@ export class BillingAttemptOrchestrationService {
         throw new ConflictException('Recovery state changed; refresh before paying');
       }
       const debts = await manager.find(BillingObligation, {
-        where: { subscriptionId, status: BillingObligationStatus.OPEN },
+        where: { subscriptionId, status: BillingObligationStatus.OPEN,
+          kind: BillingObligationKind.RECURRING_PERIOD },
         order: { id: 'ASC' }, lock: { mode: 'pessimistic_write' },
       });
       const ids = debts.map(debt => debt.id);
@@ -542,6 +545,7 @@ export class BillingAttemptOrchestrationService {
           'Billing mutation subject does not own the subscription',
         );
       }
+      await assertPricingFingerprint(manager, subscription, input.planId, input.pricingFingerprint ?? input.planChangeSnapshot?.pricingFingerprint);
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
@@ -587,6 +591,7 @@ export class BillingAttemptOrchestrationService {
             status: BillingObligationStatus.OPEN },
           lock: { mode: 'pessimistic_write' },
         });
+        let resumableInitialPurchase: OpenBillingAttemptResult | null = null;
         for (const purchase of pending ?? []) {
           if (input.enforceRenewalSchedule && purchase.kind !== BillingObligationKind.CHECKOUT) continue;
           if (purchase.activeAttemptId != null) {
@@ -595,10 +600,26 @@ export class BillingAttemptOrchestrationService {
             });
             if (!attempt || BILLING_ATTEMPT_BLOCKING_STATUSES.has(attempt.status)) {
               if (input.enforceRenewalSchedule) throw new BillingRenewalDeferredError('NOT_DUE');
+              const isResumableInitialPurchase = !!attempt && input.enforceInitialPurchase &&
+                purchase.kind === BillingObligationKind.CHECKOUT &&
+                attempt.obligationId === purchase.id && attempt.operation === 'CHARGE' &&
+                attempt.trigger === BillingAttemptTrigger.CHECKOUT &&
+                attempt.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED;
+              if (isResumableInitialPurchase) {
+                if (resumableInitialPurchase) {
+                  throw new ConflictException('Multiple unresolved initial checkout attempts require review');
+                }
+                resumableInitialPurchase = { obligation: purchase, attempt, created: false };
+                continue;
+              }
               throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
             }
           }
         }
+        // The caller performs the owner-scoped, read-only CardCom inspection
+        // and either resumes this exact durable page or, only after a verified
+        // final decline, calls back to reserve one replacement attempt.
+        if (resumableInitialPurchase) return resumableInitialPurchase;
       }
       if (input.enforceRecoverySchedule && (
         subscription.status !== SubscriptionStatus.PAST_DUE ||
@@ -844,8 +865,14 @@ export class BillingAttemptOrchestrationService {
       const targetStatus = BillingAttemptStatus[outcome.kind];
       assertBillingAttemptTransition(attempt.status, targetStatus);
       attempt.status = targetStatus;
-      attempt.providerResponseCode = outcome.providerResponseCode ?? null;
-      attempt.providerDescription = outcome.providerDescription ?? null;
+      // A later transport failure must not erase the last bounded CardCom
+      // diagnostic we successfully received for an unresolved attempt.
+      attempt.providerResponseCode =
+        outcome.providerResponseCode ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerResponseCode : null);
+      attempt.providerDescription =
+        outcome.providerDescription ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerDescription : null);
       attempt.failureCategory =
         outcome.kind === 'CAPTURED' ? null : outcome.failureCategory ?? null;
       attempt.lastReconciledAt = wasReconciliation

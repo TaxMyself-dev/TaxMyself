@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
@@ -32,6 +32,33 @@ describe('GenericTable unified row actions', () => {
     fixture.componentRef.setInput('actions', [action]);
     fixture.detectChanges();
   });
+
+  it('keeps opted-in hover actions inside a narrow table and aligned with its row', fakeAsync(() => {
+    fixture.componentRef.setInput('rowActionsWithinTable', true);
+    fixture.detectChanges();
+    const table: HTMLElement = fixture.nativeElement.querySelector('.table');
+    table.style.width='320px';table.style.marginLeft='180px';
+    const tr: HTMLElement = table.querySelector('tbody tr')!;
+    component.onRowEnter(0,row,{currentTarget:tr} as unknown as MouseEvent);
+    tick(100);fixture.detectChanges();tick(500);fixture.detectChanges();
+    const actions: HTMLElement=table.querySelector('.floating-buttons')!;
+    const bounds=table.getBoundingClientRect(),buttons=actions.getBoundingClientRect(),rowBounds=tr.getBoundingClientRect();
+    expect(getComputedStyle(actions).position).toBe('absolute');
+    expect(buttons.left).toBeGreaterThanOrEqual(bounds.left-1);
+    expect(buttons.right).toBeLessThanOrEqual(bounds.right+1);
+    expect(Math.abs(buttons.top-rowBounds.top)).toBeLessThan(2);
+    actions.querySelector('button')!.click();
+    expect(callback).toHaveBeenCalledOnceWith(null,row);
+    component.onRowLeave();tick(400);fixture.detectChanges();
+  }));
+  it('retains viewport positioning for consumers that do not opt in', fakeAsync(() => {
+    const tr=fixture.nativeElement.querySelector('tbody tr');
+    component.onRowEnter(0,row,{currentTarget:tr} as unknown as MouseEvent);
+    tick(100);fixture.detectChanges();tick(500);
+    expect(component.rowActionsWithinTable()).toBeFalse();
+    expect(getComputedStyle(fixture.nativeElement.querySelector('.floating-buttons')).position).toBe('fixed');
+    component.onRowLeave();tick(400);
+  }));
 
   for (const mobileView of [false,true]) {
     it(`shows the loader for a new pull with retained rows, then restores rows on failure (mobile=${mobileView})`, () => {

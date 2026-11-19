@@ -11,7 +11,7 @@ import {
  * PWA vs. regular browser tab, mobile vs. desktop.
  *
  * Consumed for UX decisions only — which PWA banner to offer (install prompt is
- * mobile-browser-only, update prompt is installed-PWA-only) and whether to show
+ * mobile-browser-only, update prompt is available in all runtimes) and whether to show
  * the in-app refresh action. Auth is deliberately runtime-independent: every
  * runtime uses the same `browserSessionPersistence`.
  *

@@ -16,6 +16,7 @@ export interface PlanChangeSnapshot {
   sourcePeriodEnd: string;
   quotedAt: string;
   scheduleEventId: number | null;
+  pricingFingerprint?: string;
   sourceMonthlyNetAgorot: number;
   targetMonthlyNetAgorot: number;
   renewalAmountAgorot: number;

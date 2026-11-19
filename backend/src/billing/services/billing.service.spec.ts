@@ -15,7 +15,7 @@ import { ModuleName } from 'src/enum';
 
 describe('BillingService.getMyBillingState — professional-access overrides', () => {
   let service: BillingService;
-  let subscriptionRepo: { findOne: jest.Mock };
+  let subscriptionRepo: { findOne: jest.Mock; manager: any };
   let subscriptionAccessService: { resolveModulesAccess: jest.Mock; isTrialActive: jest.Mock; isPaymentRequired: jest.Mock; paymentBlockReason: jest.Mock; gracePeriodActive: jest.Mock };
   let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveSubscriptionDiscount: jest.Mock };
   let billingEventService: { findLatestPaymentResultEvent: jest.Mock; findLatestPaymentMethodUpdateResultEvent: jest.Mock };
@@ -37,7 +37,21 @@ describe('BillingService.getMyBillingState — professional-access overrides', (
   };
 
   beforeEach(() => {
-    subscriptionRepo = { findOne: jest.fn().mockResolvedValue({ ...SUBSCRIPTION }) };
+    const attemptQuery = {
+      innerJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    subscriptionRepo = {
+      findOne: jest.fn().mockResolvedValue({ ...SUBSCRIPTION }),
+      manager: {
+        getRepository: jest.fn().mockReturnValue({
+          createQueryBuilder: jest.fn().mockReturnValue(attemptQuery),
+        }),
+      },
+    };
     subscriptionAccessService = {
       resolveModulesAccess: jest.fn().mockReturnValue(['EXPENSES', 'ACCOUNTANT']),
       isTrialActive: jest.fn().mockReturnValue(false),
@@ -195,7 +209,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
   let planRepo: { find: jest.Mock; findOne: jest.Mock };
   let subscriptionRepo: { findOne: jest.Mock };
   let userRepo: { findOne: jest.Mock };
-  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveEffectivePlanPrice: jest.Mock };
+  let pricingService: { resolveUserBillingBusinessType: jest.Mock; resolveMonthlyPrice: jest.Mock };
 
   const PUBLIC_PLANS = [
     { id: 1, slug: 'consumer-basic', displayOrder: 0, isPublic: true },
@@ -219,7 +233,7 @@ describe('BillingService.getPlans — exclusivity for non-public assigned plans'
     userRepo = { findOne: jest.fn().mockResolvedValue({ hasOpenBanking: false }) };
     pricingService = {
       resolveUserBillingBusinessType: jest.fn().mockResolvedValue('EXEMPT'),
-      resolveEffectivePlanPrice: jest.fn().mockReturnValue(0),
+      resolveMonthlyPrice: jest.fn().mockReturnValue({ baseAmountAgorot: 0 }),
     };
 
     service = new BillingService(
@@ -701,14 +715,76 @@ describe('BillingService — owner-mutation authorization', () => {
       expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
     });
 
-    it('does not create another provider checkout when the initial purchase is already pending', async () => {
+    it('returns the same hosted page after an abandoned initial checkout remains unknown', async () => {
       const f = makeService();
       f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL' });
       f.planRepo.findOne.mockResolvedValue({ id: 1, isPublic: true });
       f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
         amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
-      f.billingLifecycleService.openInitialPurchase.mockResolvedValue({ created: false, attempt: { id: 81 } });
-      await expect(f.service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('תהליך תשלום קודם');
+      const active = { id: 81, status: BillingAttemptStatus.UNKNOWN, cardcomLowProfileId: 'lp-existing',
+        hostedPaymentUrl: 'https://secure.cardcom.solutions/EA/pay/existing' };
+      f.billingLifecycleService.openInitialPurchase.mockResolvedValue({ created: false, attempt: active });
+      f.billingLifecycleService.inspectHostedCheckout.mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'UNKNOWN' }, attempt: active });
+
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).resolves.toEqual(expect.objectContaining({
+        status: 'REDIRECT', paymentUrl: active.hostedPaymentUrl, lowProfileId: 'lp-existing',
+      }));
+      expect(f.billingLifecycleService.inspectHostedCheckout).toHaveBeenCalledWith(OWNER, 81, 1);
+      expect(f.billingLifecycleService.openInitialPurchase).toHaveBeenCalledTimes(1);
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('opens one replacement page only after CardCom proves the previous initial checkout declined', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL_EXPIRED' });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, name: 'Basic', isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      const active = { id: 81, status: BillingAttemptStatus.UNKNOWN, cardcomLowProfileId: 'lp-old',
+        hostedPaymentUrl: 'https://secure.cardcom.solutions/EA/pay/old' };
+      f.billingLifecycleService.openInitialPurchase
+        .mockResolvedValueOnce({ created: false, attempt: active })
+        .mockResolvedValueOnce({ created: true, attempt: { id: 82, status: BillingAttemptStatus.CREATED } });
+      f.billingLifecycleService.inspectHostedCheckout.mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'DECLINED' },
+        attempt: { ...active, status: BillingAttemptStatus.DECLINED } });
+      f.cardcomService.createLowProfileCheckout.mockResolvedValue({ lowProfileId: 'lp-new', paymentUrl: 'https://secure.cardcom.solutions/EA/pay/new' });
+
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).resolves.toEqual(expect.objectContaining({
+        paymentUrl: 'https://secure.cardcom.solutions/EA/pay/new', lowProfileId: 'lp-new',
+      }));
+      expect(f.billingLifecycleService.openInitialPurchase).toHaveBeenCalledTimes(2);
+      expect(f.cardcomService.createLowProfileCheckout).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(f.cardcomService.createLowProfileCheckout.mock.calls[0][0].returnValue).billingAttemptId).toBe(82);
+    });
+
+    it('never opens another page when the existing initial checkout was captured', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL_EXPIRED' });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      const active = { id: 81, status: BillingAttemptStatus.UNKNOWN, cardcomLowProfileId: 'lp-captured',
+        hostedPaymentUrl: 'https://secure.cardcom.solutions/EA/pay/captured' };
+      f.billingLifecycleService.openInitialPurchase.mockResolvedValue({ created: false, attempt: active });
+      f.billingLifecycleService.inspectHostedCheckout.mockResolvedValue({ kind: 'APPLIED', outcome: { kind: 'CAPTURED' },
+        attempt: { ...active, status: BillingAttemptStatus.CAPTURED } });
+
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).resolves.toEqual(expect.objectContaining({ status: 'PROCESSING' }));
+      expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when an existing initial checkout lacks a safe durable page', async () => {
+      const f = makeService();
+      f.subscriptionRepo.findOne.mockResolvedValue({ id: 1, firebaseId: 'client-1', status: 'TRIAL' });
+      f.planRepo.findOne.mockResolvedValue({ id: 1, isPublic: true });
+      f.pricingService.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 11800,
+        amountBeforeVatAgorot: 10000, vatAmountAgorot: 1800, currency: 'ILS' });
+      f.billingLifecycleService.openInitialPurchase.mockResolvedValue({ created: false, attempt: {
+        id: 81, status: BillingAttemptStatus.UNKNOWN, cardcomLowProfileId: 'lp-unsafe', hostedPaymentUrl: 'http://example.test/pay',
+      } });
+
+      await expect(f.service.createCheckout(OWNER, { planId: 1 })).rejects.toThrow('לא ניתן להמשיך כרגע');
+      expect(f.billingLifecycleService.inspectHostedCheckout).not.toHaveBeenCalled();
       expect(f.cardcomService.createLowProfileCheckout).not.toHaveBeenCalled();
     });
 

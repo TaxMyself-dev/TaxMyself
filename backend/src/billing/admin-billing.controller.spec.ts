@@ -57,7 +57,7 @@ describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
 
     expect(adminBillingService.updateSubscriptionTrialEnd).toHaveBeenCalledWith(42, {
       trialEnd: '2026-09-10',
-    });
+    }, 'admin-user');
     expect(result).toEqual(expect.objectContaining({ status: 'TRIAL' }));
   });
 
@@ -105,7 +105,7 @@ describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
     expect(usersService.isAdmin).toHaveBeenCalledWith('admin-user');
     expect(adminBillingService.updateSubscriptionTrialEnd).toHaveBeenCalledWith(42, {
       trialEnd: '2026-09-10',
-    });
+    }, 'admin-user');
   });
 });
 

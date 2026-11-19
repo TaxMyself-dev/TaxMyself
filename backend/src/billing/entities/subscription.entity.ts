@@ -115,6 +115,25 @@ export class Subscription {
   @Column({ name: 'discount_end_date', type: 'date', nullable: true, default: null })
   discountEndDate: Date | null;
 
+  /** LIVE follows catalog pricing; FROZEN preserves only the business-specific base price. */
+  @Column({ name: 'price_policy', type: 'varchar', length: 10, default: 'LIVE' })
+  pricePolicy?: 'LIVE' | 'FROZEN';
+
+  @Column({ name: 'frozen_plan_id', type: 'int', nullable: true, default: null })
+  frozenPlanId?: number | null;
+
+  @Column({ name: 'frozen_monthly_price_agorot', type: 'int', nullable: true, default: null })
+  frozenMonthlyPriceAgorot?: number | null;
+
+  @Column({ name: 'custom_monthly_price_agorot', type: 'int', nullable: true, default: null })
+  customMonthlyPriceAgorot?: number | null;
+
+  @Column({ name: 'custom_price_start_date', type: 'date', nullable: true, default: null })
+  customPriceStartDate?: string | null;
+
+  @Column({ name: 'custom_price_end_date', type: 'date', nullable: true, default: null })
+  customPriceEndDate?: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

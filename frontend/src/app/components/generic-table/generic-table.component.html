@@ -194,7 +194,7 @@
   }
 
   @if (!isMobile() || !mobileCardConfig()) {
-  <div class="table">
+  <div class="table" [class.table--contained-actions]="rowActionsWithinTable()">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
       (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
@@ -450,7 +450,7 @@
 
     @if (!isMobile() && hoveredRowInfo() && getActionsForRow(hoveredRowInfo()?.row).length) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
-      [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
+      [style.top.px]="hoveredRowInfo()?.top" [style.height.px]="hoveredRowInfo()?.height" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
       @for (action of getActionsForRow(hoveredRowInfo()?.row); track action.name) {
         <app-p-button

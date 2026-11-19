@@ -162,7 +162,14 @@ export interface ChangePaymentMethodStatus {
   reconciled: boolean;
 }
 
+export interface CheckoutResolutionStatus {
+  status: 'NONE' | 'PENDING' | 'COMPLETED' | 'DECLINED' | 'REVIEW';
+  flow: 'PLANS' | 'RECOVERY';
+  lowProfileId: string | null;
+}
+
 export interface BillingStateResponse {
+  pendingCheckout?: { status: 'PENDING' | 'REVIEW'; flow: 'PLANS' | 'RECOVERY' } | null;
   openBankingEnrollment?: { eventId: number; planId: number; status: 'PREPARE' | 'READY'; firstBillingAt: string } | null;
   pendingCancellation?: { eventId: number; effectiveAt: string } | null;
   pendingPlanChange?: { eventId: number; planId: number; planName: string;
@@ -207,6 +214,13 @@ export interface BillingStateResponse {
 @Injectable({ providedIn: 'root' })
 export class BillingStateService {
   private readonly http = inject(HttpClient);
+
+  getCheckoutResolution(lowProfileId?: string | null): Promise<CheckoutResolutionStatus> {
+    return firstValueFrom(this.http.get<CheckoutResolutionStatus>(
+      `${environment.apiUrl}billing/checkout/status`,
+      lowProfileId ? { params: { lowProfileId } } : {},
+    ));
+  }
 
   getPayerProfile(): Promise<BillingPayerProfile> {
     return firstValueFrom(this.http.get<BillingPayerProfile>(`${environment.apiUrl}billing/payer-profile`));
@@ -301,6 +315,13 @@ export class BillingStateService {
   // loadBillingState() / refreshBillingState() are called concurrently.
   private _loadPromise: Promise<void> | null = null;
   private checkoutLowProfileId: string | null = null;
+  /**
+   * Exact one-tab context set only when the browser returns from a hosted
+   * checkout that Keepintax opened. Presentation may use it to avoid offering
+   * a second payment while the canonical result is still being resolved;
+   * backend access and charge guards remain authoritative.
+   */
+  readonly hasCheckoutReturnContext = signal(false);
 
   setCheckoutReturnContext(lowProfileId: string | null): void {
     if (lowProfileId !== this.checkoutLowProfileId) {
@@ -308,6 +329,7 @@ export class BillingStateService {
       if (current) this.billingState.set({ ...current, billingPaymentResult: null });
     }
     this.checkoutLowProfileId = lowProfileId;
+    this.hasCheckoutReturnContext.set(!!lowProfileId);
   }
 
   /**

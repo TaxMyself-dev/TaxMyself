@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.billing-purchase.spec.json",
+  "include": [
+    "src/app/pages/billing/billing-payment-status.page.spec.ts",
+    "src/app/pages/billing/billing-plans.page.spec.ts",
+    "src/app/pages/billing/billing-recovery.page.spec.ts",
+    "src/app/shared/guard/billing.guard.spec.ts",
+    "src/app/services/billing-state.service.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

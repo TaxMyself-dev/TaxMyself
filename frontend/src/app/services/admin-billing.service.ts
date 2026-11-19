@@ -11,6 +11,11 @@ export interface AdminPlan {
   name: string;
   description: string | null;
   priceMonthlyAgorot: number;
+  licensedDealerPriceMonthlyAgorot?: number | null;
+  features?: string[] | null;
+  badge?: string | null;
+  recommended?: boolean;
+  notes?: string | null;
   currency: string;
   modules: string[] | null;
   trialDays: number;
@@ -26,15 +31,36 @@ export interface CreatePlanPayload {
   name: string;
   description?: string | null;
   priceMonthlyAgorot: number;
+  licensedDealerPriceMonthlyAgorot?: number | null;
+  features?: string[] | null;
+  badge?: string | null;
+  recommended?: boolean;
+  notes?: string | null;
   currency?: string;
   modules?: string[];
-  trialDays?: number;
   isActive?: boolean;
   isPublic?: boolean;
   displayOrder?: number;
 }
 
 export type UpdatePlanPayload = Partial<CreatePlanPayload>;
+
+export interface PlanPriceImpact {
+  totalSubscribers: number; followsPlan: number; frozenPrice: number; customPrice: number;
+}
+export interface AdminPriceQuote {
+  source: 'PLAN' | 'FROZEN' | 'CUSTOM' | 'DEBT' | 'AGREED'; baseAmountAgorot: number;
+  amountBeforeVatAgorot: number; amountIncludingVatAgorot: number; vatAmountAgorot: number; vatRate: number;
+}
+export interface UpdateSubscriptionPricingPayload {
+  pricePolicy: 'LIVE' | 'FROZEN'; customMonthlyPriceAgorot: number | null;
+  customPriceStartDate: string | null; customPriceEndDate: string | null;
+}
+export interface AdminSubscriptionPricing extends UpdateSubscriptionPricingPayload {
+  subscriptionId: number; planId: number | null; frozenPlanId: number | null;
+  frozenMonthlyPriceAgorot: number | null; current: AdminPriceQuote | null;
+  next: AdminPriceQuote | null; nextBillingDate: string | null;
+}
 
 // ─── Subscriptions ────────────────────────────────────────────────────────────
 
@@ -327,6 +353,19 @@ export class AdminBillingService {
   }
 
   // ─── Subscriptions ─────────────────────────────────────────────────────────
+
+  getPlanPriceImpact(id: number): Observable<PlanPriceImpact> {
+    return this.http.get<PlanPriceImpact>(`${this.base}/plans/${id}/impact`);
+  }
+  deletePlan(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/plans/${id}`);
+  }
+  getSubscriptionPricing(id: number): Observable<AdminSubscriptionPricing> {
+    return this.http.get<AdminSubscriptionPricing>(`${this.base}/subscriptions/${id}/pricing`);
+  }
+  updateSubscriptionPricing(id: number, payload: UpdateSubscriptionPricingPayload): Observable<AdminSubscriptionPricing> {
+    return this.http.patch<AdminSubscriptionPricing>(`${this.base}/subscriptions/${id}/pricing`, payload);
+  }
 
   getSubscriptions(): Observable<AdminSubscription[]> {
     return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
