@@ -28,7 +28,7 @@ same manual-allocation route as the incomes page.
 
 - Result: The allocation decision now includes a manual action that saves the
   pending document and opens the existing populated manual dialog on incomes.
-- Commit hash(es): pending
+- Commit hash(es): `903318c9`
 - Tests and exact results:
   - Isolated `doc-create-manual-allocation.spec.ts`: `1 SUCCESS`.
   - Angular production build: passed (existing budget/CommonJS warnings only).
