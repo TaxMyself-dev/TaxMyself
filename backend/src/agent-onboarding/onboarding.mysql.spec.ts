@@ -1,49 +1,70 @@
+import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { DataSource } from 'typeorm';
 import { OnboardingService } from './onboarding.service';
-// Local, disposable MySQL only. No repository .env or live database is loaded.
+// Local disposable DB, or the explicitly approved keepintax-dev via the guarded runner.
+// A unique synthetic owner namespace is cleaned in afterAll; real users are never used.
+const {
+  developmentOptions,
+  assertDevelopmentDatabase,
+  cleanupOwners,
+} = require('../../scripts/onboarding-test-target.cjs');
+const approvedDev =
+  process.env.ONBOARDING_APPROVED_DATABASE === 'keepintax-dev';
+const runId = randomUUID();
+const owners = ['alice', 'bob', 'seed'].map(
+  (name) => `onboarding-qa-${runId}-${name}`,
+);
 const local = process.env.ONBOARDING_TEST_MYSQL_URL;
-const suite = local ? describe : describe.skip;
+const suite = local || approvedDev ? describe : describe.skip;
 suite('onboarding transactional MySQL', () => {
   let db: DataSource;
   let service: OnboardingService;
   let extraction: any;
   const user = {
-    actorFirebaseId: 'alice',
-    firebaseId: 'alice',
+    actorFirebaseId: owners[0],
+    firebaseId: owners[0],
     businessNumber: null,
     delegationScopes: [],
     isDelegatedAccess: false,
     isAdminImpersonation: false,
   };
   beforeAll(async () => {
-    const url = new URL(local!);
-    if (
-      !['127.0.0.1', 'localhost'].includes(url.hostname) ||
-      url.pathname !== '/onboarding_test'
-    )
-      throw new Error(
-        'Only disposable local onboarding_test database is permitted',
-      );
+    let options: any;
+    if (approvedDev) options = developmentOptions();
+    else {
+      const url = new URL(local!);
+      if (
+        !['127.0.0.1', 'localhost'].includes(url.hostname) ||
+        url.pathname !== '/onboarding_test'
+      )
+        throw new Error(
+          'Only disposable local onboarding_test database is permitted',
+        );
+      options = { url: local };
+    }
     process.env.AGENT_ONBOARDING_ENABLED = 'true';
     db = new DataSource({
       type: 'mysql',
-      url: local,
+      ...options,
       synchronize: false,
       timezone: 'Z',
       dateStrings: true,
     });
     await db.initialize();
-    const sql = readFileSync(
-      join(
-        __dirname,
-        '../../scripts/migrations/2026-11-19_agent_onboarding.sql',
-      ),
-      'utf8',
-    );
-    for (const statement of sql.split(';').filter((s) => s.trim()))
-      await db.query(statement);
+    if (approvedDev) await assertDevelopmentDatabase(db);
+    else {
+      const sql = readFileSync(
+        join(
+          __dirname,
+          '../../scripts/migrations/2026-11-19_agent_onboarding.sql',
+        ),
+        'utf8',
+      );
+      for (const statement of sql.split(';').filter((s) => s.trim()))
+        await db.query(statement);
+    }
     service = new OnboardingService(
       db,
       {
@@ -57,7 +78,13 @@ suite('onboarding transactional MySQL', () => {
   }, 30000);
   afterAll(async () => {
     delete process.env.AGENT_ONBOARDING_ENABLED;
-    if (db?.isInitialized) await db.destroy();
+    if (db?.isInitialized) {
+      try {
+        await cleanupOwners(db, owners);
+      } finally {
+        await db.destroy();
+      }
+    }
   });
   function f(
     field: string | null,
@@ -184,7 +211,7 @@ suite('onboarding transactional MySQL', () => {
     });
     await expect(
       service.commit(
-        { ...user, firebaseId: 'bob', actorFirebaseId: 'bob' },
+        { ...user, firebaseId: owners[1], actorFirebaseId: owners[1] },
         '111',
         proposal.id,
       ),
@@ -201,5 +228,125 @@ suite('onboarding transactional MySQL', () => {
       [target.profile_id],
     );
     expect(versions).toHaveLength(0);
+  });
+  it('seeds existing registration with application provenance instead of asking it again', async () => {
+    const seededUser = {
+      ...user,
+      firebaseId: owners[2],
+      actorFirebaseId: owners[2],
+    };
+    const seeded = new OnboardingService(
+      db,
+      {
+        ownerBusinesses: async () => [
+          { businessNumber: '333', businessType: 'EXEMPT' },
+        ],
+      } as any,
+      { extract: async () => ({ facts: [], clarification: null }) } as any,
+    );
+    const first = await seeded.read(seededUser, '333');
+    const again = await seeded.read(seededUser, '333');
+    expect(first.fields.find((f) => f.key === 'registration')).toMatchObject({
+      state: 'known',
+      value: 'עוסק פטור',
+    });
+    expect(first.facts[0]).toMatchObject({
+      source_type: 'application',
+      date_precision: 'unknown',
+      effective_date: null,
+    });
+    expect(again.facts).toHaveLength(1);
+    expect(again.version).toEqual(first.version);
+  });
+  it('serializes simultaneous confirmations and commits exactly one competing edit', async () => {
+    const state = await service.read(user, '111');
+    extraction = {
+      facts: [f(null, 'business', 'תוספת מקבילה')],
+      clarification: null,
+    };
+    const a = await service.propose(user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תוספת מקבילה',
+    });
+    const b = await service.propose(user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תוספת מקבילה',
+    });
+    const results = await Promise.allSettled([
+      service.commit(user, '111', a.id),
+      service.commit(user, '111', b.id),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const failure = results.find(
+      (r) => r.status === 'rejected',
+    ) as PromiseRejectedResult;
+    expect(failure.reason.getStatus()).toBe(409);
+    const after = await service.read(user, '111');
+    expect(
+      after.facts.filter((f) => f.statement === 'תוספת מקבילה'),
+    ).toHaveLength(1);
+  });
+  it('rolls back facts, fields and change logs when a late story write fails', async () => {
+    const before = await service.read(user, '111');
+    extraction = {
+      facts: [f('activity', 'business', 'תיאור שנכשל בשמירה')],
+      clarification: null,
+    };
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: before.version,
+      message: 'תיאור שנכשל בשמירה',
+    });
+    const faultingDb = {
+      query: db.query.bind(db),
+      manager: db.manager,
+      transaction: (work) =>
+        db.transaction(async (manager) =>
+          work({
+            query: async (sql: string, params: any[]) => {
+              if (sql.includes('INSERT INTO agent_onboarding_story_versions'))
+                throw new Error('INJECTED_LATE_FAILURE');
+              return manager.query(sql, params);
+            },
+          }),
+        ),
+    };
+    const faulting = new OnboardingService(
+      faultingDb as any,
+      { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
+      {} as any,
+    );
+    await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
+      'INJECTED_LATE_FAILURE',
+    );
+    const after = await service.read(user, '111');
+    expect(after.version).toEqual(before.version);
+    expect(after.story).toEqual(before.story);
+    expect(after.facts).toEqual(before.facts);
+    expect(after.turns).toEqual(before.turns);
+    const stored = await db.query(
+      'SELECT applied_at FROM agent_onboarding_proposals WHERE id=? AND owner_uid=?',
+      [proposal.id, user.firebaseId],
+    );
+    expect(stored[0].applied_at).toBeNull();
+  });
+  it('expires previews using database time without applying changes', async () => {
+    const state = await service.read(user, '111');
+    extraction = { facts: [], clarification: 'ממתי?' };
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'עדכון ישן',
+    });
+    await db.query(
+      'UPDATE agent_onboarding_proposals SET created_at=DATE_SUB(CURRENT_TIMESTAMP(6),INTERVAL 31 MINUTE) WHERE id=? AND owner_uid=?',
+      [proposal.id, user.firebaseId],
+    );
+    await expect(service.commit(user, '111', proposal.id)).rejects.toThrow(
+      'פג',
+    );
+    expect((await service.read(user, '111')).version).toEqual(state.version);
   });
 });

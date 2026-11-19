@@ -140,4 +140,17 @@ describe("OnboardingPage", () => {
     expect(fixture.nativeElement.querySelector("textarea").disabled).toBeTrue();
     expect(fixture.nativeElement.textContent).toContain("עובד מהבית");
   });
+  it("shows original narrative even if the summary omits a plan", async () => {
+    spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();
+    const fixture = TestBed.createComponent(OnboardingPage);
+    fixture.componentInstance.snapshot.set({
+      ...snapshot,
+      story: { person: "", business: "", narrative: "אני מתכנן קורס דיגיטלי" },
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain("הסיפור במילים שלך");
+    expect(fixture.nativeElement.textContent).toContain(
+      "אני מתכנן קורס דיגיטלי"
+    );
+  });
 });

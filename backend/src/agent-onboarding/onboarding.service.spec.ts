@@ -161,4 +161,36 @@ describe('onboarding owner boundaries and proposals', () => {
     await expect(service.commit(user, '111', 'expired')).rejects.toThrow('פג');
     expect(manager.query).toHaveBeenCalledTimes(2);
   });
+  it('keeps invalid model facts out while preserving the source and asking a missing question', async () => {
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 0, business: 0 },
+        facts: [],
+        fields: [
+          { key: 'activity', state: 'unasked', question: 'מה העסק עושה?' },
+        ],
+        story: {},
+        turns: [],
+      } as any);
+    extractor.extract.mockResolvedValue({
+      facts: [
+        {
+          field: 'preferred_name',
+          scope: 'business',
+          statement: 'תוכן לא תקין',
+        },
+      ],
+      clarification: null,
+    });
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: { person: 0, business: 0 },
+      message: 'אני מתכנן סניף חדש',
+    });
+    expect(proposal.facts).toEqual([]);
+    expect(proposal.clarification).toBe('מה העסק עושה?');
+    expect(db.query.mock.calls[0][1][6]).toBe('אני מתכנן סניף חדש');
+  });
 });

@@ -223,3 +223,62 @@ export function storyFromFacts(
     )
     .join('\n');
 }
+
+// The summary is deliberately lossy. Keep the user's original dated story
+// available independently, without promoting quoted source text to current facts.
+export function narrativeFromTurns(
+  turns: { source_text: string; created_at: Date | string }[] = [],
+) {
+  return turns
+    .map((turn) => {
+      const when =
+        turn.created_at instanceof Date
+          ? turn.created_at.toISOString()
+          : String(turn.created_at).replace(' ', 'T') + 'Z';
+      return `נמסר במועד ${when}:\n${turn.source_text}`;
+    })
+    .join('\n\n');
+}
+
+// Server-owned contiguous source segments. The model selects IDs, never writes quotes.
+export function evidenceSources(message: string) {
+  const spans: { start: number; end: number }[] = [];
+  const pattern = /[^.!?;\n]+[.!?;\n]*/gu;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(message)) !== null)
+    spans.push({ start: match.index, end: match.index + match[0].length });
+  if (!spans.length) spans.push({ start: 0, end: message.length });
+  const stride = Math.max(1, Math.ceil(spans.length / 200));
+  const sources: { id: string; text: string }[] = [];
+  for (let i = 0; i < spans.length; i += stride) {
+    sources.push({
+      id: 'source-' + sources.length,
+      text: message
+        .slice(
+          spans[i].start,
+          spans[Math.min(i + stride - 1, spans.length - 1)].end,
+        )
+        .trim(),
+    });
+  }
+  return sources;
+}
+export function resolveEvidenceIds(
+  input: unknown,
+  sources: { id: string; text: string }[],
+): unknown {
+  const result = input as Extraction;
+  if (!result || !Array.isArray(result.facts))
+    throw new Error('MODEL_FACTS_INVALID');
+  const byId = new Map(sources.map((s) => [s.id, s.text]));
+  for (const fact of result.facts) {
+    if (!fact || !Array.isArray(fact.evidence))
+      throw new Error('MODEL_EVIDENCE_INVALID');
+    fact.evidence = fact.evidence.map((id) => {
+      const quote = byId.get(id);
+      if (!quote) throw new Error('MODEL_EVIDENCE_UNKNOWN_SOURCE');
+      return quote;
+    });
+  }
+  return result;
+}

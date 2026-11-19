@@ -2,6 +2,9 @@ import {
   FIELDS,
   missingFields,
   storyFromFacts,
+  narrativeFromTurns,
+  evidenceSources,
+  resolveEvidenceIds,
   validateExtraction,
 } from './onboarding.domain';
 
@@ -135,4 +138,42 @@ describe('onboarding extraction boundaries', () => {
         { statement: 'רוצה להרחיב מכירת תבניות' },
       ]),
     ).toContain('רוצה להרחיב מכירת תבניות'));
+  it('preserves original narrative independently of extracted summary facts', () => {
+    const narrative = narrativeFromTurns([
+      {
+        source_text: 'אני מתכנן קורס דיגיטלי',
+        created_at: new Date('2026-11-19T10:00:00Z'),
+      },
+    ]);
+    expect(narrative).toContain('אני מתכנן קורס דיגיטלי');
+    expect(narrative).toContain('2026-11-19T10:00:00.000Z');
+  });
+  it('resolves enum-constrained source IDs to the exact original quotes', () => {
+    const message = 'אני דני. אני עובד גם בבית וגם במשרד.';
+    const sources = evidenceSources(message);
+    const result = resolveEvidenceIds(
+      { facts: [{ evidence: [sources[1].id] }], clarification: null },
+      sources,
+    ) as any;
+    expect(result.facts[0].evidence).toEqual(['אני עובד גם בבית וגם במשרד.']);
+    expect(message).toContain(result.facts[0].evidence[0]);
+  });
+  it('rejects invented IDs and joined quotations rather than accepting them', () => {
+    const sources = evidenceSources('אני עוסק פטור.');
+    expect(() =>
+      resolveEvidenceIds(
+        { facts: [{ evidence: ['אני [...] פטור'] }], clarification: null },
+        sources,
+      ),
+    ).toThrow('UNKNOWN_SOURCE');
+  });
+  it('bounds source enumeration while keeping every segment contiguous in the original', () => {
+    const message = Array.from(
+      { length: 1000 },
+      (_, i) => 'משפט ' + i + '.',
+    ).join(' ');
+    const sources = evidenceSources(message);
+    expect(sources.length).toBeLessThanOrEqual(200);
+    for (const source of sources) expect(message).toContain(source.text);
+  });
 });

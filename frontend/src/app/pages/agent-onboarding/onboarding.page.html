@@ -140,6 +140,16 @@
       <p class="story">
         {{s.story.business || 'כאן יופיע ההקשר העסקי שתשתף.'}}
       </p>
+      @if(s.story.narrative){
+      <details>
+        <summary>הסיפור במילים שלך</summary>
+        <p class="muted">
+          הדברים כפי שסיפרת ומתי נמסרו. הם עשויים לכלול תוכניות או פרטים שתוקנו
+          בהמשך; העובדות העדכניות מוצגות בנפרד.
+        </p>
+        <p class="story">{{s.story.narrative}}</p>
+      </details>
+      }
       <details>
         <summary>פרטי הבסיס</summary>
         <dl>

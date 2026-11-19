@@ -30,7 +30,7 @@ interface Snapshot {
   businessNumber: string;
   version: { person: number; business: number };
   invitation: string;
-  story: { person: string; business: string };
+  story: { person: string; business: string; narrative?: string };
   fields: Field[];
   facts: Fact[];
   turns: { source_text: string; assistant_text: string }[];
