@@ -1,9 +1,9 @@
 # Automatic transaction classification
 
 Implemented on `codex/auto-classification`, based on completed onboarding
-`a6471735` (on top of `new-ai-assistant` `c0a37b21`). No main integration,
-push, production deployment or shared development schema application is part
-of this delivery.
+`a6471735` (on top of `new-ai-assistant` `c0a37b21`). No main integration, push or production deployment was performed. After
+separate explicit approval on 19 November 2026, the standalone schema was applied
+and verified on `keepintax-dev` only; worker flags and user consent remain unchanged.
 
 ## Behavior
 
@@ -114,7 +114,9 @@ run that historic cumulative file to activate this feature**.
 
 The schema must be applied BEFORE running this backend revision, even when the
 worker flag is off, because normal TypeORM reads now include provenance columns.
-No production or shared-development schema was applied during implementation.
+No production schema was applied. The shared-development schema was applied
+only after implementation and separate explicit approval on 19 November 2026;
+see the task evidence for the metadata checks.
 The onboarding schema must already exist. The guarded tool refuses other database
 names, checks the actual selected database, allowlists every statement and
 validates existing columns rather than blindly recreating them.

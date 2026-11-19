@@ -1,6 +1,6 @@
 # Automatic classification — local implementation handoff
 
-- Status: `IMPLEMENTED_VERIFIED_LOCAL`; shared-dev activation not performed.
+- Status: `DEV_SCHEMA_VERIFIED`; worker flags and user consent were not enabled.
 - Branch: `codex/auto-classification`.
 - Worktree: `C:/Users/user/Keepintax/TaxMyself-auto-classification`.
 - Base: `a6471735` (completed onboarding, after `8477fbdd`, based on the existing
@@ -203,3 +203,41 @@ node -r ts-node/register -r tsconfig-paths/register scripts/check-auto-classific
 - Final relative-link check: 10 changed Markdown files, 11 relative links, zero broken.
 - Final staged whitespace check passed after removing one trailing space only.
 - Local main remained `ea5ba2b3`; no merge, push or production action was executed.
+
+## Authorized development schema application — 19 November 2026
+
+Elazar explicitly approved applying the prepared SQL to `keepintax-dev` only.
+No production connection, main integration or remote push was performed.
+Executable implementation remains `7dd5d3dcea9716871e448b43c00b783029ada6cc`;
+this follow-up changes documentation only.
+
+Commands from `backend`:
+
+```powershell
+node scripts/auto-classification-schema.cjs --database=keepintax-dev --check
+node scripts/auto-classification-schema.cjs --database=keepintax-dev --apply
+node scripts/auto-classification-schema.cjs --database=keepintax-dev --check
+```
+
+The preflight selected database was exactly `keepintax-dev`, all four prerequisite
+tables existed, and the expected new tables/columns were missing. The approved
+standalone script applied successfully (exit 0), with no missing columns.
+SQL SHA256 remains
+`7efd79279a424005101bde40674052b62aded41954383dc6a5fe706868a600a3`.
+
+An additional independent read-only metadata verification rechecked SELECT DATABASE()
+before inspecting the scoped metadata. It verified:
+
+- `agent_auto_preferences` and `agent_auto_items`: InnoDB, utf8mb4_0900_ai_ci.
+- All 26 new table columns, exact data types and datetime(3) precision.
+- Expected nullable flags and initial numeric/state defaults.
+- All four provenance columns: nullable varchar(10), default NULL.
+- All seven indexes, including primary/unique flags and ordered column lists.
+- Both new tables contain zero rows; no user consent or background work was created.
+
+Metadata verification passed at 2026-11-19 13:48:22 UTC (15:48:22 Jerusalem).
+The ignored evidence is `.local-ai-dev/auto-classification/dev-schema-verification.json`.
+No application server was booted, no ORM synchronize or seed ran, and neither
+automation feature flags nor existing business records were changed. Full builds
+and application tests were not repeated because this follow-up applied the already
+tested schema and changed documentation only.
