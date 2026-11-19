@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-116/KT-117 Allocation button borders and risk-based gates — 2026-11-19
+
+All white actions in the document-allocation decision and completion dialogs
+now use the existing `WHITE_BORDER` variant, preserving a visible black outline
+without changing the global white-button style. The repository quality gates
+now classify changes by risk: local presentation-only edits use a direct
+template/component assertion plus the frontend build and visual check, while
+behavioral, shared, service, backend and infrastructure changes retain broader
+targeted verification. The original focused runs passed 52/52 allocation/table
+tests and 27/27 doc-create tests; after reconciliation with the newer remote
+main, static allocation-style checks and the Angular production build passed.
+Feature commit `aa549003` and governance commit `362ec52b` were pushed through
+delivery `362ec52b`. No backend, database, accounting, external-service,
+production, or deployment action occurred.
+
 ## KT-114 Hosted checkout terminal result — 2026-11-15
 
 CardCom `GetLpResult` non-success responses now release a hosted checkout only

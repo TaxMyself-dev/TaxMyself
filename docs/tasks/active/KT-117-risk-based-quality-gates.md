@@ -1,6 +1,6 @@
 # KT-117 - Risk-based quality-gate selection
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (dedicated governance-documentation task)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt117-worker`
@@ -40,8 +40,10 @@ changes retain stronger gates.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `362ec52b`
+- Combined verification: documentation diff review and `git diff --check`
+  passed; no application tests/builds apply to the governance-only commit.
+- `origin/main` verification: `362ec52b` pushed successfully on 2026-11-19.
+- User-visible run instructions: future work is classified by the risk matrix
+  in `docs/coordination/QUALITY_GATES.md` before tests are selected.

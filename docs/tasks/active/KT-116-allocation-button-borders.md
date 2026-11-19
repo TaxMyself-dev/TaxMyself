@@ -1,6 +1,6 @@
 # KT-116 - Allocation flow white-button borders
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt116-worker`
@@ -36,8 +36,12 @@ flow has a visible black border.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `aa549003`
+- Combined verification: initial focused Karma suites passed 52/52 and 27/27;
+  Angular production build passed before integration and again after rebasing
+  onto current `origin/main`. Static verification found no remaining plain
+  `WHITE` allocation-flow actions.
+- `origin/main` verification: delivery commit `362ec52b` pushed successfully on 2026-11-19.
+- User-visible run instructions: reload the frontend and open both allocation
+  dialogs; every white action now has a black border.
