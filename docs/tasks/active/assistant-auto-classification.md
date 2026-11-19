@@ -264,3 +264,33 @@ Backend/agent tests were not repeated because no backend or agent code changed.
 Runtime process paths confirmed this feature worktree owns frontend 4200 and
 backend 3000. No feature flags or user consents changed. No main integration
 or remote push. Authenticated end-to-end user testing remains manual.
+
+## Reuse account-association drawer (2026-11-19)
+
+Replaced the agent's inline bill selector with the shared black application
+button. It opens the same AccountAssociationDialogComponent as transactions.
+The existing AddBillComponent creates a missing account, refreshes the scoped
+account list and returns to the original association drawer; cancellation also
+returns without mutation. Successful association refreshes agent readiness.
+Owner-context changes close both drawers and clear their account list.
+The shared drawer now uses explicit BANK_ACCOUNT/CREDIT_CARD source types when
+provided, retaining its existing heuristic fallback for transaction callers.
+Stable source IDs preserve primary/spouse identity even with identical labels.
+
+Verification from frontend, CI=true and NG_BUILD_MAX_WORKERS=2:
+
+```powershell
+npm test -- --watch=false --browsers=ChromeHeadless --karma-config=karma.auto-classification.conf.cjs --include=src/app/components/my-agent/*.spec.ts --include=src/app/pages/settings-new/settings-navigation.spec.ts --ts-config=tsconfig.auto-classification-spec.json
+npm run build -- --configuration production
+```
+
+18/18 focused tests passed, exit 0. Added real-component drawer tests for no
+existing accounts, creating an account, returning and associating bank source
+9081 with its stable spouse source ID, black button rendering and cancel without
+writes. Existing shared reactive-form disabled warnings and Chrome termination
+warnings were emitted; the runner completed successfully. Production build
+passed with size/CommonJS warnings; full output is ignored at
+`.local-ai-dev/auto-classification/account-drawer-build.log`. No backend tests
+repeated: no backend/schema/authorization/accounting contract changes. Actual
+account writes in the authenticated app remain manual user testing. No main
+integration, remote push or environment changes.

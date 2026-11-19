@@ -3,17 +3,26 @@ import { Component, OnDestroy, OnInit, inject, signal, effect, DestroyRef } from
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AccountAssociationDialogComponent } from '../account-association-dialog/account-association-dialog.component';
+import { AddBillComponent } from '../add-bill/add-bill.component';
+import { ButtonComponent } from '../button/button.component';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
+import { TransactionsService } from '../../pages/transactions/transactions.page.service';
+import { IRowDataTable } from '../../shared/interface';
 import { AgentNotice, AgentStatus, MyAgentService } from './my-agent.service';
-@Component({selector:'app-my-agent',standalone:true,imports:[CommonModule,FormsModule,RouterLink],templateUrl:'./my-agent.component.html',styleUrls:['./my-agent.component.scss']})
+@Component({selector:'app-my-agent',standalone:true,imports:[CommonModule,FormsModule,RouterLink,AccountAssociationDialogComponent,AddBillComponent,ButtonComponent],providers:[TransactionsService],templateUrl:'./my-agent.component.html',styleUrls:['./my-agent.component.scss']})
 export class MyAgentComponent implements OnInit,OnDestroy {
  readonly api=inject(MyAgentService);private readonly route=inject(ActivatedRoute);
  readonly status=signal<AgentStatus|null>(null);readonly notices=signal<AgentNotice[]>([]);readonly busy=signal(false);readonly loading=signal(true);
  readonly error=signal('');readonly more=signal(false);readonly selected=signal(this.route.snapshot.queryParamMap.get('notice'));
  private readonly destroyRef=inject(DestroyRef);
  private cursor:string|null=null;private historyLoaded=false;
- readonly answers:Record<string,string>={};readonly bills:Record<number,string>={};
+ readonly answers:Record<string,string>={};
+ readonly transactions=inject(TransactionsService);
+ readonly associationRow=signal<IRowDataTable|null>(null);readonly addingAccount=signal(false);
+ readonly buttonColor=ButtonColor;readonly buttonSize=ButtonSize;
  private timer?:ReturnType<typeof setInterval>;private destroyed=false;private reading=false;
- constructor(){effect(()=>{this.api.context();this.status.set(null);this.notices.set([]);Object.keys(this.answers).forEach(k=>delete this.answers[k]);Object.keys(this.bills).forEach(k=>delete this.bills[Number(k)]);});}
+ constructor(){effect(()=>{this.api.context();this.status.set(null);this.notices.set([]);Object.keys(this.answers).forEach(k=>delete this.answers[k]);this.associationRow.set(null);this.addingAccount.set(false);this.transactions.accountsList.set([]);});}
  async ngOnInit() {this.route.queryParamMap?.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(p=>{this.selected.set(p.get('notice'));void this.refresh();});await this.refresh();this.timer=setInterval(()=>void this.refresh(),15000);}
  ngOnDestroy() {this.destroyed=true;if(this.timer)clearInterval(this.timer);}
  async refresh() {
@@ -38,7 +47,17 @@ export class MyAgentComponent implements OnInit,OnDestroy {
  toggle(event:Event) {const input=event.target as HTMLInputElement;const value=input.checked;input.checked=!!this.status()?.enabled;void this.act(()=>this.api.consent(value));}
  async mark(n:AgentNotice){await this.act(()=>this.api.read(n.id));}
  reply(n:AgentNotice){void this.act(()=>this.api.reply(n.id,this.answers[n.id] || ''));}
- associate(s:AgentStatus['unlinked'][number]){const id=Number(this.bills[s.id]);if(id)void this.act(()=>this.api.associate(s,id));}
+ associate(s:AgentStatus['unlinked'][number]) {
+  if(this.busy() || !this.api.context() || !this.status()?.unlinked.some(source=>source.id===s.id))return;
+  this.transactions.accountsList.set([]);this.transactions.getAllBills();
+  this.addingAccount.set(false);
+  this.associationRow.set({paymentIdentifier:s.sourceName,sourceRecordId:s.id,sourceType:s.sourceType});
+ }
+ closeAssociation(event:{visible:boolean;data:boolean}) {
+  if(!event.visible){this.associationRow.set(null);this.addingAccount.set(false);}
+  if(event.data)void this.refresh();
+ }
+ closeAddAccount(event:{visible:boolean;data?:boolean}) {this.addingAccount.set(event.visible);}
  async loadMore(){const rows=this.notices();if(!rows.length || this.busy())return;this.busy.set(true);
   try{const result=await this.api.inbox(this.cursor || undefined);if(!this.destroyed){this.historyLoaded=true;this.notices.update(current=>[...current,...result.items.filter(n=>!current.some(old=>old.id===n.id))]);this.more.set(result.hasMore);this.cursor=result.nextCursor;}}catch{this.error.set('לא ניתן לטעון הודעות קודמות.');}finally{this.busy.set(false);}}
  label(state:string){return ({classified:'סווג באמצעות כלל קבוע',waiting:'ממתין לתשובה שלך',failed:'הסיווג לא הושלם',blocked:'נדרשת בדיקה',resolved:'טופל ידנית',pending:'בתור',retry:'ממתין לניסיון נוסף'} as Record<string,string>)[state] || state;}

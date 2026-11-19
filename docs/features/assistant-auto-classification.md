@@ -77,7 +77,10 @@ with the business and transaction details, never sends or approves it.
 
 `/settings-new?section=agent` opens הסוכן שלי. It shows the consent switch,
 readiness per business, missing fields, unlinked payment sources with the
-existing source→bill association API, pending count, outcome totals and messages.
+existing transaction account-association drawer (including adding a new account),
+pending count, outcome totals and messages. Each unlinked source has a black
+application button; no inline account selector. The drawer retains source ID and
+explicit source type, then refreshes readiness after successful association.
 New settings rule tables show original creator and latest editor. Transaction
 tables show סווג על ידי; historical unknown sources remain unknown.
 
