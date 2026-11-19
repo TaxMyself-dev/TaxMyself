@@ -73,3 +73,14 @@ describe('DocumentsService inbox OCR lock', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 });
+
+it('pauses every legacy Inbox OCR entry point without touching DB or Drive',async()=>{
+  const saved=process.env.INBOX_OCR_ENABLED;process.env.INBOX_OCR_ENABLED='false';
+  try {
+    const service:any=Object.create(DocumentsService.prototype);
+    service.acquireInboxOcrSlot=jest.fn();service.processInboxWithDistributedLock=jest.fn();
+    await expect(service.processInboxForUser('owner','synthetic-business')).resolves.toEqual(expect.objectContaining({processed:0,total:0}));
+    expect(service.acquireInboxOcrSlot).not.toHaveBeenCalled();
+    expect(service.processInboxWithDistributedLock).not.toHaveBeenCalled();
+  }finally{if(saved===undefined)delete process.env.INBOX_OCR_ENABLED;else process.env.INBOX_OCR_ENABLED=saved}
+});

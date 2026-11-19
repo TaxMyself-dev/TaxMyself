@@ -2833,6 +2833,11 @@ ${finalOwnerName}`;
       throw new BadRequestException('businessNumber is required');
     }
 
+    if (process.env.INBOX_OCR_ENABLED === 'false') {
+      return { processed: 0, failed: 0, skipped: 0, duplicates: 0, restored: 0,
+        total: 0, inboxFolderId: '', processedFolderId: '', alreadyProcessing: false };
+    }
+
     // A named MySQL lock occupies one pool connection while OCR is active.
     // Keep enough connections free for the OCR pipeline's normal repository
     // queries even when Cloud Run accepts many requests concurrently.

@@ -32,7 +32,7 @@ export class InboxOcrCronService {
 
   @Cron('* * * * *', { name: 'documentInboxOcrCron', timeZone: 'Asia/Jerusalem' })
   async runScheduledSweep(): Promise<void> {
-    if (this.sweepRunning) return;
+    if (process.env.INBOX_OCR_ENABLED === 'false' || this.sweepRunning) return;
     this.sweepRunning = true;
     try {
       const summary = await this.processProvisionedInboxes();
@@ -49,6 +49,7 @@ export class InboxOcrCronService {
   }
 
   async processProvisionedInboxes(): Promise<InboxOcrSweepSummary> {
+    if (process.env.INBOX_OCR_ENABLED === 'false') return {eligibleBusinesses:0,processedDocuments:0,failedDocuments:0,businessErrors:0};
     const businesses = await this.businessRepo.find({
       where: {
         businessNumber: Not(IsNull()),

@@ -1,3 +1,4 @@
+import { assertEmailIntakeScope } from './email-intake-scope';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EmailIntakeStore, EmailRun } from './email-intake.store';
@@ -39,6 +40,7 @@ export class EmailIntakeRunsService {
     },
   ) {
     if (!this.enabled()) throw new Error('Durable Gmail disabled');
+    assertEmailIntakeScope(integration.id);
     if (
       integration.status !== IntegrationStatus.ACTIVE ||
       integration.connectionBackend !== 'COMPOSIO'
@@ -61,6 +63,7 @@ export class EmailIntakeRunsService {
       integration.firebaseId,
       options.businessNumber,
     );
+    assertEmailIntakeScope(integration.id, business);
     return this.store.createRun({
       owner: integration.firebaseId,
       business,
@@ -88,6 +91,7 @@ export class EmailIntakeRunsService {
         row.provider !== IntegrationProvider.GOOGLE
       )
         throw new Error('Mailbox unavailable');
+      assertEmailIntakeScope(row.id);
       rows.push(row);
     }
     const runIds = [];
@@ -154,6 +158,7 @@ export class EmailIntakeRunsService {
   async step(run: EmailRun) {
     if (!this.enabled() || process.env.GMAIL_DURABLE_SCAN_ENABLED !== 'true')
       return;
+    assertEmailIntakeScope(run.integration_id, run.business_number);
     const token = await this.store.leaseRun(run.id);
     if (!token) return;
     try {

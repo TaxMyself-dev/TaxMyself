@@ -20,3 +20,6 @@ DISABLE_SYNCHRONIZE remains true. The four new GMAIL_DURABLE_* flags are explici
 6. Physical deletion is a distinct later approval and flag. Use only a new artificial non-accounting file, prove no shared references, and verify acknowledged deletion plus tombstone dedup; Gmail original stays intact. Never enable DELETE merely to validate the current schema.
 
 No live UI exercise was performed in this schema-only step. No executable code changed; prior focused tests/builds remain applicable. New schema was verified directly through information_schema and aggregate counts. No main merge, push or deployment.
+
+
+Subsequent separately approved activation: docs/features/gmail-intake-durable-dev-pull-only.md. It adds an explicit legacy INBOX OCR pause and single-mailbox/business rollout guards; the schema-only disabled snapshot above is historical.

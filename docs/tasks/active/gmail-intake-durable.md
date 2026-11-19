@@ -66,3 +66,8 @@ Final artifact build after authorized cache cleanup: PASS (exit 0): npm --prefix
 ## Separately authorized DEV schema application (2026-11-19)
 
 User approved DEV schema only after implementation. All three prepared DDL statements applied successfully to guarded keepintax-dev; metadata/FKs/indexes/defaults verified, counts unchanged (91 imported / 188 extracted), 0 runs/items and 0 active work. Full evidence and controlled 4202 UI plan: docs/features/gmail-intake-durable-dev-schema.md. Four new flags explicitly false in ignored DEV .env; no application start, import, AI or Drive deletion. Earlier unexecuted-schema notes above describe the implementation checkpoint, superseded for DEV DDL only by this separate approval. No production, main integration, push or deploy.
+
+
+## Separately authorized DEV pull-only activation (2026-11-19)
+
+User approved only test-mailbox pulls to Nagrut 5. Added optional mailbox/business scope guards plus an opt-out pause for legacy INBOX OCR; verified 19 focused tests, 8 final scanner tests and the backend build. Enabled only INTAKE/SCAN in ignored DEV env, bounded to integration 17 and verified business 5; PROCESS/DELETE/legacy OCR/nightly/protected dispatch off, synchronization and boot seeding off. Backend 3002 health and frontend 4202 HTTP 200 verified. No import triggered: runs/items/managed work all 0 after startup, existing aggregate counts unchanged. Exact evidence and UI instructions: docs/features/gmail-intake-durable-dev-pull-only.md. No schema/ownership/history changes, real AI or Drive operations; no PROD, merge or push.

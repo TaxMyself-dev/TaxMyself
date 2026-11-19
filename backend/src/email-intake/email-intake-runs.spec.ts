@@ -255,3 +255,14 @@ it('reconciles completed pull after a crash before integration finalization with
   expect(t.reader.durablePage).not.toHaveBeenCalled();
   expect(download).not.toHaveBeenCalled();
 });
+
+it('rejects out-of-scope creation and existing runs before mailbox or storage access',async()=>{
+ const saved=process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS;process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS='17';
+ try{const t=simulation();await expect(t.create().start({id:18} as any,{})).rejects.toThrow('scope');t.run.integration_id=18;await expect(t.create().step(t.run)).rejects.toThrow('scope');expect(t.store.leaseRun).not.toHaveBeenCalled();expect(t.reader.durablePage).not.toHaveBeenCalled();}
+ finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS;else process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS=saved}
+});
+it('rejects an existing run for a different business before claiming or downloading',async()=>{
+ const saved=process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER;process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER='allowed';
+ try{const t=simulation();await expect(t.create().step(t.run)).rejects.toThrow('scope');expect(t.store.leaseRun).not.toHaveBeenCalled();expect(t.reader.durablePage).not.toHaveBeenCalled();}
+ finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER;else process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER=saved}
+});
