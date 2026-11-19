@@ -61,6 +61,9 @@ export class IncomesPage implements OnInit {
   readonly buttonColor = ButtonColor;
   showAllocationMethodDialog = signal<boolean>(false);
   showAllocationInputDialog = signal<boolean>(false);
+  manualAllocationDetailsLoading = signal<boolean>(false);
+  manualAllocationDetailsError = signal<boolean>(false);
+  manualAllocationItemDescription = signal<string>('');
   allocationInputValue = '';
   // Exposed as a signal so the dialog template can show the doc's details
   // (recipient id, sum before VAT, date, doc #/type) — they're what the user
@@ -444,7 +447,33 @@ export class IncomesPage implements OnInit {
     // with a clickable link the user follows on their own pace.
     this.pendingFinalizeRow.set(row);
     this.allocationInputValue = '';
+    this.manualAllocationDetailsError.set(false);
+    this.manualAllocationItemDescription.set(
+      String((row as any).docDescription ?? '').trim(),
+    );
     this.showAllocationInputDialog.set(true);
+
+    const businessNumber = ((row as any).issuerBusinessNumber as string) || this.selectedBusinessNumber();
+    const docNumber = ((row as any).docNumber ?? (row as any).doc_number)?.toString();
+    if (!businessNumber || !docNumber) return;
+
+    this.manualAllocationDetailsLoading.set(true);
+    this.documentsService.getDocLines(businessNumber, docNumber).pipe(
+      take(1),
+      catchError((error) => {
+        console.error('Failed to load manual-allocation document lines', error);
+        this.manualAllocationDetailsError.set(true);
+        return of([]);
+      }),
+      finalize(() => this.manualAllocationDetailsLoading.set(false)),
+    ).subscribe((lines) => {
+      const descriptions = (lines ?? [])
+        .map((line: any) => String(line?.description ?? '').trim())
+        .filter((description: string) => !!description);
+      if (descriptions.length) {
+        this.manualAllocationItemDescription.set(descriptions.join(' | '));
+      }
+    });
   }
 
   openAllocationMethodDialog(row: IRowDataTable): void {
@@ -595,6 +624,9 @@ export class IncomesPage implements OnInit {
   cancelAllocationInputDialog(): void {
     this.pendingFinalizeRow.set(null);
     this.allocationInputValue = '';
+    this.manualAllocationDetailsLoading.set(false);
+    this.manualAllocationDetailsError.set(false);
+    this.manualAllocationItemDescription.set('');
     this.showAllocationInputDialog.set(false);
   }
 

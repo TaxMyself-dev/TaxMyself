@@ -51,7 +51,7 @@
 
 <!-- Manual allocation-number entry dialog. -->
 <p-dialog header="הזנת מספר הקצאה" [visible]="showAllocationInputDialog()" [modal]="true" [rtl]="true"
-    [style]="{ width: '460px' }" (onHide)="cancelAllocationInputDialog()" [closable]="true">
+    [style]="{ width: '720px', maxWidth: '95vw' }" (onHide)="cancelAllocationInputDialog()" [closable]="true">
     <div class="p-fluid">
         <!-- Step 1: prominent link to the Tax Authority site (top of dialog). -->
         <p style="margin: 0 0 0.5rem 0;">
@@ -65,12 +65,54 @@
 
         @if (pendingFinalizeRow(); as row) {
           <!-- Step 2: doc details the user needs to enter on the Tax Authority site. -->
-          <div style="margin: 0.75rem 0; padding: 0.75rem 1rem; background: #f5f7fb; border-radius: 6px; font-size: 0.9rem; line-height: 1.7;">
-            <div style="font-weight: 600; margin-bottom: 0.35rem;">פרטי המסמך למילוי באתר רשות המיסים:</div>
-            <div><span style="color: #666;">סוג מסמך:</span> {{ row.docType }} {{ row.docNumber }}</div>
-            <div><span style="color: #666;">ת.ז / ח.פ של הלקוח:</span> {{ row.recipientId || '—' }}</div>
-            <div><span style="color: #666;">סכום לפני מע״מ:</span> ₪{{ $any(row.sumAftDisBefVAT) | number:'1.0-2' }}</div>
-            <div><span style="color: #666;">תאריך המסמך:</span> {{ $any(row.docDate) | date:'dd/MM/yyyy' }}</div>
+          <div class="manual-allocation-details">
+            <div class="manual-allocation-details__title">פרטי המסמך למילוי באתר רשות המסים</div>
+            <p class="manual-allocation-details__hint">ניתן לסמן ולהעתיק כל ערך ישירות לשדה המקביל באתר.</p>
+
+            <div class="manual-allocation-details__grid">
+              <label class="manual-allocation-detail">
+                <span>בקשת מספר הקצאה עבור</span>
+                <input class="p-inputtext p-component" type="text" value="חשבונית מס" readonly>
+              </label>
+              <label class="manual-allocation-detail">
+                <span>מספר אסמכתה</span>
+                <input class="p-inputtext p-component manual-allocation-detail__ltr" type="text"
+                  [value]="row.docNumber || ''" readonly>
+              </label>
+              <label class="manual-allocation-detail">
+                <span>מספר מזהה של הלקוח</span>
+                <input class="p-inputtext p-component manual-allocation-detail__ltr" type="text"
+                  [value]="row.recipientId || ''" readonly>
+              </label>
+              <label class="manual-allocation-detail">
+                <span>תאריך</span>
+                <input class="p-inputtext p-component manual-allocation-detail__ltr" type="text"
+                  [value]="($any(row.docDate) | date:'dd/MM/yyyy') || ''" readonly>
+              </label>
+              <label class="manual-allocation-detail">
+                <span>סכום לפני מע״מ</span>
+                <input class="p-inputtext p-component manual-allocation-detail__ltr" type="text"
+                  [value]="($any(row.sumAftDisBefVAT) | number:'1.2-2') || ''" readonly>
+              </label>
+              <label class="manual-allocation-detail">
+                <span>מע״מ</span>
+                <input class="p-inputtext p-component manual-allocation-detail__ltr" type="text"
+                  [value]="($any(row.vatSum) | number:'1.2-2') || ''" readonly>
+              </label>
+            </div>
+
+            <label class="manual-allocation-detail manual-allocation-detail--wide">
+              <span>תיאור הפריט/שירות</span>
+              <textarea class="p-inputtext p-component" rows="2"
+                [value]="manualAllocationItemDescription()" readonly></textarea>
+            </label>
+            @if (manualAllocationDetailsLoading()) {
+              <small class="manual-allocation-details__status">טוען את תיאור הפריטים…</small>
+            } @else if (manualAllocationDetailsError()) {
+              <small class="manual-allocation-details__status manual-allocation-details__status--error">
+                לא ניתן היה לטעון את שורות המסמך. שאר הפרטים עדיין זמינים להעתקה.
+              </small>
+            }
           </div>
         }
 

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/app/pages/book-keeping/incomes/incomes-shaam-confirmation.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

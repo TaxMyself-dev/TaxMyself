@@ -1,6 +1,6 @@
 import { IncomesPage } from './incomes.page';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 describe('pending allocation completion choice', () => {
   function setup() {
@@ -10,8 +10,17 @@ describe('pending allocation completion choice', () => {
     page.pendingFinalizeRow = signal(null);
     page.showAllocationMethodDialog = signal(false);
     page.showAllocationInputDialog = signal(false);
+    page.manualAllocationDetailsLoading = signal(false);
+    page.manualAllocationDetailsError = signal(false);
+    page.manualAllocationItemDescription = signal('');
     page.allocationInputValue = '';
     page.selectedBusinessNumber = () => '123456789';
+    page.documentsService = {
+      getDocLines: jasmine.createSpy().and.returnValue(of([
+        { description: 'שירותי ייעוץ' },
+        { description: 'ליווי מקצועי' },
+      ])),
+    };
     (page as any).resumeAutomaticAllocation = jasmine.createSpy('resumeAutomaticAllocation');
     return page;
   }
@@ -76,7 +85,7 @@ describe('pending allocation completion choice', () => {
 
   it('opens the existing document-details dialog for manual allocation', () => {
     const page = setup();
-    const row = { docNumber: '30199' };
+    const row = { issuerBusinessNumber: '123456789', docNumber: '30199' };
     page.pendingFinalizeRow.set(row);
     page.showAllocationMethodDialog.set(true);
 
@@ -85,6 +94,27 @@ describe('pending allocation completion choice', () => {
     expect(page.showAllocationMethodDialog()).toBeFalse();
     expect(page.showAllocationInputDialog()).toBeTrue();
     expect(page.pendingFinalizeRow()).toBe(row);
+    expect(page.documentsService.getDocLines).toHaveBeenCalledOnceWith('123456789', '30199');
+    expect(page.manualAllocationItemDescription()).toBe('שירותי ייעוץ | ליווי מקצועי');
+  });
+
+  it('keeps the manual dialog usable when loading line descriptions fails', () => {
+    const page = setup();
+    page.documentsService.getDocLines.and.returnValue(
+      throwError(() => new Error('lines unavailable')),
+    );
+    const row = {
+      issuerBusinessNumber: '123456789',
+      docNumber: '30199',
+      docDescription: 'תיאור כללי',
+    };
+
+    page.getAllocationFromTaxAuthority(row);
+
+    expect(page.showAllocationInputDialog()).toBeTrue();
+    expect(page.manualAllocationDetailsLoading()).toBeFalse();
+    expect(page.manualAllocationDetailsError()).toBeTrue();
+    expect(page.manualAllocationItemDescription()).toBe('תיאור כללי');
   });
 
   it('does not submit Approval when the durable status is unknown', () => {
