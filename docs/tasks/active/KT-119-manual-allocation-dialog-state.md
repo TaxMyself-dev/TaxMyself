@@ -29,7 +29,7 @@ Authority link, all copyable document details and the allocation-number input.
 - Result: The method-dialog `onHide` now preserves the selected row whenever
   the manual allocation dialog is already open, while an explicit method-dialog
   dismissal still clears it.
-- Commit hash(es): pending
+- Commit hash(es): `06f9f3cd`
 - Tests and exact results:
   - Focused Karma spec `incomes-shaam-confirmation.spec.ts`: `8 SUCCESS`.
   - Angular production build: passed (existing budget/CommonJS warnings only).
