@@ -31,6 +31,9 @@ UI states, not retry prompts.
   Choosing "הפק מספר הקצאה מאוחר יותר" records that pending document and
 journal now, without generating a PDF. White actions in the allocation decision
 dialog use the shared `WHITE_BORDER` variant and therefore have a black outline.
+  Choosing "הפק מספר הקצאה באופן ידני" persists the same pending document,
+  then navigates to the incomes page with `autoOpenAllocationFor` so the existing
+  populated manual dialog opens immediately.
 - Select document type and issuing business; auto-fill/select recipient client (create/update/delete clients).
 - Build line items with VAT/discount calculation, running totals.
 - Configure payment details per method (bank transfer, credit card, check, cash, app). The desktop selector uses the current PrimeNG `Tabs` API; do not reintroduce deprecated `TabMenu`, whose PrimeNG 19 dynamic styles conflict with `Tabs`/legacy `TabView` based on load order.

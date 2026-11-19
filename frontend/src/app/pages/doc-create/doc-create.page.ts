@@ -2252,8 +2252,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.openShaamDialog();
   }
 
+  /** Persist the pending document, then open the existing populated manual flow. */
+  onCreateWithManualAllocation(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({
+      requestAllocation: false,
+      openManualAllocation: true,
+    });
+  }
+
   /**
-   * Button 3: Create without allocation number — confirm, then issue the doc
+   * Create without allocation number — confirm, then issue the doc
    * normally (full PDF, journal entry, etc.) without an allocation #.
    */
   onCreateWithoutAllocation(): void {
@@ -2286,7 +2295,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
    * the incomes page, or immediately asks the backend to allocate and finalize
    * that exact persisted document.
    */
-  private createPendingAllocationDoc(opts: { requestAllocation: boolean }): void {
+  private createPendingAllocationDoc(opts: {
+    requestAllocation: boolean;
+    openManualAllocation?: boolean;
+  }): void {
     if (this.documentRequestBusy()) return;
     this.createPDFIsLoading.set(true);
 
@@ -2335,7 +2347,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
         return;
       }
 
+      const pendingAllocationRow = {
+        ...payload.docData,
+        docNumber: String(response.docNumber),
+        issuerBusinessNumber: String(payload.docData.issuerBusinessNumber),
+      };
       this.resetDocFormsAndDrafts();
+      if (opts.openManualAllocation) {
+        this.router.navigate(
+          ['/book-keeping/incomes'],
+          { state: { autoOpenAllocationFor: pendingAllocationRow } },
+        );
+        return;
+      }
       this.router.navigate(['/book-keeping/incomes']);
     });
   }
