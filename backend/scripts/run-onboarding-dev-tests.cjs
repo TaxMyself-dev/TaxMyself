@@ -14,10 +14,13 @@ const selector = process.argv[3];
 if (
   process.argv[2] !== '--database=keepintax-dev' ||
   process.argv.length > 4 ||
-  (selector && !['--http-only', '--persistence-only'].includes(selector))
+  (selector &&
+    !['--http-only', '--persistence-only', '--short-answers-only'].includes(
+      selector,
+    ))
 )
   throw new Error(
-    'Use --database=keepintax-dev with optional --http-only or --persistence-only',
+    'Use --database=keepintax-dev with optional --http-only, --persistence-only or --short-answers-only',
   );
 developmentOptions({
   ...process.env,
@@ -29,7 +32,7 @@ mkdirSync(logs, { recursive: true });
 const files =
   selector === '--http-only'
     ? ['onboarding.http-mysql']
-    : selector === '--persistence-only'
+    : selector === '--persistence-only' || selector === '--short-answers-only'
     ? ['onboarding.mysql']
     : ['onboarding.mysql', 'onboarding.http-mysql'];
 let passed = 0;
@@ -48,6 +51,9 @@ for (const file of files) {
         '--runInBand',
         '--runTestsByPath',
         `src/agent-onboarding/${file}.spec.ts`,
+        ...(selector === '--short-answers-only'
+          ? ['--testNamePattern=persists the asked field']
+          : []),
         '--json',
         `--outputFile=${report}`,
       ],

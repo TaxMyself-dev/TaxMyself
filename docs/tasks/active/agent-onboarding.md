@@ -287,3 +287,39 @@ UI, extraction, storage, deletion, scope, API shape or DB schema.
   their inputs/behavior are unchanged. No app server, live-user action, main
   integration or remote push. Existing deletion verification remains separate.
 - Final backend npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts: exit 0, 35 passed, 0 skipped (31.3 seconds). Backend npm run build: exit 0. Tests, bounded model checks and build cover final executable inputs; only documentation changed afterward. Complete diff reviewed; git diff --check passed.
+
+
+## 2026-11-19 — Bind short answers to the actual question; inspect tracing
+
+Base 947cb11c, same feature worktree. User's car → no → no transcript showed an
+employees answer being treated as employment/deletion context. Code inspection
+found no persisted identity for the model's last question and question:null on
+ordinary requests, leaving the model to infer the meaning of a bare no from the
+whole mixed history. The evidence is the supplied transcript and code inspection,
+not a retrieved trace. Langfuse exists only in backend/agent's separate main-agent
+runtime; Nest onboarding uses raw fetch without that integration. No claim that
+the main-agent exporter is currently healthy, and no new tracing enabled here.
+
+Acceptance: the actual question identity survives commit/read; no about employees
+updates only employees and advances to partners, second no updates only partners;
+old salary/deletion context remains unchanged. Without a bound boolean question,
+ask for clarification rather than invent a fact. Preserve free narrative and
+explicit recall. No frontend/server startup or main/push changes.
+
+Implemented a structured nextField response, checked against missing basics. The
+server renders the canonical question and stores askedField in proposal JSON.
+Read joins the owner/business-scoped proposal for this marker. Short yes/no uses
+the verified pending question and fixed field scope, bypassing model inference.
+Long answers receive the actual last question plus answerField. Exact older
+canonical questions can be recovered; mismatched metadata or unbound short
+answers cannot alter employment. No schema/accounting change. This does not
+automatically repair earlier ambiguous facts in a real user's profile.
+
+Verification:
+- Backend npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts: final exit 0, 54 passed, 0 skipped, 17.3 seconds. Tests cover exclusive employees/partners targeting with stale employment history, no model calls for short answers, unbound-answer clarification and consistency of displayed question/field.
+- Initial approved MySQL suite executed 14 passing tests including the new persisted target test, but teardown failed because a new synthetic suffix short was outside the existing allowlist. Fixed the fixture to use already-allowed live; safeguards were not relaxed. Verified that the exact orphan cohort fell within that test report's UTC creation window, cleaned those four exact synthetic owners and verified zero remaining profile/proposal/change rows. The first manual cleanup connection used the TypeORM username option with mysql2 and was rejected before queries; corrected the adapter to mysql2 user. No real-user data was read/deleted.
+- The next broad MySQL run passed the new persisted-target case but had two unrelated 5-second timeouts (simultaneous confirmation and all-memory deletion), 12 passed/2 timed out; no assertions or timeouts were relaxed. Added --short-answers-only to the existing guarded runner to isolate the affected test; final focused result follows. Broad run evidence remains .test-tmp/onboarding-dev/onboarding.mysql-1795123783929.json (ignored), not a claimed full passing run.
+- The bounded car/no/no model diagnostic uses synthetic context including old corrected salary/deletion history. The car turn uses the real model; the two no turns update their bound fields without model calls. First diagnostic passed all three cases, then the acknowledgement prompt was aligned with the structured question contract and the same targeted cases rerun on final inputs. Final result follows.
+- No frontend checks or HTTP app server were run: frontend source is unchanged. No production access, real-user mutation, local main integration or remote push. Local feature commit only after final verification.
+- Final focused SQL command node backend/scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --short-answers-only: exit 0, 1 passed/13 deliberately skipped, exact synthetic cleanup verified zero rows (.test-tmp/onboarding-dev/onboarding.mysql-1795123894957.json). Final bounded model command node backend/scripts/onboarding-conversation-smoke.cjs --run-paid-short-answer-smoke: exit 0, all 3 cases passed; 4,595 input/117 output tokens. The car turn selected employees; subsequent no/no wrote employees/partners respectively, unchanged employment, no model calls for the short answers. Both focused runner scripts passed node --check. These are focused passing checks; the broad-suite timeout failures above are not reported as passing.
+- Final backend npm run build: exit 0. Complete diff reviewed and git diff --check passed. Final unit tests, model diagnostic, focused persistence regression and build share the same executable inputs; only documentation changed afterward. No frontend source change, app-server launch, main integration or push.

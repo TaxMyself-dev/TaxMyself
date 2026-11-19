@@ -74,4 +74,27 @@ describe('onboarding conversation model contract', () => {
     expect(result.reply).toContain('לסוכן הראשי');
     expect(result.reply).not.toContain('הגדרות');
   });
+  it('renders the selected canonical question and returns its matching field identity', async () => {
+    respond({ kind: 'conversation', reply: 'הבנתי.', nextField: 'employees' });
+    const result = await new OnboardingExtractor().respond('רכב פרטי גם בעסק', {
+      intent: 'share',
+      missingQuestions: [{ key: 'employees' }],
+    });
+    expect(result.askedField).toBe('employees');
+    expect(result.reply).toBe('הבנתי.\n\nהאם העסק מעסיק עובדים?');
+  });
+  it('cannot silently ask a different question than the stored field', async () => {
+    respond({
+      kind: 'conversation',
+      reply: 'האם אתה עובד כשכיר?',
+      nextField: 'employees',
+    });
+    const result = await new OnboardingExtractor().respond('רכב', {
+      intent: 'share',
+      missingQuestions: [{ key: 'employees' }],
+    });
+    expect(result.reply).not.toContain('שכיר');
+    expect(result.reply).toContain('מעסיק עובדים');
+    expect(result.askedField).toBe('employees');
+  });
 });

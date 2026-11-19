@@ -20,6 +20,7 @@ import {
   storyFromFacts,
   narrativeFromTurns,
   validateExtraction,
+  pendingBasicField,
 } from './onboarding.domain';
 
 const opening =
@@ -193,7 +194,7 @@ export class OnboardingService {
       [person.id, business.id],
     );
     const turns = await this.db.query(
-      `SELECT source_text,assistant_text,created_at FROM agent_onboarding_changes WHERE owner_uid=? AND business_number=? ORDER BY created_at,id`,
+      `SELECT c.source_text,c.assistant_text,c.created_at,JSON_UNQUOTE(JSON_EXTRACT(p.payload,'$.askedField')) AS asked_field FROM agent_onboarding_changes c LEFT JOIN agent_onboarding_proposals p ON p.id=c.proposal_id AND p.owner_uid=c.owner_uid AND p.business_number=c.business_number WHERE c.owner_uid=? AND c.business_number=? ORDER BY c.created_at,c.id`,
       [scope.owner, scope.business],
     );
     const fields = FIELDS.map((f) => {
@@ -235,6 +236,21 @@ export class OnboardingService {
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     let extracted: Extraction;
     const active = snapshot.facts.filter((f) => f.status === 'active');
+    const pending = pendingBasicField(snapshot);
+    const normalizedAnswer = message
+      .replace(/[.!?\s]+$/gu, '')
+      .trim()
+      .toLowerCase();
+    const isBooleanAnswer = ['כן', 'לא', 'yes', 'no'].includes(
+      normalizedAnswer,
+    );
+    const booleanFields = [
+      'employment',
+      'vehicle',
+      'employees',
+      'partners',
+      'international',
+    ];
     if (body.skipField) {
       const field = FIELDS.find((f) => f.key === body.skipField);
       if (
@@ -259,6 +275,33 @@ export class OnboardingService {
         ],
         clarification: null,
       };
+    } else if (isBooleanAnswer) {
+      if (pending && booleanFields.includes(pending.key)) {
+        const value = ['כן', 'yes'].includes(normalizedAnswer) ? 'כן' : 'לא';
+        extracted = {
+          intent: 'share',
+          clarification: null,
+          facts: [
+            {
+              field: pending.key,
+              scope: pending.scope,
+              statement: `${pending.label}: ${value}`,
+              value,
+              state: 'known',
+              replaces: null,
+              change: 'add',
+              effectiveDate: null,
+              precision: 'unknown',
+              evidence: message,
+            },
+          ],
+        };
+      } else
+        extracted = {
+          facts: [],
+          clarification:
+            'למה התכוונת בתשובה הזאת? אפשר לענות במשפט קצר כדי שאשייך אותה לפרט הנכון.',
+        };
     } else {
       if (!message || message.length > 12000)
         throw new BadRequestException('יש לכתוב עד 12000 תווים');
@@ -278,7 +321,12 @@ export class OnboardingService {
             history: snapshot.facts.filter((f) => f.status === 'superseded'),
             story: snapshot.story,
             turns: snapshot.turns.slice(-12),
-            question: guidedField?.question ?? null,
+            question:
+              guidedField?.question ??
+              pending?.question ??
+              snapshot.turns.at(-1)?.assistant_text ??
+              null,
+            answerField: guidedField?.key ?? pending?.key ?? null,
           }),
           message,
           new Set(snapshot.facts.map((f) => f.id)),
@@ -427,11 +475,17 @@ export class OnboardingService {
           : field;
       });
       const missingQuestions = fields.filter((f) => f.state === 'unasked');
-      if (extracted.intent === 'guidance' || extracted.intent === 'defer') {
-        const acknowledgement =
-          extracted.intent === 'defer'
-            ? 'אין בעיה, נשאיר את זה להמשך.'
-            : 'בשמחה, נתקדם בקצב שלך.';
+      if (
+        isBooleanAnswer ||
+        extracted.intent === 'guidance' ||
+        extracted.intent === 'defer'
+      ) {
+        const acknowledgement = isBooleanAnswer
+          ? 'הבנתי.'
+          : extracted.intent === 'defer'
+          ? 'אין בעיה, נשאיר את זה להמשך.'
+          : 'בשמחה, נתקדם בקצב שלך.';
+        extracted.askedField = missingQuestions[0]?.key ?? null;
         extracted.reply =
           acknowledgement +
           (extracted.intent === 'defer' && !extracted.facts.length
@@ -472,9 +526,11 @@ export class OnboardingService {
           turns: snapshot.turns.slice(-12),
         });
         extracted.reply = response.reply;
+        extracted.askedField = response.askedField ?? null;
         if (response.kind === 'off_topic') extracted.facts = [];
       }
     }
+    extracted.askedField ??= null;
     await this.scope(user, snapshot.businessNumber);
     const id = randomUUID();
     await this.db.query(

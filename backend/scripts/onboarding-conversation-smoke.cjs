@@ -3,9 +3,11 @@
 const path = require('node:path');
 const deletionOnly = process.argv[2] === '--run-paid-deletion-smoke';
 const recapOnly = process.argv[2] === '--run-paid-recap-smoke';
+const shortOnly = process.argv[2] === '--run-paid-short-answer-smoke';
 if (
   (!deletionOnly &&
     !recapOnly &&
+    !shortOnly &&
     process.argv[2] !== '--run-paid-model-smoke') ||
   process.argv.length !== 3
 )
@@ -78,6 +80,108 @@ async function ask(message, ctx = context) {
   );
 }
 (async () => {
+  if (shortOnly) {
+    const known = [
+      ['preferred_name', 'person', 'שמואל'],
+      ['employment', 'person', 'אינו שכיר'],
+      ['registration', 'business', 'עוסק פטור'],
+      ['activity', 'business', 'פיתוח תוכנה'],
+      ['business_stage', 'business', 'פעיל'],
+      ['workplace', 'business', 'בית'],
+    ];
+    for (const [field, scope, value] of known) {
+      context.activeFacts.push({
+        id: field,
+        field_key: field,
+        scope_kind: scope,
+        statement: value,
+        value_text: value,
+        status: 'active',
+      });
+      const entry = context.fields.find((f) => f.key === field);
+      entry.state = 'known';
+      entry.value = value;
+    }
+    context.fields.find((f) => f.key === 'current_need').state = 'skipped';
+    context.history = [
+      {
+        id: 'old-employment',
+        field_key: 'employment',
+        scope_kind: 'person',
+        statement: 'עובד כשכיר',
+        status: 'corrected',
+      },
+    ];
+    context.turns = [
+      {
+        source_text: 'תמחק את המידע עלי כשכיר',
+        assistant_text: 'המידע הקודם נמחק',
+      },
+      {
+        source_text: 'מהבית',
+        assistant_text: 'האם אתה משתמש ברכב לצורכי העסק?',
+        asked_field: 'vehicle',
+      },
+    ];
+    function apply(message, result) {
+      for (const fact of result.facts) {
+        if (fact.replaces)
+          context.activeFacts = context.activeFacts.filter(
+            (f) => f.id !== fact.replaces,
+          );
+        context.activeFacts.push({
+          id: 'new-' + fact.field,
+          field_key: fact.field,
+          scope_kind: fact.scope,
+          statement: fact.statement,
+          value_text: fact.value,
+          status: 'active',
+        });
+        const field = context.fields.find((f) => f.key === fact.field);
+        if (field) {
+          field.state = fact.state;
+          field.value = fact.value;
+        }
+      }
+      context.turns.push({
+        source_text: message,
+        assistant_text: result.reply,
+        asked_field: result.askedField,
+      });
+    }
+    const car = await ask('יש לי רכב לבית שמשמש אותי גם בעסק');
+    check(
+      'private-and-business-car-asks-workers',
+      car.facts.some((f) => f.field === 'vehicle') &&
+        car.askedField === 'employees',
+      car,
+    );
+    apply('יש לי רכב לבית שמשמש אותי גם בעסק', car);
+    const workers = await ask('לא');
+    check(
+      'no-means-no-employees',
+      workers.facts.length === 1 &&
+        workers.facts[0].field === 'employees' &&
+        workers.facts[0].value === 'לא' &&
+        workers.askedField === 'partners' &&
+        !/שכיר|נמחק|עצמאי בלבד/.test(workers.reply),
+      workers,
+    );
+    apply('לא', workers);
+    const partners = await ask('לא');
+    check(
+      'second-no-means-no-partners',
+      partners.facts.length === 1 &&
+        partners.facts[0].field === 'partners' &&
+        context.activeFacts.find((f) => f.field_key === 'employment')
+          .value_text === 'אינו שכיר' &&
+        !/שכיר|נמחק|עצמאי בלבד/.test(partners.reply),
+      partners,
+    );
+    console.log(JSON.stringify({ total: 3, failures, tokens }));
+    process.exitCode = failures ? 1 : 0;
+    return;
+  }
   if (recapOnly) {
     const known = [
       ['preferred_name', 'person', 'שמואל'],

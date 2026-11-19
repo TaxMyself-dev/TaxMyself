@@ -262,3 +262,35 @@ most one follow-up, without repeating the name, registration, activity or other
 previous facts. Explicit recall requests and the end summary remain exceptions.
 Targeted synthetic regression: node scripts/onboarding-conversation-smoke.cjs
 --run-paid-recap-smoke (three cases, no DB writes or application server).
+
+
+### Question identity and short answers
+
+The responder now selects a nextField separately from its acknowledgement. The
+server validates it against unanswered basics, renders the canonical question
+and persists askedField in the existing proposal JSON. Profile reads recover that
+identity with an owner/business-scoped join; no schema migration is needed.
+The displayed question must match its field. A stray model-written question in
+ordinary continuation is replaced by a neutral acknowledgement and the bound
+question. Guidance/deferral follow-ups carry the same metadata.
+
+Bare כן/לא (or yes/no) answers to a bound boolean basic question are recorded
+deterministically for that field only, without another model extraction or reply
+call. Old employment/deletion context cannot redirect an answer about employees.
+An unbound or non-boolean short answer asks for clarification and writes no fact.
+An older turn may recover only an exact canonical question; it is never guessed
+from unrelated past statements. Longer answers pass the actual question and its
+field explicitly to extraction. Existing version and transaction guards apply.
+
+Focused checks:
+- node scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --short-answers-only
+- node scripts/onboarding-conversation-smoke.cjs --run-paid-short-answer-smoke
+
+### Tracing status
+
+Onboarding calls OpenAI directly from OnboardingExtractor.complete and currently
+does NOT emit Langfuse traces. The integration in backend/agent belongs to the
+main-agent runtime and does not cover these Nest onboarding requests. Source
+turns, validated proposals and askedField are persisted, but historical model
+inputs/outputs cannot be retrieved from Langfuse for this flow. No tracing
+integration or remote export was enabled by the short-answer fix.

@@ -13,7 +13,7 @@ const {
 const approvedDev =
   process.env.ONBOARDING_APPROVED_DATABASE === 'keepintax-dev';
 const runId = randomUUID();
-const owners = ['alice', 'bob', 'seed'].map(
+const owners = ['alice', 'bob', 'seed', 'live'].map(
   (name) => `onboarding-qa-${runId}-${name}`,
 );
 const local = process.env.ONBOARDING_TEST_MYSQL_URL;
@@ -482,5 +482,83 @@ suite('onboarding transactional MySQL', () => {
     );
     expect(stored[0].applied_at).toBeTruthy();
     expect(stored[0].source_text).toBe('בקשת מחיקה מהזיכרון');
+  });
+  it('persists the asked field across reads and binds two successive no answers to employees then partners', async () => {
+    const owner = {
+      ...user,
+      firebaseId: owners[3],
+      actorFirebaseId: owners[3],
+    };
+    const scoped = new OnboardingService(
+      db,
+      { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
+      {
+        extract: async () => extraction,
+        respond: async () => ({
+          kind: 'conversation',
+          reply: 'הבנתי.\n\nהאם העסק מעסיק עובדים?',
+          askedField: 'employees',
+        }),
+      } as any,
+    );
+    let state = await scoped.read(owner, '111');
+    extraction = {
+      facts: [f('employment', 'person', 'אינו שכיר')],
+      clarification: null,
+      intent: 'share',
+    };
+    let proposal = await scoped.propose(owner, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'אינו שכיר',
+    });
+    state = await scoped.commit(owner, '111', proposal.id);
+    // Mark unrelated unanswered basics skipped, so the next target is partners.
+    const personal = Object.fromEntries(
+      ['preferred_name', 'current_need'].map((k) => [k, 'skipped']),
+    );
+    personal['employment'] = 'known';
+    const business = Object.fromEntries(
+      [
+        'activity',
+        'business_stage',
+        'registration',
+        'workplace',
+        'vehicle',
+      ].map((k) => [k, 'skipped']),
+    );
+    await db.query(
+      'UPDATE agent_onboarding_profiles SET field_states=? WHERE owner_uid=? AND scope_key=?',
+      [JSON.stringify(personal), owner.firebaseId, ''],
+    );
+    await db.query(
+      'UPDATE agent_onboarding_profiles SET field_states=? WHERE owner_uid=? AND scope_key=?',
+      [JSON.stringify(business), owner.firebaseId, '111'],
+    );
+    state = await scoped.read(owner, '111');
+    expect(state.turns.at(-1).asked_field).toBe('employees');
+    proposal = await scoped.propose(owner, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'לא',
+    });
+    expect(proposal.facts[0].field).toBe('employees');
+    state = await scoped.commit(owner, '111', proposal.id);
+    expect(state.turns.at(-1).asked_field).toBe('partners');
+    proposal = await scoped.propose(owner, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'לא',
+    });
+    expect(proposal.facts[0].field).toBe('partners');
+    state = await scoped.commit(owner, '111', proposal.id);
+    expect(state.fields.find((f) => f.key === 'employees')?.value).toBe('לא');
+    expect(state.fields.find((f) => f.key === 'partners')?.value).toBe('לא');
+    expect(state.fields.find((f) => f.key === 'employment')?.value).toBe(
+      'אינו שכיר',
+    );
+    expect(
+      state.facts.filter((f) => f.field_key === 'employment'),
+    ).toHaveLength(1);
   });
 });

@@ -567,4 +567,84 @@ describe('onboarding owner boundaries and proposals', () => {
       false,
     );
   });
+  it.each([
+    ['employees', 'האם העסק מעסיק עובדים?'],
+    ['partners', 'האם יש שותפים בעסק?'],
+  ])(
+    'binds a bare no exclusively to the last %s question despite stale salary history',
+    async (key, question) => {
+      jest.spyOn(service, 'read').mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        facts: [
+          {
+            id: 'salary',
+            field_key: 'employment',
+            scope_kind: 'person',
+            status: 'active',
+            value_text: 'לא',
+          },
+        ],
+        story: {},
+        fields: [
+          { key: 'employment', state: 'known' },
+          {
+            key: 'employees',
+            state: key === 'employees' ? 'unasked' : 'known',
+            question: 'האם העסק מעסיק עובדים?',
+          },
+          {
+            key: 'partners',
+            state: 'unasked',
+            question: 'האם יש שותפים בעסק?',
+          },
+        ],
+        turns: [
+          { source_text: 'מחיקה', assistant_text: 'המידע הקודם הוסר' },
+          { source_text: 'רכב', assistant_text: question, asked_field: key },
+        ],
+      } as any);
+      const result = await service.propose(user, {
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        message: 'לא',
+      });
+      expect(result.facts).toEqual([
+        expect.objectContaining({ field: key, value: 'לא', scope: 'business' }),
+      ]);
+      expect(result.reply).not.toMatch(/שכיר|עצמאי|נמחק/);
+      expect(extractor.extract).not.toHaveBeenCalled();
+      expect(extractor.respond).not.toHaveBeenCalled();
+      if (key === 'employees') {
+        expect(result.askedField).toBe('partners');
+        expect(result.reply).toContain('האם יש שותפים');
+      }
+    },
+  );
+  it('asks for context rather than assigning an unbound no to employment', async () => {
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        facts: [],
+        story: {},
+        fields: [],
+        turns: [
+          {
+            source_text: 'מחיקה',
+            assistant_text: 'מחקתי את המידע',
+            asked_field: null,
+          },
+        ],
+      } as any);
+    const result = await service.propose(user, {
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      message: 'לא',
+    });
+    expect(result.facts).toEqual([]);
+    expect(result.clarification).toContain('למה התכוונת');
+    expect(extractor.extract).not.toHaveBeenCalled();
+  });
 });
