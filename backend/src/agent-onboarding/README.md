@@ -252,3 +252,13 @@ remain unchanged. Check the effective flag and ports with the script's
 --print-config option; this never starts a server. Restarting an already-running
 backend remains the user's action. The screenshot's disabled-feature response
 is expected when the running backend has not received the enabled flag.
+
+### Ordinary replies versus recall
+
+Ordinary replies receive a separate newFacts delta alongside full background
+memory. Only that delta may be briefly acknowledged; prior facts guide the
+conversation silently. A short answer gets one or two short sentences and at
+most one follow-up, without repeating the name, registration, activity or other
+previous facts. Explicit recall requests and the end summary remain exceptions.
+Targeted synthetic regression: node scripts/onboarding-conversation-smoke.cjs
+--run-paid-recap-smoke (three cases, no DB writes or application server).

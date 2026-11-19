@@ -444,6 +444,7 @@ export class OnboardingService {
           intent: extracted.intent,
           fields,
           currentFacts,
+          newFacts: extracted.facts,
           sourceNarrative: snapshot.story.narrative,
           history: snapshot.facts
             .filter((f) => f.status !== 'active' || replacements.has(f.id))

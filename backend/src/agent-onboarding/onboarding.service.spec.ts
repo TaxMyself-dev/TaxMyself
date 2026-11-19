@@ -362,6 +362,9 @@ describe('onboarding owner boundaries and proposals', () => {
     expect(context.fields[0].state).toBe('known');
     expect(context.missingQuestions.map((f) => f.key)).toEqual(['activity']);
     expect(context.currentFacts[0].value_text).toBe('שמואל');
+    expect(context.newFacts).toEqual([
+      expect.objectContaining({ field: 'preferred_name', value: 'שמואל' }),
+    ]);
   });
 
   it.each(['guidance', 'recall', 'off_topic', 'defer'])(
@@ -417,18 +420,16 @@ describe('onboarding owner boundaries and proposals', () => {
   it.each(['forget_all', 'forget_facts'])(
     'prepares %s as erasure, not as a correction or an off-topic request',
     async (intent) => {
-      jest
-        .spyOn(service, 'read')
-        .mockResolvedValue({
-          businessNumber: '111',
-          version: { person: 1, business: 1 },
-          facts: [
-            { id: 'employment', status: 'active', field_key: 'employment' },
-          ],
-          fields: [],
-          story: {},
-          turns: [],
-        } as any);
+      jest.spyOn(service, 'read').mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        facts: [
+          { id: 'employment', status: 'active', field_key: 'employment' },
+        ],
+        fields: [],
+        story: {},
+        turns: [],
+      } as any);
       extractor.extract.mockResolvedValue({
         facts: [],
         clarification: null,
@@ -446,16 +447,14 @@ describe('onboarding owner boundaries and proposals', () => {
     },
   );
   it('asks which detail to erase when the deletion target is unclear', async () => {
-    jest
-      .spyOn(service, 'read')
-      .mockResolvedValue({
-        businessNumber: '111',
-        version: { person: 1, business: 1 },
-        facts: [],
-        fields: [],
-        story: {},
-        turns: [],
-      } as any);
+    jest.spyOn(service, 'read').mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      facts: [],
+      fields: [],
+      story: {},
+      turns: [],
+    } as any);
     extractor.extract.mockResolvedValue({
       facts: [],
       clarification: null,
@@ -515,5 +514,57 @@ describe('onboarding owner boundaries and proposals', () => {
       sql.startsWith('INSERT INTO agent_onboarding_changes'),
     );
     expect(receipt?.[1]?.[3]).toBe('בקשת מחיקה מהזיכרון');
+  });
+  it('separates a short new workplace answer from older profile facts for the responder', async () => {
+    const previous = {
+      id: 'name',
+      status: 'active',
+      field_key: 'preferred_name',
+      scope_kind: 'person',
+      statement: 'קוראים לך שמואל',
+      value_text: 'שמואל',
+    };
+    jest.spyOn(service, 'read').mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      facts: [previous],
+      story: {},
+      turns: [{ source_text: 'שלום', assistant_text: 'מאיפה אתה עובד?' }],
+      fields: [
+        { key: 'preferred_name', state: 'known', value: 'שמואל' },
+        { key: 'workplace', state: 'unasked' },
+      ],
+    } as any);
+    extractor.extract.mockResolvedValue({
+      intent: 'share',
+      facts: [
+        {
+          field: 'workplace',
+          scope: 'business',
+          statement: 'עובד מהבית',
+          value: 'בית',
+          state: 'known',
+          replaces: null,
+          change: 'add',
+          effectiveDate: null,
+          precision: 'unknown',
+          evidence: 'מהבית',
+          workplaceModes: ['home'],
+        },
+      ],
+      clarification: null,
+    });
+    await service.propose(user, {
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      message: 'מהבית',
+    });
+    const context = extractor.respond.mock.calls[0][1];
+    expect(context.newFacts).toHaveLength(1);
+    expect(context.newFacts[0].field).toBe('workplace');
+    expect(context.currentFacts).toContainEqual(previous);
+    expect(context.newFacts.some((f) => f.field === 'preferred_name')).toBe(
+      false,
+    );
   });
 });

@@ -2,8 +2,11 @@
 // Synthetic, read-only model diagnostics. No database or application server.
 const path = require('node:path');
 const deletionOnly = process.argv[2] === '--run-paid-deletion-smoke';
+const recapOnly = process.argv[2] === '--run-paid-recap-smoke';
 if (
-  (!deletionOnly && process.argv[2] !== '--run-paid-model-smoke') ||
+  (!deletionOnly &&
+    !recapOnly &&
+    process.argv[2] !== '--run-paid-model-smoke') ||
   process.argv.length !== 3
 )
   throw new Error(
@@ -75,6 +78,72 @@ async function ask(message, ctx = context) {
   );
 }
 (async () => {
+  if (recapOnly) {
+    const known = [
+      ['preferred_name', 'person', 'שמואל'],
+      ['registration', 'business', 'עוסק פטור'],
+      ['activity', 'business', 'פיתוח תוכנה'],
+      ['business_stage', 'business', 'פעיל'],
+      ['employment', 'person', 'אינו שכיר'],
+    ];
+    for (const [field, scope, value] of known) {
+      context.activeFacts.push({
+        id: field,
+        field_key: field,
+        scope_kind: scope,
+        statement: value,
+        value_text: value,
+        status: 'active',
+      });
+      const entry = context.fields.find((f) => f.key === field);
+      entry.state = 'known';
+      entry.value = value;
+    }
+    context.turns = [
+      { source_text: 'שלום', assistant_text: 'מאיפה אתה עובד בדרך כלל?' },
+    ];
+    const home = await ask('מהבית');
+    check(
+      'home-answer-no-old-profile-recap',
+      home.facts.some((f) => f.field === 'workplace') &&
+        !/פטור|תוכנה|שכיר|העסק פעיל|שמואל/.test(home.reply),
+      home.reply,
+    );
+    const fact = home.facts.find((f) => f.field === 'workplace');
+    context.activeFacts.push({
+      id: 'workplace',
+      field_key: 'workplace',
+      scope_kind: 'business',
+      statement: fact.statement,
+      value_text: fact.value,
+      status: 'active',
+    });
+    const workplace = context.fields.find((f) => f.key === 'workplace');
+    workplace.state = 'known';
+    workplace.value = fact.value;
+    context.turns.push({ source_text: 'מהבית', assistant_text: home.reply });
+    context.turns.push({
+      source_text: 'תמשיך',
+      assistant_text: 'האם העסק מעסיק עובדים?',
+    });
+    const employees = await ask('אין לי עובדים');
+    check(
+      'employees-answer-no-old-profile-recap',
+      !/פטור|תוכנה|שכיר|מהבית|שמואל/.test(employees.reply),
+      employees.reply,
+    );
+    const recall = await ask('מה אתה כבר יודע עלי?');
+    check(
+      'explicit-recall-still-answers-profile',
+      recall.intent === 'recall' &&
+        /שמואל/.test(recall.reply) &&
+        /תוכנה/.test(recall.reply),
+      recall.reply,
+    );
+    console.log(JSON.stringify({ total: 3, failures, tokens }));
+    process.exitCode = failures ? 1 : 0;
+    return;
+  }
   if (deletionOnly) {
     context.activeFacts.push({
       id: 'employment',

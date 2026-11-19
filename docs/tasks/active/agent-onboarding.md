@@ -258,3 +258,32 @@ Verification:
 - Test doubles for the existing HTTP-MySQL and persistence suites now implement the separate respond stage introduced in the prior change. No app server or HTTP suite was started in this follow-up. Only exact synthetic test owners were written in the already authorized keepintax-dev database. No real-user deletion, production access, main integration or push.
 - Persistence repeat: the same guarded --persistence-only command passed all 13 tests, 0 failed/0 skipped, with unchanged timeouts/assertions and no competing compilers. Guarded cleanup verified zero rows for the exact synthetic owners. Evidence: .test-tmp/onboarding-dev/onboarding.mysql-1795122124119.json (ignored). The first failure remains recorded above; no executable changes occurred between runs. Final build results are appended after completion.
 - Final backend npm run build and frontend npm run build -- --configuration production both exited 0 on the final executable inputs. Existing unrelated style-budget, CommonJS and 3.21 MB initial-bundle warnings remain. No executable change followed the passing unit/UI/real-model/persistence checks. Full diff reviewed and git diff --check passed; no main integration, remote push or application-server launch.
+
+## 2026-11-19 — Stop per-message profile recaps
+
+Base 04309b39, same feature worktree. The screenshot showed the responder reciting
+registration/activity/employment again after a one-word workplace answer. Existing
+instructions said not to summarize repeatedly, but the model received the entire
+updated profile without a separately identified new-message delta.
+
+Acceptance: ordinary continuation acknowledges at most the new detail and asks
+one useful follow-up, with no restatement of prior unrelated profile facts;
+explicit recall and the end summary still work. The service now supplies newFacts
+separately from currentFacts/background. The response contract explicitly scopes
+ordinary acknowledgements to that delta, with positive/negative continuation
+examples. Full context remains available for relevance and recall. No change to
+UI, extraction, storage, deletion, scope, API shape or DB schema.
+
+- node backend/scripts/onboarding-conversation-smoke.cjs --run-paid-recap-smoke:
+  exit 0, three targeted cases passed through the real propose service with mock
+  writes. Home reply: הבנתי, אתה עובד מהבית. האם אתה משתמש ברכב לצורכי העסק?
+  No-employees reply: הבנתי שאין לך עובדים. האם יש שותפים בעסק?
+  Explicit recall still included the known name/business information. 12,988
+  input tokens, 297 output tokens. No broader paid suite was repeated.
+- Focused service tests verify that newFacts includes only the workplace answer
+  while old name data remains available in currentFacts; the existing new-answer
+  context regression also checks the delta. Final test/build results follow.
+- Frontend checks, MySQL and HTTP persistence checks were not repeated because
+  their inputs/behavior are unchanged. No app server, live-user action, main
+  integration or remote push. Existing deletion verification remains separate.
+- Final backend npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts: exit 0, 35 passed, 0 skipped (31.3 seconds). Backend npm run build: exit 0. Tests, bounded model checks and build cover final executable inputs; only documentation changed afterward. Complete diff reviewed; git diff --check passed.
