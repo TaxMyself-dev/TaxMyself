@@ -91,11 +91,27 @@ describe('pending allocation completion choice', () => {
 
     page.chooseManualAllocation();
 
+    // PrimeNG emits onHide for the method dialog after it is hidden by the
+    // selection handler. This must not clear the row now owned by the manual
+    // allocation dialog.
+    page.cancelAllocationMethodDialog();
+
     expect(page.showAllocationMethodDialog()).toBeFalse();
     expect(page.showAllocationInputDialog()).toBeTrue();
     expect(page.pendingFinalizeRow()).toBe(row);
     expect(page.documentsService.getDocLines).toHaveBeenCalledOnceWith('123456789', '30199');
     expect(page.manualAllocationItemDescription()).toBe('שירותי ייעוץ | ליווי מקצועי');
+  });
+
+  it('clears the selected row when the method dialog is explicitly dismissed', () => {
+    const page = setup();
+    page.pendingFinalizeRow.set({ docNumber: '30199' });
+    page.showAllocationMethodDialog.set(true);
+
+    page.cancelAllocationMethodDialog();
+
+    expect(page.showAllocationMethodDialog()).toBeFalse();
+    expect(page.pendingFinalizeRow()).toBeNull();
   });
 
   it('keeps the manual dialog usable when loading line descriptions fails', () => {

@@ -16,6 +16,9 @@ white action button in this allocation-completion flow uses the shared
 shows the portal-ready request type, reference number, customer identifier,
 date, pre-VAT amount, VAT amount and line descriptions as selectable read-only
 fields, so the user does not need to open the pending document/PDF.
+The method-choice dialog's `onHide` must preserve `pendingFinalizeRow` while
+the manual allocation dialog is open; PrimeNG also emits that event for the
+programmatic hide that occurs during the transition.
 
 ## Key entities/files
 - `book-keeping.page.ts` — `BookKeepingPage`; renders the current PrimeNG `Tabs` navigation for child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL. Do not reintroduce deprecated `TabMenu`: in PrimeNG 19 it collides with legacy `TabView` dynamic styles under the shared `tabs` style key.

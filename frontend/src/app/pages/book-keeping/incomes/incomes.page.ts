@@ -490,6 +490,10 @@ export class IncomesPage implements OnInit {
 
   cancelAllocationMethodDialog(): void {
     this.showAllocationMethodDialog.set(false);
+    // PrimeNG emits onHide when the method dialog is closed programmatically.
+    // During the manual transition the input dialog already owns this row, so
+    // clearing it here would hide all of the document details in that dialog.
+    if (this.showAllocationInputDialog()) return;
     this.pendingFinalizeRow.set(null);
   }
 
