@@ -91,6 +91,7 @@ export const GmailKeywordMatchSource = {
   BODY: 'body',
   PDF_CONTENT: 'pdf-content',
   AI_REVIEW: 'ai-review',
+  PASSWORD_REQUIRED: 'password-required',
 } as const;
 
 export type GmailKeywordMatchSource =

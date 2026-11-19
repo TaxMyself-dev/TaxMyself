@@ -1,0 +1,3 @@
+# Protected PDF lifecycle
+
+Owns durable password-required documents and explicit replacement operations. Feature defaults off. No database, Drive or AI operations while disabled. Never store passwords. All operations are scoped to effective owner and business; audit actor separately. Original files remain retained in blocked storage. Replacement files stay in staging until a committed linkage and outbox delivery. Preserve existing imported-document dedup/provenance. Only owned, tagged uploads may be recovered; no filename/hash-based replacement association. Schema application, live imports/AI, production, main integration, push and deploy need separate explicit authorization.

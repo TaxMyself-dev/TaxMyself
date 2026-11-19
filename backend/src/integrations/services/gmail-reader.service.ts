@@ -406,10 +406,14 @@ export class GmailReaderService {
       const decision = decideEmailIntake({ keyword: !!matchedBy, pdf: extraction, bytes: content.length,
         aiEnabled: process.env.GMAIL_AI_REVIEW_ENABLED === 'true', remaining: alreadyImported ? 1 : aiBudget.remaining });
       if (decision.kind === 'review_required') {
+        if (extraction?.outcome === 'PASSWORD_REQUIRED' && process.env.PROTECTED_PDF_ENABLED === 'true') {
+          matchedBy = GmailKeywordMatchSource.PASSWORD_REQUIRED;
+        } else {
         reviewRequired++;
         // Kept in the source mailbox; importer persists an incomplete run and does not advance its cursor.
         skip(filename, GmailSkipReason.REVIEW_REQUIRED);
         continue;
+        }
       }
       if (decision.kind === 'ai_review') {
         matchedBy = GmailKeywordMatchSource.AI_REVIEW;

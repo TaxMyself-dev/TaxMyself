@@ -25,6 +25,9 @@
     <!-- רשימת חשבונות מחוברים -->
     @for (account of syncState.accounts(); track account.id) {
       <div class="gmail-card">
+        @if (account.passwordRequiredCount) {
+          <p role="status">{{ account.passwordRequiredCount }} מסמכים דורשים סיסמה. ניתן להעלות עותק פתוח מתוך רשימת מסמכי העסק.</p>
+        }
         <p class="gmail-account">
           @if (account.connected) {
             חשבון מחובר: <strong>{{ account.accountEmail }}</strong>

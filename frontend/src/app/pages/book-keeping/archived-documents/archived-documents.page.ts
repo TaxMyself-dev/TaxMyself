@@ -1,3 +1,4 @@
+import { ProtectedPdfUploadFlow } from 'src/app/services/protected-pdf-upload';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { Component, DestroyRef, OnInit, computed, signal, inject } from '@angular/core';
 import { of, timer } from 'rxjs';
@@ -19,6 +20,7 @@ import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
+  PASSWORD_REQUIRED: 'נדרשת סיסמה',
   DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
@@ -71,6 +73,47 @@ const TRANSACTION_TYPE_LABEL = 'הוצאה';
   standalone: false
 })
 export class ArchivedDocumentsPage implements OnInit {
+  readonly replacementFlow = new ProtectedPdfUploadFlow();
+  readonly protectedReplacement = this.replacementFlow.document;
+  readonly replacementBusy = this.replacementFlow.busy;
+  readonly protectedHistory = signal<any | null>(null);
+  get replacementFile(): File | null { return this.replacementFlow.file; }
+  get replacementConfirmed(): boolean { return this.replacementFlow.confirmed; }
+  set replacementConfirmed(value: boolean) { this.replacementFlow.confirmed = value; }
+  get replacementError(): string { return this.replacementFlow.error; }
+
+  protectedOperationLabel(upload?: string, processing?: string): string {
+    if (processing === 'SUCCEEDED') return 'העיבוד הושלם';
+    if (processing === 'FAILED') return 'העותק נשמר, אך עיבודו נכשל';
+    if (upload === 'DELIVERY_FAILED') return 'העותק נשמר; העברתו לעיבוד לא הושלמה';
+    if (upload === 'QUEUED') return 'העותק נשמר וממתין לעיבוד';
+    if (upload === 'UPLOAD_FAILED') return 'ההעלאה לא הושלמה; המקור נשמר';
+    if (upload === 'RESERVED') return 'העלאת העותק טרם הושלמה';
+    return 'העותק נשמר וממתין להעברה לעיבוד';
+  }
+
+  openProtectedReplacement(row: ArchivedItem): void {
+    this.replacementFlow.open(row, this.selectedBusinessNumber());
+  }
+  selectOpenCopy(event: Event): void {
+    this.replacementFlow.select((event.target as HTMLInputElement).files?.[0]);
+  }
+  submitOpenCopy(): void {
+    this.replacementFlow.submit(request => this.driveDocsService.replaceProtectedPdf(request.documentId, request.businessNumber, request.file, request.key, request.confirmed), () => {
+      this.messageService.add({ severity: 'success', summary: 'העותק נשמר', detail: 'העותק הפתוח נשמר וממתין לעיבוד. המקור נשמר בהיסטוריה.', key: 'br' });
+      this.fetchArchivedItems(this.selectedBusinessNumber());
+    });
+  }
+  showProtectedHistory(row: ArchivedItem): void {
+    if (!row.protectedDocumentId) return;
+    this.driveDocsService.protectedPdfHistory(row.protectedDocumentId, this.selectedBusinessNumber())
+      .subscribe({ next: history => this.protectedHistory.set(history), error: () => this.messageService.add({ severity: 'error', summary: 'לא ניתן להציג היסטוריה', key: 'br' }) });
+  }
+  retryProtectedDelivery(row: ArchivedItem): void {
+    if (!row.protectedDocumentId || !row.canRetryDelivery) return;
+    this.driveDocsService.retryProtectedDelivery(row.protectedDocumentId, this.selectedBusinessNumber())
+      .subscribe({ next: () => this.fetchArchivedItems(this.selectedBusinessNumber()), error: () => this.messageService.add({ severity: 'error', summary: 'לא ניתן לחדש את ההעברה לעיבוד', key: 'br' }) });
+  }
 
   // ===========================
   // Inject services
@@ -186,7 +229,11 @@ export class ArchivedDocumentsPage implements OnInit {
         sourceIconUrl: sourceIcon?.iconUrl ?? null,
         statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
           ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
-        statusDetail: item.status === 'REJECTED'
+        statusDetail: item.status === 'PASSWORD_REQUIRED'
+          ? 'נדרש עותק PDF שניתן לפתוח ללא סיסמה. המקור נשמר.'
+          : item.protectedDocumentId && item.replacementUploadStatus
+          ? this.protectedOperationLabel(item.replacementUploadStatus, item.replacementProcessingStatus)
+          : item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
           : item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
             ? 'ה־AI לא הצליח להכריע אם זהו מסמך חשבונאי. הקובץ נשמר לבדיקה.'
@@ -211,6 +258,7 @@ export class ArchivedDocumentsPage implements OnInit {
   filterConfig: FilterField[] = [];
 
   private readonly statusOptions: ISelectItem[] = [
+    { name: ARCHIVE_STATUS_LABELS.PASSWORD_REQUIRED, value: 'PASSWORD_REQUIRED' },
     { name: 'הכל', value: 'ACTIVE' },
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
     { name: ARCHIVE_STATUS_LABELS.FILED_ANNUAL, value: 'FILED_ANNUAL' },
@@ -370,6 +418,15 @@ export class ArchivedDocumentsPage implements OnInit {
 
   private setFileActions(): void {
     this.fileActions.set([
+      { name: 'upload-open-copy', desktopDisplay: 'icon', icon: 'pi pi-lock-open', title: 'העלה עותק ללא הגנה',
+        showWhen: row => !!(row as any).canUploadOpenCopy,
+        action: (_event, row) => this.openProtectedReplacement(row as unknown as ArchivedItem) },
+      { name: 'protected-history', desktopDisplay: 'icon', icon: 'pi pi-history', title: 'היסטוריית גרסאות',
+        showWhen: row => !!(row as any).protectedDocumentId && !!(row as any).canManageExpenses,
+        action: (_event, row) => this.showProtectedHistory(row as unknown as ArchivedItem) },
+      { name: 'retry-protected-delivery', desktopDisplay: 'icon', icon: 'pi pi-refresh', title: 'נסה שוב להעביר לעיבוד',
+        showWhen: row => !!(row as any).canRetryDelivery,
+        action: (_event, row) => this.retryProtectedDelivery(row as unknown as ArchivedItem) },
       {
         name: 'approve-expense',
         desktopDisplay: 'icon',
@@ -421,6 +478,7 @@ export class ArchivedDocumentsPage implements OnInit {
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status !== 'DELETED'
           && (row as any).status !== 'APPROVED'
+          && !((row as any).protectedDocumentId && Number(row.id) < 0)
           && !!(row as any).canManageExpenses
           && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {

@@ -2942,3 +2942,71 @@ ALTER TABLE user_integrations
 ALTER TABLE oauth_states
   ADD COLUMN connected_account_id VARCHAR(255) NULL,
   ADD COLUMN target_integration_id INT NULL;
+
+-- Protected PDF lifecycle: PREPARED ONLY, separate execution approval required (2026-11-19).
+-- Prepared only. DO NOT apply without explicit DEV schema approval.
+-- No ALTER of existing columns: sidecar tables keep disabled application paths compatible.
+CREATE TABLE protected_documents (
+ id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ original_import_id INT NULL,
+ original_drive_id VARCHAR(255) NULL,
+ filename VARCHAR(512) NOT NULL,
+ source VARCHAR(32) NOT NULL,
+ metadata_json JSON NOT NULL,
+ integration_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'IMPORTING',
+ current_operation_id CHAR(36) NULL,
+ version INT NOT NULL DEFAULT 0,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ recovery_attempts INT NOT NULL DEFAULT 0,
+ recovery_next_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_protected_owner_content(firebase_id,business_number,content_hash),
+ UNIQUE KEY ux_protected_original_import(original_import_id),
+ KEY ix_protected_business(firebase_id,business_number,status),
+ KEY ix_protected_integration(firebase_id,integration_id,status),
+ CONSTRAINT fk_protected_original_import FOREIGN KEY(original_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE document_replacement_operations (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ protected_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ actor_id VARCHAR(255) NOT NULL,
+ idempotency_key VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ filename VARCHAR(512) NOT NULL,
+ size INT NOT NULL,
+ candidate_drive_id VARCHAR(255) NULL,
+ replacement_import_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',
+ processing_status VARCHAR(32) NOT NULL DEFAULT 'NOT_STARTED',
+ expected_version INT NOT NULL,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ attempts INT NOT NULL DEFAULT 0,
+ next_attempt_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_replacement_request(protected_id,idempotency_key),
+ UNIQUE KEY ux_replacement_import(replacement_import_id),
+ KEY ix_replacement_outbox(status,next_attempt_at,lease_expires_at),
+ KEY ix_replacement_processing(status,processing_status,updated_at),
+ CONSTRAINT fk_replacement_protected FOREIGN KEY(protected_id) REFERENCES protected_documents(id),
+ CONSTRAINT fk_replacement_import FOREIGN KEY(replacement_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE protected_pdf_import_runs (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ integration_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ summary_json JSON NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ KEY ix_protected_run_owner(firebase_id,integration_id,created_at)
+) ENGINE=InnoDB;

@@ -42,10 +42,12 @@ import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
 import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
 import { InboxOcrCronService } from './inbox-ocr-cron.service';
+import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 
 
 @Module({
   imports: [
+    ProtectedPdfModule,
     IdentityImagesModule,
     TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument, ShaamInvoiceAllocationAttempt]),
     MailModule,

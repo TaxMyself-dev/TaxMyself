@@ -179,12 +179,14 @@ export class GmailIntegrationComponent implements OnInit {
         this.importDialogVisible.set(false);
         const failed = result.perAccount.filter((a) => a.error);
         const reviewRequired = result.perAccount.reduce((total, account) => total + (account.reviewRequired || 0), 0);
+        const passwordRequired = result.perAccount.reduce((total, account) => total + (account.passwordRequired || 0), 0);
         const filtered = result.perAccount.reduce((total, account) => total + (account.filteredAttachments || 0), 0);
         this.messageService.add({
           severity: failed.length > 0 ? 'warn' : 'success',
           summary: 'ייבוא הושלם',
           detail:
             `יובאו ${result.totalImported} מסמכים חדשים` +
+            (passwordRequired ? `; ${passwordRequired} מסמכים דורשים סיסמה ונשמרו לטיפול במסמכי העסק` : '') +
             `; ${result.totalAlreadyImported} כבר קיימים; ${result.totalSkipped} דולגו בעת קליטה` +
             `; ${filtered} סוננו לפני קליטה` +
             (reviewRequired ? `; ${reviewRequired} קבצים דורשים בדיקה ולא סומנו כלא רלוונטיים` : '') +

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { PdfInspectionService } from '../protected-pdf/pdf-inspection.service';
 import Anthropic from '@anthropic-ai/sdk';
 import { EmailAiDecision, parseEmailAiOutcome } from './email-ai-outcome';
 
@@ -206,6 +207,7 @@ export interface ProcessOutcome {
 
 @Injectable()
 export class DocumentProcessorService {
+  constructor(@Optional() private readonly pdfInspection?: PdfInspectionService) {}
   private readonly logger = new Logger(DocumentProcessorService.name);
   private client: Anthropic | null = null;
 
@@ -229,6 +231,11 @@ export class DocumentProcessorService {
     catalog: CatalogEntry[] = [],
     emailIntakeReview = false,
   ): Promise<ProcessOutcome> {
+    if (process.env.PROTECTED_PDF_ENABLED === 'true' && mimeType === 'application/pdf') {
+      if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
+      const result = await this.pdfInspection.inspect(fileBuffer);
+      if (result.kind !== 'readable') throw new BadRequestException({ code: result.kind === 'password_required' ? 'PASSWORD_REQUIRED' : result.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF cannot be sent for processing' });
+    }
     const client = this.getClient();
     const base64 = fileBuffer.toString('base64');
     const catalogBlock = buildCatalogBlock(catalog);

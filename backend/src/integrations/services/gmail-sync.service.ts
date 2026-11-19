@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
@@ -20,6 +21,7 @@ import {
 } from '../utils/gmail-sync-logging.util';
 import { GmailDriveImportService, GmailImportResult } from './gmail-drive-import.service';
 import { UserIntegrationsService } from './user-integrations.service';
+import { ProtectedPdfService } from '../../protected-pdf/protected-pdf.service';
 
 /** All user-facing date boundaries are computed on Israel's calendar day. */
 const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
@@ -54,6 +56,7 @@ interface GmailSyncRunContext {
 
 /** Per-connected-mailbox sync state, one entry per Google integration row. */
 export interface GmailAccountSyncStatus {
+  passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
   /** Integration status — ACTIVE or EXPIRED (REVOKED accounts are excluded). */
@@ -93,6 +96,7 @@ export class GmailSyncService {
   constructor(
     private readonly userIntegrationsService: UserIntegrationsService,
     private readonly gmailDriveImportService: GmailDriveImportService,
+    @Optional() private readonly protectedPdf?: ProtectedPdfService,
   ) {}
 
   // --- Date boundaries -------------------------------------------------------
@@ -126,11 +130,14 @@ export class GmailSyncService {
       IntegrationProvider.GOOGLE,
     );
 
+    const passwordCounts = this.protectedPdf?.enabled()
+      ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
     return {
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
         id: integration.id,
+        passwordRequiredCount: passwordCounts.get(integration.id) || 0,
         accountEmail: integration.accountEmail,
         status: integration.status,
         connected: integration.status === IntegrationStatus.ACTIVE,

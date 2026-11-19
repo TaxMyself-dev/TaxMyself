@@ -10,6 +10,7 @@ export type GmailIntegrationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
 
 /** מצב סנכרון של חשבון Gmail בודד (שורה אחת מתוך user_integrations). */
 export interface GmailAccountSyncStatus {
+  passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
   /** ACTIVE או EXPIRED בלבד — חשבונות שנותקו (REVOKED) לא מוחזרים. */
@@ -36,6 +37,7 @@ export interface GmailSyncStatus {
 
 /** תוצאת ייבוא מהחשבונות שנבחרו (POST integrations/google/gmail/import). */
 export interface GmailAccountImportResult {
+  passwordRequired?: number;
   filteredAttachments?: number;
   reviewRequired?: number;
   aiReviewQueued?: number;

@@ -32,6 +32,7 @@ export interface GmailImportFileResult {
 }
 
 export interface GmailImportResult {
+  passwordRequired?: number;
   filteredAttachments?: number;
   reviewRequired?: number;
   aiReviewQueued?: number;
@@ -57,6 +58,7 @@ export interface GmailImportResult {
 
 /** One connected mailbox's outcome inside a user-level "import all" run. */
 export interface GmailAccountImportResult {
+  passwordRequired?: number;
   filteredAttachments?: number;
   reviewRequired?: number;
   aiReviewQueued?: number;
@@ -185,6 +187,7 @@ export class GmailDriveImportService {
         account.attachmentsFound = result.attachmentsFound;
         account.messagesFound = result.messagesFound;
         account.messagesFailed = result.messagesFailed;
+        account.passwordRequired = result.passwordRequired || 0;
         account.filteredAttachments = result.filteredAttachments || 0;
         account.reviewRequired = result.reviewRequired || 0;
         account.aiReviewQueued = result.aiReviewQueued || 0;
@@ -243,6 +246,7 @@ export class GmailDriveImportService {
       query,
       messagesFound: 0,
       reviewRequired: 0,
+      passwordRequired: 0,
       filteredAttachments: 0,
       aiReviewQueued: 0,
       messagesFailed: 0,
@@ -293,6 +297,7 @@ export class GmailDriveImportService {
             mimeType: attachment.mimeType,
             content: attachment.content,
             metadata: {
+              integrationId: integration.id,
               gmailMessageId: attachment.messageId,
               gmailThreadId: attachment.threadId,
               gmailAttachmentId: attachment.attachmentId,
@@ -321,6 +326,7 @@ export class GmailDriveImportService {
         if (imported.status === 'IMPORTED') result.imported += 1;
         else if (imported.status === 'ALREADY_IMPORTED') result.alreadyImported += 1;
         else result.skipped += 1;
+        if (imported.passwordRequired) result.passwordRequired++;
       }
 
       if (result.messagesFound % LOG_PROGRESS_EVERY_MESSAGES === 0) {
@@ -340,6 +346,9 @@ export class GmailDriveImportService {
         `${result.matchedByPdfContent} matched on PDF text, ` +
         `${result.messagesFound} messages, ${result.messagesFailed} failed)`,
     );
+    if (process.env.PROTECTED_PDF_ENABLED === 'true') {
+      await this.documentImportService.recordProtectedRun(firebaseId, integration.id, { messagesFound: result.messagesFound, messagesFailed: result.messagesFailed, passwordRequired: result.passwordRequired, imported: result.imported, alreadyImported: result.alreadyImported, skipped: result.skipped, filteredAttachments: result.filteredAttachments, aiReviewQueued: result.aiReviewQueued, reviewRequired: result.reviewRequired });
+    }
     return result;
   }
 }

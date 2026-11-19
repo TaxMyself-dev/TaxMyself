@@ -1,4 +1,6 @@
 import { measurePdfStage } from './pdf/pdf-diagnostics';
+import { ProtectedPdfService } from '../protected-pdf/protected-pdf.service';
+import { Optional } from '@nestjs/common';
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
@@ -21,7 +23,39 @@ import { AllowRepresentedClientOperation } from 'src/decorators/allow-represente
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
+    @Optional() private readonly protectedPdf?: ProtectedPdfService,
   ) { }
+
+  @Post('me/protected/:documentId/replacement')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024, files: 1 } }))
+  async replaceProtectedPdf(@Req() request: AuthenticatedRequest, @Param('documentId', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { businessNumber?: string; idempotencyKey?: string; confirmed?: string }) {
+    const owner = request.user?.firebaseId;
+    if (!owner || !this.protectedPdf) throw new BadRequestException('Protected document handling unavailable');
+    return this.protectedPdf.replace(owner, request.user.actorFirebaseId || owner, body?.businessNumber?.trim(), id, body?.idempotencyKey, body?.confirmed === 'true', file);
+  }
+
+  @Get('me/protected/:documentId/history')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
+  async protectedPdfHistory(@Req() request: AuthenticatedRequest, @Param('documentId', ParseIntPipe) id: number,
+    @Query('businessNumber') business: string) {
+    if (!request.user?.firebaseId || !this.protectedPdf) throw new BadRequestException('Protected document handling unavailable');
+    return this.protectedPdf.history(request.user.firebaseId, business?.trim(), id);
+  }
+
+  @Post('me/protected/:documentId/retry-delivery')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
+  async retryProtectedDelivery(@Req() request: AuthenticatedRequest, @Param('documentId', ParseIntPipe) id: number,
+    @Body() body: { businessNumber?: string }) {
+    if (!request.user?.firebaseId || !this.protectedPdf) throw new BadRequestException('Protected document handling unavailable');
+    await this.protectedPdf.retryDelivery(request.user.firebaseId, body?.businessNumber?.trim(), id);
+    return { queued: true };
+  }
 
 
   @Get('get-docs')

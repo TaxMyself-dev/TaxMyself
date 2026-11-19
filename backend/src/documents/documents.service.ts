@@ -1,6 +1,7 @@
 import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
-import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
+import { ProtectedPdfService } from '../protected-pdf/protected-pdf.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository, In, Not, IsNull } from 'typeorm';
 import { SettingDocuments } from './settingDocuments.entity';
@@ -212,6 +213,7 @@ export class DocumentsService {
     private readonly documentPdfRenderer: DocumentPdfRenderer,
     private readonly fillFasterSigner: FillFasterSigner,
     private readonly imageStorage: ImageStorageService,
+    @Optional() private readonly protectedPdf?: ProtectedPdfService,
   ) { }
 
   isIncrement: boolean = false;
@@ -3153,6 +3155,21 @@ ${finalOwnerName}`;
       let ocrClaim: ExtractedDocument | null = null;
       try {
         const buffer = await this.googleDriveService.downloadFile(file.id);
+        if (this.protectedPdf?.enabled() && file.mimeType === 'application/pdf'
+          && (await this.protectedPdf.inspection.inspect(buffer)).kind === 'password_required') {
+          const prior = importRows.find(row => row.driveFileId === file.id);
+          const stored = await this.protectedPdf.storeLocked({ firebaseId, businessNumber, filename: file.name, content: buffer,
+            source: prior?.source || DocumentImportSource.MANUAL_UPLOAD,
+            metadata: prior ? { gmailMessageId: prior.gmailMessageId, gmailThreadId: prior.gmailThreadId, gmailAttachmentId: prior.gmailAttachmentId,
+              gmailSubject: prior.gmailSubject, gmailFrom: prior.gmailFrom, gmailDate: prior.gmailDate } : {} });
+          if (stored.driveFileId !== file.id) {
+            const selected = await this.protectedPdf.business(firebaseId, businessNumber);
+            const blocked = await this.googleDriveService.ensureProtectedFolders(selected.driveFolderId);
+            await this.googleDriveService.moveFile(file.id, inboxFolderId, blocked.blocked);
+          }
+          skipped++;
+          continue;
+        }
         // Persist the unique (drive_file_id, sub_index=0) claim BEFORE the
         // paid provider call. A crash or unknown provider outcome therefore
         // leaves a row that every future sweep treats as already handled.
@@ -3795,15 +3812,25 @@ ${finalOwnerName}`;
     firebaseId: string,
     businessNumber: string,
     files: { buffer: Buffer; originalname: string; mimetype: string }[],
-  ): Promise<{ fileId: string; fileName: string }[]> {
+  ): Promise<{ fileId: string; fileName: string; passwordRequired?: boolean }[]> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
     const inboxFolderId = business.driveInboxFolderId!;
 
-    const uploaded: { fileId: string; fileName: string }[] = [];
+    const uploaded: { fileId: string; fileName: string; passwordRequired?: boolean }[] = [];
     for (const file of files) {
       this.assertAllowedInboxUploadFile(file);
+      if (this.protectedPdf?.enabled() && file.mimetype === 'application/pdf') {
+        const inspection = await this.protectedPdf.inspection.inspect(file.buffer);
+        if (inspection.kind === 'password_required') {
+          const stored = await this.protectedPdf.storeLocked({ firebaseId, businessNumber, filename: file.originalname,
+            content: file.buffer, source: DocumentImportSource.MANUAL_UPLOAD });
+          uploaded.push({ fileId: stored.driveFileId, fileName: stored.driveFileName, passwordRequired: true });
+          continue;
+        }
+        if (inspection.kind !== 'readable') throw new BadRequestException({ code: inspection.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF could not be validated' });
+      }
       const fileId = await this.googleDriveService.uploadFile(
         inboxFolderId,
         file.originalname,
@@ -3815,7 +3842,7 @@ ${finalOwnerName}`;
     // User-facing Drive uploads should become archive rows immediately,
     // independently of report navigation. The distributed lock keeps this
     // safe if the periodic inbox sweep or another request is already running.
-    void this.processInboxForUser(firebaseId, businessNumber).catch((error: any) => {
+    if (uploaded.some(file => !file.passwordRequired)) void this.processInboxForUser(firebaseId, businessNumber).catch((error: any) => {
       this.logger.warn(
         `Immediate Drive upload OCR failed for biz=${businessNumber}: ${error?.message ?? error}`,
       );
@@ -4262,7 +4289,11 @@ ${finalOwnerName}`;
       };
     });
 
-    return [...docItems, ...pendingInboxItems, ...txItems, ...pendingTransactionItems].sort((a, b) => {
+    const archiveItems = [...docItems, ...pendingInboxItems, ...txItems, ...pendingTransactionItems];
+    const visibleItems = this.protectedPdf?.enabled()
+      ? await this.protectedPdf.decorateArchive(firebaseId, businessNumber, archiveItems, canManageExpenses)
+      : archiveItems;
+    return visibleItems.sort((a, b) => {
       const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;

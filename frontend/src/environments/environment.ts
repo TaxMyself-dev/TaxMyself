@@ -7,7 +7,7 @@ export const environment = {
   production: false,
   enableDevTools: true,
   requireMfa: false,
-  apiUrl: 'http://localhost:3002/',
+  apiUrl: 'http://localhost:3003/',
   firebase: {
     apiKey: "AIzaSyClSnN3fRAb9aQVt2kMEkLygsNExwQD7fo",
     authDomain: "taxmyself-5d8a0.firebaseapp.com",

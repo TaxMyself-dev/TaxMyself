@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 // External entities needed for FirebaseAuthGuard dependencies
@@ -32,6 +33,7 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
  */
 @Module({
   imports: [
+    ProtectedPdfModule,
     TypeOrmModule.forFeature([
       UserIntegration,
       OauthState,
