@@ -43,7 +43,7 @@
                 [buttonColor]="buttonColor.BLACK" (onButtonClicked)="chooseAutomaticAllocation()">
             </app-p-button>
             <app-p-button [buttonText]="'הפק מספר הקצאה באופן ידני'" [buttonSize]="buttonSize.AUTO"
-                [buttonColor]="buttonColor.WHITE" (onButtonClicked)="chooseManualAllocation()">
+                [buttonColor]="buttonColor.WHITE_BORDER" (onButtonClicked)="chooseManualAllocation()">
             </app-p-button>
         </div>
     </div>
@@ -87,7 +87,7 @@
                 [(ngModel)]="allocationInputValue" placeholder="הזן מספר הקצאה" style="width: 100%;">
         </div>
         <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
-            <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.WHITE"
+            <app-p-button [buttonText]="'ביטול'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.WHITE_BORDER"
                 (onButtonClicked)="cancelAllocationInputDialog()">
             </app-p-button>
             <app-p-button [buttonText]="'הפק'" [buttonSize]="buttonSize.AUTO" [buttonColor]="buttonColor.BLACK"
