@@ -30,7 +30,7 @@ Authority form, without opening the pending document or PDF.
 - Result: The manual-allocation dialog now exposes portal-ready, selectable
   document values and loads line descriptions without making that load a
   prerequisite for entering an allocation number.
-- Commit hash(es): pending
+- Commit hash(es): `9d2d7688`
 - Tests and exact results:
   - Focused Karma spec `incomes-shaam-confirmation.spec.ts`: `7 SUCCESS`.
   - Angular production build: passed (existing bundle/style/CommonJS warnings only).
