@@ -23,6 +23,12 @@
 @if (showTopNav()) {
   <app-p-topNav [menuItems]="menuItems()" [isAdmin]="realUserIsAdmin()" contentId="main-content"></app-p-topNav>
 }
+  @if(authService.currentUser(); as owner){
+    @if(!onboardingClientId()){
+      <app-onboarding-invitation [apiUrl]="onboardingApiUrl" [ownerUid]="owner.uid" [sessionId]="owner.metadata.lastSignInTime || ''" [allowPopup]="allowOnboardingPopup()" />
+    }
+  }
+
 <div class="app-content">
   <p-confirmdialog></p-confirmdialog>
 

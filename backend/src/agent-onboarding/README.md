@@ -2,8 +2,7 @@
 
 ## Behavior
 
-The development agent page offers a first-visit dialog and a permanent link to
-`/dev/agent/onboarding`. The new page supports free narrative, guided questions,
+The normal authenticated application shell offers an incomplete-onboarding dialog and a permanent owner-only navigation link to `/agent/onboarding`. `/dev/agent/onboarding` redirects to that canonical route for existing links. The new page supports free narrative, guided questions,
 explicit skips, a preview before saving, current stories, basic field status,
 history, corrections and scoped forgetting. Multi-business users choose an owned
 business explicitly. The field list is the initial configurable implementation
@@ -94,8 +93,7 @@ AGENT_ONBOARDING_MODEL defaults to gpt-4.1-mini. No key is committed.
 
 Build backend, backend/agent and frontend independently using npm. Use a distinct
 frontend/backend port pair for this feature checkout; the page accepts the same
-validated localhost `?api=` override as the development agent. Production builds
-keep both development routes disabled. Background accounting reviews are not
+validated localhost `?api=` override as the development agent. The development chat route remains feature-gated; the canonical onboarding route is part of normal authenticated application routing. Background accounting reviews are not
 implemented by this feature.
 
 ## Verification
@@ -154,3 +152,31 @@ The auth-token verifier and account directory are fixtures; a real browser login
 against Firebase is not claimed by these HTTP tests. Main integration and push
 remain explicitly prohibited. See the active feature task for exact commands,
 reports, intermediate failures, fixes and reused build evidence.
+
+## Ordinary application entry
+
+The shell mounts the invitation outside the routed content flex container. It
+waits for authentication, startup loading, billing resolution and other visible
+banking/consent dialogs. It never opens on auth, billing, MFA, onboarding or dev
+chat screens, and is absent while acting for a represented client. Pending
+requests are cancelled when the owner context changes or the component leaves.
+
+GET businesses now reports onboardingStatus and missingCount for each owned
+business from personal plus business field states. A complete first business
+does not hide an incomplete second one. No profile is created by this check.
+Unknown, skipped and not-applicable answers continue to count as answered.
+
+The invitation appears at most once for each owner and Firebase sign-in session
+in the browser tab. Later closes it immediately even when the optional backend
+deferral request fails. A new sign-in can offer unfinished onboarding again;
+the menu link always lets the owner resume. Server invitation metadata alone
+does not permanently suppress an unfinished profile.
+
+For an opt-in local worktree, ignored .local-ai-dev/ports.json may contain the
+boolean onboardingEnabled. backend/scripts/start-watch.js reads it and passes
+AGENT_ONBOARDING_ENABLED to the child without modifying backend/.env. Explicit
+process configuration takes priority. With no local setting, existing defaults
+remain unchanged. Check the effective flag and ports with the script's
+--print-config option; this never starts a server. Restarting an already-running
+backend remains the user's action. The screenshot's disabled-feature response
+is expected when the running backend has not received the enabled flag.

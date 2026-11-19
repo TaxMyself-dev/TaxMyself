@@ -1,3 +1,4 @@
+import { FIELDS } from './onboarding.domain';
 import { OnboardingService } from './onboarding.service';
 const user = {
   actorFirebaseId: 'owner',
@@ -134,7 +135,9 @@ describe('onboarding owner boundaries and proposals', () => {
     expect(manager.query).toHaveBeenCalledTimes(2);
   });
   it('uses the owner invitation state for all business choices', async () => {
-    db.query.mockResolvedValue([{ invitation: 'deferred' }]);
+    db.query.mockResolvedValue([
+      { scope_key: '', field_states: {}, invitation: 'deferred' },
+    ]);
     const choices = await service.businesses(user);
     expect(choices[0].invitation).toBe('deferred');
     expect(db.query.mock.calls[0][1]).toEqual(['owner']);
@@ -162,18 +165,16 @@ describe('onboarding owner boundaries and proposals', () => {
     expect(manager.query).toHaveBeenCalledTimes(2);
   });
   it('keeps invalid model facts out while preserving the source and asking a missing question', async () => {
-    jest
-      .spyOn(service, 'read')
-      .mockResolvedValue({
-        businessNumber: '111',
-        version: { person: 0, business: 0 },
-        facts: [],
-        fields: [
-          { key: 'activity', state: 'unasked', question: 'מה העסק עושה?' },
-        ],
-        story: {},
-        turns: [],
-      } as any);
+    jest.spyOn(service, 'read').mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 0, business: 0 },
+      facts: [],
+      fields: [
+        { key: 'activity', state: 'unasked', question: 'מה העסק עושה?' },
+      ],
+      story: {},
+      turns: [],
+    } as any);
     extractor.extract.mockResolvedValue({
       facts: [
         {
@@ -192,5 +193,42 @@ describe('onboarding owner boundaries and proposals', () => {
     expect(proposal.facts).toEqual([]);
     expect(proposal.clarification).toBe('מה העסק עושה?');
     expect(db.query.mock.calls[0][1][6]).toBe('אני מתכנן סניף חדש');
+  });
+  it('identifies an incomplete business independently of the shared invitation status', async () => {
+    domain.ownerBusinesses.mockResolvedValue([
+      { businessNumber: '111' },
+      { businessNumber: '222' },
+    ]);
+    const person = Object.fromEntries(
+      FIELDS.filter((f) => f.scope === 'person').map((f) => [f.key, 'known']),
+    );
+    const complete = Object.fromEntries(
+      FIELDS.filter((f) => f.scope === 'business').map((f) => [f.key, 'known']),
+    );
+    db.query.mockResolvedValue([
+      {
+        scope_key: '',
+        field_states: JSON.stringify(person),
+        invitation: 'completed',
+      },
+      { scope_key: '111', field_states: complete },
+      { scope_key: '222', field_states: { registration: 'known' } },
+    ]);
+    const choices = await service.businesses(user);
+    expect(choices[0]).toMatchObject({
+      onboardingStatus: 'completed',
+      missingCount: 0,
+    });
+    expect(choices[1].onboardingStatus).toBe('in_progress');
+    expect(choices[1].missingCount).toBeGreaterThan(0);
+  });
+  it('marks an owner with no stored profile as not started without writing data', async () => {
+    db.query.mockResolvedValue([]);
+    const choices = await service.businesses(user);
+    expect(choices[0]).toMatchObject({
+      onboardingStatus: 'not_started',
+      missingCount: FIELDS.length,
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 });

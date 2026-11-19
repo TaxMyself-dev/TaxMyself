@@ -1,4 +1,3 @@
-import { OnboardingInvitationComponent } from '../agent-onboarding/onboarding-invitation.component';
 import { devAgentApprovalView } from './dev-agent-chat-parts';
 import { CommonModule } from '@angular/common';
 import { classificationCard, classificationApprovalDecision, ClassificationCard } from './classification-card';
@@ -78,7 +77,7 @@ const examplePrompts = [
 @Component({
   selector: 'app-dev-agent',
   standalone: true,
-  imports: [CommonModule, FormsModule, OnboardingInvitationComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './dev-agent.page.html',
   styleUrls: ['./dev-agent.page.scss'],
 })

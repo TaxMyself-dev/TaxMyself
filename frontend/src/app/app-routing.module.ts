@@ -21,11 +21,13 @@ import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agen
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
+  {path:'agent/onboarding',canActivate:[AuthGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
+  {path:'dev/agent/onboarding',redirectTo:'agent/onboarding',pathMatch:'full'},
   // The AI agent's test page (backend/agent), only where the environment
   // turns it on (local development and dev-cloud); never in production builds.
   // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
   ...(devAgentRouteEnabled()
-    ? [{ path: 'dev/agent/onboarding', canActivate: [AuthGuard], loadComponent: () => import('./pages/agent-onboarding/onboarding.page').then(m => m.OnboardingPage) }, {
+    ? [{
         path: DEV_AGENT_PATH,
         canActivate: [AuthGuard],
         loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),

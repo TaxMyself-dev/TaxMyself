@@ -131,3 +131,42 @@ ChromeHeadless. Feature activation still uses the documented opt-in flag; no
 existing server was restarted and no deployment ran.
 Local main integration and remote push remain separate, unapproved gates.
 Automated development tests are not Elazar's manual main verification.
+
+
+## Normal application entry follow-up
+
+User authorized connecting onboarding to ordinary application entry, with an
+incomplete-profile popup and permanent resume link, in the same worktree.
+Explicit boundaries: do not start application servers, integrate main or push.
+
+Added the canonical AuthGuard-protected /agent/onboarding route and a legacy
+redirect. The normal app menu includes the owner-only resume link. The shell
+hosts one invitation, outside its routed flex layout; the old dev-page host was
+removed. It waits for startup/billing and existing overlays, cancels stale owner
+requests and is hidden during represented-client access. A per-owner, per-sign-in
+sessionStorage marker prevents repeated invitations on every navigation. The
+server computes completion per business, independent of shared invitation state.
+
+The screenshot showed AGENT_ONBOARDING_ENABLED being absent/false in the running
+backend. Added a tested optional boolean in the existing ignored local port
+configuration, consumed by the canonical watch launcher. The dry run confirms
+onboarding enabled on backend 3004 and frontend 4204 with API target 3004. No
+existing .env was overwritten. An already-running backend must be restarted by
+the user to receive the new flag. No application server was started or stopped.
+
+Verification is recorded below when the final focused checks finish. No schema,
+accounting, authentication or delegation policy change; no live DB verification
+was repeated for this shell/status-only change. Previous persistence evidence
+remains documented separately.
+
+### Final ordinary-entry verification
+
+- Backend `npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts`: exit 0, 29 passed, 0 skipped. Covers completion of separate owned businesses even when the shared invitation is already completed.
+- Backend `npm run build`: exit 0. No backend code changed after this check.
+- `node --test backend/scripts/local-onboarding-config.test.cjs`: exit 0, 4 passed; unset local config preserves defaults, local true enables, process override wins and invalid local flags fail closed.
+- `node backend/scripts/start-watch.js --print-config`: backendPort 3004, synchronize false, onboardingEnabled true, ignored local config. `node frontend/scripts/start-local.js --print-config`: frontendPort 4204, backendPort 3004, apiUrl http://127.0.0.1:3004/. These commands were configuration-only; no application server was started.
+- Frontend `npm --prefix frontend test -- --watch=false --browsers=ChromeHeadless --include=src/app/pages/agent-onboarding/*.spec.ts --ts-config=tsconfig.onboarding-spec.json`: exit 0, 20 passed on final tests. Covers normal owner entry, partial completion, a second incomplete business, completed users, per-login dismissal, cancellation on owner change, disabled/offline behavior, navigation eligibility and waiting for another visible dialog.
+- The overlay test initially waited only for Angular stability and checked before the native MutationObserver event. Reviewed the failure; changed the test to wait for the actual dialog open attribute, without changing the UI requirement or increasing a timeout. All 20 then passed. The final production frontend build preceded only this test-only adjustment; executable inputs remained unchanged.
+- Frontend `npm run build -- --configuration production`: exit 0 on final executable source. Existing-file style budgets, CommonJS notices and the initial 3.21 MB bundle warning remain. No unrelated cleanup or full legacy frontend suite was attempted.
+- No application server, real-user browser login, paid model eval or live database test was started in this follow-up. Test-runner browser infrastructure is separate from application development servers. No schema or accounting data change.
+- The canonical route is /agent/onboarding and the regular menu label is ההיכרות שלי עם הסוכן. The old /dev/agent/onboarding URL redirects, preserving existing links. Main integration and push remain prohibited.

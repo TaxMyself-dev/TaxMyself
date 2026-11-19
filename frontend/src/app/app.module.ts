@@ -1,3 +1,4 @@
+import { OnboardingInvitationComponent } from './pages/agent-onboarding/onboarding-invitation.component';
 import { BankingToastContentComponent } from './components/open-banking-management/banking-toast-content.component';
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
@@ -63,6 +64,7 @@ import { PwaBannersComponent } from './components/pwa-banners/pwa-banners.compon
     UpgradeRequiredDialogComponent,
     PwaBannersComponent,
     BankingToastContentComponent,
+    OnboardingInvitationComponent,
 ],
   providers: [
     providePrimeNG({theme: {preset: Aura}}),

@@ -70,16 +70,37 @@ export class OnboardingService {
     )
       throw new ForbiddenException();
     const directory = await this.domain.ownerBusinesses(user);
-    const personal = await this.db.query(
-      "SELECT invitation FROM agent_onboarding_profiles WHERE owner_uid=? AND scope_key=''",
+    const profiles = await this.db.query(
+      'SELECT scope_key,field_states,invitation FROM agent_onboarding_profiles WHERE owner_uid=?',
       [user.firebaseId],
     );
-    return directory.map((b) => ({
-      number: b.businessNumber,
-      name: b.businessName || b.businessNumber,
-      invitation: personal[0]?.invitation ?? 'new',
-    }));
+    const personal = profiles.find((p) => p.scope_key === '');
+    const personalStates = personal
+      ? decode<Record<string, string>>(personal.field_states)
+      : {};
+    return directory.map((b) => {
+      const business = profiles.find((p) => p.scope_key === b.businessNumber);
+      const businessStates = business
+        ? decode<Record<string, string>>(business.field_states)
+        : {};
+      const missing = FIELDS.filter(
+        (f) => !(f.scope === 'person' ? personalStates : businessStates)[f.key],
+      );
+      return {
+        number: b.businessNumber,
+        name: b.businessName || b.businessNumber,
+        invitation: personal?.invitation ?? 'new',
+        onboardingStatus:
+          missing.length === 0
+            ? 'completed'
+            : business || personal
+            ? 'in_progress'
+            : 'not_started',
+        missingCount: missing.length,
+      };
+    });
   }
+
   private async profiles(
     manager: EntityManager,
     owner: string,
