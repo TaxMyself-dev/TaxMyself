@@ -1,6 +1,6 @@
 # KT-120 - Manual allocation from document creation
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt120-worker`
@@ -38,8 +38,13 @@ same manual-allocation route as the incomes page.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `9dde9e6b` (feature commit `903318c9`)
+- Combined verification: one isolated manual-action Karma test passed
+  (`1 SUCCESS`), followed by a passing Angular production build with existing
+  budget/CommonJS warnings. No other test suites ran.
+- `origin/main` verification: local `main`, tracking `origin/main` and remote
+  `refs/heads/main` all resolved to `9dde9e6b` after the code push.
+- User-visible run instructions: refresh/restart the frontend, create an invoice
+  that requires allocation and choose the new manual action. This Git push is
+  not a production deployment.

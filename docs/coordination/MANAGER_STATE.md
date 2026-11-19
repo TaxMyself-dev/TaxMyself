@@ -529,3 +529,15 @@ reached `origin/main` at `38326e0e`. Only the focused allocation-flow Karma
 spec ran (8 tests), followed by the Angular production build; both passed. No
 backend, schema, database, accounting, authorization, Tax Authority write,
 production change or deployment occurred.
+
+## KT-120 manual allocation during document creation — 2026-11-19
+
+The mandatory allocation decision on the document-creation page now includes a
+bordered white "הפק מספר הקצאה באופן ידני" action. It persists the numbered
+`PENDING_ALLOCATION` document and journal entry, then navigates with the saved
+document snapshot so the existing populated manual-allocation dialog opens on
+the incomes page. Feature commit `903318c9` reached `origin/main` at
+`9dde9e6b`. Verification was intentionally minimal: one isolated Karma test and
+the Angular production build passed; no other suites ran. No backend, schema,
+database, accounting-rule, authorization, Tax Authority write, production
+change or deployment occurred.
