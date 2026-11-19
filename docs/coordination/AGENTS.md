@@ -31,6 +31,12 @@ prefix rather than a full PowerShell command containing changing paths, hashes,
 messages, or file lists; the exact rules and incident-report format are in
 `WORKFLOW.md` under Technical permission discipline.
 
+Quality verification is risk-based. `QUALITY_GATES.md` defines explicit tiers
+for documentation, local presentation, component behavior, shared UI,
+frontend services/state/routing, backend behavior, and shared infrastructure.
+Managers select the smallest test set capable of detecting the staged change
+and do not use an umbrella suite as the default for local HTML/CSS edits.
+
 ## Editing ownership
 
 - Workers edit task-local code and the nearest topic `AGENTS.md` only when the
