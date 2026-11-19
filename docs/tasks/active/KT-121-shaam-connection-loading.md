@@ -29,7 +29,7 @@ check through the allocation request instead of leaving an unexplained blank int
 
 - Result: Automatic allocation now shows one continuous modal that changes from
   connection checking to allocation issuance and closes on terminal outcomes.
-- Commit hash(es): pending
+- Commit hash(es): `1fe8a9cc`
 - Tests and exact results:
   - Isolated `doc-create-shaam-loading.spec.ts`: `2 SUCCESS`.
   - Angular production build: passed (existing budget/CommonJS warnings only).
