@@ -92,12 +92,6 @@ export class OnboardingPage implements OnInit {
   readonly ButtonColor = ButtonColor;
   readonly summaryText = signal("");
   readonly summarizing = signal(false);
-  get placeholder() {
-    const prompt = this.currentPrompt;
-    return this.snapshot()?.turns.length && prompt.length < 180
-      ? prompt
-      : "אפשר להמשיך לספר, לשאול מה אני זוכר או לבקש הכוונה…";
-  }
   onComposerKeydown(event: KeyboardEvent) {
     if (
       event.key !== "Enter" ||
@@ -148,10 +142,6 @@ export class OnboardingPage implements OnInit {
   draft = "";
   get nextField() {
     return this.snapshot()?.fields.find((f) => f.state === "unasked");
-  }
-  get currentPrompt() {
-    const s = this.snapshot();
-    return s?.turns.at(-1)?.assistant_text ?? s?.opening ?? "";
   }
   displayField(field: Field) {
     if (!field.value) return this.label(field.state);

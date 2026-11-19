@@ -24,12 +24,10 @@ describe('onboarding owner boundaries and proposals', () => {
     extractor = {
       extract: jest.fn(),
       summarize: jest.fn(),
-      respond: jest
-        .fn()
-        .mockResolvedValue({
-          kind: 'conversation',
-          reply: 'נעים להכיר. אפשר להמשיך לספר.',
-        }),
+      respond: jest.fn().mockResolvedValue({
+        kind: 'conversation',
+        reply: 'נעים להכיר. אפשר להמשיך לספר.',
+      }),
     };
     service = new OnboardingService(db, domain, extractor);
   });
@@ -124,7 +122,7 @@ describe('onboarding owner boundaries and proposals', () => {
     db.transaction.mockImplementation((work) => work(manager));
     await expect(service.commit(user, '111', 'missing')).rejects.toThrow();
     expect(manager.query.mock.calls[0][0]).toContain('FOR UPDATE');
-    expect(manager.query.mock.calls[0][1]).toEqual(['owner', '', '111']);
+    expect(manager.query.mock.calls[0][1]).toEqual(['owner']);
     expect(manager.query.mock.calls[1][1]).toEqual(['missing', 'owner', '111']);
     expect(manager.query).toHaveBeenCalledTimes(2);
   });
@@ -304,14 +302,12 @@ describe('onboarding owner boundaries and proposals', () => {
       { statement: 'עובד במשרד', status: 'active' },
       { statement: 'עבד מהבית', status: 'superseded' },
     ];
-    jest
-      .spyOn(service, 'read')
-      .mockResolvedValue({
-        version: { person: 2, business: 1 },
-        fields: [],
-        facts,
-        story: { narrative: 'תוכנית לקורס' },
-      } as any);
+    jest.spyOn(service, 'read').mockResolvedValue({
+      version: { person: 2, business: 1 },
+      fields: [],
+      facts,
+      story: { narrative: 'תוכנית לקורס' },
+    } as any);
     extractor.summarize.mockResolvedValue('אתה עובד במשרד ומתכנן קורס.');
     expect(
       await service.summarize(user, '111', { person: 2, business: 1 }),
@@ -418,4 +414,106 @@ describe('onboarding owner boundaries and proposals', () => {
       else expect(extractor.respond).not.toHaveBeenCalled();
     },
   );
+  it.each(['forget_all', 'forget_facts'])(
+    'prepares %s as erasure, not as a correction or an off-topic request',
+    async (intent) => {
+      jest
+        .spyOn(service, 'read')
+        .mockResolvedValue({
+          businessNumber: '111',
+          version: { person: 1, business: 1 },
+          facts: [
+            { id: 'employment', status: 'active', field_key: 'employment' },
+          ],
+          fields: [],
+          story: {},
+          turns: [],
+        } as any);
+      extractor.extract.mockResolvedValue({
+        facts: [],
+        clarification: null,
+        intent,
+        forgetIds: intent === 'forget_all' ? [] : ['employment'],
+      });
+      const result = await service.propose(user, {
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        message: 'תמחק את המידע עלי',
+      });
+      expect(result.facts).toEqual([]);
+      expect(result.reply).toContain('מחקתי');
+      expect(extractor.respond).not.toHaveBeenCalled();
+    },
+  );
+  it('asks which detail to erase when the deletion target is unclear', async () => {
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 1, business: 1 },
+        facts: [],
+        fields: [],
+        story: {},
+        turns: [],
+      } as any);
+    extractor.extract.mockResolvedValue({
+      facts: [],
+      clarification: null,
+      intent: 'forget_facts',
+      forgetIds: [],
+    });
+    const result = await service.propose(user, {
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      message: 'תשכח מזה',
+    });
+    expect(result.reply).toContain('איזה פרט');
+    expect(result.facts).toEqual([]);
+  });
+  it('erases all owned onboarding memory atomically while retaining only a retry receipt', async () => {
+    const manager = {
+      query: jest.fn(async (sql: string, _params?: unknown[]) => {
+        if (sql.includes('TIMESTAMPDIFF'))
+          return [
+            {
+              base_person_version: 1,
+              base_business_version: 1,
+              age_seconds: 0,
+              source_text: 'private',
+              payload: {
+                facts: [],
+                clarification: null,
+                intent: 'forget_all',
+                reply: 'מחקתי',
+              },
+            },
+          ];
+        if (sql.startsWith('SELECT * FROM agent_onboarding_profiles'))
+          return [
+            { id: 'p', scope_key: '', version: 1, field_states: {} },
+            { id: 'b', scope_key: '111', version: 1, field_states: {} },
+          ];
+        return [];
+      }),
+    };
+    db.transaction.mockImplementation((work) => work(manager));
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({ version: { person: 2, business: 2 } } as any);
+    await service.commit(user, '111', 'deletion');
+    const deletes = manager.query.mock.calls.filter(([sql]) =>
+      sql.startsWith('DELETE'),
+    );
+    expect(deletes.length).toBe(4);
+    for (const [, params] of deletes) expect(params?.[0]).toBe('owner');
+    expect(
+      manager.query.mock.calls.some(([sql]) =>
+        sql.startsWith('INSERT INTO agent_onboarding_facts'),
+      ),
+    ).toBe(false);
+    const receipt = manager.query.mock.calls.find(([sql]) =>
+      sql.startsWith('INSERT INTO agent_onboarding_changes'),
+    );
+    expect(receipt?.[1]?.[3]).toBe('בקשת מחיקה מהזיכרון');
+  });
 });

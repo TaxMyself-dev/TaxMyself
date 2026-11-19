@@ -76,6 +76,11 @@ suite('onboarding HTTP and approved development MySQL', () => {
         {
           provide: OnboardingExtractor,
           useValue: {
+            respond: async (message, context) =>
+              live
+                ? realExtractor.respond(message, context)
+                : { kind: 'conversation', reply: 'תשובת בדיקה' },
+            summarize: (context) => realExtractor.summarize(context),
             extract: async (message, context) => {
               if (!live) return extraction;
               const output = await realExtractor.extract(message, context);

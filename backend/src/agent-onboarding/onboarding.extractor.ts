@@ -6,10 +6,10 @@ import {
 } from './onboarding.domain';
 
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
-const schema = (sourceIds: string[]) => ({
+const schema = (sourceIds: string[], factIds: string[]) => ({
   type: 'object',
   additionalProperties: false,
-  required: ['facts', 'clarification', 'intent', 'deferredField'],
+  required: ['facts', 'clarification', 'intent', 'deferredField', 'forgetIds'],
   properties: {
     clarification: nullableString,
     intent: {
@@ -21,7 +21,16 @@ const schema = (sourceIds: string[]) => ({
         'defer',
         'off_topic',
         'onboarding_question',
+        'forget_all',
+        'forget_facts',
       ],
+    },
+    forgetIds: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: factIds.length ? factIds : ['no-saved-fact'],
+      },
     },
     deferredField: {
       anyOf: [
@@ -153,9 +162,19 @@ export class OnboardingExtractor {
     }).format(new Date());
     const sources = evidenceSources(message);
     const result = await this.complete(
-      schema(sources.map((s) => s.id)),
+      schema(
+        sources.map((s) => s.id),
+        [
+          ...((context as any)?.activeFacts ?? []),
+          ...((context as any)?.history ?? []),
+        ].map((f) => f.id),
+      ),
       `Classify the NEW message's intent first, then extract evidence-backed Keepintax onboarding facts. The last assistant turn tells you what question an answer refers to.
 INTENT CONTRACT (classify the NEW message, not previous turns):
+- "תמחק את כל מה ששמרת עלי", "תשכח את כל מה שאתה יודע עליי" => forget_all, facts [], forgetIds []. This is a legitimate memory/privacy action, NEVER off_topic.
+- "תמחק את המידע עלי כשכיר", "תשכח את הפרט הזה" => forget_facts, facts [], forgetIds selects ONLY the matching existing fact IDs. Include the current fact even if it currently says the user is NOT salaried. Deletion is NOT changing yes to no, NOT a correction and NOT a statement about reality. If the target is ambiguous, use forget_facts with forgetIds [] and ask what to forget. Never assume all-memory deletion from an ambiguous "forget it".
+- "אני לא שכיר" without a deletion request => share, a genuine correction/transition with evidence, NOT deletion.
+For non-deletion intents, forgetIds is [].
 - "קוראים לי שמואל ואני שכיר" => share, extract those facts.
 - "תכווין אותי" or "תשאל אותי שאלות" => guidance, facts [], deferredField null.
 - "מה אתה כבר יודע עלי?" or "מה אתה זוכר?" => recall, facts [], deferredField null.

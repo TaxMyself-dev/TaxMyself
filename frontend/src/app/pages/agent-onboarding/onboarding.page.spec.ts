@@ -206,12 +206,20 @@ describe("OnboardingPage", () => {
     await retry;
     expect(page.draft).toBe("");
   });
-  it("uses the assistant follow-up as the composer hint", () => {
-    page.snapshot.set({
+  it("does not repeat the assistant reply inside the composer", () => {
+    spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();
+    const fixture = TestBed.createComponent(OnboardingPage);
+    fixture.componentInstance.snapshot.set({
       ...snapshot,
-      turns: [{ source_text: "שלום", assistant_text: "באיזה תחום העסק?" }],
+      turns: [{ source_text: "שלום", assistant_text: "מה העסק שלך עושה?" }],
     });
-    expect(page.placeholder).toBe("באיזה תחום העסק?");
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement
+        .querySelector("textarea")
+        .getAttribute("placeholder")
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelector("textarea").value).toBe("");
   });
   it("can scroll a long end summary in a bounded application viewport", async () => {
     spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();

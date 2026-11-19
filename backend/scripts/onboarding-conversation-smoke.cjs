@@ -1,7 +1,11 @@
 'use strict';
 // Synthetic, read-only model diagnostics. No database or application server.
 const path = require('node:path');
-if (process.argv[2] !== '--run-paid-model-smoke' || process.argv.length !== 3)
+const deletionOnly = process.argv[2] === '--run-paid-deletion-smoke';
+if (
+  (!deletionOnly && process.argv[2] !== '--run-paid-model-smoke') ||
+  process.argv.length !== 3
+)
   throw new Error(
     'Use --run-paid-model-smoke to run the seven bounded synthetic model diagnostics.',
   );
@@ -71,6 +75,47 @@ async function ask(message, ctx = context) {
   );
 }
 (async () => {
+  if (deletionOnly) {
+    context.activeFacts.push({
+      id: 'employment',
+      profile_id: 'person',
+      field_key: 'employment',
+      scope_kind: 'person',
+      statement: 'עובד כשכיר',
+      value_text: 'כן',
+      status: 'active',
+    });
+    const employment = context.fields.find((f) => f.key === 'employment');
+    employment.state = 'known';
+    employment.value = 'כן';
+    const all = await ask('תמחק את כל מה ששמרת עלי');
+    check(
+      'delete-all-is-not-off-topic',
+      all.intent === 'forget_all' && all.facts.length === 0,
+      all,
+    );
+    const one = await ask('תמחק את המידע עלי כשכיר');
+    check(
+      'delete-employment-is-not-negative-employment',
+      one.intent === 'forget_facts' &&
+        one.forgetIds.includes('employment') &&
+        one.facts.length === 0,
+      one,
+    );
+    const correction = await ask('אני לא שכיר, המידע שהיה לך עלי שגוי');
+    check(
+      'real-correction-is-not-deletion',
+      correction.intent === 'share' &&
+        correction.facts.some(
+          (f) => f.field === 'employment' && f.replaces === 'employment',
+        ),
+      correction,
+    );
+    console.log(JSON.stringify({ total: 3, failures, tokens }));
+    process.exitCode = failures ? 1 : 0;
+    return;
+  }
+
   let result = await ask('קוראים לי שמואל ואני גם עצמאי וגם שכיר');
   check(
     'introduction-no-invented-dates-or-repeated-name',

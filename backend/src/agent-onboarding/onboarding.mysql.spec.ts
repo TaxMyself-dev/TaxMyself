@@ -73,7 +73,10 @@ suite('onboarding transactional MySQL', () => {
           { businessNumber: '222', businessName: 'עסק שני' },
         ],
       } as any,
-      { extract: async () => extraction } as any,
+      {
+        extract: async () => extraction,
+        respond: async () => ({ kind: 'conversation', reply: 'תשובת בדיקה' }),
+      } as any,
     );
   }, 30000);
   afterAll(async () => {
@@ -348,5 +351,136 @@ suite('onboarding transactional MySQL', () => {
       'פג',
     );
     expect((await service.read(user, '111')).version).toEqual(state.version);
+  });
+  it('deletes employment through chat including past corrections and assistant recaps, without asserting the opposite', async () => {
+    let state = (
+      await save([f('employment', 'person', 'סוד-שכיר-כן')], 'סוד-שכיר-כן')
+    ).snapshot;
+    const old = state.facts.find((f) => f.field_key === 'employment');
+    state = (
+      await save(
+        [
+          f('employment', 'person', 'סוד-שכיר-לא', {
+            replaces: old.id,
+            change: 'correction',
+          }),
+        ],
+        'סוד-שכיר-לא',
+      )
+    ).snapshot;
+    await db.query(
+      'UPDATE agent_onboarding_changes SET assistant_text=? WHERE owner_uid=?',
+      ['סוד-שכיר-כן סוד-שכיר-לא', user.firebaseId],
+    );
+    const target = state.facts.find(
+      (f) => f.field_key === 'employment' && f.status === 'active',
+    );
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_facts',
+      forgetIds: [target.id],
+    };
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תמחק את המידע עלי כשכיר',
+    });
+    const after = await service.commit(user, '111', proposal.id);
+    expect(after.facts.some((f) => f.field_key === 'employment')).toBe(false);
+    expect(after.fields.find((f) => f.key === 'employment')).toMatchObject({
+      value: null,
+      state: 'skipped',
+    });
+    expect(after.story.business).toContain('תבניות');
+    expect(JSON.stringify(after)).not.toContain('סוד-שכיר');
+    const again = await service.commit(user, '111', proposal.id);
+    expect(again.version).toEqual(after.version);
+  });
+  it('rolls back a chat-wide deletion if its receipt cannot be saved', async () => {
+    const before = await service.read(user, '111');
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_all',
+      forgetIds: [],
+    };
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: before.version,
+      message: 'תמחק את כל מה ששמרת עלי',
+    });
+    const faulting = new OnboardingService(
+      {
+        query: db.query.bind(db),
+        manager: db.manager,
+        transaction: (work) =>
+          db.transaction((manager) =>
+            work({
+              query: (sql, params) => {
+                if (sql.startsWith('INSERT INTO agent_onboarding_changes'))
+                  throw new Error('DELETE_RECEIPT_FAILURE');
+                return manager.query(sql, params);
+              },
+            }),
+          ),
+      } as any,
+      { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
+      {} as any,
+    );
+    await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
+      'DELETE_RECEIPT_FAILURE',
+    );
+    const after = await service.read(user, '111');
+    expect(after).toEqual(before);
+  });
+  it('clears all owner businesses through chat and preserves another owner and the applied receipt', async () => {
+    const bob = { ...user, firebaseId: owners[1], actorFirebaseId: owners[1] };
+    const bobState = await service.read(bob, '111');
+    extraction = {
+      facts: [f('preferred_name', 'person', 'שם-בוב')],
+      clarification: null,
+    };
+    const bobProposal = await service.propose(bob, {
+      businessNumber: '111',
+      version: bobState.version,
+      message: 'שם-בוב',
+    });
+    await service.commit(bob, '111', bobProposal.id);
+    await save(
+      [f(null, 'business', 'מידע בעסק נוסף')],
+      'מידע בעסק נוסף',
+      '222',
+    );
+    const state = await service.read(user, '111');
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_all',
+      forgetIds: [],
+    };
+    const proposal = await service.propose(user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תמחק את כל מה ששמרת עלי',
+    });
+    const after = await service.commit(user, '111', proposal.id);
+    for (const number of ['111', '222']) {
+      const result = await service.read(user, number);
+      expect(result.facts).toEqual([]);
+      expect(result.fields.every((f) => f.value === null)).toBe(true);
+      expect(result.story.person).toBe('');
+      expect(result.story.business).toBe('');
+    }
+    expect((await service.read(bob, '111')).story.person).toContain('שם-בוב');
+    expect((await service.commit(user, '111', proposal.id)).version).toEqual(
+      after.version,
+    );
+    const stored = await db.query(
+      'SELECT source_text,payload,applied_at FROM agent_onboarding_proposals WHERE id=?',
+      [proposal.id],
+    );
+    expect(stored[0].applied_at).toBeTruthy();
+    expect(stored[0].source_text).toBe('בקשת מחיקה מהזיכרון');
   });
 });

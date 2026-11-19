@@ -303,6 +303,8 @@ export class OnboardingService {
         'defer',
         'off_topic',
         'onboarding_question',
+        'forget_all',
+        'forget_facts',
       ].includes(extracted.intent)
     ) {
       extracted.facts = [];
@@ -385,7 +387,17 @@ export class OnboardingService {
       }
     }
     extracted.facts = extracted.facts.filter((f) => !waiting.includes(f));
-    if (extracted.intent === 'off_topic') {
+    if (
+      extracted.intent === 'forget_all' ||
+      extracted.intent === 'forget_facts'
+    ) {
+      extracted.reply =
+        extracted.intent === 'forget_all'
+          ? 'מחקתי את זיכרון ההיכרות שלך, כולל הפרטים האישיים והעסקיים בכל העסקים בחשבון. מסמכים חשבונאיים, שיחות עם הסוכן הראשי וגיבויים אינם נמחקים בפעולה הזאת. אפשר להתחיל מחדש כשתרצה.'
+          : extracted.forgetIds?.length
+          ? 'מחקתי את הפרט שביקשת ואת ההיסטוריה שלו מזיכרון ההיכרות. לא החלפתי אותו בקביעה הפוכה. שאר המידע נשאר כפי שהיה.'
+          : 'איזה פרט תרצה שאמחק מזיכרון ההיכרות? אפשר לתאר אותו במילים שלך.';
+    } else if (extracted.intent === 'off_topic') {
       extracted.reply =
         'זה צ׳אט להיכרות איתך ועם העסק. לשאלות על האפליקציה או בנושאים אחרים אפשר לפנות לסוכן הראשי. כאן אפשר להמשיך לספר על עצמך או לשאול על ההיכרות.';
     } else if (!body.skipField && !extracted.clarification) {
@@ -498,8 +510,8 @@ export class OnboardingService {
     await this.db.transaction(async (manager) => {
       // All writers lock profiles first, then proposals, in the same order.
       await manager.query(
-        'SELECT id FROM agent_onboarding_profiles WHERE owner_uid=? AND scope_key IN (?,?) ORDER BY scope_key FOR UPDATE',
-        [scope.owner, '', scope.business],
+        'SELECT id FROM agent_onboarding_profiles WHERE owner_uid=? ORDER BY scope_key FOR UPDATE',
+        [scope.owner],
       );
       const proposals = await manager.query(
         'SELECT *, TIMESTAMPDIFF(SECOND,created_at,CURRENT_TIMESTAMP(6)) AS age_seconds FROM agent_onboarding_proposals WHERE id=? AND owner_uid=? AND business_number=? FOR UPDATE',
@@ -524,6 +536,54 @@ export class OnboardingService {
         { person: person.version, business: business.version },
       );
       const extraction = decode<Extraction>(proposal.payload);
+      if (
+        extraction.intent === 'forget_all' ||
+        (extraction.intent === 'forget_facts' && extraction.forgetIds?.length)
+      ) {
+        if (extraction.intent === 'forget_all')
+          await this.eraseAll(manager, scope.owner, proposalId);
+        else
+          for (const id of new Set(extraction.forgetIds))
+            await this.eraseFact(
+              manager,
+              scope,
+              person,
+              business,
+              id,
+              proposalId,
+            );
+        // Keep only a content-free receipt and the current retry marker. Nothing
+        // in the deletion request can reintroduce the forgotten source text.
+        await manager.query(
+          'UPDATE agent_onboarding_proposals SET source_text=?,payload=? WHERE id=? AND owner_uid=?',
+          [
+            'בקשת מחיקה מהזיכרון',
+            JSON.stringify({
+              facts: [],
+              clarification: null,
+              reply: extraction.reply,
+            }),
+            proposalId,
+            scope.owner,
+          ],
+        );
+        await manager.query(
+          'INSERT INTO agent_onboarding_changes (id,owner_uid,business_number,source_text,assistant_text,proposal_id) VALUES (?,?,?,?,?,?)',
+          [
+            randomUUID(),
+            scope.owner,
+            scope.business,
+            'בקשת מחיקה מהזיכרון',
+            extraction.reply,
+            proposalId,
+          ],
+        );
+        await manager.query(
+          'UPDATE agent_onboarding_proposals SET applied_at=CURRENT_TIMESTAMP(6) WHERE id=?',
+          [proposalId],
+        );
+        return;
+      }
       const changeId = randomUUID();
       for (const f of extraction.facts) {
         const profile = f.scope === 'person' ? person : business;
@@ -669,85 +729,132 @@ export class OnboardingService {
         person: person.version,
         business: business.version,
       });
-      const facts = await manager.query(
-        'SELECT * FROM agent_onboarding_facts WHERE profile_id IN (?,?)',
-        [person.id, business.id],
-      );
-      const target = facts.find((f) => f.id === factId);
-      if (!target) throw new NotFoundException();
-      const profile = target.profile_id === person.id ? person : business;
-      const ids = new Set<string>([target.id]);
-      if (target.field_key)
-        for (const f of facts) {
-          if (
-            f.profile_id === target.profile_id &&
-            f.field_key === target.field_key
-          )
-            ids.add(f.id);
-        }
-      // Forget an entire replacement chain, so a superseded version cannot restore the fact.
-      let changed = true;
-      while (changed) {
-        changed = false;
-        for (const f of facts) {
-          if (
-            f.profile_id === target.profile_id &&
-            (ids.has(f.id) || ids.has(f.replaces_id))
-          ) {
-            for (const id of [f.id, f.replaces_id].filter(Boolean)) {
-              if (!ids.has(id)) {
-                ids.add(id);
-                changed = true;
-              }
+      await this.eraseFact(manager, scope, person, business, factId);
+    });
+    return this.read(user, scope.business);
+  }
+  private async eraseFact(
+    manager: EntityManager,
+    scope: { owner: string; business: string },
+    person: ProfileRow,
+    business: ProfileRow,
+    factId: string,
+    keepProposal = '',
+  ) {
+    const facts = await manager.query(
+      'SELECT * FROM agent_onboarding_facts WHERE profile_id IN (?,?)',
+      [person.id, business.id],
+    );
+    const target = facts.find((f) => f.id === factId);
+    if (!target) {
+      if (keepProposal) return;
+      throw new NotFoundException();
+    }
+    const profile = target.profile_id === person.id ? person : business;
+    const ids = new Set<string>([target.id]);
+    if (target.field_key)
+      for (const f of facts) {
+        if (
+          f.profile_id === target.profile_id &&
+          f.field_key === target.field_key
+        )
+          ids.add(f.id);
+      }
+    // Forget an entire replacement chain, so a superseded version cannot restore the fact.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const f of facts) {
+        if (
+          f.profile_id === target.profile_id &&
+          (ids.has(f.id) || ids.has(f.replaces_id))
+        ) {
+          for (const id of [f.id, f.replaces_id].filter(Boolean)) {
+            if (!ids.has(id)) {
+              ids.add(id);
+              changed = true;
             }
           }
         }
       }
-      const erased = facts.filter((f) => ids.has(f.id));
-      for (const f of erased) {
-        await manager.query(
-          `UPDATE agent_onboarding_changes SET source_text='הודעה שהכילה פרט שנמחק מהזיכרון',assistant_text='הפרט נמחק מזיכרון ההיכרות' WHERE id=? AND owner_uid=?`,
-          [f.change_id, scope.owner],
-        );
-        await manager.query(
-          `UPDATE agent_onboarding_proposals SET source_text='תוכן שנמחק',payload=JSON_OBJECT('facts',JSON_ARRAY(),'clarification',NULL) WHERE owner_uid=? AND id IN (SELECT proposal_id FROM agent_onboarding_changes WHERE id=?)`,
-          [scope.owner, f.change_id],
-        );
-        await manager.query(
-          'DELETE FROM agent_onboarding_facts WHERE id=? AND profile_id=?',
-          [f.id, profile.id],
-        );
-      }
-      if (target.field_key) {
-        profile[target.field_key] = null;
-        profile.field_states[target.field_key] = 'skipped';
-      }
-      const remaining = await manager.query(
-        `SELECT statement,effective_date,date_precision FROM agent_onboarding_facts WHERE profile_id=? AND status='active' ORDER BY recorded_at,id`,
-        [profile.id],
-      );
-      profile.story = storyFromFacts(remaining);
-      // Remove old story snapshots containing the forgotten fact, not just the current summary.
+    }
+    // Previous assistant recaps can repeat a fact without creating another fact
+    // row. Hide those replies too, so subsequent chat context cannot resurrect it.
+    await manager.query(
+      "UPDATE agent_onboarding_changes SET assistant_text='תשובה קודמת הוסתרה בעקבות מחיקה מהזיכרון' WHERE owner_uid=?",
+      [scope.owner],
+    );
+    const erased = facts.filter((f) => ids.has(f.id));
+    for (const f of erased) {
       await manager.query(
-        'DELETE FROM agent_onboarding_story_versions WHERE profile_id=?',
-        [profile.id],
+        `UPDATE agent_onboarding_changes SET source_text='הודעה שהכילה פרט שנמחק מהזיכרון',assistant_text='הפרט נמחק מזיכרון ההיכרות' WHERE id=? AND owner_uid=?`,
+        [f.change_id, scope.owner],
       );
-      const key = target.field_key;
-      if (key && !FIELDS.some((f) => f.key === key))
-        throw new BadRequestException();
       await manager.query(
-        `UPDATE agent_onboarding_profiles SET ${
-          key ? '`' + key + '`=NULL,' : ''
-        }field_states=?,story=?,version=version+1 WHERE id=?`,
-        [JSON.stringify(profile.field_states), profile.story, profile.id],
+        `UPDATE agent_onboarding_proposals SET source_text='תוכן שנמחק',payload=JSON_OBJECT('facts',JSON_ARRAY(),'clarification',NULL) WHERE owner_uid=? AND id IN (SELECT proposal_id FROM agent_onboarding_changes WHERE id=?)`,
+        [scope.owner, f.change_id],
       );
-      // Unapplied previews may still contain the forgotten content; discard them all for this owner.
       await manager.query(
-        'DELETE FROM agent_onboarding_proposals WHERE owner_uid=? AND applied_at IS NULL',
-        [scope.owner],
+        'DELETE FROM agent_onboarding_facts WHERE id=? AND profile_id=?',
+        [f.id, profile.id],
       );
-    });
-    return this.read(user, scope.business);
+    }
+    if (target.field_key) {
+      profile[target.field_key] = null;
+      profile.field_states[target.field_key] = 'skipped';
+    }
+    const remaining = await manager.query(
+      `SELECT statement,effective_date,date_precision FROM agent_onboarding_facts WHERE profile_id=? AND status='active' ORDER BY recorded_at,id`,
+      [profile.id],
+    );
+    profile.story = storyFromFacts(remaining);
+    // Remove old story snapshots containing the forgotten fact, not just the current summary.
+    await manager.query(
+      'DELETE FROM agent_onboarding_story_versions WHERE profile_id=?',
+      [profile.id],
+    );
+    const key = target.field_key;
+    if (key && !FIELDS.some((f) => f.key === key))
+      throw new BadRequestException();
+    await manager.query(
+      `UPDATE agent_onboarding_profiles SET ${
+        key ? '`' + key + '`=NULL,' : ''
+      }field_states=?,story=?,version=version+1 WHERE id=?`,
+      [JSON.stringify(profile.field_states), profile.story, profile.id],
+    );
+    // Unapplied previews may still contain the forgotten content; discard them all for this owner.
+    await manager.query(
+      'DELETE FROM agent_onboarding_proposals WHERE owner_uid=? AND applied_at IS NULL AND id<>?',
+      [scope.owner, keepProposal],
+    );
+  }
+  private async eraseAll(
+    manager: EntityManager,
+    owner: string,
+    keepProposal: string,
+  ) {
+    for (const table of [
+      'agent_onboarding_story_versions',
+      'agent_onboarding_facts',
+    ]) {
+      await manager.query(
+        `DELETE FROM ${table} WHERE profile_id IN (SELECT id FROM agent_onboarding_profiles WHERE owner_uid=?)`,
+        [owner],
+      );
+    }
+    await manager.query(
+      'DELETE FROM agent_onboarding_changes WHERE owner_uid=?',
+      [owner],
+    );
+    await manager.query(
+      'DELETE FROM agent_onboarding_proposals WHERE owner_uid=? AND id<>?',
+      [owner, keepProposal],
+    );
+    const fields = FIELDS.map((f) => '`' + f.key + '`=NULL').join(',');
+    await manager.query(
+      `UPDATE agent_onboarding_profiles SET ${fields},field_states=JSON_OBJECT(),story='',version=version+1,invitation='deferred' WHERE owner_uid=?`,
+      [owner],
+    );
   }
   async context(user: AgentHarnessUser, businessNumber: string | null) {
     // No delegated exposure: the personal profile is owned by the person, not their accountant.

@@ -230,3 +230,31 @@ Verification on final executable inputs:
 - Earlier bounded diagnostics were reviewed: the first design failed off-topic routing and manually showed redundant questions/speculative filler; the separated-response revision still failed deferral/support referral. Those concrete contract defects led to explicit intent routing and prospective-state context. An intermediate seven-case pass preceded final source-aware refinements; the final seven-case pass above covers current executable inputs. A helper path-alias setup failure occurred before any model request; the reusable helper registers existing aliases.
 - Final builds are recorded below after completion. Prior persistence/HTTP-MySQL evidence remains separate: no live DB, accounting data or schema operation ran in this follow-up. No app server was started/stopped, no authenticated browser session was used and the full legacy frontend suite was not run. No main integration or remote push.
 - Final backend `npm run build`: exit 0. Final frontend `npm run build -- --configuration production`: exit 0, build hash ba751c6563b50508, 40.4 seconds. Existing unrelated style-budget, CommonJS and initial 3.21 MB bundle warnings remain. The final test/model/build evidence covers the same executable inputs; only documentation changed afterward. Complete diff reviewed and git diff --check passed.
+
+
+## 2026-11-19 — Remove repeated placeholder and support chat deletion
+
+Base: debeec86, same codex/agent-onboarding worktree. Acceptance: no textarea
+placeholder/repeated assistant text; the screenshot's delete-all and employment
+deletion requests perform erasure rather than off-topic referral or an opposite
+employment claim. Preserve ordinary factual corrections and tenant boundaries.
+
+Implemented explicit forget_all/forget_facts intents and validated existing target
+IDs. Both use the existing propose/commit path. Selective deletion shares the UI
+erasure routine, including prior field versions/corrections and source redaction;
+old assistant recaps are hidden to prevent forgotten information resurfacing.
+Delete-all is owner-wide across onboarding businesses and leaves accounting/main
+chat/backups untouched. Commit locks owner profiles in sorted order and retains
+only a content-free receipt/current applied proposal marker for retries. Ambiguous
+targets ask which detail, never silently delete everything. No new schema.
+The confirmation text is shown only after successful commit. The original user's
+real records were not manually altered while diagnosing the screenshot.
+
+Verification:
+- Backend `npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts`: final exit 0, 48 passed, 0 skipped. An earlier assertion still expected the two-profile lock parameter list; reviewed and updated it to the new all-owner profile lock, retaining the lock-before-proposal requirement.
+- Frontend `npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/pages/agent-onboarding/*.spec.ts --ts-config=tsconfig.onboarding-spec.json`: exit 0, 27 passed, 0 skipped; the former placeholder test now verifies a blank textarea with no placeholder attribute.
+- `node backend/scripts/onboarding-conversation-smoke.cjs --run-paid-deletion-smoke`: exit 0, three targeted synthetic cases passed (delete all, forget employment, genuine correction). DB writes mocked. 8,385 input tokens, 171 output tokens. The unchanged seven-case paid suite was not repeated.
+- `node backend/scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --persistence-only`: first run 12 passed/1 failed due the existing simultaneous-confirmation test's 5-second timeout under competing compilers. All three new actual-MySQL tests passed: employment/history/recap erasure with unrelated facts retained, rollback on receipt failure, and owner-wide erasure with another owner preserved and retry idempotency. The suite is repeated without competing compilers, with the timeout and assertions unchanged; final result recorded below.
+- Test doubles for the existing HTTP-MySQL and persistence suites now implement the separate respond stage introduced in the prior change. No app server or HTTP suite was started in this follow-up. Only exact synthetic test owners were written in the already authorized keepintax-dev database. No real-user deletion, production access, main integration or push.
+- Persistence repeat: the same guarded --persistence-only command passed all 13 tests, 0 failed/0 skipped, with unchanged timeouts/assertions and no competing compilers. Guarded cleanup verified zero rows for the exact synthetic owners. Evidence: .test-tmp/onboarding-dev/onboarding.mysql-1795122124119.json (ignored). The first failure remains recorded above; no executable changes occurred between runs. Final build results are appended after completion.
+- Final backend npm run build and frontend npm run build -- --configuration production both exited 0 on the final executable inputs. Existing unrelated style-budget, CommonJS and 3.21 MB initial-bundle warnings remain. No executable change followed the passing unit/UI/real-model/persistence checks. Full diff reviewed and git diff --check passed; no main integration, remote push or application-server launch.

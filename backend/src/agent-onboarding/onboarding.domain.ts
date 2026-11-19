@@ -94,7 +94,10 @@ export interface Extraction {
     | 'recall'
     | 'defer'
     | 'off_topic'
-    | 'onboarding_question';
+    | 'onboarding_question'
+    | 'forget_all'
+    | 'forget_facts';
+  forgetIds?: string[];
   deferredField?: FieldKey | null;
 }
 export interface ProfileRow {
@@ -128,7 +131,15 @@ export function validateExtraction(
         'defer',
         'off_topic',
         'onboarding_question',
+        'forget_all',
+        'forget_facts',
       ].includes(x.intent)) ||
+    (x.forgetIds !== undefined &&
+      (!Array.isArray(x.forgetIds) ||
+        x.forgetIds.length > 50 ||
+        x.forgetIds.some(
+          (id) => typeof id !== 'string' || !existingIds.has(id),
+        ))) ||
     (x.deferredField != null &&
       !FIELDS.some((f) => f.key === x.deferredField)) ||
     (x.reply !== undefined &&

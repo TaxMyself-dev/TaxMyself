@@ -22,7 +22,8 @@ and preserves the draft. The summary is shown only on request; returning to the
 conversation allows corrections. The page and summary scroll within the app shell.
 Invitation and deletion confirmations use the existing PrimeNG dialog and shared
 button components. Enter sends; Shift+Enter inserts a newline and IME composition
-never sends prematurely. The composer has only Send; guidance and leaving a
+never sends prematurely. The textarea has no placeholder; assistant replies appear
+only in the conversation. The composer has only Send; guidance and leaving a
 question for later happen in the conversation. Basic answers remain visible in
 personal/business groups under one narrative summary.
 
@@ -94,6 +95,33 @@ payloads. It rebuilds the current story and discards unapplied owner previews.
 Other facts remain. A forgotten basic field is marked skipped to avoid asking
 for it immediately again. Ordinary chat transcripts and backups are explicitly
 outside this deletion action; the UI states that limitation.
+
+Chat deletion is a first-class intent: `forget_all` or `forget_facts` with
+existing, owner-scoped fact IDs. It is not an off-topic request, a correction or
+a claim that the opposite fact is true. Ambiguous targets prompt a clarification
+instead of defaulting to delete-all. The UI's normal auto-commit path applies the
+operation; no success reply appears before the transaction commits.
+
+Selective chat deletion reuses the same erasure routine as memory management:
+remove the field/replacement history, redact source records and old story versions,
+clear the structured value and mark it skipped. Historical assistant replies are
+hidden because recaps can repeat a forgotten fact without creating another fact
+row. Unrelated facts and user narrative without the erased source remain.
+
+Delete-all clears personal and business onboarding memory for ALL businesses of
+the authenticated owner. It resets fields/stories with monotonic versions and
+removes facts, history, source conversations and other proposals. It never changes
+accounting documents, main-agent conversations or backups. All owner profiles are
+locked in scope-key order before commit; tenant scope, stale-version checks and
+failure atomicity remain enforced. Only a content-free deletion receipt and its
+applied proposal marker remain, making retries idempotent. Initial application
+registration is not re-seeded after the reset because versions never go to zero.
+
+Bounded model-only regression for the two screenshot requests and a genuine
+employment correction:
+`node scripts/onboarding-conversation-smoke.cjs --run-paid-deletion-smoke`.
+This uses synthetic context and mocked DB writes; the existing persistence runner
+verifies the actual erasure SQL separately against approved synthetic dev owners.
 
 ## API and authorization
 

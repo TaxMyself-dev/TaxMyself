@@ -82,7 +82,6 @@
           maxlength="12000"
           rows="3"
           [disabled]="busy() || !!proposal()"
-          [placeholder]="placeholder"
           (keydown)="onComposerKeydown($event)"
         ></textarea>
         <div class="composer-actions">
