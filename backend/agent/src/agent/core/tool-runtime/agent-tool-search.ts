@@ -26,6 +26,7 @@ const agentToolNamespaces = [
     tools: [
       "queryTransactions",
       "prepareTransactionClassification",
+      "startAutomaticClassification",
       "queryIssuedDocuments",
       "listCategories",
       "listClients",

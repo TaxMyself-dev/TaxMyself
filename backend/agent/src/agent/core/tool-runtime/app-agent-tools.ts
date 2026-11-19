@@ -48,6 +48,8 @@ import {
   updateTrackingTaskTool,
 } from "@/agent/tools/tasks/tracking-task-tools";
 
+import { startAutomaticClassificationTool } from "../../tools/books/books-tools";
+
 // Every tool the agent has; stored chat messages are validated against them.
 export const appAgentTools = {
   // Tracking tasks and what the background monitor found for them
@@ -66,6 +68,7 @@ export const appAgentTools = {
   queryTransactions: queryTransactionsTool,
   prepareTransactionClassification: prepareTransactionClassificationTool,
   classifyTransaction: classifyTransactionTool,
+  startAutomaticClassification: startAutomaticClassificationTool,
   queryIssuedDocuments: queryIssuedDocumentsTool,
   listCategories: listCategoriesTool,
   listClients: listClientsTool,

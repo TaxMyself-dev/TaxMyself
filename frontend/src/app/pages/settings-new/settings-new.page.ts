@@ -1,3 +1,5 @@
+import { MyAgentComponent } from '../../components/my-agent/my-agent.component';
+import { ActivatedRoute } from '@angular/router';
 import { SettingsNavigationSessionService } from './settings-navigation-session.service';
 import { SettingsNewCategoriesComponent } from './settings-new-categories.component';
 import { CommonModule } from '@angular/common';
@@ -28,7 +30,7 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
 
 @Component({
   selector: 'app-settings-new', standalone: true,
-  imports: [SettingsNewCategoriesComponent, CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
+  imports: [MyAgentComponent, SettingsNewCategoriesComponent, CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
   templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss', './settings-new-connections.scss'],
 })
 export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
@@ -48,6 +50,8 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
 
   readonly activeSection = signal<SettingsSection>('account');
+  private readonly agentRoute = inject(ActivatedRoute);
+  private agentRouteSubscription?: {unsubscribe():void};
   private readonly navigationCdr = inject(ChangeDetectorRef);
   private readonly navigationSession = inject(SettingsNavigationSessionService);
   private navigationContext: string | null = null;
@@ -62,6 +66,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   readonly showSpouse = signal(false);
   readonly personalEditing = signal(false);
   readonly categoriesActivated = signal(false);
+  readonly agentActivated=signal(false);
   private savedPersonal: Record<string, unknown> | null = null;
   private savedSpouse: Record<string, unknown> | null = null;
   private spouseDraft = false;
@@ -112,18 +117,20 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
 
   ngAfterViewInit(): void {
+    this.agentRouteSubscription=this.agentRoute.queryParamMap.subscribe(params=>{if(params.get('section')==='agent')this.goTo('agent',true);});
     const visit = this.navigationSession.open();
     this.navigationContext = visit.context;
-    if (visit.section !== 'account') this.goTo(visit.section, true);
+    if (this.agentRoute.snapshot.queryParamMap.get('section')!=='agent' && visit.section !== 'account') this.goTo(visit.section, true);
     this.resizeObserver = new ResizeObserver(() => {
       if (this.restoringSection) this.goTo(this.restoringSection, true);
       else this.onScroll();
     });
     this.resizeObserver.observe(this.scroller.nativeElement.firstElementChild!);
   }
-  ngOnDestroy(): void { this.resizeObserver?.disconnect(); }
+  ngOnDestroy(): void { this.agentRouteSubscription?.unsubscribe();this.resizeObserver?.disconnect(); }
 
   private activateSection(section: SettingsSection): void {
+    if(section==='agent')this.agentActivated.set(true);
     if (section === 'categories') this.categoriesActivated.set(true);
     if ((section === 'permissions' || section === 'banking') && !this.connectionsActivated()) {
       this.connectionsActivated.set(true);

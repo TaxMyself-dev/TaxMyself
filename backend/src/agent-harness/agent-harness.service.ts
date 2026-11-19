@@ -1,3 +1,4 @@
+import { AutoClassificationService } from '../auto-classification/auto-classification.service';
 import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import * as path from 'path';
@@ -67,6 +68,7 @@ export class AgentHarnessService implements OnModuleDestroy {
     private readonly agentBooks: AgentBooksService,
     private readonly classification: AgentClassificationService,
     private readonly onboarding?: OnboardingService,
+    private readonly automation?: AutoClassificationService,
   ) {}
 
   private bundlePath() {
@@ -107,6 +109,7 @@ export class AgentHarnessService implements OnModuleDestroy {
         ...this.agentDomain.forUser(user),
         ...this.agentBooks.forUser(user),
         ...this.classification.forUser(user),
+        startAutomaticClassification: () => this.automation ? this.automation.start(user) : Promise.reject(new Error('AUTOMATION_UNAVAILABLE')),
         readOnboardingContext: (businessNumber: string | null) =>
           this.onboarding?.context(user, businessNumber) ?? Promise.resolve(''),
       });

@@ -21,6 +21,8 @@ import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agen
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
+  {path:'agent/chat',canActivate:[AuthGuard,BillingGuard],loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
+  {path:'agent/onboarding',canActivate:[AuthGuard,BillingGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
   // The AI agent's test page (backend/agent), only where the environment
   // turns it on (local development and dev-cloud); never in production builds.
   // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).

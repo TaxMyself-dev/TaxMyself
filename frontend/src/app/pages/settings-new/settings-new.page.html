@@ -255,6 +255,9 @@
             (connectionChanged)="onBankingConnectionChanged()" />
         }
       </section>
+      <section class="panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
+        @if(agentActivated()){<app-my-agent />}
+      </section>
     </div>
   </main>
 </div>

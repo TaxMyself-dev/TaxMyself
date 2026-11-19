@@ -12,6 +12,7 @@ import type { AppAgentToolName } from "../tool-runtime/app-agent-tools";
  * What the chat can do today, one line each, in the user's terms.
  */
 export const agentSupportedCapabilities = [
+  "enqueue automatic classification when explicitly asked to classify all transactions, subject to existing owner consent in Settings / My Agent; never enable consent from chat; queued is not completed; uncertainties appear as in-app agent notifications",
   "classify or reclassify outgoing bank/card transactions not yet transferred to an expense using existing category defaults after approval: permanent merchant/account rule by default, or one-time when requested or selected on the card; never approve an expense",
   "answer questions about the user's expenses: totals by category, supplier or month, and which expenses, for one, several or all of their businesses",
   "read their bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories and their customers",
@@ -29,7 +30,7 @@ export const agentSupportedCapabilities = [
  */
 export const agentUnsupportedCapabilities = [
   "monitoring the books or alerting the user when something changes (for example when fuel expenses rise): offer the current figure or a breakdown instead",
-  "reminders and notifications: offer the upcoming reports and their due dates instead",
+  "general reminders and monitoring notifications: offer upcoming reports and due dates; automatic-classification progress and clarification notifications ARE available in Settings / My Agent",
   "approving or booking expenses, changing confirmed transactions, issuing documents or linking documents: say where in the app it is done; classification or reclassification of an outgoing transaction not yet transferred to an expense IS supported with its approval card (permanent by default, one-time when selected)",
   "searching the web or sending email",
   "connecting a bank account or an email inbox",

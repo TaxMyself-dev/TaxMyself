@@ -267,3 +267,7 @@ KeepInTax's dev page assigns a conversation UUID before its first saved message.
 ## Onboarding profile
 
 The owner-only onboarding conversation and MySQL memory are served by the Nest module at backend/src/agent-onboarding. The development page links to /dev/agent/onboarding. An optional readOnboardingContext domain callback adds the current story and dated history to each ordinary chat turn; it does not start profile questions or change accounting data. AGENT_ONBOARDING_ENABLED defaults off, and SQL must be applied to an authorized development database first. Profile updates and scoped forgetting use the dedicated onboarding page, not the legacy generic memory tools. See ../src/agent-onboarding/README.md for tables, APIs, activation, test commands and deletion limits.
+
+## Automatic classification enqueue (2026-11-19)
+
+The deferred books tool startAutomaticClassification takes scope=all and only enqueues the owner-authorized backend worker. It is a serialized write, cannot run from a suggested follow-up and is not safely rerunnable as a read. The backend requires standing consent; this tool never grants it. Queued is not completed. Progress and questions appear in Settings-new → הסוכן שלי. Individual chat classification still requires its original approval card and alone can select one-time mode. See ../../docs/features/assistant-auto-classification.md.

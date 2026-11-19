@@ -1,0 +1,8 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const {readFileSync}=require('node:fs');const {join}=require('node:path');
+const {target,statements,apply}=require('./auto-classification-schema.cjs');
+const raw=readFileSync(join(__dirname,'migrations/2026-11-19_auto_classification.sql'),'utf8');
+test('accepts only the expected additive schema',()=>{const plan=statements(raw);assert.equal(plan.creates.length,2);assert.equal(plan.alterations.length,3);});
+for(const mutation of [raw+';DROP TABLE user',raw.replace('varchar(10)','varchar(255)'),raw.replace('ADD COLUMN createdBySource','ADD COLUMN password'),raw.replace('agent_auto_items (','user (')])test('rejects changed SQL allowlist',()=>assert.throws(()=>statements(mutation)));
+test('rejects production and mismatched CLI targets before connecting',()=>{assert.throws(()=>target(['--database=keepintax-prod','--apply'],{DB_DATABASE:'keepintax-prod'}));assert.throws(()=>target(['--database=keepintax-dev','--apply'],{DB_DATABASE:'keepintax-prod'}));});
+test('local mode cannot use a remote host or another DB',()=>{for(const uri of ['mysql://root@remote/auto_classification_test','mysql://root@127.0.0.1/keepintax-dev'])assert.throws(()=>target(['--database=auto_classification_test','--apply'],{AUTO_CLASSIFICATION_TEST_MYSQL_URL:uri}));});
+test('requires an exact connected database before any DDL',async()=>{const calls=[];const conn={query:async(sql)=>{calls.push(sql);return [[{selected_database:'keepintax-prod'}]];}};await assert.rejects(apply(conn,raw,'keepintax-dev',true));assert.equal(calls.length,1);});

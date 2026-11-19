@@ -304,6 +304,7 @@ export const createAppAgent = (request: AppAgentRequest) => {
       queryTransactions: toolContext,
       prepareTransactionClassification: toolContext,
       classifyTransaction: toolContext,
+      startAutomaticClassification: toolContext,
       queryIssuedDocuments: toolContext,
       listCategories: toolContext,
       listClients: toolContext,

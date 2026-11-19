@@ -1,6 +1,6 @@
 <main dir="rtl" class="onboarding">
   <header>
-    <a routerLink="/dev/agent" [queryParams]="{api: api}">חזרה לסוכן</a
+    <a [routerLink]="publicEntry?'/settings-new':'/dev/agent'" [queryParams]="publicEntry?{section:'agent'}:{api:api}">חזרה לסוכן</a
     ><span>Keepintax</span>
   </header>
   <section class="intro">

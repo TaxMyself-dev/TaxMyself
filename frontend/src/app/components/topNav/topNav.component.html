@@ -3,7 +3,7 @@
       <img class="top-nav-logo" src="../../../assets/logo.svg" alt="Logo" height="40">
     </ng-template>
     <ng-template pTemplate="end" >
-        <div class="top-nav-buttons">
+        <div class="top-nav-buttons"><app-agent-bell />
             @if (!isOnDocCreate() && access.createDocument().visible) {
                 <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
             }

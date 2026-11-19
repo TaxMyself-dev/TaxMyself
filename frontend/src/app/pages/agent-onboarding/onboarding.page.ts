@@ -55,6 +55,7 @@ interface Proposal {
   styleUrls: ["./onboarding.page.scss"],
 })
 export class OnboardingPage implements OnInit {
+  readonly publicEntry=inject(ActivatedRoute).snapshot.routeConfig?.path==='agent/onboarding';
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   readonly api =
@@ -99,8 +100,9 @@ export class OnboardingPage implements OnInit {
           )
         )
       );
-      if (this.businesses().length === 1) {
-        this.selected = this.businesses()[0].number;
+      const requested=this.route.snapshot.queryParamMap.get('businessNumber');
+      if (this.businesses().length === 1 || this.businesses().some(b=>b.number===requested)) {
+        this.selected = requested && this.businesses().some(b=>b.number===requested) ? requested : this.businesses()[0].number;
         await this.load();
       }
     });

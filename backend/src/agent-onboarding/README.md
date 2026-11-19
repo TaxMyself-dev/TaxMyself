@@ -154,3 +154,12 @@ The auth-token verifier and account directory are fixtures; a real browser login
 against Firebase is not claimed by these HTTP tests. Main integration and push
 remain explicitly prohibited. See the active feature task for exact commands,
 reports, intermediate failures, fixes and reused build evidence.
+
+## Automation integration
+
+The automatic-classification feature adds public authenticated /agent/onboarding
+and /agent/chat entries reusing these components. The existing dev routes keep
+their gate. Its completion policy reuses FIELDS but requires known nonempty
+values or explicit not_applicable; unknown/skipped answers remain valid onboarding
+responses but do not authorize unattended classification. It reads current profile
+versions directly and locks them again before a classification write.

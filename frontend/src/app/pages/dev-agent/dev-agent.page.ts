@@ -1,3 +1,4 @@
+import { MyAgentService } from '../../components/my-agent/my-agent.service';
 import { OnboardingInvitationComponent } from '../agent-onboarding/onboarding-invitation.component';
 import { devAgentApprovalView } from './dev-agent-chat-parts';
 import { CommonModule } from '@angular/common';
@@ -87,6 +88,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
   private readonly clientPanelService = inject(ClientPanelService);
 
   private readonly router = inject(Router);
+  private readonly automation = inject(MyAgentService);
   private readonly query = inject(ActivatedRoute).snapshot.queryParamMap;
 
   @ViewChild('scroller') private scroller?: ElementRef<HTMLElement>;
@@ -149,6 +151,13 @@ export class DevAgentPage implements OnInit, OnDestroy {
 
   async ngOnInit() {
     await this.startSession();
+    const id=this.query.get('classificationNotice');
+    if(id && uuidPattern.test(id) && this.automation.context()) {
+      try {
+        const notice=await this.automation.notice(id);
+        if(this.automation.context() && this.chat())this.draft=`בדוק מחדש את התנועה של ${notice.display.merchant} מתאריך ${notice.display.date} בסך ${notice.display.amount} ${notice.display.currency}, בעסק ${notice.business_number}. מזהה ההתראה: ${notice.id}. הסוכן שאל: ${notice.question || notice.reason}. הצג כרטיס אישור עדכני לפני סיווג; אל תבצע שינוי בלי אישור בכרטיס.`;
+      } catch {this.setupError.set('לא ניתן לפתוח את הודעת הסוכן. אפשר לחזור להגדרות ולנסות שוב.');}
+    }
   }
 
   // Reads the agent's user for the app's current client, and starts a chat

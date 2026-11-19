@@ -1,0 +1,35 @@
+<div class="agent" dir="rtl">
+ <header><h2>הסוכן שלי</h2><p>סיווג התנועות שלך, עם ההיכרות של הסוכן איתך ועם העסק.</p></header>
+ @if(error()){<p class="error" role="alert">{{error()}}</p><button type="button" (click)="refresh()">נסה שוב</button>}
+ @if(loading()){<p role="status">טוען את הסוכן שלך…</p>}
+ @if(status();as s){
+  @if(!s.available){<p>הסיווג האוטומטי עדיין אינו זמין בסביבה הזאת.</p>}
+  @else{
+   <div class="permission"><div><h3>סיווג אוטומטי באמצעות AI</h3><p>לכל העסקים שלך. הסיווג יוצר כללים קבועים לתנועות תואמות קיימות ועתידיות. אישור הוצאות נשאר בידיך.</p></div>
+    <label class="switch"><input type="checkbox" role="switch" [checked]="s.enabled" [disabled]="busy() || (!s.enabled && !ready())" (change)="toggle($event)" />{{s.enabled?'מופעל':'כבוי'}}</label>
+   </div>
+   @if(s.enabled){<p class="status" role="status">{{ready()?'הסוכן מטפל בתנועות הזכאיות בהדרגה. כשיש ספק הוא משאיר הודעה.':'ההרשאה שמורה. הסיווג ממתין להשלמת התנאים.'}}</p>}
+   @if(!s.connected){<p>נדרש חיבור פעיל לבנקאות פתוחה. <a routerLink="/billing/open-banking">לחיבור</a></p>}
+   @for(b of s.businesses;track b.number){@if(b.missing.length){<p><strong>{{b.name}}:</strong> ההיכרות עדיין חסרה. <a routerLink="/agent/onboarding" [queryParams]="{businessNumber:b.number}">להשלמת ההיכרות</a></p><ul>@for(f of b.missing;track f.key){<li>{{f.label}}</li>}</ul>}}
+   @if(s.unlinked.length){<section class="sources"><h3>אמצעי תשלום שעדיין לא משויכים</h3><p>אפשר לסווג רק תנועות שאמצעי התשלום שלהן משויך לחשבון.</p>
+    @for(source of s.unlinked;track source.id){<div class="source"><span>{{source.sourceName}}{{source.connectionRole==='spouse'?' · בן/בת הזוג':''}}</span><select [attr.aria-label]="'חשבון עבור '+source.sourceName" [(ngModel)]="bills[source.id]"><option value="">בחר חשבון</option>@for(bill of s.bills;track bill.id){<option [value]="bill.id">{{bill.billName}} · {{bill.businessNumber}}</option>}</select><button type="button" [disabled]="busy() || !bills[source.id]" (click)="associate(source)">שייך לחשבון</button></div>}
+    @if(!s.bills.length){<a routerLink="/my-account">להוספת חשבון באזור האישי</a>}
+   </section>}
+   <div class="progress"><h3>התקדמות הסיווג</h3><p>{{s.pending || 0}} תנועות משויכות עדיין ללא סיווג</p><div class="counts">@for(c of s.counts;track c.state){<span>{{label(c.state)}}: {{c.count}}</span>}</div><button type="button" [disabled]="busy() || !s.enabled || !ready()" (click)="start()">סווג את התנועות הממתינות</button></div>
+   @if(s.lastError){<p role="status">הסיווג ממתין לחיבור או לניסיון נוסף. ההחלטות שכבר נשמרו נשארות בתוקף.</p>}
+   <section class="messages"><h3>הודעות מהסוכן</h3>
+    @if(!notices().length){<p>אין הודעות כרגע. כאן יופיעו עדכוני הסיווג ושאלות להשלמה.</p>}
+    @for(n of notices();track n.id){<article [id]="'agent-notice-'+n.id" [class.unread]="!n.read_at" [class.selected]="selected()===n.id">
+     <div class="message-heading"><strong>{{label(n.state)}}</strong><time>{{n.updated_at | date:'dd/MM/yyyy HH:mm'}}</time></div>
+     <p><strong>{{n.display.merchant}}</strong> · {{n.display.amount | number:'1.2-2'}} {{n.display.currency}} · {{n.display.date | date:'dd/MM/yyyy'}} · {{n.display.account}}</p><small>עסק {{n.business_number}}</small>
+     @if(n.category){<p>{{n.category}} / {{n.sub_category}}</p>}<p>{{n.reason}}</p>
+     @if(n.question && n.state==='waiting'){<p class="question">{{n.question}}</p>}
+     @if(n.state==='waiting'){<label [for]="'reply-'+n.id">התשובה שלך</label><textarea [id]="'reply-'+n.id" [(ngModel)]="answers[n.id]" maxlength="2000" rows="2"></textarea><button type="button" [disabled]="busy() || !s.enabled || !answers[n.id]?.trim()" (click)="reply(n)">שלח והמשך בדיקה</button>}
+     @if(n.state!=='classified'){<a routerLink="/agent/chat" [queryParams]="{classificationNotice:n.id}">לבדיקה וסיווג בצ׳אט</a>}
+     @if(!n.read_at){<button type="button" class="text" [disabled]="busy()" (click)="mark(n)">סמן כנקרא</button>}
+    </article>}
+    @if(more()){<button type="button" [disabled]="busy()" (click)="loadMore()">הודעות קודמות</button>}
+   </section>
+  }
+ }
+</div>

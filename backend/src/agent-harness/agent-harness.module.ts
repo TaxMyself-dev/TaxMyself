@@ -2,6 +2,9 @@ import { OnboardingController } from '../agent-onboarding/onboarding.controller'
 import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { OnboardingExtractor } from '../agent-onboarding/onboarding.extractor';
 import { Module } from '@nestjs/common';
+import { AutoClassificationService } from '../auto-classification/auto-classification.service';
+import { AutoClassificationModel } from '../auto-classification/auto-classification.model';
+import { AutoClassificationController } from '../auto-classification/auto-classification.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AccountantTasksModule } from 'src/accountant-tasks/accountant-tasks.module';
 import { BillingModule } from 'src/billing/billing.module';
@@ -42,8 +45,8 @@ import { AgentHarnessService } from './agent-harness.service';
     BillingModule,
     SharedModule,
   ],
-  controllers: [AgentHarnessController, OnboardingController],
-  providers: [
+  controllers: [AgentHarnessController, OnboardingController, AutoClassificationController],
+  providers: [AutoClassificationService, AutoClassificationModel,
     OnboardingService,
     OnboardingExtractor,
     AgentHarnessService,
