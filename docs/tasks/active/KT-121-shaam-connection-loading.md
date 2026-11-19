@@ -1,6 +1,6 @@
 # KT-121 - SHAAM connection-check loading
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt121-worker`
@@ -39,8 +39,13 @@ check through the allocation request instead of leaving an unexplained blank int
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `5a2729d6` (fix commit `1fe8a9cc`)
+- Combined verification: only the isolated loading-state Karma spec ran
+  (`2 SUCCESS`), followed by a passing Angular production build with existing
+  budget/CommonJS warnings. No other test suites ran.
+- `origin/main` verification: local `main`, tracking `origin/main` and remote
+  `refs/heads/main` all resolved to `5a2729d6` after the code push.
+- User-visible run instructions: refresh/restart the frontend and request an
+  automatic allocation; the modal should move continuously from connection
+  checking to allocation issuance. This Git push is not a production deployment.

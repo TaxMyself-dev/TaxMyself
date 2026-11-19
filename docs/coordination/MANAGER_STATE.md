@@ -541,3 +541,15 @@ the incomes page. Feature commit `903318c9` reached `origin/main` at
 the Angular production build passed; no other suites ran. No backend, schema,
 database, accounting-rule, authorization, Tax Authority write, production
 change or deployment occurred.
+
+## KT-121 SHAAM connection-check loading — 2026-11-19
+
+Automatic allocation on document creation now gives immediate and continuous
+feedback. The existing modal first displays "בודק חיבור לרשות המסים", then
+switches to "מפיק מספר הקצאה" after a usable connection is confirmed and stays
+visible while the pending document and allocation request complete. It closes
+before disconnected/error feedback is shown. Fix commit `1fe8a9cc` reached
+`origin/main` at `5a2729d6`. Verification was intentionally narrow: two isolated
+Karma tests and the Angular production build passed; no other suites ran. No
+backend, provider-contract, schema, database, accounting, authorization,
+production change or deployment occurred.
