@@ -67,3 +67,9 @@ The feature was locally fast-forwarded into `codex/composio-email` on 2026-11-19
 ### Archive NULL-ID regression
 
 A locked original has no replacement Drive ID yet. The archive must never treat unrelated manual expenses or bank transactions with null Drive IDs as its existing projection. The 2026-11-19 correction requires an actual candidate ID before matching; SQL-realistic regression tests cover a mixed archive. Existing locked originals require no re-upload or data repair: reload the corrected backend and refresh the archive.
+
+### Approved single-file processing smoke
+
+On 2026-11-19 Elazar authorized processing only protected document 2's open replacement in DEV business נגרות (5). `node scripts/protected-pdf-dev-process-one.cjs --document-2` completed under the ordinary business OCR lock, without booting Nest/schedulers or listing the business inbox. A guarded Drive reader supplied metadata only for replacement import 200; real claim/persistence, catalog, delivery, extraction and one-operation reconciliation paths were used. Automatic flags stayed off in .env. The script refuses already processed attempts and is not a recurring job or read-only health check.
+
+One AI request returned `{ "invoices": [] }` for the blank synthetic PDF. The existing processing pipeline consequently saved OCR row 7578 with status `error` and marked the replacement's processing `FAILED`; upload/delivery linkage remained accepted, the open copy moved to processed, and original import 199 remained retained/locked in blocked. This confirms the end-to-end empty-document/failure path, not successful extraction of an actual invoice. Earlier replacement 1 stayed PENDING/NOT_STARTED. No additional AI request or processing of other documents occurred.
