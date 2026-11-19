@@ -241,3 +241,26 @@ No application server was booted, no ORM synchronize or seed ran, and neither
 automation feature flags nor existing business records were changed. Full builds
 and application tests were not repeated because this follow-up applied the already
 tested schema and changed documentation only.
+
+## Agent section scroll correction (2026-11-19)
+
+The personal sidebar listed agent after businesses, but its lazy empty section
+was at the end of the content. Moved the section between businesses and
+subscription, with a visible placeholder and stable 300px minimum height so
+scroll navigation can activate it before loading. Deep links and lazy loading
+remain supported. Independently reviewed template order and scoped CSS.
+
+Focused verification from frontend (CI=true, NG_BUILD_MAX_WORKERS=2):
+
+```powershell
+npm test -- --watch=false --browsers=ChromeHeadless --karma-config=karma.auto-classification.conf.cjs --include=src/app/components/my-agent/*.spec.ts --include=src/app/pages/settings-new/settings-navigation.spec.ts --ts-config=tsconfig.auto-classification-spec.json
+npm run build -- --configuration production
+```
+
+Tests: 16/16 passed, including natural scroll activation and onward navigation.
+Production build: passed; size/CommonJS warnings remain (see ignored
+`.local-ai-dev/auto-classification/navigation-build.log` for exact output).
+Backend/agent tests were not repeated because no backend or agent code changed.
+Runtime process paths confirmed this feature worktree owns frontend 4200 and
+backend 3000. No feature flags or user consents changed. No main integration
+or remote push. Authenticated end-to-end user testing remains manual.

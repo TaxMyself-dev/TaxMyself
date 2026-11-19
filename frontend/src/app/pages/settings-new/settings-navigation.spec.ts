@@ -84,3 +84,32 @@ describe('restore settings section', () => {
     page.goTo('payment');expect(page.restoringSection).toBeNull();
   });
 });
+
+describe('agent section scroll activation', () => {
+  it('activates the lazy agent while scrolling between businesses and subscription', () => {
+    const page: any = Object.create(SettingsNewPage.prototype);
+    page.activeSection = signal('businesses');
+    page.agentActivated = signal(false);
+    page.navigationSession = { remember: jasmine.createSpy('remember') };
+    const sections = [
+      { key: 'businesses', top: -500 },
+      { key: 'agent', top: 100 },
+      { key: 'subscription', top: 450 },
+    ];
+    page.scroller = { nativeElement: {
+      scrollHeight: 3000, clientHeight: 800, scrollTop: 900,
+      getBoundingClientRect: () => ({ top: 0 }),
+      querySelectorAll: () => sections.map(s => ({
+        dataset: { settingsSection: s.key }, getBoundingClientRect: () => ({ top: s.top }),
+      })),
+    } };
+    page.onScroll();
+    expect(page.activeSection()).toBe('agent');
+    expect(page.agentActivated()).toBeTrue();
+    expect(page.navigationSession.remember).toHaveBeenCalledWith('agent', undefined);
+    sections.forEach(s => s.top -= 350);
+    page.onScroll();
+    expect(page.activeSection()).toBe('subscription');
+    expect(page.agentActivated()).toBeTrue();
+  });
+});

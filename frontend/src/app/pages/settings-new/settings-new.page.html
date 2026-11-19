@@ -159,6 +159,14 @@
         </div>
       </section>
 
+      <section class="panel agent-panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
+        @if (agentActivated()) { <app-my-agent /> }
+        @else {
+          <h2>הסוכן שלי</h2>
+          <p class="empty-state">סיווג התנועות שלך והודעות מהסוכן יופיעו כאן בעת מעבר לאזור זה.</p>
+        }
+      </section>
+
       <div class="subscription-section"><app-settings-new-subscription (navigateSection)="goTo($event)" /></div>
 
       <section class="panel categories-panel" data-settings-section="categories" id="new-categories" aria-labelledby="categories-heading">
@@ -254,9 +262,6 @@
             [externalBusy]="accountSourcesLoading() || retryingSourceId() !== null || deletingSourceId() !== null"
             (connectionChanged)="onBankingConnectionChanged()" />
         }
-      </section>
-      <section class="panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
-        @if(agentActivated()){<app-my-agent />}
       </section>
     </div>
   </main>
