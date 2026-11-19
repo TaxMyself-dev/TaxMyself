@@ -63,3 +63,7 @@ Elazar explicitly approved creating the three tables in DEV and enabling a contr
 ## Composio Email integration
 
 The feature was locally fast-forwarded into `codex/composio-email` on 2026-11-19 at Elazar's request. That worktree retains frontend **4202** / backend **3002**, and its existing ignored DEV environment now has protected handling enabled and automatic delivery disabled. The earlier **4203/3003** settings describe the separate protected-PDF source worktree. No credentials were copied, schema reapplied, live import/AI started, or application server restarted during the merge. For interactive use, start/restart the backend from the Composio Email worktree so it reads its updated environment.
+
+### Archive NULL-ID regression
+
+A locked original has no replacement Drive ID yet. The archive must never treat unrelated manual expenses or bank transactions with null Drive IDs as its existing projection. The 2026-11-19 correction requires an actual candidate ID before matching; SQL-realistic regression tests cover a mixed archive. Existing locked originals require no re-upload or data repair: reload the corrected backend and refresh the archive.

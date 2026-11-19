@@ -222,7 +222,11 @@ function subject() {
                   processing_status: operations.get(root.current_operation_id)
                     .processing_status,
                 }
-              : {}),
+              : {
+                  candidate_drive_id: null,
+                  replacement_status: null,
+                  processing_status: null,
+                }),
           },
         ];
       else if (sql.startsWith('SELECT o.candidate_drive_id'))
@@ -459,6 +463,31 @@ describe('Protected PDF replacement boundaries (offline)', () => {
       protectedDocumentId: 7,
       canUploadOpenCopy: false,
     });
+  });
+  it('keeps a locked document separate from expense and transaction rows without Drive files', async () => {
+    const t = subject();
+    t.root.candidate_drive_id = null; // LEFT JOIN without a replacement returns SQL NULL.
+    const unrelated = [
+      { id: 1, itemType: 'EXPENSE', driveFileId: null, status: 'PENDING' },
+      { id: 2, itemType: 'TRANSACTION', driveFileId: null, status: 'PENDING' },
+    ];
+    const items = await t.service.decorateArchive(
+      'owner',
+      '123',
+      unrelated,
+      true,
+    );
+    const locked = items.filter((item) => item.status === 'PASSWORD_REQUIRED');
+    expect(locked).toHaveLength(1);
+    expect(locked[0]).toMatchObject({
+      protectedDocumentId: 7,
+      driveFileId: 'original',
+      canUploadOpenCopy: true,
+    });
+    expect(unrelated.every((item) => !('protectedDocumentId' in item))).toBe(
+      true,
+    );
+    expect(items).toHaveLength(3);
   });
   it('performs no new-table work or dispatch when disabled', async () => {
     process.env.PROTECTED_PDF_ENABLED = 'false';

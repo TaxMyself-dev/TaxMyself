@@ -674,9 +674,11 @@ export class ProtectedPdfService {
     );
     const result = items.filter((item) => !hidden.has(item.driveFileId));
     for (const root of roots) {
-      const represented = result.filter(
-        (item) => item.driveFileId === root.candidate_drive_id,
-      );
+      // SQL NULL means there is no replacement file. Unrelated manual/bank
+      // rows also have a null Drive ID and must never represent this document.
+      const represented = root.candidate_drive_id
+        ? result.filter((item) => item.driveFileId === root.candidate_drive_id)
+        : [];
       const extras = {
         protectedDocumentId: root.id,
         originalDriveFileId: root.original_drive_id,
