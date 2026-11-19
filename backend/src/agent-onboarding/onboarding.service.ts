@@ -23,7 +23,7 @@ import {
 } from './onboarding.domain';
 
 const opening =
-  'ספר לי קצת על עצמך ועל העסק — מה אתה עושה, איך נראה יום העבודה שלך ובמה היית רוצה שאעזור. אפשר לספר בחופשיות, או לבחור שאכווין בשאלות.';
+  'ספר לי קצת על עצמך ועל העסק — מה אתה עושה, איך נראה יום העבודה שלך ובמה היית רוצה שאעזור. אפשר לספר בחופשיות, ואם תרצה הכוונה, פשוט בקש ממני בשיחה. לא חייבים לענות עכשיו על כל השאלות.';
 @Injectable()
 export class OnboardingService {
   constructor(
@@ -290,10 +290,41 @@ export class OnboardingService {
         extracted = {
           facts: [],
           clarification:
-            snapshot.fields.find((f) => f.state === 'unasked')?.question ??
-            'איזה פרט בסיפור תרצה שנברר יחד?',
+            'לא הצלחתי להבין את ההודעה מספיק טוב. אפשר לנסח אותה שוב או לבקש ממני הכוונה?',
         };
       }
+    }
+    // Conversational requests are not new personal facts. Intent is validated
+    // with the extraction; legacy proposals without it remain compatible.
+    if (
+      [
+        'guidance',
+        'recall',
+        'defer',
+        'off_topic',
+        'onboarding_question',
+      ].includes(extracted.intent)
+    ) {
+      extracted.facts = [];
+      extracted.clarification = null;
+    }
+    if (extracted.intent === 'defer' && extracted.deferredField) {
+      const field = snapshot.fields.find(
+        (f) => f.key === extracted.deferredField && f.state === 'unasked',
+      );
+      if (field)
+        extracted.facts.push({
+          field: field.key,
+          scope: field.scope,
+          statement: `השארת את הפרט ${field.label} להמשך`,
+          value: null,
+          state: 'skipped',
+          replaces: null,
+          change: 'add',
+          effectiveDate: null,
+          precision: 'unknown',
+          evidence: message,
+        });
     }
     // Revalidate model replacements against the exact scope/field, not merely an accessible ID.
     const waiting: typeof extracted.facts = [];
@@ -326,7 +357,7 @@ export class OnboardingService {
       ) {
         const labels: Record<string, string> = {
           home: 'בית',
-          office: 'משרד או מקום עסק',
+          office: 'משרד',
           field: 'שטח',
           other: 'מקום נוסף',
         };
@@ -354,6 +385,83 @@ export class OnboardingService {
       }
     }
     extracted.facts = extracted.facts.filter((f) => !waiting.includes(f));
+    if (extracted.intent === 'off_topic') {
+      extracted.reply =
+        'זה צ׳אט להיכרות איתך ועם העסק. לשאלות על האפליקציה או בנושאים אחרים אפשר לפנות לסוכן הראשי. כאן אפשר להמשיך לספר על עצמך או לשאול על ההיכרות.';
+    } else if (!body.skipField && !extracted.clarification) {
+      // Generate the reply from the validated prospective state, not stale gaps.
+      // Model/network work remains outside the atomic commit transaction.
+      const replacements = new Set(
+        extracted.facts.map((f) => f.replaces).filter(Boolean),
+      );
+      const currentFacts = [
+        ...active.filter((f) => !replacements.has(f.id)),
+        ...extracted.facts.map((f) => ({
+          field_key: f.field,
+          scope_kind: f.scope,
+          statement: f.statement,
+          value_text: f.value,
+          answer_state: f.state,
+          effective_date: f.effectiveDate,
+          date_precision: f.precision,
+          change_kind: f.change,
+          status: 'active',
+        })),
+      ];
+      const fields = snapshot.fields.map((field) => {
+        const update = extracted.facts.find((f) => f.field === field.key);
+        return update
+          ? { ...field, value: update.value, state: update.state }
+          : field;
+      });
+      const missingQuestions = fields.filter((f) => f.state === 'unasked');
+      if (extracted.intent === 'guidance' || extracted.intent === 'defer') {
+        const acknowledgement =
+          extracted.intent === 'defer'
+            ? 'אין בעיה, נשאיר את זה להמשך.'
+            : 'בשמחה, נתקדם בקצב שלך.';
+        extracted.reply =
+          acknowledgement +
+          (extracted.intent === 'defer' && !extracted.facts.length
+            ? ' אפשר לספר משהו אחר שחשוב לך, או לחזור לשאלות בהמשך.'
+            : missingQuestions[0]
+            ? ' ' + missingQuestions[0].question
+            : ' אפשר להמשיך לספר על מה שחשוב לך, או לעבור לסיכום ההיכרות.');
+      } else {
+        const response = await this.extractor.respond(message, {
+          intent: extracted.intent,
+          fields,
+          currentFacts,
+          sourceNarrative: snapshot.story.narrative,
+          history: snapshot.facts
+            .filter((f) => f.status !== 'active' || replacements.has(f.id))
+            .map((f) => {
+              const replacement = extracted.facts.find(
+                (update) => update.replaces === f.id,
+              );
+              const invalidated = extracted.facts.some((update) =>
+                update.invalidates?.includes(f.id),
+              );
+              return invalidated
+                ? { ...f, status: 'corrected' }
+                : replacement
+                ? {
+                    ...f,
+                    status:
+                      replacement.change === 'correction'
+                        ? 'corrected'
+                        : 'superseded',
+                    valid_to_text: replacement.effectiveDate,
+                  }
+                : f;
+            }),
+          missingQuestions,
+          turns: snapshot.turns.slice(-12),
+        });
+        extracted.reply = response.reply;
+        if (response.kind === 'off_topic') extracted.facts = [];
+      }
+    }
     await this.scope(user, snapshot.businessNumber);
     const id = randomUUID();
     await this.db.query(
@@ -463,6 +571,7 @@ export class OnboardingService {
       const missing = missingFields(person, business);
       const reply =
         extraction.clarification ||
+        extraction.reply ||
         (missing[0]?.question ??
           'תודה, יש לי מענה לכל פרטי הבסיס. אפשר להמשיך לספר, לתקן או לעדכן אותי בכל רגע.');
       await manager.query(
@@ -514,6 +623,20 @@ export class OnboardingService {
       );
     });
     return this.read(user, scope.business);
+  }
+  async summarize(
+    user: AgentHarnessUser,
+    requested: string,
+    version: { person: number; business: number },
+  ) {
+    const snapshot = await this.read(user, requested);
+    this.checkVersion(version, snapshot.version);
+    const story = await this.extractor.summarize({
+      fields: snapshot.fields,
+      facts: snapshot.facts,
+      sourceNarrative: snapshot.story.narrative,
+    });
+    return { story, version: snapshot.version };
   }
   async defer(user: AgentHarnessUser, requested: string) {
     const scope = await this.scope(user, requested);

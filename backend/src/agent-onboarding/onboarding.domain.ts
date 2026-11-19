@@ -87,6 +87,15 @@ export interface FactInput {
 export interface Extraction {
   facts: FactInput[];
   clarification: string | null;
+  reply?: string | null;
+  intent?:
+    | 'share'
+    | 'guidance'
+    | 'recall'
+    | 'defer'
+    | 'off_topic'
+    | 'onboarding_question';
+  deferredField?: FieldKey | null;
 }
 export interface ProfileRow {
   id: string;
@@ -111,6 +120,22 @@ export function validateExtraction(
     !x ||
     !Array.isArray(x.facts) ||
     x.facts.length > 30 ||
+    (x.intent !== undefined &&
+      ![
+        'share',
+        'guidance',
+        'recall',
+        'defer',
+        'off_topic',
+        'onboarding_question',
+      ].includes(x.intent)) ||
+    (x.deferredField != null &&
+      !FIELDS.some((f) => f.key === x.deferredField)) ||
+    (x.reply !== undefined &&
+      x.reply !== null &&
+      (typeof x.reply !== 'string' ||
+        !x.reply.trim() ||
+        x.reply.length > 5000)) ||
     !(
       x.clarification === null ||
       (typeof x.clarification === 'string' && x.clarification.length <= 1500)

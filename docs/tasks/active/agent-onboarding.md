@@ -196,3 +196,37 @@ Verification on the final executable changes based on b6bb29c3:
 - Backend executable source, API contracts, schema, accounting data, authentication and tenant rules: unchanged. Backend/DB/paid-model checks were not repeated for this frontend-only change. Full legacy frontend suite and authenticated live-browser flow were not run. Existing prior persistence evidence is separate.
 - No app development server was started/stopped. No main integration or remote push.
 - Final frontend `npm run build -- --configuration production`: exit 0, build hash 8e0fae0f3878df24, 94.6 seconds. Existing unrelated style-budget, CommonJS and 3.21 MB initial-bundle warnings remain. This build and the 23-test pass both cover the final executable inputs; only task documentation changed afterward. Complete diff reviewed and `git diff --check` passed.
+
+
+## 2026-11-19 — Natural, goal-directed introduction conversation
+
+Base: local feature commit 46603f71, same codex/agent-onboarding worktree.
+Acceptance: no guidance/skip controls; Send, Enter-to-send and Shift+Enter newline;
+guidance/unknown answers through chat; legitimate recall questions answered in
+context; unrelated requests redirected to the main agent; one second-person story
+with meaningful transition dates but no storage metadata or duplicated source-log
+section; basic details visible in personal/business groups.
+
+Implemented: extraction includes a validated intent. Response planning receives
+updated prospective fields/facts rather than stale gaps. Guidance, explicit
+deferral and off-topic messages are routed consistently. Historical replacements
+and corrections remain distinguishable in response context. Replies use the
+existing opaque proposal/atomic commit and idempotency path. Invalid extraction
+requests rephrasing instead of repeating an unrelated basic question. Original
+speech is retained internally. No schema or accounting table change. New
+owner-scoped, version-checked POST summary generates a display-only narrative
+without overwriting canonical memory. Configurable model defaults/call counts are
+documented in the onboarding README; existing authorization applies.
+
+Frontend: shared buttons/PrimeNG controls, one composer action, keyboard/IME
+handling, one narrative and always-visible personal/business basics. English
+boolean answers display in Hebrew. Source logs/recording metadata are hidden.
+Summary failures preserve chat; forgetting invalidates/regenerates the narrative.
+
+Verification on final executable inputs:
+- Backend `npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts`: exit 0, 44 passed, 0 skipped, 34.8 seconds. Covers reply selection, prospective-state context, intent routing, natural deferral, summary version checks, original context and model failures. One earlier assertion expected הסוכן הראשי while the correct text was לסוכן הראשי; reviewed and corrected that assertion without weakening the redirect requirement.
+- Frontend `npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/pages/agent-onboarding/*.spec.ts --ts-config=tsconfig.onboarding-spec.json`: exit 0, 27 passed, 0 skipped. Covers Enter/Shift+Enter/IME, one composer action, no guidance/skip buttons, async summary/failure, no duplicated source log, visible grouped basics, Hebrew booleans, idempotent retry, draft retention, invitation lifecycle and actual long-summary scrolling at widths 800/360px. No frontend executable change followed this pass.
+- Backend `node scripts/onboarding-conversation-smoke.cjs --run-paid-model-smoke`: exit 0, seven final synthetic cases passed through real propose with DB writes mocked. Cases: name/employment without invented start dates or repeated name question; guidance; recall after guidance; natural deferral; support referral; month-precision office transition retaining home work; one natural summary without storage metadata. Final total: 18,781 input tokens, 535 output tokens; extraction gpt-4.1-mini, conversation/summary gpt-4.1. These bounded checks are evidence, not exhaustive model-accuracy claims.
+- Earlier bounded diagnostics were reviewed: the first design failed off-topic routing and manually showed redundant questions/speculative filler; the separated-response revision still failed deferral/support referral. Those concrete contract defects led to explicit intent routing and prospective-state context. An intermediate seven-case pass preceded final source-aware refinements; the final seven-case pass above covers current executable inputs. A helper path-alias setup failure occurred before any model request; the reusable helper registers existing aliases.
+- Final builds are recorded below after completion. Prior persistence/HTTP-MySQL evidence remains separate: no live DB, accounting data or schema operation ran in this follow-up. No app server was started/stopped, no authenticated browser session was used and the full legacy frontend suite was not run. No main integration or remote push.
+- Final backend `npm run build`: exit 0. Final frontend `npm run build -- --configuration production`: exit 0, build hash ba751c6563b50508, 40.4 seconds. Existing unrelated style-budget, CommonJS and initial 3.21 MB bundle warnings remain. The final test/model/build evidence covers the same executable inputs; only documentation changed afterward. Complete diff reviewed and git diff --check passed.

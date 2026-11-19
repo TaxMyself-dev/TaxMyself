@@ -21,7 +21,16 @@ describe('onboarding owner boundaries and proposals', () => {
         .fn()
         .mockResolvedValue([{ businessNumber: '111', businessName: 'עסק' }]),
     };
-    extractor = { extract: jest.fn() };
+    extractor = {
+      extract: jest.fn(),
+      summarize: jest.fn(),
+      respond: jest
+        .fn()
+        .mockResolvedValue({
+          kind: 'conversation',
+          reply: 'נעים להכיר. אפשר להמשיך לספר.',
+        }),
+    };
     service = new OnboardingService(db, domain, extractor);
   });
   afterEach(() => delete process.env.AGENT_ONBOARDING_ENABLED);
@@ -191,7 +200,7 @@ describe('onboarding owner boundaries and proposals', () => {
       message: 'אני מתכנן סניף חדש',
     });
     expect(proposal.facts).toEqual([]);
-    expect(proposal.clarification).toBe('מה העסק עושה?');
+    expect(proposal.clarification).toContain('לנסח');
     expect(db.query.mock.calls[0][1][6]).toBe('אני מתכנן סניף חדש');
   });
   it('identifies an incomplete business independently of the shared invitation status', async () => {
@@ -231,4 +240,182 @@ describe('onboarding owner boundaries and proposals', () => {
     });
     expect(db.transaction).not.toHaveBeenCalled();
   });
+  it.each([
+    ['recall', 'קוראים לך שמואל ואתה גם עצמאי וגם שכיר.'],
+    ['guidance', 'בשמחה. מה העסק שלך עושה בפועל?'],
+    [
+      'off topic',
+      'זה צ׳אט להיכרות. לשאלות על האפליקציה אפשר לפנות לסוכן הראשי.',
+    ],
+  ])(
+    'commits a conversational %s reply instead of repeating the next missing question',
+    async (_kind, reply) => {
+      const person = { id: 'p', scope_key: '', version: 1, field_states: {} };
+      const business = {
+        id: 'b',
+        scope_key: '111',
+        version: 1,
+        field_states: {},
+      };
+      const manager = {
+        query: jest.fn(async (sql: string, _params?: unknown[]) => {
+          if (sql.includes('TIMESTAMPDIFF'))
+            return [
+              {
+                base_person_version: 1,
+                base_business_version: 1,
+                age_seconds: 0,
+                payload: { facts: [], clarification: null, reply },
+                source_text: 'מה אתה יודע עלי?',
+              },
+            ];
+          if (sql.startsWith('SELECT * FROM agent_onboarding_profiles'))
+            return [person, business];
+          return [];
+        }),
+      };
+      db.transaction.mockImplementation((work) => work(manager));
+      jest
+        .spyOn(service, 'read')
+        .mockResolvedValue({ version: { person: 2, business: 2 } } as any);
+      await service.commit(user, '111', 'proposal');
+      const change = manager.query.mock.calls.find(([sql]) =>
+        sql.startsWith('INSERT INTO agent_onboarding_changes'),
+      );
+      expect(change?.[1][4]).toBe(reply);
+      expect(
+        manager.query.mock.calls.some(([sql]) =>
+          sql.startsWith('INSERT INTO agent_onboarding_facts'),
+        ),
+      ).toBe(false);
+    },
+  );
+  it('checks the narrative version before calling the model', async () => {
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({ version: { person: 2, business: 1 } } as any);
+    await expect(
+      service.summarize(user, '111', { person: 1, business: 1 }),
+    ).rejects.toThrow();
+    expect(extractor.summarize).not.toHaveBeenCalled();
+  });
+  it('grounds the presentation in scoped current facts, history and source context without writing it as memory', async () => {
+    const facts = [
+      { statement: 'עובד במשרד', status: 'active' },
+      { statement: 'עבד מהבית', status: 'superseded' },
+    ];
+    jest
+      .spyOn(service, 'read')
+      .mockResolvedValue({
+        version: { person: 2, business: 1 },
+        fields: [],
+        facts,
+        story: { narrative: 'תוכנית לקורס' },
+      } as any);
+    extractor.summarize.mockResolvedValue('אתה עובד במשרד ומתכנן קורס.');
+    expect(
+      await service.summarize(user, '111', { person: 2, business: 1 }),
+    ).toEqual({
+      story: 'אתה עובד במשרד ומתכנן קורס.',
+      version: { person: 2, business: 1 },
+    });
+    expect(extractor.summarize).toHaveBeenCalledWith({
+      fields: [],
+      facts,
+      sourceNarrative: 'תוכנית לקורס',
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('passes new validated answers to the responder and removes them from missing questions', async () => {
+    jest.spyOn(service, 'read').mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 0, business: 0 },
+      facts: [],
+      story: {},
+      turns: [],
+      fields: [
+        { key: 'preferred_name', state: 'unasked' },
+        { key: 'activity', state: 'unasked' },
+      ],
+    } as any);
+    extractor.extract.mockResolvedValue({
+      facts: [
+        {
+          field: 'preferred_name',
+          scope: 'person',
+          statement: 'קוראים לך שמואל',
+          value: 'שמואל',
+          state: 'known',
+          replaces: null,
+          change: 'add',
+          effectiveDate: null,
+          precision: 'unknown',
+          evidence: 'שמואל',
+        },
+      ],
+      clarification: null,
+    });
+    await service.propose(user, {
+      businessNumber: '111',
+      version: { person: 0, business: 0 },
+      message: 'אני שמואל',
+    });
+    const context = extractor.respond.mock.calls[0][1];
+    expect(context.fields[0].state).toBe('known');
+    expect(context.missingQuestions.map((f) => f.key)).toEqual(['activity']);
+    expect(context.currentFacts[0].value_text).toBe('שמואל');
+  });
+
+  it.each(['guidance', 'recall', 'off_topic', 'defer'])(
+    'routes %s without treating the request as a personal fact',
+    async (intent) => {
+      jest.spyOn(service, 'read').mockResolvedValue({
+        businessNumber: '111',
+        version: { person: 0, business: 0 },
+        facts: [],
+        story: { narrative: 'תוכנית לקורס' },
+        turns: [],
+        fields: [
+          {
+            key: 'activity',
+            scope: 'business',
+            label: 'פעילות העסק',
+            question: 'מה העסק עושה?',
+            state: 'unasked',
+          },
+          { key: 'vehicle', question: 'יש שימוש ברכב?', state: 'unasked' },
+        ],
+      } as any);
+      extractor.extract.mockResolvedValue({
+        facts: [],
+        clarification: null,
+        intent,
+        deferredField: intent === 'defer' ? 'activity' : null,
+      });
+      const result = await service.propose(user, {
+        businessNumber: '111',
+        version: { person: 0, business: 0 },
+        message: 'הודעה',
+      });
+      if (intent === 'defer') {
+        expect(result.facts).toEqual([
+          expect.objectContaining({
+            field: 'activity',
+            state: 'skipped',
+            evidence: 'הודעה',
+          }),
+        ]);
+        expect(result.reply).not.toContain('מה העסק עושה?');
+      } else expect(result.facts).toEqual([]);
+      if (intent === 'off_topic') expect(result.reply).toContain('לסוכן הראשי');
+      if (intent === 'recall')
+        expect(extractor.respond.mock.calls[0][1]).toMatchObject({
+          intent: 'recall',
+          sourceNarrative: 'תוכנית לקורס',
+        });
+      else expect(extractor.respond).not.toHaveBeenCalled();
+    },
+  );
 });

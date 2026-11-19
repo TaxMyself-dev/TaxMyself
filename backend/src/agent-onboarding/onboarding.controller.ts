@@ -38,6 +38,9 @@ class CommitDto {
 class ScopeDto {
   @IsString() @MaxLength(100) businessNumber: string;
 }
+class SummaryDto extends ScopeDto {
+  @ValidateNested() @Type(() => VersionDto) version: VersionDto;
+}
 class ForgetDto extends ScopeDto {
   @IsUUID() factId: string;
   @ValidateNested() @Type(() => VersionDto) version: VersionDto;
@@ -79,6 +82,16 @@ export class OnboardingController {
       identity(req),
       body.businessNumber,
       body.proposalId,
+    );
+  }
+  @Post('summary') summarize(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: SummaryDto,
+  ) {
+    return this.service.summarize(
+      identity(req),
+      body.businessNumber,
+      body.version,
     );
   }
   @Post('defer') defer(

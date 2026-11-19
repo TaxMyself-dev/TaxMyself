@@ -1,53 +1,56 @@
 <main dir="rtl" class="onboarding">
-  <header>
-    <a routerLink="/my-account" [queryParams]="{api: api}">חזרה לאפליקציה</a
-    ><span>Keepintax</span>
-  </header>
-  <section class="intro">
-    <h1>נכיר את העסק שלך</h1>
-    <p>הדרך שבה אתה עובד, הדברים שחשובים לך והסיפור שמאחורי המספרים.</p>
-  </section>
-  @if (businesses().length > 1) {
-  <label class="business"
-    >על איזה עסק נדבר?
-    <p-select [options]="businesses()" optionLabel="name" optionValue="number"
-      [(ngModel)]="selected" (onChange)="select()" [disabled]="busy()"
-      placeholder="בחירת עסק" ariaLabel="על איזה עסק נדבר?" /></label
-  >
-  } @if (error()) {
-  <div class="error" role="alert">
-    {{error()}}
-    <app-p-button  (onButtonClicked)="refresh()" [disabled]="busy() || !selected" buttonText="רענון המידע"  [buttonColor]="ButtonColor.WHITE_BORDER" />
-  </div>
-  } @if (busy()) {
-  <p role="status" aria-live="polite">
-    {{proposal() ? 'שומר את העדכון…' : 'רגע, מעבד את הפרטים…'}}
-  </p>
-  } @if (!busy() && businesses().length === 0 && !error()) {
-  <p>כדי להתחיל היכרות, צריך להוסיף עסק בחשבון.</p>
-  } @if (snapshot(); as s) { @if (welcome()) {
-  <section class="welcome" aria-labelledby="welcome-title">
-    <h2 id="welcome-title">היי, אני הסוכן החכם של Keepintax</h2>
-    <p>
-      שיחה קצרה תעזור לי להבין אותך ואת העסק ולהתאים לך את העזרה בהמשך. אפשר
-      לספר בחופשיות או לתת לי להכווין בשאלות.
-    </p>
-    <p class="muted">
-      ההתקדמות נשמרת במהלך השיחה. בסיום אציג סיכום של מה שהבנתי; אפשר לתקן ולעדכן בכל רגע.
-    </p>
-    <div class="buttons">
-      <app-p-button  [buttonColor]="ButtonColor.BLACK" (onButtonClicked)="welcome.set(false)" buttonText="אספר במילים שלי" /><app-p-button  (onButtonClicked)="guided()" buttonText="כוון אותי בשאלות"  [buttonColor]="ButtonColor.WHITE_BORDER" /><app-p-button  (onButtonClicked)="later()" [disabled]="busy()" buttonText="אחר כך"  [buttonColor]="ButtonColor.WHITE_BORDER" />
+  <div class="page-content">
+    <header>
+      <a routerLink="/my-account">חזרה לאפליקציה</a><span>Keepintax</span>
+    </header>
+    <section class="intro">
+      <h1>נעים להכיר</h1>
+      <p>הסיפור שלך ושל העסק, בקצב שלך.</p>
+    </section>
+    @if (businesses().length > 1) {
+    <label class="business"
+      >על איזה עסק נדבר?
+      <p-select
+        [options]="businesses()"
+        optionLabel="name"
+        optionValue="number"
+        [(ngModel)]="selected"
+        (onChange)="select()"
+        [disabled]="busy()"
+        placeholder="בחירת עסק"
+        ariaLabel="על איזה עסק נדבר?"
+      />
+    </label>
+    } @if (error()) {
+    <div class="error" role="alert">
+      {{error()}}
+      <app-p-button
+        buttonText="רענון המידע"
+        [buttonColor]="ButtonColor.WHITE_BORDER"
+        (onButtonClicked)="refresh()"
+        [disabled]="busy() || !selected"
+      />
     </div>
-  </section>
-  }
-  <div class="workspace">
-    @if (!summary()) {
+    } @if (busy()) {
+    <p class="muted" role="status" aria-live="polite">
+      {{summarizing() ? 'מכין את הסיפור שלך…' : proposal() ? 'שומר את השיחה…' :
+      'חושב על מה שסיפרת…'}}
+    </p>
+    } @if (!busy() && businesses().length === 0 && !error()) {
+    <p>כדי להתחיל היכרות, צריך להוסיף עסק בחשבון.</p>
+    } @if (snapshot(); as s) { @if (!summary()) {
     <section class="conversation" aria-label="שיחת ההיכרות">
-      <h2>השיחה שלנו</h2>
-      <p class="muted">
-        אפשר לספר משהו חדש, לתקן פרט או לציין ממתי משהו השתנה.
-      </p>
-      <div #turns class="turns" aria-live="polite">
+      <div
+        #turns
+        class="turns"
+        role="log"
+        aria-label="הודעות השיחה"
+        aria-live="polite"
+      >
+        <article class="turn assistant">
+          <span>Keepintax</span>
+          <p>{{s.opening}}</p>
+        </article>
         @for (turn of s.turns; track $index) {
         <article class="turn user">
           <span>אתה</span>
@@ -57,122 +60,136 @@
           <span>Keepintax</span>
           <p>{{turn.assistant_text}}</p>
         </article>
-        } @if (!s.turns.length || guidedQuestion()) {
-        <article class="turn assistant">
-          <p>{{guidedQuestion() || s.opening}}</p>
-        </article>
         }
       </div>
       @if (proposal() && !busy()) {
-      <p role="status">שמירת ההודעה עדיין לא אושרה. אפשר לנסות שוב בלי לשלוח אותה מחדש.</p>
-      <app-p-button buttonText="ניסיון שמירה נוסף" (onButtonClicked)="save()"  [buttonColor]="ButtonColor.WHITE_BORDER" />
+      <p role="status">
+        לא התקבל אישור שההודעה נשמרה. אפשר לנסות שוב בלי לשלוח אותה מחדש.
+      </p>
+      <app-p-button
+        buttonText="ניסיון שמירה נוסף"
+        (onButtonClicked)="save()"
+        [buttonColor]="ButtonColor.WHITE_BORDER"
+      />
       }
-      <form (ngSubmit)="send()">
-        <label for="story-input">מה תרצה לספר?</label
-        ><textarea
+      <form (ngSubmit)="send()" class="composer">
+        <label class="sr-only" for="story-input">הודעה לסוכן ההיכרות</label>
+        <textarea
           pTextarea
           id="story-input"
           name="draft"
           [(ngModel)]="draft"
           maxlength="12000"
-          rows="4"
+          rows="3"
           [disabled]="busy() || !!proposal()"
           [placeholder]="placeholder"
+          (keydown)="onComposerKeydown($event)"
         ></textarea>
-        <div class="buttons">
+        <div class="composer-actions">
+          <small>Enter לשליחה · Shift + Enter לשורה חדשה</small>
           <app-p-button
             type="submit"
+            buttonText="שלח"
             [buttonColor]="ButtonColor.BLACK"
             [disabled]="busy() || !!proposal() || !draft.trim()"
-           buttonText="להמשיך" />@if(nextField){<app-p-button
-            type="button"
-            (onButtonClicked)="guided()"
-            [disabled]="busy() || !!proposal()"
-           buttonText="כוון אותי"  [buttonColor]="ButtonColor.WHITE_BORDER" /><app-p-button
-            type="button"
-            (onButtonClicked)="send(true)"
-            [disabled]="busy() || !!proposal() || !!draft.trim()"
-           [buttonText]="'דלג על ' + nextField.label"  [buttonColor]="ButtonColor.WHITE_BORDER" />}
+          />
         </div>
       </form>
-      <div class="buttons">
-        <app-p-button buttonText="סיום וסיכום ההיכרות" [disabled]="busy() || !!proposal() || !!draft.trim()" (onButtonClicked)="finish()"  [buttonColor]="ButtonColor.WHITE_BORDER" />
+      <div class="conversation-footer">
+        <p>
+          אפשר לבקש הכוונה בשיחה. לא חייבים לענות עכשיו על כל השאלות.<br />ההתקדמות
+          נשמרת, ואפשר לחזור ולעדכן בכל רגע.
+        </p>
+        <app-p-button
+          buttonText="סיום וסיכום ההיכרות"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          [disabled]="busy() || !!proposal() || !!draft.trim()"
+          (onButtonClicked)="finish()"
+        />
       </div>
-      <p class="muted">ההתקדמות נשמרת תוך כדי השיחה. בסיום יוצג הסיכום ואפשר יהיה לחזור ולעדכן.</p>
     </section>
     } @else {
-    <aside aria-label="מה הסוכן יודע עליי">
-      <app-p-button buttonText="חזרה לשיחה ועדכון פרטים" (onButtonClicked)="summary.set(false)"  [buttonColor]="ButtonColor.WHITE_BORDER" />
-      <h2>מה אני זוכר עליך</h2>
-      <p class="progress">
-        {{s.fields.length - s.missing.length}} מתוך {{s.fields.length}} פרטי
-        בסיס קיבלו מענה
-      </p>
-      @if(s.missing.length){<p class="muted">נותרו פרטי בסיס להשלמה. אפשר לחזור לשיחה ולהמשיך מהמקום שבו עצרנו.</p>}
-      <h3>הסיפור שלך</h3>
-      <p class="story">
-        {{s.story.person || 'הסיפור האישי ייבנה מתוך השיחה.'}}
-      </p>
-      <h3>העסק שלך</h3>
-      <p class="story">
-        {{s.story.business || 'כאן יופיע ההקשר העסקי שתשתף.'}}
-      </p>
-      @if(s.story.narrative){
-      <details>
-        <summary>הסיפור במילים שלך</summary>
-        <p class="muted">
-          הדברים כפי שסיפרת ומתי נמסרו. הם עשויים לכלול תוכניות או פרטים שתוקנו
-          בהמשך; העובדות העדכניות מוצגות בנפרד.
-        </p>
-        <p class="story">{{s.story.narrative}}</p>
-      </details>
-      }
-      <details>
-        <summary>פרטי הבסיס</summary>
-        <dl>
-          @for(f of s.fields; track f.key){
-          <div>
-            <dt>{{f.label}}</dt>
-            <dd>{{f.value || label(f.state)}}</dd>
-          </div>
+    <section class="memory" aria-label="מה הסוכן יודע עליי">
+      <div class="summary-header">
+        <h2>הסיפור שלך</h2>
+        <app-p-button
+          buttonText="חזרה לשיחה"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          (onButtonClicked)="summary.set(false)"
+          [disabled]="busy()"
+        />
+      </div>
+      <p class="story">{{summaryText()}}</p>
+      <p class="muted">משהו לא מדויק או השתנה? ספר לי בשיחה ואעדכן.</p>
+      <section class="basics" aria-labelledby="basics-title">
+        <h2 id="basics-title">פרטי הבסיס</h2>
+        <div class="basic-groups">
+          @for (group of
+          [{scope:'person',title:'עליך'},{scope:'business',title:'על העסק'}];
+          track group.scope) {
+          <section>
+            <h3>{{group.title}}</h3>
+            <dl>
+              @for (field of fieldsFor(group.scope); track field.key) {
+              <div [class.unanswered]="field.state !== 'known'">
+                <dt>{{field.label}}</dt>
+                <dd>{{displayField(field)}}</dd>
+              </div>
+              }
+            </dl>
+          </section>
           }
-        </dl>
-      </details>
-      <details>
-        <summary>היסטוריית המידע ומחיקה מהזיכרון</summary>
+        </div>
+      </section>
+      <details class="memory-management">
+        <summary>ניהול הזיכרון</summary>
         <p class="muted">
-          מחיקה מסירה את הפרט ואת גרסאותיו מזיכרון ההיכרות. הודעות בשיחות רגילות
-          וגיבויים אינן נמחקות בפעולה זו.
+          לתיקון פרטים אפשר לחזור לשיחה. מחיקה כאן מסירה את הפרט ואת גרסאותיו
+          מזיכרון ההיכרות; שיחות רגילות וגיבויים אינם נמחקים.
         </p>
-        @for(f of s.facts;track f.id){
-        <article class="fact">
-          <p>{{f.statement}}</p>
-          <small
-            >{{f.status === 'active' ? 'נוכחי' : f.status === 'corrected' ?
-            'תוקן כמידע שגוי' : 'הוחלף'}} @if(f.effective_date){ · החל
-            מ־{{f.effective_date}}}@if(f.valid_to_text){ · עד
-            {{f.valid_to_text}}} · נמסר {{f.recorded_at |
-            date:'dd/MM/yyyy'}}</small
-          >
-          <app-p-button (onButtonClicked)="forgetting.set(f.id)"
-            [disabled]="busy() || !!proposal()" buttonText="מחיקה מהזיכרון"  [buttonColor]="ButtonColor.WHITE_BORDER" />
-        </article>
-        }
+        @for (fact of s.facts; track fact.id) { @if (fact.status === 'active') {
+        <div class="fact">
+          <p>{{fact.statement}}</p>
+          <app-p-button
+            buttonText="מחיקה מהזיכרון"
+            [buttonColor]="ButtonColor.WHITE_BORDER"
+            (onButtonClicked)="forgetting.set(fact.id)"
+            [disabled]="busy()"
+          />
+        </div>
+        } }
       </details>
-    </aside>
-    }
+    </section>
+    } }
   </div>
-  }
 </main>
-
-<p-dialog [visible]="!!forgetting()" (visibleChange)="!$event && forgetting.set(null)"
-  header="מחיקה מהזיכרון" [modal]="true" [closable]="!busy()" [closeOnEscape]="!busy()"
-  [draggable]="false" [resizable]="false" [style]="{width:'90vw',maxWidth:'480px'}">
+<p-dialog
+  dir="rtl"
+  [visible]="!!forgetting()"
+  (visibleChange)="!$event && forgetting.set(null)"
+  header="מחיקה מהזיכרון"
+  [modal]="true"
+  [closable]="!busy()"
+  [closeOnEscape]="!busy()"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{width:'90vw',maxWidth:'480px'}"
+>
   <div dir="rtl">
     <p>למחוק את הפרט ואת ההיסטוריה שלו מזיכרון ההיכרות?</p>
     <div class="buttons">
-      <app-p-button buttonText="כן, למחוק" [buttonColor]="ButtonColor.RED_OUTLINE" [disabled]="busy()" (onButtonClicked)="forget(forgetting()!)" />
-      <app-p-button buttonText="ביטול" [disabled]="busy()" (onButtonClicked)="forgetting.set(null)"  [buttonColor]="ButtonColor.WHITE_BORDER" />
+      <app-p-button
+        buttonText="כן, למחוק"
+        [buttonColor]="ButtonColor.RED_OUTLINE"
+        [disabled]="busy()"
+        (onButtonClicked)="forget(forgetting()!)"
+      />
+      <app-p-button
+        buttonText="ביטול"
+        [buttonColor]="ButtonColor.WHITE_BORDER"
+        [disabled]="busy()"
+        (onButtonClicked)="forgetting.set(null)"
+      />
     </div>
   </div>
 </p-dialog>
