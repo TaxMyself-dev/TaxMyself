@@ -1,6 +1,6 @@
 # KT-122 - Report period defaults
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex
 - Worktree: `C:\Users\harel\.codex\worktrees\kt122\taxmyself-dev`
@@ -40,8 +40,8 @@ annual-report screen opens on the current calendar year.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `0897fa3c`
+- Combined verification: focused Karma spec `4 SUCCESS`; Angular production build exit 0 with existing budget/CommonJS warnings.
+- `origin/main` verification: feature commit `0897fa3c` pushed successfully; final tracking commit verified after delivery.
+- User-visible run instructions: open the VAT report and annual-report screens; no deployment was performed.

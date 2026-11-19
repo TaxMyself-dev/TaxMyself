@@ -553,3 +553,16 @@ before disconnected/error feedback is shown. Fix commit `1fe8a9cc` reached
 Karma tests and the Angular production build passed; no other suites ran. No
 backend, provider-contract, schema, database, accounting, authorization,
 production change or deployment occurred.
+
+## KT-122 report-period defaults — 2026-11-19
+
+VAT report entry now keeps the selected business's configured monthly or
+bimonthly cadence while selecting the most recently completed reporting
+period; in November/December a bimonthly business opens on September-October,
+including correct previous-year rollover. Annual-report entry now defaults to
+the current calendar year while preserving an explicit `taxYear` query
+parameter. Feature commit `0897fa3c` reached `origin/main`. Verification was
+intentionally narrow: four isolated Karma tests and the Angular production
+build passed; unrelated suites did not run. No backend, schema, database,
+report-total, accounting, authorization, production change or deployment
+occurred.
