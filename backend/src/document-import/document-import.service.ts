@@ -1,3 +1,4 @@
+import { EmailIntakeStore } from '../email-intake/email-intake.store';
 import {
   BadRequestException,
   Injectable,
@@ -88,8 +89,15 @@ export class DocumentImportService {
     private readonly googleDriveService: GoogleDriveService,
     private readonly businessResolver: BusinessResolverService,
     @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly emailStore?: EmailIntakeStore,
   ) {}
 
+  async resolveEmailBusiness(firebaseId:string,businessNumber?:string):Promise<string> {
+    const number=await this.resolveBusinessNumber({firebaseId,businessNumber} as DocumentImportRequest);
+    const business=await this.businessRepo.findOneBy({firebaseId,businessNumber:number});
+    if(!business||business.firebaseId!==firebaseId||business.businessNumber!==number)throw new BadRequestException('Business not found');
+    return number;
+  }
   async hasImportedContent(firebaseId: string, businessNumber: string | undefined, content: Buffer): Promise<boolean> {
     const target = await this.resolveBusinessNumber({ firebaseId, businessNumber } as DocumentImportRequest);
     return !!await this.importedDocumentRepo.findOne({ where: {
@@ -127,6 +135,11 @@ export class DocumentImportService {
       async () => createHash('sha256').update(request.content).digest('hex'),
     );
 
+    if(this.emailStore?.enabled()) {
+      const rows=await this.emailStore.query('SELECT id,email_work_state FROM imported_documents WHERE firebase_id=? AND business_number=? AND content_hash=?',[request.firebaseId,businessNumber,contentHash]);
+      if(rows[0] && ['DELETED','DELETE_PENDING','DELETE_RETRY','DELETE_UNCONFIRMED'].includes(rows[0].email_work_state))
+        return {status:'ALREADY_IMPORTED',reason:'EXPLICITLY_NON_ACCOUNTING',contentHash,driveFileId:null,driveFileName:null,importedDocumentId:rows[0].id};
+    }
     if (this.protectedPdf?.enabled() && /\.pdf$/i.test(request.filename)) {
       const inspection = await this.protectedPdf.inspection.inspect(request.content);
       if (inspection.kind === 'password_required') {

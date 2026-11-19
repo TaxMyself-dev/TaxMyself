@@ -1,3 +1,4 @@
+import { EmailIntakeRunsService } from '../../email-intake/email-intake-runs.service';
 import {
   BadRequestException,
   ConflictException,
@@ -97,6 +98,7 @@ export class GmailSyncService {
     private readonly userIntegrationsService: UserIntegrationsService,
     private readonly gmailDriveImportService: GmailDriveImportService,
     @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly durableRuns?: EmailIntakeRunsService,
   ) {}
 
   // --- Date boundaries -------------------------------------------------------
@@ -133,6 +135,7 @@ export class GmailSyncService {
     const passwordCounts = this.protectedPdf?.enabled()
       ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
     return {
+      ...(this.durableRuns?.enabled()?{runs:await this.durableRuns.status(firebaseId)}:{}),
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
@@ -167,11 +170,16 @@ export class GmailSyncService {
     integrationId: number,
     fromDate: string,
     toDate: string,
-  ): Promise<{ started: true }> {
+  ): Promise<{ started: true; runId?: string }> {
     const integration = await this.getConnectedIntegration(firebaseId, integrationId);
     this.validateDateRange(fromDate, toDate);
     this.assertNoConflictingRun(integration);
 
+    if(this.durableRuns?.enabled()) {
+      const runId=await this.durableRuns.start(integration,{type:'INITIAL',query:this.buildDateRangeQuery(fromDate,toDate),from:fromDate,to:toDate});
+      await this.userIntegrationsService.markSyncRunning(integration.id);
+      return {started:true,runId};
+    }
     await this.userIntegrationsService.markSyncRunning(integration.id);
 
     const context: GmailSyncRunContext = {
@@ -344,6 +352,11 @@ export class GmailSyncService {
       return { outcome: 'skipped', detail: 'no sync cursor' };
     }
 
+    if(this.durableRuns?.enabled()) {
+      const after=Math.floor((integration.lastSuccessfulSyncAt.getTime()-NIGHTLY_SYNC_OVERLAP_MS)/1000);
+      await this.durableRuns.start(integration,{type:'NIGHTLY',query:'has:attachment after:'+after});
+      return {outcome:'skipped',detail:'Durable scan queued; completion tracked separately'};
+    }
     const windowEnd = new Date();
     const context: GmailSyncRunContext = {
       syncType: 'NIGHTLY',

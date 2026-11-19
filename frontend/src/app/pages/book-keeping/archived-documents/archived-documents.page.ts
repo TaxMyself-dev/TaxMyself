@@ -52,6 +52,8 @@ export const RECORD_SOURCE_ICONS: Record<RecordSource, { iconClass?: string; ico
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   invoice: 'חשבונית',
   receipt: 'קבלה',
+  insurance_policy: 'פוליסת ביטוח',
+  license_fee: 'אגרות רישוי',
   tax_invoice_receipt: 'חשבונית מס קבלה',
   credit_invoice: 'חשבונית זיכוי',
   invoice_receipt_pair: 'חשבונית + קבלה',

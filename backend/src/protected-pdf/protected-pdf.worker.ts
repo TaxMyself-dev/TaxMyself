@@ -77,6 +77,10 @@ export class ProtectedPdfWorker {
         [token, id],
         manager,
       );
+      // Reserve management before the external move so the generic INBOX scan cannot claim it.
+      if(process.env.GMAIL_DURABLE_INTAKE_ENABLED==='true') {
+        await this.store.query("UPDATE imported_documents r JOIN protected_documents p ON p.id=? JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='PROTECTED_DELIVERY',r.email_run_id=original.email_run_id,r.email_upload_tag=? WHERE r.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state='LEGACY' AND original.email_work_state='PASSWORD_REQUIRED'",[op.protected_id,id,op.replacement_import_id,op.firebase_id,op.business_number],manager);
+      }
       return op;
     });
     if (!operation) return;
@@ -126,6 +130,10 @@ export class ProtectedPdfWorker {
           [id, token],
           manager,
         );
+        if(process.env.GMAIL_DURABLE_INTAKE_ENABLED==='true') {
+          await this.store.query("UPDATE imported_documents r JOIN document_replacement_operations o ON o.replacement_import_id=r.id JOIN protected_documents p ON p.id=o.protected_id JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='READY',r.email_run_id=original.email_run_id,r.email_upload_tag=o.id WHERE o.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state IN ('LEGACY','PROTECTED_DELIVERY') AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id,operation.business_number],manager);
+          await this.store.query("UPDATE imported_documents original JOIN protected_documents p ON p.original_import_id=original.id JOIN document_replacement_operations o ON o.protected_id=p.id JOIN imported_documents r ON r.id=o.replacement_import_id SET original.email_work_state='REPLACED' WHERE o.id=? AND original.firebase_id=? AND r.email_work_state='READY' AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id],manager);
+        }
         // The ledger records the intake destination; OCR may already have moved the file to processed.
         await this.store.query(
           'UPDATE imported_documents SET drive_folder_id=? WHERE id=? AND firebase_id=? AND business_number=?',

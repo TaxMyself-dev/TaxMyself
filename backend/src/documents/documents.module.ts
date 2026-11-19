@@ -1,3 +1,5 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
+import { EmailProcessingWorker } from '../email-intake/email-processing.worker';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
@@ -48,6 +50,7 @@ import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 @Module({
   imports: [
     ProtectedPdfModule,
+    EmailIntakeModule,
     IdentityImagesModule,
     TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument, ShaamInvoiceAllocationAttempt]),
     MailModule,
@@ -69,6 +72,7 @@ import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
     AccountCodeAllocatorService,
     BusinessService,
     DocumentProcessorService,
+    EmailProcessingWorker,
     DocumentPairingService,
     InboxOcrCronService,
   ],

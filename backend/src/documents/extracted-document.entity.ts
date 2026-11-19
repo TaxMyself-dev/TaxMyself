@@ -60,6 +60,8 @@ export enum ExtractedDocStatus {
 export enum ExtractedDocumentType {
   INVOICE = 'invoice',
   RECEIPT = 'receipt',
+  INSURANCE_POLICY = 'insurance_policy',
+  LICENSE_FEE = 'license_fee',
   TAX_INVOICE_RECEIPT = 'tax_invoice_receipt',
   /** חשבונית זיכוי — credit/refund invoice. Negative-amount invoice
    *  issued to reverse a prior charge. Claude returns this when the doc

@@ -1,5 +1,17 @@
 {
- "extends":"./tsconfig.spec.json",
- "compilerOptions":{"skipLibCheck":true,"types":["jasmine","node"]},
- "include":["src/app/services/protected-pdf.service.spec.ts","src/app/pages/book-keeping/archived-documents/protected-pdf.spec.ts","src/**/*.d.ts"]
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "types": [
+      "jasmine",
+      "node"
+    ]
+  },
+  "include": [
+    "src/app/services/protected-pdf.service.spec.ts",
+    "src/app/pages/book-keeping/archived-documents/protected-pdf.spec.ts",
+    "src/**/*.d.ts",
+    "src/app/services/document-approval-input.spec.ts",
+    "src/app/services/gmail-sync-state.spec.ts"
+  ]
 }

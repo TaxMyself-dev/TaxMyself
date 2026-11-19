@@ -168,6 +168,40 @@ export class GmailReaderService {
    * DEBUG lines. Bulk callers (initial import, nightly sync) supply one.
    * `pdfStats` (optional) does the same for the PDF-content fallback.
    */
+  /** Durable scanner: metadata and MIME paths, never a buffered mailbox scan. */
+  async durablePage(integration: UserIntegration, query: string, cursor?: string) {
+    this.assertUsableIntegration(integration);
+    return this.emailProvider.listMessages(this.accountContext(integration), query, 50, cursor);
+  }
+  async durableParts(integration: UserIntegration, messageId: string) {
+    this.assertUsableIntegration(integration);
+    const message = await this.emailProvider.getMessage(this.accountContext(integration), messageId);
+    const parts: Array<{path:string;filename:string;mimeType:string;skip?:string;metadata?:Record<string,any>}> = [];
+    const walk = (part: EmailPart, path: string, depth: number) => {
+      if (depth > MAX_MIME_DEPTH) throw new EmailProviderError('CONTRACT');
+      if (part.parts?.length) { part.parts.forEach((child,index)=>walk(child,path+'.'+index,depth+1)); return; }
+      if (!part.body?.attachmentId && !part.body?.data) return;
+      const mime = part.mimeType?.toLowerCase() || '';
+      const ext = this.getExtension(part.filename || '');
+      const format = mime==='application/pdf'||ext==='pdf'?'pdf':mime==='image/png'||ext==='png'?'png':mime==='image/jpeg'||['jpg','jpeg'].includes(ext)?'jpg':null;
+      if (!format) { if(part.filename) parts.push({path,filename:part.filename.slice(0,500),mimeType:mime,skip:'UNSUPPORTED_TYPE'}); return; }
+      // A generic image001 name or missing filename is not evidence of irrelevance.
+      const header=(key:string)=>message.payload.headers?.find(h=>h.name?.toLowerCase()===key)?.value;
+      parts.push({metadata:{gmailThreadId:message.threadId,gmailSubject:header('subject'),gmailFrom:header('from'),gmailDate:header('date')},path,filename:(part.filename||('attachment-'+path+'.'+format)).replace(/[\\/\x00-\x1f]/g,'-').slice(0,500),mimeType:format==='pdf'?'application/pdf':format==='png'?'image/png':'image/jpeg'});
+    };
+    walk(message.payload,'root',0); return parts;
+  }
+  async durableDownload(integration: UserIntegration, messageId: string, path: string): Promise<Buffer> {
+    this.assertUsableIntegration(integration);
+    const account=this.accountContext(integration);
+    const message=await this.emailProvider.getMessage(account,messageId);
+    if(!/^root(?:\.\d+)*$/.test(path))throw new EmailProviderError('CONTRACT');
+    let part=message.payload;
+    for(const index of path.split('.').slice(1)) { if(!/^\d+$/.test(index)||!part.parts?.[Number(index)])throw new EmailProviderError('CONTRACT'); part=part.parts[Number(index)]; }
+    part={...part,filename:part.filename||('attachment-'+path)};
+    const content=await this.downloadPartContent(account,messageId,part);
+    if(!content)throw new EmailProviderError('CONTRACT'); return content;
+  }
   async *scanMessages(
     integration: UserIntegration,
     options: {

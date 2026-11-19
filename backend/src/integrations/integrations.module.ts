@@ -1,3 +1,5 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
+import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
 import { Module } from '@nestjs/common';
 import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -34,6 +36,7 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
 @Module({
   imports: [
     ProtectedPdfModule,
+    EmailIntakeModule,
     TypeOrmModule.forFeature([
       UserIntegration,
       OauthState,
@@ -45,7 +48,7 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
     DocumentImportModule,
   ],
   controllers: [IntegrationsController],
-  providers: [FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, { provide: EmailProvider, useClass: ComposioGmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
+  providers: [EmailIntakeRunsService, FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, { provide: EmailProvider, useClass: ComposioGmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
   exports: [UserIntegrationsService, GmailReaderService, GmailDriveImportService, GmailSyncService],
 })
 export class IntegrationsModule {}

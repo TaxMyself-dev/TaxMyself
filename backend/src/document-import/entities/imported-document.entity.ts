@@ -52,15 +52,15 @@ export class ImportedDocument {
   @Column({ name: 'content_hash', type: 'char', length: 64 })
   contentHash: string;
 
-  @Column({ name: 'drive_file_id', type: 'varchar', length: 255 })
+  @Column({ name: 'drive_file_id', type: 'varchar', length: 255, nullable: true })
   driveFileId: string;
 
   /** Final name in Drive — may differ from filename when uniquified. */
-  @Column({ name: 'drive_file_name', type: 'varchar', length: 512 })
+  @Column({ name: 'drive_file_name', type: 'varchar', length: 512, nullable: true })
   driveFileName: string;
 
   /** The Drive inbox/ folder the file was uploaded into. */
-  @Column({ name: 'drive_folder_id', type: 'varchar', length: 255 })
+  @Column({ name: 'drive_folder_id', type: 'varchar', length: 255, nullable: true })
   driveFolderId: string;
 
   /** Original filename as provided by the source. */

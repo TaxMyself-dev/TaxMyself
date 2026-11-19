@@ -1,3 +1,5 @@
+import { Optional } from '@nestjs/common';
+import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
 import {
   Body,
   ConflictException,
@@ -39,6 +41,7 @@ export class IntegrationsController {
     private readonly gmailReaderService: GmailReaderService,
     private readonly gmailDriveImportService: GmailDriveImportService,
     private readonly gmailSyncService: GmailSyncService,
+    @Optional() private readonly durableRuns?: EmailIntakeRunsService,
   ) {}
 
   private ownerId(request: AuthenticatedRequest): string {
@@ -195,6 +198,7 @@ export class IntegrationsController {
     // Imports from the Gmail accounts the user selected in the manual import
     // dialog (ownership + ACTIVE status validated in the service); one failing
     // mailbox does not abort the others (aggregated per-account in the response).
+    if(this.durableRuns?.enabled())return this.durableRuns.startManual(firebaseId,body.integrationIds,{businessNumber:body.businessNumber?.trim(),query:body.q});
     return this.gmailDriveImportService.importAllForUser(firebaseId, body.integrationIds, {
       // Optional: when omitted, DocumentImportService resolves the target
       // business via BusinessResolverService.

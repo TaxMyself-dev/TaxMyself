@@ -1,3 +1,4 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -20,7 +21,7 @@ import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
  * owns what happens after a file candidate exists.
  */
 @Module({
-  imports: [
+  imports: [EmailIntakeModule,
     ProtectedPdfModule,
     TypeOrmModule.forFeature([ImportedDocument, Business]),
     // Reuses the existing service-account Drive client for inbox uploads

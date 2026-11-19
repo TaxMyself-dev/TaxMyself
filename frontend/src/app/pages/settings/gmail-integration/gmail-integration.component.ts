@@ -53,6 +53,8 @@ export class GmailIntegrationComponent implements OnInit {
   readonly inputsSize = inputsSize;
   readonly isMobile = computed(() => this.genericService.isMobile());
 
+  durableState(value:string):string {return ({READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
+  runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
   readonly connecting = signal(false);
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
   readonly importing = signal(false);
@@ -177,6 +179,10 @@ export class GmailIntegrationComponent implements OnInit {
       next: (result) => {
         this.importing.set(false);
         this.importDialogVisible.set(false);
+        if(result.started){
+          this.messageService.add({severity:'info',summary:'המשיכה התחילה',detail:'המשיכה והעיבוד ממשיכים בהדרגה. ההתקדמות תוצג במסך זה.',key:'br'});
+          this.syncState.refresh(); return;
+        }
         const failed = result.perAccount.filter((a) => a.error);
         const reviewRequired = result.perAccount.reduce((total, account) => total + (account.reviewRequired || 0), 0);
         const passwordRequired = result.perAccount.reduce((total, account) => total + (account.passwordRequired || 0), 0);

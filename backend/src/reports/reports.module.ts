@@ -1,3 +1,4 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
 //General
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -37,7 +38,7 @@ import { DepreciationModule } from '../depreciation/depreciation.module';
 import { AdminGuard } from '../guards/admin.guard';
 
 @Module({
-  imports: [
+  imports: [EmailIntakeModule,
     // Phase 4.6: the four legacy catalog entities are gone from this list —
     // no service provided here injects their repos anymore.
     TypeOrmModule.forFeature([Business, Expense,

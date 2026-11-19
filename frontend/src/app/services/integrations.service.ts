@@ -26,7 +26,12 @@ export interface GmailAccountSyncStatus {
 }
 
 /** Response of GET integrations/google/gmail/sync-status. */
+export interface GmailDurableRun {
+ id:string;integrationId:number;businessNumber:string;scan_state:string;pull_state:string;processing_state:string;error_code:string|null;
+ messages:Record<string,number>;attachments:Record<string,number>;documents:Record<string,number>;
+}
 export interface GmailSyncStatus {
+  runs?: GmailDurableRun[];
   /** תאריך מוקדם ביותר מותר לייבוא (YYYY-MM-DD) — מחושב בשרת, לא בפרונט. */
   minFromDate: string;
   /** תאריך מאוחר ביותר מותר (YYYY-MM-DD) — היום. */
@@ -53,6 +58,8 @@ export interface GmailAccountImportResult {
 }
 
 export interface GmailImportAllResult {
+  started?:boolean;
+  runIds?:string[];
   totalImported: number;
   totalAlreadyImported: number;
   totalSkipped: number;

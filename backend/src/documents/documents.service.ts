@@ -1,3 +1,4 @@
+import { EmailIntakeStore, EmailWork } from '../email-intake/email-intake.store';
 import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
@@ -215,6 +216,7 @@ export class DocumentsService {
     private readonly fillFasterSigner: FillFasterSigner,
     private readonly imageStorage: ImageStorageService,
     @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly emailStore?: EmailIntakeStore,
   ) { }
 
   isIncrement: boolean = false;
@@ -2967,7 +2969,9 @@ ${finalOwnerName}`;
     const inboxFolderId = business.driveInboxFolderId!;
     const processedFolderId = business.driveProcessedFolderId!;
 
-    const files = await this.googleDriveService.listFolderFiles(inboxFolderId);
+    const listedFiles = await this.googleDriveService.listFolderFiles(inboxFolderId);
+    const managedIds = this.emailStore?.enabled()?await this.emailStore.managedFileIds(listedFiles.map(file=>file.id)):new Set<string>();
+    const files=listedFiles.filter(file=>!managedIds.has(file.id));
     this.logger.log(
       `processInboxForUser: fid=${firebaseId.substring(0, 8)} biz=${businessNumber} ` +
       `inbox=${inboxFolderId} files=${files.length}`,
@@ -3220,6 +3224,48 @@ ${finalOwnerName}`;
         // One row per invoice. Raw Claude response saved only on the first
         // row to avoid duplicating a potentially-large blob. The first row
         // updates the durable claim in place; it is never removed/reinserted.
+        await this.persistExtractedRows(user,businessNumber,file,uploadDate,recordSource,ocrClaim,invoices,rawResponse,catalog);
+        // OCR succeeded → move the file out of inbox so a repeat pass
+        // doesn't re-pick-it-up. Best-effort: a move failure is logged but
+        // doesn't undo the saved rows (dedup catches it next run).
+        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+
+        processed++;
+        this.logger.log(
+          `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
+        );
+      } catch (err: any) {
+        if (ocrClaim) {
+          await this.finalizeOcrClaimAsError(
+            ocrClaim,
+            err?.message ?? String(err),
+          );
+          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
+        }
+        failed++;
+        this.logger.error(
+          `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
+          err?.stack,
+        );
+      }
+    }
+
+    return {
+      processed,
+      failed,
+      skipped,
+      duplicates,
+      restored,
+      total: files.length,
+      inboxFolderId,
+      processedFolderId,
+    };
+  }
+
+  /** Best-effort move so a Drive throttle / 5xx doesn't undo a successful
+   *  OCR. If the move fails we'll catch the orphaned file on the next inbox
+   *  scan (the `alreadyHandled` branch retries the move). */
+  private async persistExtractedRows(user:Pick<User,'index'>, businessNumber:string, file:{id:string;name:string;md5Checksum?:string}, uploadDate:Date|null, recordSource:RecordSource, ocrClaim:ExtractedDocument, invoices:any[], rawResponse:string, catalog:CatalogEntry[], repository=this.extractedDocRepo, existingRows:ExtractedDocument[]=[]) {
         const extractedRows: ExtractedDocument[] = [];
         for (let i = 0; i < invoices.length; i++) {
           const inv = invoices[i];
@@ -3283,50 +3329,51 @@ ${finalOwnerName}`;
           extractedRows.push(
             i === 0
               ? Object.assign(ocrClaim, values)
-              : this.extractedDocRepo.create(values),
+              : Object.assign(existingRows.find(row=>row.subIndex===i) || repository.create(values), values),
           );
         }
-        await this.extractedDocRepo.save(extractedRows);
-        // OCR succeeded → move the file out of inbox so a repeat pass
-        // doesn't re-pick-it-up. Best-effort: a move failure is logged but
-        // doesn't undo the saved rows (dedup catches it next run).
-        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-
-        processed++;
-        this.logger.log(
-          `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
-        );
-      } catch (err: any) {
-        if (ocrClaim) {
-          await this.finalizeOcrClaimAsError(
-            ocrClaim,
-            err?.message ?? String(err),
-          );
-          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-        }
-        failed++;
-        this.logger.error(
-          `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
-          err?.stack,
-        );
-      }
-    }
-
-    return {
-      processed,
-      failed,
-      skipped,
-      duplicates,
-      restored,
-      total: files.length,
-      inboxFolderId,
-      processedFolderId,
-    };
+        await repository.save(extractedRows);
   }
-
-  /** Best-effort move so a Drive throttle / 5xx doesn't undo a successful
-   *  OCR. If the move fails we'll catch the orphaned file on the next inbox
-   *  scan (the `alreadyHandled` branch retries the move). */
+  /** Existing claim/catalog/extraction/persistence, bounded to one managed file. */
+  async prepareEmailWork(work:EmailWork,token:string) {
+    if(!this.emailStore?.enabled())throw new Error('Durable email disabled');
+    await this.assertBusinessOwnership(work.firebase_id,work.business_number);
+    const user=await this.userRepo.findOneBy({firebaseId:work.firebase_id});if(!user)throw new NotFoundException('User not found');
+    const file=await this.googleDriveService.getIntakeFileMetadata(work.drive_file_id);
+    const claim=await this.emailStore.transaction(async manager=>{
+      const current=await this.emailStore.work(work.id,work.firebase_id,work.business_number,manager);
+      if(current.email_lease_token!==token)throw new Error('Email lease changed');
+      const repository=manager.getRepository(ExtractedDocument);
+      let row=await repository.findOne({where:{driveFileId:work.drive_file_id,subIndex:0}});
+      if(row&&(row.userId!==user.index||row.businessNumber!==work.business_number))throw new Error('Foreign document claim');
+      if(row&&row.status!==ExtractedDocStatus.PROCESSING)throw new Error('Document already handled');
+      if(!row)row=await repository.save(repository.create({userId:user.index,businessNumber:work.business_number,driveFileId:work.drive_file_id,driveFileName:work.filename,driveFileMd5:file.md5Checksum,subIndex:0,month:this.deriveMonthFromExtraction(null,file.createdTime?new Date(file.createdTime):null),uploadDate:file.createdTime?new Date(file.createdTime):new Date(),status:ExtractedDocStatus.PROCESSING,source:RecordSource.EMAIL}));
+      const saved=await this.emailStore.query('UPDATE imported_documents SET email_claim_id=? WHERE id=? AND email_lease_token=?',[row.id,work.id,token],manager);if(saved.affectedRows!==1)throw new Error('Email lease changed');
+      work.email_claim_id=row.id;return row;
+    });
+    return {user,file,claim,catalog:await this.buildExtractionCatalog(work.firebase_id,work.business_number)};
+  }
+  async extractEmailWork(work:EmailWork,context:any) {
+    const bytes=await this.googleDriveService.downloadFile(work.drive_file_id);
+    if(createHash('sha256').update(bytes).digest('hex')!==work.content_hash)throw new Error('Email content changed');
+    return this.documentProcessor.extract(bytes,work.mime_type,context.catalog,true);
+  }
+  async persistEmailWork(work:EmailWork,token:string,outcome:any,context?:any) {
+    if(!this.emailStore?.enabled())throw new Error('Durable email disabled');
+    const catalog=context?.catalog || await this.buildExtractionCatalog(work.firebase_id,work.business_number);
+    await this.emailStore.transaction(async manager=>{
+      const current=await this.emailStore.work(work.id,work.firebase_id,work.business_number,manager);
+      if(current.email_lease_token!==token)throw new Error('Email lease changed');
+      const repository=manager.getRepository(ExtractedDocument);const claim=await repository.findOneBy({id:current.email_claim_id,driveFileId:work.drive_file_id,businessNumber:work.business_number});
+      if(!claim)throw new Error('Email claim missing');
+      const negative=outcome.intakeDecision==='not_accounting'&&Array.isArray(outcome.invoices)&&outcome.invoices.length===0;
+      const relevant=outcome.intakeDecision==='accounting'&&Array.isArray(outcome.invoices)&&outcome.invoices.length>0;
+      if(relevant)await this.persistExtractedRows({index:claim.userId},work.business_number,{id:work.drive_file_id,name:work.filename,md5Checksum:claim.driveFileMd5},claim.uploadDate,RecordSource.EMAIL,claim,outcome.invoices,outcome.rawResponse||'',catalog,repository,await repository.find({where:{driveFileId:work.drive_file_id}}));
+      else {claim.status=negative?ExtractedDocStatus.REJECTED:ExtractedDocStatus.PENDING_REVIEW;claim.documentKind=DocumentKind.UNIDENTIFIED;claim.documentType=ExtractedDocumentType.UNKNOWN;claim.rejectionReason=null;claim.rawResponse=null;await repository.save(claim)}
+      const result=await this.emailStore.query('UPDATE imported_documents SET email_work_state=?,email_decision=?,email_error_code=?,email_decided_at=UTC_TIMESTAMP(3) WHERE id=? AND email_lease_token=?',[negative?'DELETE_PENDING':'MOVE_PROCESSED',negative?'NOT_ACCOUNTING':relevant?'ACCOUNTING':'UNCERTAIN',outcome.technicalCode||null,work.id,token],manager);if(result.affectedRows!==1)throw new Error('Email lease changed');
+      work.email_work_state=negative?'DELETE_PENDING':'MOVE_PROCESSED';work.email_decision=negative?'NOT_ACCOUNTING':relevant?'ACCOUNTING':'UNCERTAIN';
+    });
+  }
   private async safelyMoveToProcessed(
     fileId: string,
     fromInbox: string,
@@ -4303,7 +4350,8 @@ ${finalOwnerName}`;
     const visibleItems = this.protectedPdf?.enabled()
       ? await this.protectedPdf.decorateArchive(firebaseId, businessNumber, archiveItems, canManageExpenses)
       : archiveItems;
-    return visibleItems.sort((a, b) => {
+    const scopedVisibleItems=this.emailStore?.enabled()?await this.emailStore.decorateArchive(firebaseId,businessNumber,visibleItems,canManageExpenses):visibleItems;
+    return scopedVisibleItems.sort((a, b) => {
       const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;
@@ -4463,6 +4511,7 @@ ${finalOwnerName}`;
       throw new HttpException('Not your document', HttpStatus.FORBIDDEN);
     }
 
+    await this.emailStore?.assertRetained(selected.driveFileId);
     const fileRows = await this.extractedDocRepo.find({
       where: { driveFileId: selected.driveFileId },
     });

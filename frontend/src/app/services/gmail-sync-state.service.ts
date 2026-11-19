@@ -35,7 +35,7 @@ export class GmailSyncStateService {
   );
   /** האם חשבון כלשהו מייבא כרגע (מפעיל polling ואינדיקציית "רץ"). */
   readonly isAnyRunning = computed(() =>
-    this.accounts().some((a) => a.lastSyncStatus === 'RUNNING'),
+    this.accounts().some((a) => a.lastSyncStatus === 'RUNNING') || (this.status()?.runs??[]).some(run=>['RUNNING','RETRY'].includes(run.pull_state)||run.processing_state==='RUNNING'),
   );
 
   private pollSubscription: Subscription | null = null;
@@ -121,7 +121,7 @@ export class GmailSyncStateService {
       status.accounts.map((a) => [a.id, a.lastSyncStatus]),
     );
 
-    if (status.accounts.some((a) => a.lastSyncStatus === 'RUNNING')) {
+    if (status.accounts.some((a) => a.lastSyncStatus === 'RUNNING') || (status.runs??[]).some(run=>['RUNNING','RETRY'].includes(run.pull_state)||run.processing_state==='RUNNING')) {
       this.startPolling();
     } else {
       this.stopPolling();
@@ -134,8 +134,8 @@ export class GmailSyncStateService {
     if (kind === 'success') {
       this.messageService.add({
         severity: 'success',
-        summary: 'הייבוא הושלם',
-        detail: `ייבוא ההודעות מ-Gmail הסתיים בהצלחה${email ? ` (${email})` : ''}`,
+        summary: 'המשיכה מהמייל הושלמה',
+        detail: `המשיכה מ-Gmail הסתיימה; מצב עיבוד המסמכים מוצג בנפרד${email ? ` (${email})` : ''}`,
         life: 5000,
         key: 'br',
       });
