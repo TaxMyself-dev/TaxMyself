@@ -1,6 +1,6 @@
 # KT-123 - P&L annual default
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex
 - Worker: Codex
 - Worktree: `C:\Users\harel\.codex\worktrees\kt123\taxmyself-dev`
@@ -38,8 +38,8 @@ The profit-and-loss report opens in annual mode for the current year.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager
+- Integrated commit: `451b18af`
+- Combined verification: `git diff --check` and targeted static assertions passed; no automated tests/build by user request.
+- `origin/main` verification: feature commit `451b18af` pushed successfully; final tracking commit verified after delivery.
+- User-visible run instructions: open P&L report and confirm annual/current-year defaults; no deployment was performed.

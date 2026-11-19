@@ -566,3 +566,15 @@ intentionally narrow: four isolated Karma tests and the Angular production
 build passed; unrelated suites did not run. No backend, schema, database,
 report-total, accounting, authorization, production change or deployment
 occurred.
+
+## KT-123 P&L annual default — 2026-11-19
+
+Clarified that the requested annual default belongs to the profit-and-loss
+report filter, not the annual-report preparation wizard. P&L now opens in
+annual mode for the current calendar year, while review-return parameters
+still restore their explicit period. The unrelated annual-report wizard was
+returned to its prior completed-tax-year default. Feature commit `451b18af`
+reached `origin/main`. Per the user's explicit request, verification was limited
+to `git diff --check` and targeted static assertions; no Karma suite or Angular
+build ran. No backend, schema, database, report-total, accounting,
+authorization, production change or deployment occurred.
