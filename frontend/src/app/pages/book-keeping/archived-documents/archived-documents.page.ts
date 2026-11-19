@@ -21,6 +21,7 @@ import { ReportReviewService } from 'src/app/services/report-review.service';
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
   PASSWORD_REQUIRED: 'נדרשת סיסמה',
+  NO_INVOICE_FOUND: 'לא זוהתה חשבונית',
   DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
@@ -83,6 +84,7 @@ export class ArchivedDocumentsPage implements OnInit {
   get replacementError(): string { return this.replacementFlow.error; }
 
   protectedOperationLabel(upload?: string, processing?: string): string {
+    if (processing === 'NO_INVOICE_FOUND') return 'העיבוד הסתיים; לא זוהתה חשבונית בעותק הפתוח';
     if (processing === 'SUCCEEDED') return 'העיבוד הושלם';
     if (processing === 'FAILED') return 'העותק נשמר, אך עיבודו נכשל';
     if (upload === 'DELIVERY_FAILED') return 'העותק נשמר; העברתו לעיבוד לא הושלמה';
@@ -229,7 +231,9 @@ export class ArchivedDocumentsPage implements OnInit {
         sourceIconUrl: sourceIcon?.iconUrl ?? null,
         statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
           ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
-        statusDetail: item.status === 'PASSWORD_REQUIRED'
+        statusDetail: item.status === 'NO_INVOICE_FOUND'
+          ? 'העיבוד הסתיים ללא חשבונית מזוהה. המסמך נשמר לבדיקה; זו אינה שגיאה טכנית.'
+          : item.status === 'PASSWORD_REQUIRED'
           ? 'נדרש עותק PDF שניתן לפתוח ללא סיסמה. המקור נשמר.'
           : item.protectedDocumentId && item.replacementUploadStatus
           ? this.protectedOperationLabel(item.replacementUploadStatus, item.replacementProcessingStatus)
@@ -259,6 +263,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
   private readonly statusOptions: ISelectItem[] = [
     { name: ARCHIVE_STATUS_LABELS.PASSWORD_REQUIRED, value: 'PASSWORD_REQUIRED' },
+    { name: ARCHIVE_STATUS_LABELS.NO_INVOICE_FOUND, value: 'NO_INVOICE_FOUND' },
     { name: 'הכל', value: 'ACTIVE' },
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
     { name: ARCHIVE_STATUS_LABELS.FILED_ANNUAL, value: 'FILED_ANNUAL' },

@@ -318,6 +318,9 @@ export class DocumentProcessorService {
       const decision = parseEmailAiOutcome(stripped);
       return { invoices: decision.invoices, rawResponse, intakeDecision: decision.decision };
     }
+    if (response.stop_reason && response.stop_reason !== 'end_turn') {
+      return { invoices: null, rawResponse };
+    }
     try {
       const parsed = JSON.parse(stripped);
       // Expected shape: { invoices: [...] }. Be defensive about Claude

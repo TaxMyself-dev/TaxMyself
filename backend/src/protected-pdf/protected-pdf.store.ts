@@ -31,8 +31,19 @@ export interface ReplacementOperation {
   size: number;
   candidate_drive_id: string | null;
   replacement_import_id: number | null;
-  status: 'RESERVED' | 'UPLOAD_FAILED' | 'PENDING' | 'DISPATCHING' | 'QUEUED' | 'DELIVERY_FAILED';
-  processing_status: 'NOT_STARTED' | 'PENDING' | 'SUCCEEDED' | 'FAILED';
+  status:
+    | 'RESERVED'
+    | 'UPLOAD_FAILED'
+    | 'PENDING'
+    | 'DISPATCHING'
+    | 'QUEUED'
+    | 'DELIVERY_FAILED';
+  processing_status:
+    | 'NOT_STARTED'
+    | 'PENDING'
+    | 'SUCCEEDED'
+    | 'FAILED'
+    | 'NO_INVOICE_FOUND';
   expected_version: number;
   lease_token: string | null;
   lease_expires_at: Date | null;

@@ -275,6 +275,22 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     );
   });
 
+  it('retains a valid empty extraction without counting a processing failure or non-accounting verdict', async () => {
+    const file = { id: 'open-copy', name: 'open.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
+    const test = subject([[], [], []], file);
+    test.fakeThis.documentProcessor.extract.mockResolvedValue({ invoices: [], rawResponse: '{"invoices":[]}' });
+    await expect(test.run()).resolves.toMatchObject({ failed: 0, skipped: 1, processed: 0, total: 1 });
+    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.NO_INVOICE_FOUND, rawResponse: '{"invoices":[]}', rejectionReason: null }));
+    expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledTimes(1);
+    expect(test.fakeThis.safelyMoveToProcessed).toHaveBeenCalledWith('open-copy', 'inbox', 'processed');
+  });
+  it('retains an unresolved response as an error even if its partial raw JSON looks empty', async () => {
+    const file = { id: 'truncated-copy', name: 'open.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
+    const test = subject([[], [], []], file);
+    test.fakeThis.documentProcessor.extract.mockResolvedValue({ invoices: null, rawResponse: '{"invoices":[]}' });
+    await expect(test.run()).resolves.toMatchObject({ failed: 1, skipped: 0, total: 1 });
+    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.ERROR, rejectionReason: 'invalid_ai_response' }));
+  });
   it('persists an explicit not-accounting decision as rejected without a second AI call', async () => {
     const file = { id: 'gmail-form', name: 'form.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
     const test = subject([[], [], []], file, [{ driveFileId: file.id, source: DocumentImportSource.GMAIL }]);

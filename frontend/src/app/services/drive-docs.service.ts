@@ -57,6 +57,7 @@ export type RecordSource = 'DRIVE' | 'EMAIL' | 'MANUAL' | 'OPEN_BANKING' | 'WHAT
 /** User-facing lifecycle status for the ארכיון שלי page. */
 export type ArchiveItemStatus =
   | 'PASSWORD_REQUIRED'
+  | 'NO_INVOICE_FOUND'
   | 'PENDING'
   | 'APPROVED'
   | 'FILED_ANNUAL'

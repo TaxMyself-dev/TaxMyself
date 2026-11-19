@@ -5,6 +5,7 @@ import { DocumentImportSource } from '../document-import/enums/document-import.e
 import { ProtectedPdfService } from './protected-pdf.service';
 import { ProtectedPdfStore, ReplacementOperation } from './protected-pdf.store';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { replacementProcessingOutcome } from '../documents/document-outcome.util';
 
 @Injectable()
 export class ProtectedPdfWorker {
@@ -275,14 +276,11 @@ export class ProtectedPdfWorker {
     );
     for (const op of queued) {
       const rows = await this.store.query(
-        'SELECT e.status FROM extracted_document e JOIN imported_documents i ON i.drive_file_id=e.drive_file_id AND i.business_number=e.business_number WHERE i.id=? AND i.business_number=? AND i.firebase_id=?',
+        'SELECT e.status,e.raw_response AS rawResponse,e.rejection_reason AS rejectionReason FROM extracted_document e JOIN imported_documents i ON i.drive_file_id=e.drive_file_id AND i.business_number=e.business_number WHERE i.id=? AND i.business_number=? AND i.firebase_id=?',
         [op.replacement_import_id, op.business_number, op.firebase_id],
       );
-      if (!rows.length || rows.some((row) => row.status === 'processing'))
-        continue;
-      const status = rows.some((row) => row.status === 'error')
-        ? 'FAILED'
-        : 'SUCCEEDED';
+      const status = replacementProcessingOutcome(rows);
+      if (status === 'PENDING') continue;
       await this.store.query(
         "UPDATE document_replacement_operations SET processing_status=? WHERE id=? AND processing_status='PENDING'",
         [status, op.id],

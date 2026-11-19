@@ -35,6 +35,8 @@ export enum ExtractedDocStatus {
   /** OCR failed on the file; row exists for diagnostics and the file is moved
    *  to processed/ so automatic intake can never parse it again. */
   ERROR = 'error',
+  /** Valid completed extraction with no identified invoice; retain for review. */
+  NO_INVOICE_FOUND = 'no_invoice_found',
   /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
    *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
    *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to

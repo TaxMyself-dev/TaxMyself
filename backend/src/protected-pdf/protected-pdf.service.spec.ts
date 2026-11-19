@@ -209,6 +209,8 @@ function subject() {
         });
       else if (sql.startsWith('UPDATE imported_documents SET drive_folder_id'))
         ledger.find((r) => r.id === a[1]).driveFolderId = a[0];
+      else if (sql.startsWith('SELECT id,status,processing_status'))
+        return [...operations.values()];
       else if (sql.startsWith('SELECT p.*'))
         return [
           {
@@ -263,12 +265,13 @@ function subject() {
     getFolderParents: jest.fn().mockResolvedValue(['staging']),
     moveFile: jest.fn().mockResolvedValue(undefined),
   };
+  const extracted = { find: jest.fn().mockResolvedValue([]) };
   const service = new ProtectedPdfService(
     store,
     inspection as any,
     businesses as any,
     repo,
-    { find: jest.fn().mockResolvedValue([]) } as any,
+    extracted as any,
     drive as any,
   );
   const replace = (key = 'test-request-0001', owner = 'owner', biz = '123') =>
@@ -280,6 +283,7 @@ function subject() {
   return {
     root,
     operations,
+    extracted,
     store,
     repo,
     inspection,
@@ -489,6 +493,37 @@ describe('Protected PDF replacement boundaries (offline)', () => {
     );
     expect(items).toHaveLength(3);
   });
+  it('projects legacy empty-invoice outcomes in the archive and history without rewriting stored failures', async () => {
+    const t = subject();
+    const accepted = await t.replace();
+    const op = t.operations.get(accepted.operationId);
+    op.status = 'QUEUED';
+    op.processing_status = 'FAILED';
+    t.extracted.find.mockResolvedValue([
+      {
+        status: 'error',
+        rawResponse: '{"invoices":[]}',
+        rejectionReason: null,
+      },
+    ]);
+    const items = await t.service.decorateArchive(
+      'owner',
+      '123',
+      [{ id: 101, driveFileId: 'candidate', status: 'NO_INVOICE_FOUND' }],
+      true,
+    );
+    expect(items[0].replacementProcessingStatus).toBe('NO_INVOICE_FOUND');
+    expect(
+      (await t.service.history('owner', '123', 7)).operations[0]
+        .processing_status,
+    ).toBe('NO_INVOICE_FOUND');
+    expect(op.processing_status).toBe('FAILED');
+    expect(t.extracted.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { driveFileId: 'candidate', businessNumber: '123' },
+      }),
+    );
+  });
   it('performs no new-table work or dispatch when disabled', async () => {
     process.env.PROTECTED_PDF_ENABLED = 'false';
     const t = subject();
@@ -537,6 +572,7 @@ describe('Protected PDF replacement boundaries (offline)', () => {
   });
   it.each([
     ['error', 'FAILED'],
+    ['no_invoice_found', 'NO_INVOICE_FOUND'],
     ['pending_review', 'SUCCEEDED'],
   ])(
     'records processing %s separately from accepted upload',

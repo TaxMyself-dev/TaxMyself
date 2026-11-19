@@ -30,6 +30,7 @@ import { ExtractedDocument, ExtractedDocStatus, ExtractedDocumentType } from './
 import { SlimTransaction } from '../transactions/slim-transaction.entity';
 import { DocumentProcessorService, CatalogEntry } from './document-processor.service';
 import { deriveDocumentKind } from './document-kind.util';
+import { isNoInvoiceOutcome } from './document-outcome.util';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { Supplier } from '../expenses/suppliers.entity';
 import { Expense } from '../expenses/expenses.entity';
@@ -3200,19 +3201,19 @@ ${finalOwnerName}`;
         }
 
         if (!invoices) {
-          if (intakeDecision === 'uncertain') ocrClaim.rejectionReason = 'ai_uncertain';
+          ocrClaim.rejectionReason = intakeDecision === 'uncertain' ? 'ai_uncertain' : 'invalid_ai_response';
           await this.finalizeOcrClaimAsError(ocrClaim, rawResponse);
           await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
           failed++;
           continue;
         }
         if (invoices.length === 0) {
-          await this.finalizeOcrClaimAsError(
-            ocrClaim,
-            rawResponse || 'Claude returned 0 invoices for this file',
-          );
+          ocrClaim.status = ExtractedDocStatus.NO_INVOICE_FOUND;
+          ocrClaim.rawResponse = rawResponse;
+          ocrClaim.rejectionReason = null;
+          await this.extractedDocRepo.save(ocrClaim);
           await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-          failed++;
+          skipped++;
           continue;
         }
 
@@ -3708,7 +3709,16 @@ ${finalOwnerName}`;
       await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
       throw error;
     }
-    if (!invoices || invoices.length === 0) {
+    if (invoices && invoices.length === 0) {
+      ocrClaim.status = ExtractedDocStatus.NO_INVOICE_FOUND;
+      ocrClaim.rawResponse = rawResponse;
+      ocrClaim.rejectionReason = null;
+      await this.extractedDocRepo.save(ocrClaim);
+      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
+      throw new BadRequestException('העיבוד הסתיים, אך לא זוהתה חשבונית במסמך');
+    }
+    if (!invoices) {
+      ocrClaim.rejectionReason = 'invalid_ai_response';
       // Persist an error row so admin diagnostics still see the file, but
       // raise so the caller can surface "OCR didn't find an invoice".
       await this.finalizeOcrClaimAsError(
@@ -4492,6 +4502,7 @@ ${finalOwnerName}`;
     doc: ExtractedDocument,
     approvalStatusByExpenseId: Map<number, ExpenseApprovalStatus | null>,
   ): ArchiveItemStatus {
+    if (isNoInvoiceOutcome(doc)) return ArchiveItemStatus.NO_INVOICE_FOUND;
     if (doc.status === ExtractedDocStatus.REJECTED) return ArchiveItemStatus.REJECTED;
     if (doc.status === ExtractedDocStatus.NOT_AN_EXPENSE) return ArchiveItemStatus.FILED_ANNUAL;
     if (doc.status === ExtractedDocStatus.ARCHIVED) return ArchiveItemStatus.ARCHIVED;

@@ -15,6 +15,7 @@ import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { GoogleDriveService } from '../google-drive/google-drive.service';
 import { PdfInspectionService } from './pdf-inspection.service';
 import { ArchiveItemStatus, RecordSource } from '../enum';
+import { replacementProcessingOutcome } from '../documents/document-outcome.util';
 import {
   ProtectedPdfStore,
   ProtectedRoot,
@@ -398,7 +399,9 @@ export class ProtectedPdfService {
           manager,
           true,
         );
-        if (previous?.processing_status !== 'FAILED')
+        if (
+          !['FAILED', 'NO_INVOICE_FOUND'].includes(previous?.processing_status)
+        )
           throw new ConflictException(
             'Replacement already accepted or still processing',
           );
@@ -622,8 +625,31 @@ export class ProtectedPdfService {
       originalDriveFileId: root.original_drive_id,
       originalFilename: root.filename,
       status: root.status,
-      operations,
+      operations: await Promise.all(
+        operations.map(async (operation) => ({
+          ...operation,
+          processing_status: await this.processingStatusForDisplay(
+            operation.processing_status,
+            operation.candidate_drive_id,
+            businessNumber,
+          ),
+        })),
+      ),
     };
+  }
+  private async processingStatusForDisplay(
+    status: string,
+    fileId: string | null,
+    businessNumber: string,
+  ): Promise<string> {
+    if (status !== 'FAILED' || !fileId) return status;
+    const rows = await this.extracted.find({
+      where: { driveFileId: fileId, businessNumber },
+      select: ['status', 'rawResponse', 'rejectionReason'],
+    });
+    return replacementProcessingOutcome(rows) === 'NO_INVOICE_FOUND'
+      ? 'NO_INVOICE_FOUND'
+      : status;
   }
   async passwordCounts(
     owner: string,
@@ -674,6 +700,11 @@ export class ProtectedPdfService {
     );
     const result = items.filter((item) => !hidden.has(item.driveFileId));
     for (const root of roots) {
+      root.processing_status = await this.processingStatusForDisplay(
+        root.processing_status,
+        root.candidate_drive_id,
+        businessNumber,
+      );
       // SQL NULL means there is no replacement file. Unrelated manual/bank
       // rows also have a null Drive ID and must never represent this document.
       const represented = root.candidate_drive_id
@@ -685,7 +716,7 @@ export class ProtectedPdfService {
         canUploadOpenCopy:
           canManage &&
           (root.status === 'PASSWORD_REQUIRED' ||
-            root.processing_status === 'FAILED'),
+            ['FAILED', 'NO_INVOICE_FOUND'].includes(root.processing_status)),
         replacementUploadStatus: root.replacement_status,
         replacementProcessingStatus: root.processing_status,
         canRetryDelivery:
