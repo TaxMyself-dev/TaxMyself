@@ -170,3 +170,29 @@ remains documented separately.
 - Frontend `npm run build -- --configuration production`: exit 0 on final executable source. Existing-file style budgets, CommonJS notices and the initial 3.21 MB bundle warning remain. No unrelated cleanup or full legacy frontend suite was attempted.
 - No application server, real-user browser login, paid model eval or live database test was started in this follow-up. Test-runner browser infrastructure is separate from application development servers. No schema or accounting data change.
 - The canonical route is /agent/onboarding and the regular menu label is ההיכרות שלי עם הסוכן. The old /dev/agent/onboarding URL redirects, preserving existing links. Main integration and push remain prohibited.
+
+## 2026-11-19 — Continuous onboarding chat and final summary
+
+Acceptance: the onboarding page and long memory summary scroll in the app shell;
+invitation introduces the smart Keepintax agent; users converse without confirming
+every message; current follow-up appears as composer guidance; remembered facts
+appear on explicit finish with a return-to-chat action; existing system controls
+are reused. Same worktree/branch, no application servers, main integration or push.
+
+Implemented automatic propose/commit per message using the unchanged server-side
+proposal, transaction, version and idempotency contract. Failed commits retain the
+proposal ID for retry and the unsent draft. Conflicts clear stale pending proposals
+and preserve text for refresh. Skip/finish cannot discard an unsent draft. The
+summary preserves the original narrative, basic field status and historical facts;
+missing basics remain visible as incomplete. The invitation and forgetting dialog
+use PrimeNG Dialog and shared app-p-button; select and textarea use existing
+PrimeNG controls. The entire page owns vertical scrolling and new replies scroll
+the chat to the latest response.
+
+Verification on the final executable changes based on b6bb29c3:
+- Frontend `npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/pages/agent-onboarding/*.spec.ts --ts-config=tsconfig.onboarding-spec.json`: exit 0, 23 passed, 0 skipped. Covers autosave, opaque-ID retry, conflicts/draft retention, end-only summary, original story, contextual placeholder, invitation lifecycle and real long-summary scrolling at container widths 800px/360px.
+- Scroll test diagnostic: initial runs had zero layout dimensions. Inspected computed styles and found Ionic's unhydrated test document body was display:none. The fixture now temporarily displays the test document, mounts a bounded viewport, measures actual scroll overflow and positive scrollTop, then restores document styles. Assertions were preserved; no snapshot/threshold relaxation.
+- Frontend production build: final result recorded below.
+- Backend executable source, API contracts, schema, accounting data, authentication and tenant rules: unchanged. Backend/DB/paid-model checks were not repeated for this frontend-only change. Full legacy frontend suite and authenticated live-browser flow were not run. Existing prior persistence evidence is separate.
+- No app development server was started/stopped. No main integration or remote push.
+- Final frontend `npm run build -- --configuration production`: exit 0, build hash 8e0fae0f3878df24, 94.6 seconds. Existing unrelated style-budget, CommonJS and 3.21 MB initial-bundle warnings remain. This build and the 23-test pass both cover the final executable inputs; only task documentation changed afterward. Complete diff reviewed and `git diff --check` passed.

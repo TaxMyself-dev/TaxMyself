@@ -1,13 +1,19 @@
 :host {
-  display: block;
-  min-height: 100%;
-  background: #f5f8fa;
-  color: #183744;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+  color: #363636;
   font-family: inherit;
 }
 .onboarding {
-  max-width: 1240px;
-  margin: auto;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px 32px 60px;
 }
 header {
@@ -53,7 +59,9 @@ p {
 }
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 960px;
+  margin-inline: auto;
   gap: 36px;
 }
 .conversation {
@@ -98,25 +106,7 @@ small {
   gap: 10px;
   margin-top: 14px;
 }
-button {
-  background: #fff;
-  border: 1px solid #a5bcc5;
-  border-radius: 7px;
-  padding: 10px 16px;
-  color: #183744;
-  font: inherit;
-  cursor: pointer;
-}
-button.primary {
-  background: #086a78;
-  border-color: #086a78;
-  color: white;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-button:focus-visible,
+
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
@@ -153,18 +143,7 @@ textarea {
   border-radius: 12px;
   max-width: 850px;
 }
-.preview {
-  padding: 18px 0;
-  margin: 20px 0;
-  border-top: 2px solid #086a78;
-  border-bottom: 1px solid #d8e3e8;
-}
-.preview h3 {
-  margin-top: 0;
-}
-.preview small {
-  display: block;
-}
+
 .story {
   font-size: 14px;
 }
@@ -237,8 +216,5 @@ select {
   }
   aside {
     border-top: 1px solid #cbdbe1;
-  }
-  button {
-    min-height: 44px;
   }
 }

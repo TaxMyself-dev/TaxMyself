@@ -1,3 +1,4 @@
+import { provideNoopAnimations } from "@angular/platform-browser/animations";
 import { TestBed } from "@angular/core/testing";
 import { provideHttpClient } from "@angular/common/http";
 import {
@@ -12,6 +13,7 @@ describe("normal application onboarding invitation", () => {
     sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [
+        provideNoopAnimations(),
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([]),
@@ -39,8 +41,9 @@ describe("normal application onboarding invitation", () => {
       { number: "111", invitation: "started", onboardingStatus: "in_progress" },
     ]);
     await f.whenStable();
-    expect(f.nativeElement.querySelector("dialog").open).toBeTrue();
-    expect(f.nativeElement.querySelector("a").getAttribute("href")).toBe(
+    expect(f.componentInstance.visible()).toBeTrue();
+    f.detectChanges();
+    expect(f.componentInstance.onboardingPath).toBe(
       "/agent/onboarding"
     );
     f.destroy();
@@ -55,7 +58,7 @@ describe("normal application onboarding invitation", () => {
         onboardingStatus: "in_progress",
       },
     ]);
-    expect(f.nativeElement.querySelector("dialog").open).toBeTrue();
+    expect(f.componentInstance.visible()).toBeTrue();
     f.componentInstance.later();
     const req = TestBed.inject(HttpTestingController).expectOne(
       api + "api/agent-profile/defer"
@@ -67,7 +70,7 @@ describe("normal application onboarding invitation", () => {
   it("does not interrupt users who completed all businesses", () => {
     const f = create();
     respond([{ number: "111", onboardingStatus: "completed" }]);
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     f.destroy();
   });
   it("shows at most once per owner login and offers it on the next login", () => {
@@ -77,7 +80,7 @@ describe("normal application onboarding invitation", () => {
     TestBed.inject(HttpTestingController)
       .expectOne(api + "api/agent-profile/defer")
       .flush({}, { status: 503, statusText: "Unavailable" });
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     f.destroy();
     const second = create();
     TestBed.inject(HttpTestingController).expectNone(
@@ -86,7 +89,7 @@ describe("normal application onboarding invitation", () => {
     second.destroy();
     const next = create("owner", "login-2");
     respond([{ number: "111", onboardingStatus: "in_progress" }]);
-    expect(next.nativeElement.querySelector("dialog").open).toBeTrue();
+    expect(next.componentInstance.visible()).toBeTrue();
     next.destroy();
   });
   it("waits until loading or a blocking overlay finishes", () => {
@@ -97,10 +100,10 @@ describe("normal application onboarding invitation", () => {
     f.componentRef.setInput("allowPopup", true);
     f.detectChanges();
     respond([{ number: "111", onboardingStatus: "not_started" }]);
-    expect(f.nativeElement.querySelector("dialog").open).toBeTrue();
+    expect(f.componentInstance.visible()).toBeTrue();
     f.componentRef.setInput("allowPopup", false);
     f.detectChanges();
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     f.destroy();
   });
   it("cancels stale requests when the signed-in owner changes", () => {
@@ -112,7 +115,7 @@ describe("normal application onboarding invitation", () => {
     f.detectChanges();
     expect(old.cancelled).toBeTrue();
     respond([{ number: "222", onboardingStatus: "completed" }]);
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     f.destroy();
   });
   it("does not block normal app use when onboarding is disabled", () => {
@@ -120,12 +123,12 @@ describe("normal application onboarding invitation", () => {
     TestBed.inject(HttpTestingController)
       .expectOne(api + "api/agent-profile/businesses")
       .flush({}, { status: 503, statusText: "Unavailable" });
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     f.destroy();
   });
   it("does not request private profile data without an owner", () => {
     const f = create("");
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
+    expect(f.componentInstance.visible()).toBeFalse();
     TestBed.inject(HttpTestingController).expectNone(
       api + "api/agent-profile/businesses"
     );
@@ -137,20 +140,11 @@ describe("normal application onboarding invitation", () => {
     document.body.appendChild(blocker);
     const f = create();
     respond([{ number: "111", onboardingStatus: "in_progress" }]);
-    expect(f.nativeElement.querySelector("dialog").open).toBeFalse();
-    const dialog = f.nativeElement.querySelector("dialog") as HTMLDialogElement;
-    const opened = new Promise<void>((resolve) => {
-      const observer = new MutationObserver(() => {
-        if (dialog.open) {
-          observer.disconnect();
-          resolve();
-        }
-      });
-      observer.observe(dialog, { attributes: true, attributeFilter: ["open"] });
-    });
+    expect(f.componentInstance.visible()).toBeFalse();
     blocker.remove();
-    await opened;
-    expect(dialog.open).toBeTrue();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    f.detectChanges();
+    expect(f.componentInstance.visible()).toBeTrue();
     f.destroy();
   });
 });
