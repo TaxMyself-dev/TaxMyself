@@ -1,3 +1,4 @@
+import { onboardingTracing, TraceOnboarding } from './onboarding.tracing';
 import {
   BadRequestException,
   ConflictException,
@@ -56,12 +57,14 @@ export class OnboardingService {
       ? directory[0]
       : null;
     if (!business) throw new BadRequestException('יש לבחור אחד מהעסקים שלך');
+    onboardingTracing.metadata({ businessNumber: business.businessNumber });
     return {
       owner: user.firebaseId,
       business: business.businessNumber,
       directory,
     };
   }
+  @TraceOnboarding('businesses')
   async businesses(user: AgentHarnessUser) {
     this.enabled();
     if (
@@ -124,6 +127,7 @@ export class OnboardingService {
       business: rows.find((r) => r.scope_key === business)!,
     };
   }
+  @TraceOnboarding('read')
   async read(user: AgentHarnessUser, requested?: string) {
     const scope = await this.scope(user, requested);
     const registered = scope.directory.find(
@@ -221,6 +225,7 @@ export class OnboardingService {
       opening,
     };
   }
+  @TraceOnboarding('propose')
   async propose(
     user: AgentHarnessUser,
     body: {
@@ -243,6 +248,11 @@ export class OnboardingService {
       .toLowerCase();
     const isBooleanAnswer = ['כן', 'לא', 'yes', 'no'].includes(
       normalizedAnswer,
+    );
+    onboardingTracing.record(
+      'answer.route',
+      { message, lastTurn: snapshot.turns.at(-1), version: snapshot.version },
+      { pendingField: pending?.key ?? null, isBooleanAnswer },
     );
     const booleanFields = [
       'employment',
@@ -314,22 +324,32 @@ export class OnboardingService {
       if (body.guidedField && !guidedField)
         throw new BadRequestException('השאלה כבר נענתה. יש לרענן.');
       try {
-        extracted = validateExtraction(
-          await this.extractor.extract(message, {
-            fields: snapshot.fields,
-            activeFacts: active,
-            history: snapshot.facts.filter((f) => f.status === 'superseded'),
-            story: snapshot.story,
-            turns: snapshot.turns.slice(-12),
-            question:
-              guidedField?.question ??
-              pending?.question ??
-              snapshot.turns.at(-1)?.assistant_text ??
-              null,
-            answerField: guidedField?.key ?? pending?.key ?? null,
-          }),
-          message,
-          new Set(snapshot.facts.map((f) => f.id)),
+        const candidate = await this.extractor.extract(message, {
+          fields: snapshot.fields,
+          activeFacts: active,
+          history: snapshot.facts.filter((f) => f.status === 'superseded'),
+          story: snapshot.story,
+          turns: snapshot.turns.slice(-12),
+          question:
+            guidedField?.question ??
+            pending?.question ??
+            snapshot.turns.at(-1)?.assistant_text ??
+            null,
+          answerField: guidedField?.key ?? pending?.key ?? null,
+        });
+        extracted = await onboardingTracing.run(
+          'facts.validate',
+          {
+            candidate,
+            message,
+            existingFactIds: snapshot.facts.map((f) => f.id),
+          },
+          () =>
+            validateExtraction(
+              candidate,
+              message,
+              new Set(snapshot.facts.map((f) => f.id)),
+            ),
         );
       } catch (error) {
         if (!(error instanceof BadRequestException)) throw error;
@@ -435,6 +455,7 @@ export class OnboardingService {
       }
     }
     extracted.facts = extracted.facts.filter((f) => !waiting.includes(f));
+    onboardingTracing.record('facts.accepted', { waiting }, extracted);
     if (
       extracted.intent === 'forget_all' ||
       extracted.intent === 'forget_facts'
@@ -531,19 +552,43 @@ export class OnboardingService {
       }
     }
     extracted.askedField ??= null;
+    onboardingTracing.record(
+      'response.ready',
+      {
+        intent: extracted.intent,
+        facts: extracted.facts,
+        pendingField: pending?.key ?? null,
+      },
+      {
+        reply: extracted.clarification || extracted.reply,
+        askedField: extracted.askedField,
+      },
+    );
     await this.scope(user, snapshot.businessNumber);
     const id = randomUUID();
-    await this.db.query(
-      `INSERT INTO agent_onboarding_proposals (id,owner_uid,business_number,base_person_version,base_business_version,payload,source_text) VALUES (?,?,?,?,?,?,?)`,
-      [
+    onboardingTracing.metadata({ proposalId: id });
+    await onboardingTracing.run(
+      'proposal.persist',
+      {
         id,
-        user.firebaseId,
-        snapshot.businessNumber,
-        snapshot.version.person,
-        snapshot.version.business,
-        JSON.stringify(extracted),
-        body.skipField ? 'דילוג' : message,
-      ],
+        businessNumber: snapshot.businessNumber,
+        baseVersion: snapshot.version,
+        payload: extracted,
+        sourceText: message,
+      },
+      () =>
+        this.db.query(
+          `INSERT INTO agent_onboarding_proposals (id,owner_uid,business_number,base_person_version,base_business_version,payload,source_text) VALUES (?,?,?,?,?,?,?)`,
+          [
+            id,
+            user.firebaseId,
+            snapshot.businessNumber,
+            snapshot.version.person,
+            snapshot.version.business,
+            JSON.stringify(extracted),
+            body.skipField ? 'דילוג' : message,
+          ],
+        ),
     );
     return { id, ...extracted };
   }
@@ -551,6 +596,16 @@ export class OnboardingService {
     given: { person: number; business: number } | undefined,
     actual: { person: number; business: number },
   ) {
+    onboardingTracing.record(
+      'version.check',
+      { given, actual },
+      {
+        matches:
+          !!given &&
+          given.person === actual.person &&
+          given.business === actual.business,
+      },
+    );
     if (
       !given ||
       !Number.isInteger(given.person) ||
@@ -562,185 +617,200 @@ export class OnboardingService {
         'הפרופיל עודכן בחלון אחר. יש לרענן ולשלוח שוב.',
       );
   }
+  @TraceOnboarding('commit')
   async commit(user: AgentHarnessUser, requested: string, proposalId: string) {
     const scope = await this.scope(user, requested);
-    await this.db.transaction(async (manager) => {
-      // All writers lock profiles first, then proposals, in the same order.
-      await manager.query(
-        'SELECT id FROM agent_onboarding_profiles WHERE owner_uid=? ORDER BY scope_key FOR UPDATE',
-        [scope.owner],
-      );
-      const proposals = await manager.query(
-        'SELECT *, TIMESTAMPDIFF(SECOND,created_at,CURRENT_TIMESTAMP(6)) AS age_seconds FROM agent_onboarding_proposals WHERE id=? AND owner_uid=? AND business_number=? FOR UPDATE',
-        [proposalId, scope.owner, scope.business],
-      );
-      const proposal = proposals[0];
-      if (!proposal) throw new NotFoundException();
-      if (proposal.applied_at) return; // Retry of the same save is idempotent.
-      if (Number(proposal.age_seconds) > 30 * 60)
-        throw new ConflictException('תוקף התצוגה המקדימה פג. יש לשלוח שוב.');
-      // Deterministic lock order also serializes two businesses changing the shared personal profile.
-      const { person, business } = await this.profiles(
-        manager,
-        scope.owner,
-        scope.business,
-      );
-      this.checkVersion(
-        {
-          person: proposal.base_person_version,
-          business: proposal.base_business_version,
-        },
-        { person: person.version, business: business.version },
-      );
-      const extraction = decode<Extraction>(proposal.payload);
-      if (
-        extraction.intent === 'forget_all' ||
-        (extraction.intent === 'forget_facts' && extraction.forgetIds?.length)
-      ) {
-        if (extraction.intent === 'forget_all')
-          await this.eraseAll(manager, scope.owner, proposalId);
-        else
-          for (const id of new Set(extraction.forgetIds))
-            await this.eraseFact(
-              manager,
-              scope,
-              person,
-              business,
-              id,
-              proposalId,
+    await onboardingTracing.run(
+      'memory.commit',
+      { businessNumber: requested, proposalId },
+      () =>
+        this.db.transaction(async (manager) => {
+          // All writers lock profiles first, then proposals, in the same order.
+          await manager.query(
+            'SELECT id FROM agent_onboarding_profiles WHERE owner_uid=? ORDER BY scope_key FOR UPDATE',
+            [scope.owner],
+          );
+          const proposals = await manager.query(
+            'SELECT *, TIMESTAMPDIFF(SECOND,created_at,CURRENT_TIMESTAMP(6)) AS age_seconds FROM agent_onboarding_proposals WHERE id=? AND owner_uid=? AND business_number=? FOR UPDATE',
+            [proposalId, scope.owner, scope.business],
+          );
+          const proposal = proposals[0];
+          if (!proposal) throw new NotFoundException();
+          if (proposal.applied_at) return; // Retry of the same save is idempotent.
+          if (Number(proposal.age_seconds) > 30 * 60)
+            throw new ConflictException(
+              'תוקף התצוגה המקדימה פג. יש לשלוח שוב.',
             );
-        // Keep only a content-free receipt and the current retry marker. Nothing
-        // in the deletion request can reintroduce the forgotten source text.
-        await manager.query(
-          'UPDATE agent_onboarding_proposals SET source_text=?,payload=? WHERE id=? AND owner_uid=?',
-          [
-            'בקשת מחיקה מהזיכרון',
-            JSON.stringify({
-              facts: [],
-              clarification: null,
-              reply: extraction.reply,
-            }),
-            proposalId,
-            scope.owner,
-          ],
-        );
-        await manager.query(
-          'INSERT INTO agent_onboarding_changes (id,owner_uid,business_number,source_text,assistant_text,proposal_id) VALUES (?,?,?,?,?,?)',
-          [
-            randomUUID(),
+          // Deterministic lock order also serializes two businesses changing the shared personal profile.
+          const { person, business } = await this.profiles(
+            manager,
             scope.owner,
             scope.business,
-            'בקשת מחיקה מהזיכרון',
-            extraction.reply,
-            proposalId,
-          ],
-        );
-        await manager.query(
-          'UPDATE agent_onboarding_proposals SET applied_at=CURRENT_TIMESTAMP(6) WHERE id=?',
-          [proposalId],
-        );
-        return;
-      }
-      const changeId = randomUUID();
-      for (const f of extraction.facts) {
-        const profile = f.scope === 'person' ? person : business;
-        for (const id of f.invalidates ?? [])
-          await manager.query(
-            `UPDATE agent_onboarding_facts SET status='corrected' WHERE id=? AND profile_id=? AND status='superseded'`,
-            [id, profile.id],
           );
-        if (f.replaces) {
-          const result = await manager.query(
-            `UPDATE agent_onboarding_facts SET status=?,valid_to_text=? WHERE id=? AND profile_id=? AND status='active'`,
+          this.checkVersion(
+            {
+              person: proposal.base_person_version,
+              business: proposal.base_business_version,
+            },
+            { person: person.version, business: business.version },
+          );
+          const extraction = decode<Extraction>(proposal.payload);
+          onboardingTracing.record(
+            'proposal.loaded',
+            { proposalId },
+            { proposal, extraction },
+          );
+          if (
+            extraction.intent === 'forget_all' ||
+            (extraction.intent === 'forget_facts' &&
+              extraction.forgetIds?.length)
+          ) {
+            if (extraction.intent === 'forget_all')
+              await this.eraseAll(manager, scope.owner, proposalId);
+            else
+              for (const id of new Set(extraction.forgetIds))
+                await this.eraseFact(
+                  manager,
+                  scope,
+                  person,
+                  business,
+                  id,
+                  proposalId,
+                );
+            // Keep only a content-free receipt and the current retry marker. Nothing
+            // in the deletion request can reintroduce the forgotten source text.
+            await manager.query(
+              'UPDATE agent_onboarding_proposals SET source_text=?,payload=? WHERE id=? AND owner_uid=?',
+              [
+                'בקשת מחיקה מהזיכרון',
+                JSON.stringify({
+                  facts: [],
+                  clarification: null,
+                  reply: extraction.reply,
+                }),
+                proposalId,
+                scope.owner,
+              ],
+            );
+            await manager.query(
+              'INSERT INTO agent_onboarding_changes (id,owner_uid,business_number,source_text,assistant_text,proposal_id) VALUES (?,?,?,?,?,?)',
+              [
+                randomUUID(),
+                scope.owner,
+                scope.business,
+                'בקשת מחיקה מהזיכרון',
+                extraction.reply,
+                proposalId,
+              ],
+            );
+            await manager.query(
+              'UPDATE agent_onboarding_proposals SET applied_at=CURRENT_TIMESTAMP(6) WHERE id=?',
+              [proposalId],
+            );
+            return;
+          }
+          const changeId = randomUUID();
+          for (const f of extraction.facts) {
+            const profile = f.scope === 'person' ? person : business;
+            for (const id of f.invalidates ?? [])
+              await manager.query(
+                `UPDATE agent_onboarding_facts SET status='corrected' WHERE id=? AND profile_id=? AND status='superseded'`,
+                [id, profile.id],
+              );
+            if (f.replaces) {
+              const result = await manager.query(
+                `UPDATE agent_onboarding_facts SET status=?,valid_to_text=? WHERE id=? AND profile_id=? AND status='active'`,
+                [
+                  f.change === 'correction' ? 'corrected' : 'superseded',
+                  f.change === 'transition' ? f.effectiveDate : null,
+                  f.replaces,
+                  profile.id,
+                ],
+              );
+              if (result.affectedRows !== 1)
+                throw new ConflictException('המידע השתנה. יש לרענן.');
+            }
+            await manager.query(
+              `INSERT INTO agent_onboarding_facts (id,profile_id,scope_kind,field_key,statement,value_text,answer_state,change_kind,replaces_id,effective_date,date_precision,evidence,change_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              [
+                randomUUID(),
+                profile.id,
+                f.scope,
+                f.field,
+                f.statement,
+                f.value,
+                f.state,
+                f.change,
+                f.replaces,
+                f.effectiveDate,
+                f.precision,
+                JSON.stringify(f.evidence),
+                changeId,
+              ],
+            );
+            if (f.field) {
+              profile[f.field] = f.value;
+              profile.field_states[f.field] = f.state;
+            }
+          }
+          const missing = missingFields(person, business);
+          const reply =
+            extraction.clarification ||
+            extraction.reply ||
+            (missing[0]?.question ??
+              'תודה, יש לי מענה לכל פרטי הבסיס. אפשר להמשיך לספר, לתקן או לעדכן אותי בכל רגע.');
+          await manager.query(
+            `INSERT INTO agent_onboarding_changes (id,owner_uid,business_number,source_text,assistant_text,proposal_id) VALUES (?,?,?,?,?,?)`,
             [
-              f.change === 'correction' ? 'corrected' : 'superseded',
-              f.change === 'transition' ? f.effectiveDate : null,
-              f.replaces,
-              profile.id,
+              changeId,
+              scope.owner,
+              scope.business,
+              proposal.source_text,
+              reply,
+              proposalId,
             ],
           );
-          if (result.affectedRows !== 1)
-            throw new ConflictException('המידע השתנה. יש לרענן.');
-        }
-        await manager.query(
-          `INSERT INTO agent_onboarding_facts (id,profile_id,scope_kind,field_key,statement,value_text,answer_state,change_kind,replaces_id,effective_date,date_precision,evidence,change_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [
-            randomUUID(),
-            profile.id,
-            f.scope,
-            f.field,
-            f.statement,
-            f.value,
-            f.state,
-            f.change,
-            f.replaces,
-            f.effectiveDate,
-            f.precision,
-            JSON.stringify(f.evidence),
-            changeId,
-          ],
-        );
-        if (f.field) {
-          profile[f.field] = f.value;
-          profile.field_states[f.field] = f.state;
-        }
-      }
-      const missing = missingFields(person, business);
-      const reply =
-        extraction.clarification ||
-        extraction.reply ||
-        (missing[0]?.question ??
-          'תודה, יש לי מענה לכל פרטי הבסיס. אפשר להמשיך לספר, לתקן או לעדכן אותי בכל רגע.');
-      await manager.query(
-        `INSERT INTO agent_onboarding_changes (id,owner_uid,business_number,source_text,assistant_text,proposal_id) VALUES (?,?,?,?,?,?)`,
-        [
-          changeId,
-          scope.owner,
-          scope.business,
-          proposal.source_text,
-          reply,
-          proposalId,
-        ],
-      );
-      for (const profile of [person, business]) {
-        const facts = await manager.query(
-          `SELECT statement,effective_date,date_precision FROM agent_onboarding_facts WHERE profile_id=? AND status='active' ORDER BY recorded_at,id`,
-          [profile.id],
-        );
-        // Canonical story retains every active narrative fact; no rewrite can silently drop unrelated facts.
-        profile.story = storyFromFacts(facts);
-        const keys = FIELDS.filter(
-          (f) => f.scope === (profile === person ? 'person' : 'business'),
-        ).map((f) => f.key);
-        const sql = keys.map((key) => '`' + key + '`=?').join(',');
-        await manager.query(
-          `UPDATE agent_onboarding_profiles SET ${sql},field_states=?,story=?,version=version+1,invitation=? WHERE id=?`,
-          [
-            ...keys.map((key) => profile[key] ?? null),
-            JSON.stringify(profile.field_states),
-            profile.story,
-            missing.length ? 'started' : 'completed',
-            profile.id,
-          ],
-        );
-        await manager.query(
-          `INSERT INTO agent_onboarding_story_versions (id,profile_id,version,story,change_id) VALUES (?,?,?,?,?)`,
-          [
-            randomUUID(),
-            profile.id,
-            profile.version + 1,
-            profile.story,
-            changeId,
-          ],
-        );
-      }
-      await manager.query(
-        'UPDATE agent_onboarding_proposals SET applied_at=CURRENT_TIMESTAMP(6) WHERE id=?',
-        [proposalId],
-      );
-    });
+          for (const profile of [person, business]) {
+            const facts = await manager.query(
+              `SELECT statement,effective_date,date_precision FROM agent_onboarding_facts WHERE profile_id=? AND status='active' ORDER BY recorded_at,id`,
+              [profile.id],
+            );
+            // Canonical story retains every active narrative fact; no rewrite can silently drop unrelated facts.
+            profile.story = storyFromFacts(facts);
+            const keys = FIELDS.filter(
+              (f) => f.scope === (profile === person ? 'person' : 'business'),
+            ).map((f) => f.key);
+            const sql = keys.map((key) => '`' + key + '`=?').join(',');
+            await manager.query(
+              `UPDATE agent_onboarding_profiles SET ${sql},field_states=?,story=?,version=version+1,invitation=? WHERE id=?`,
+              [
+                ...keys.map((key) => profile[key] ?? null),
+                JSON.stringify(profile.field_states),
+                profile.story,
+                missing.length ? 'started' : 'completed',
+                profile.id,
+              ],
+            );
+            await manager.query(
+              `INSERT INTO agent_onboarding_story_versions (id,profile_id,version,story,change_id) VALUES (?,?,?,?,?)`,
+              [
+                randomUUID(),
+                profile.id,
+                profile.version + 1,
+                profile.story,
+                changeId,
+              ],
+            );
+          }
+          await manager.query(
+            'UPDATE agent_onboarding_proposals SET applied_at=CURRENT_TIMESTAMP(6) WHERE id=?',
+            [proposalId],
+          );
+        }),
+    );
     return this.read(user, scope.business);
   }
+  @TraceOnboarding('summarize')
   async summarize(
     user: AgentHarnessUser,
     requested: string,
@@ -755,6 +825,7 @@ export class OnboardingService {
     });
     return { story, version: snapshot.version };
   }
+  @TraceOnboarding('defer')
   async defer(user: AgentHarnessUser, requested: string) {
     const scope = await this.scope(user, requested);
     await this.profiles(this.db.manager, scope.owner, scope.business, true);
@@ -764,6 +835,7 @@ export class OnboardingService {
     );
     return { ok: true };
   }
+  @TraceOnboarding('forget')
   async forget(
     user: AgentHarnessUser,
     requested: string,
@@ -842,6 +914,11 @@ export class OnboardingService {
       [scope.owner],
     );
     const erased = facts.filter((f) => ids.has(f.id));
+    onboardingTracing.record(
+      'memory.eraseFact',
+      { factId, profileId: profile.id },
+      { target, erased },
+    );
     for (const f of erased) {
       await manager.query(
         `UPDATE agent_onboarding_changes SET source_text='הודעה שהכילה פרט שנמחק מהזיכרון',assistant_text='הפרט נמחק מזיכרון ההיכרות' WHERE id=? AND owner_uid=?`,
@@ -890,6 +967,11 @@ export class OnboardingService {
     owner: string,
     keepProposal: string,
   ) {
+    onboardingTracing.record(
+      'memory.eraseAll',
+      { owner },
+      { scope: 'all-owned-onboarding-profiles', keepProposal },
+    );
     for (const table of [
       'agent_onboarding_story_versions',
       'agent_onboarding_facts',

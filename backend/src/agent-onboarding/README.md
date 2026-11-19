@@ -286,11 +286,66 @@ Focused checks:
 - node scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --short-answers-only
 - node scripts/onboarding-conversation-smoke.cjs --run-paid-short-answer-smoke
 
-### Tracing status
+### Local Langfuse tracing
 
-Onboarding calls OpenAI directly from OnboardingExtractor.complete and currently
-does NOT emit Langfuse traces. The integration in backend/agent belongs to the
-main-agent runtime and does not cover these Nest onboarding requests. Source
-turns, validated proposals and askedField are persisted, but historical model
-inputs/outputs cannot be retrieved from Langfuse for this flow. No tracing
-integration or remote export was enabled by the short-answer fix.
+Onboarding now emits its own isolated OTLP/HTTP JSON traces to the configured
+local Langfuse. It does not depend on backend/agent's separate SDK/provider.
+No global OTel provider, package dependency, accounting or database schema changes
+are required. The transport uses `/api/public/otel/v1/traces`, Basic Auth and
+`x-langfuse-ingestion-version: 4` as documented by
+[Langfuse](https://langfuse.com/integrations/native/opentelemetry).
+
+Use the existing ignored backend/.env settings:
+- LANGFUSE_BASE_URL: loopback HTTP(S) origin, e.g. http://localhost:3100.
+- LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY: the existing local project keys.
+- LANGFUSE_TRACING_ENVIRONMENT=development and LANGFUSE_SAMPLE_RATE=1.
+- LANGFUSE_ONBOARDING_ENABLED=false disables this integration explicitly.
+
+Only localhost, 127.0.0.1 or ::1 origins are allowed, without URL credentials,
+paths or query parameters. Cloud/remote URLs remain disabled even with a production
+label or LANGFUSE_ALLOW_REMOTE. Redirects are rejected. Sampling applies to the
+whole request and suppresses all descendants of an unsampled request.
+
+Each public operation (read, propose, commit, summary, forget, defer, directory)
+creates a request trace. Nested observations include:
+- onboarding.read: complete profile context passed into the request.
+- answer.route: last question, pending field and short-answer decision.
+- extract / model.extract: extraction arguments and the exact model request
+  body (prompt/context/schema), raw response, finish reason and token usage.
+- facts.validate / facts.accepted: raw candidate versus validated/accepted facts
+  and withheld changes, including validation failures.
+- respond / model.respond / response.ready: response context, raw model output,
+  final rendered answer and bound askedField.
+- proposal.persist: scoped proposal input, source, version and write result.
+- memory.commit / proposal.loaded: transaction input, selected stored proposal,
+  completion/failure and the final profile through the enclosing request/read.
+- memory.eraseFact / memory.eraseAll: selected facts/history or owner-wide scope.
+- summarize / model.summary: summary context and raw/final narrative output.
+
+Trace/user/session metadata is copied to every observation. Session IDs are
+onboarding:<ownerUid>:<businessNumber>; proposalId metadata links propose and commit
+requests. Model calls appear as GENERATION observations; non-model short answers
+show routing and persistence stages without inventing a generation. Required app
+errors propagate unchanged while traces preserve their stage/status and raw model
+response when available. Each span is exported once, after completion.
+
+Export is asynchronous, limited to 32 pending batches and a two-second transport
+timeout. Missing keys, disabled tracing, local collector failure or unserializable
+debug values do not fail chat. Failures produce a bounded, content-free warning.
+Input/output is retained in full except masking email, phone and credential data;
+authorization headers/configured secrets are never part of model trace inputs.
+Local trace storage is separate from onboarding memory and is not automatically
+deleted by a memory-forget request or fed back into agent context.
+
+After changing ignored environment settings, an already-running backend must
+reload them. No application server is started by the tracing setup or smoke test.
+
+`node scripts/onboarding-tracing-smoke.cjs` verifies the real local OTLP endpoint
+and reads observations back through Langfuse v4's API. It runs synthetic normal,
+commit-retry, short-answer and summary requests through the actual service;
+OpenAI responses and DB writes are mocked, so it starts no server, performs no
+live DB writes and spends no model tokens. It checks full per-stage IO, matching
+user/session IDs, parent hierarchy, generation types and absence of a generation
+on the deterministic short-answer path. Diagnostic traces remain in the local
+project for inspection; the last verified IDs are in ignored
+.test-tmp/onboarding-tracing/last-smoke.json.

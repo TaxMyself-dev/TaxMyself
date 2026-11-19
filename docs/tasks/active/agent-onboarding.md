@@ -323,3 +323,60 @@ Verification:
 - No frontend checks or HTTP app server were run: frontend source is unchanged. No production access, real-user mutation, local main integration or remote push. Local feature commit only after final verification.
 - Final focused SQL command node backend/scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --short-answers-only: exit 0, 1 passed/13 deliberately skipped, exact synthetic cleanup verified zero rows (.test-tmp/onboarding-dev/onboarding.mysql-1795123894957.json). Final bounded model command node backend/scripts/onboarding-conversation-smoke.cjs --run-paid-short-answer-smoke: exit 0, all 3 cases passed; 4,595 input/117 output tokens. The car turn selected employees; subsequent no/no wrote employees/partners respectively, unchanged employment, no model calls for the short answers. Both focused runner scripts passed node --check. These are focused passing checks; the broad-suite timeout failures above are not reported as passing.
 - Final backend npm run build: exit 0. Complete diff reviewed and git diff --check passed. Final unit tests, model diagnostic, focused persistence regression and build share the same executable inputs; only documentation changed afterward. No frontend source change, app-server launch, main integration or push.
+
+
+## 2026-11-19 — Local Langfuse tracing for onboarding
+
+Base 551aaec2; same codex/agent-onboarding worktree. Explicit scope: connect
+onboarding to the existing local Langfuse, all stage inputs/outputs, no app/server
+startup, main integration or push. Acceptance: linked request/child observations
+for model and deterministic routes, raw model requests/responses plus usage,
+validation/routing/final answer/persistence/summary/deletion visibility; local-only
+destination, privacy masking and no chat failure when tracing fails.
+
+Inspected backend/agent's existing local-only policy and official Langfuse OTLP
+mapping. Existing local health endpoint returned 200, version 4.76.0, and the
+existing stack keys authenticated to project keepintax-agent-dev. The feature and
+primary backend environments had no Langfuse settings. Added only six missing
+local tracing variables to the feature's existing ignored backend/.env from the
+existing local project configuration. No credentials printed, committed or newly
+generated; no other environment setting overwritten. git check-ignore confirmed
+backend/.env remains ignored. No Docker or application process was started.
+
+Implemented isolated AsyncLocalStorage context and OTLP/HTTP JSON export, without
+a shared global provider or new dependency. Public service operations and nested
+reads share one request trace; generation stages retain exact body/raw response,
+schema, finish reason and usage. Fact validation and accepted facts, question
+routing, final response/askedField, proposal creation, transaction, deletion scope
+and summary are recorded. User/session/proposal metadata correlates requests.
+Export happens outside the database transaction after root completion, uses
+loopback only with redirect rejection, bounded queue/timeouts and safe warnings.
+An unsampled parent suppresses its children. Phones/emails/credentials are masked;
+ordinary content remains useful for debugging. Trace storage is explicitly
+separate from agent memory/forgetting and is not read back into conversation.
+
+Verification and known limits:
+- Initial unit batch had one fixture failure because the tracing service test did
+  not enable AGENT_ONBOARDING_ENABLED; corrected the fixture instead of changing
+  the feature gate. Next batch passed 67/67. Added safe serialization coverage
+  afterward; final focused test/build results follow below.
+- node backend/scripts/onboarding-tracing-smoke.cjs: final exit 0 against existing
+  http://localhost:3100. Four synthetic requests produced 12 + 3 + 7 + 5 = 27
+  observations. Verified every expected name with non-null input/output via the
+  local v4 observations API, parent IDs, common user/session IDs and GENERATION
+  types. The short-answer trace has no model observations. OpenAI and DB writes
+  mocked; no paid model request, real-user data or live DB mutation.
+- Final diagnostic traces: normal 2d2b9d1160b53ae85cc7ac669ccb4f8b;
+  commit retry 1e7fd07d23e4d2716c2905843836ea57;
+  short answer 6235e4510f917c4b7d14d82d88084b6e;
+  summary 8e89374db55912e2f2c13b9e99eeec8f. All in local project
+  keepintax-agent-dev. Ignored evidence: .test-tmp/onboarding-tracing/last-smoke.json.
+- The synthetic commit diagnostic exercises the already-applied retry branch;
+  actual SQL semantics/authorization are unchanged and existing service tests
+  cover normal commit/rollback. No MySQL/HTTP persistence or frontend suite was
+  rerun for this observational change. No claim that a real authenticated user
+  flow was run. Existing broad-suite timeout evidence remains separately recorded.
+- Sources: https://langfuse.com/integrations/native/opentelemetry and
+  https://langfuse.com/integrations/native/opentelemetry/migration-to-v4. The
+  current supported OTLP endpoint was used instead of legacy trace ingestion.
+- Final backend npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.tracing.spec.ts src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts: exit 0, 68 passed, 0 skipped (49.8 seconds). Final npm run build: exit 0. Final local four-request smoke passed against the same executable inputs, with 27 observations read back; only documentation changed afterward. Complete semantic diff and new exporter/tests/smoke reviewed; git diff --check passed. Existing running backend processes were not restarted; ignored env additions are read on their next reload/start.

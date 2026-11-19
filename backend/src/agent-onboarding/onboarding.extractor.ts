@@ -1,3 +1,4 @@
+import { onboardingTracing, TraceOnboardingStage } from './onboarding.tracing';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   FIELDS,
@@ -106,6 +107,41 @@ export class OnboardingExtractor {
     input: unknown,
     tokens = 5000,
     model = process.env.AGENT_ONBOARDING_MODEL || 'gpt-4.1-mini',
+    phase = 'extract',
+  ): Promise<any> {
+    const request = {
+      model,
+      store: false,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: JSON.stringify(input) },
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'onboarding', strict: true, schema },
+      },
+      max_completion_tokens: tokens,
+    };
+    return onboardingTracing.run(
+      'model.' + phase,
+      request,
+      () => this.completeInternal(schema, system, input, tokens, model),
+      {},
+      {
+        'langfuse.observation.type': 'generation',
+        'langfuse.observation.model.name': model,
+        'langfuse.observation.model.parameters': JSON.stringify({
+          max_completion_tokens: tokens,
+        }),
+      },
+    );
+  }
+  private async completeInternal(
+    schema: unknown,
+    system: string,
+    input: unknown,
+    tokens = 5000,
+    model = process.env.AGENT_ONBOARDING_MODEL || 'gpt-4.1-mini',
   ): Promise<any> {
     if (!process.env.OPENAI_API_KEY)
       throw new ServiceUnavailableException(
@@ -136,13 +172,29 @@ export class OnboardingExtractor {
           }),
         },
       );
-      if (!response.ok) throw new Error('MODEL_UNAVAILABLE');
+      if (!response.ok) {
+        onboardingTracing.output({
+          httpStatus: response.status,
+          body: await response.json().catch(() => null),
+        });
+        throw new Error('MODEL_UNAVAILABLE');
+      }
       const result = (await response.json()) as {
         choices?: {
           message?: { content?: string; refusal?: string };
           finish_reason?: string;
         }[];
       };
+      onboardingTracing.output(result);
+      const usage = (result as any).usage;
+      if (usage)
+        onboardingTracing.attributes({
+          'langfuse.observation.usage_details': JSON.stringify({
+            input: usage.prompt_tokens,
+            output: usage.completion_tokens,
+            total: usage.total_tokens,
+          }),
+        });
       const choice = result.choices?.[0];
       if (
         choice?.finish_reason !== 'stop' ||
@@ -157,6 +209,7 @@ export class OnboardingExtractor {
       );
     }
   }
+  @TraceOnboardingStage('extract')
   async extract(message: string, context: unknown): Promise<unknown> {
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Jerusalem',
@@ -199,6 +252,7 @@ Requests for guidance, recall questions (what do you know about me), app support
       );
     }
   }
+  @TraceOnboardingStage('respond')
   async respond(
     message: string,
     context: unknown,
@@ -237,6 +291,7 @@ Pure application/support/accounting requests or unrelated questions have kind of
       process.env.AGENT_ONBOARDING_CONVERSATION_MODEL ||
         process.env.AGENT_ONBOARDING_MODEL ||
         'gpt-4.1',
+      'respond',
     );
     if (
       !['conversation', 'off_topic'].includes(result?.kind) ||
@@ -278,6 +333,7 @@ Pure application/support/accounting requests or unrelated questions have kind of
           : acknowledgement + (next ? `\n\n${next.question}` : ''),
     };
   }
+  @TraceOnboardingStage('summarize')
   async summarize(context: unknown): Promise<string> {
     const result = await this.complete(
       {
@@ -292,6 +348,7 @@ Pure application/support/accounting requests or unrelated questions have kind of
       process.env.AGENT_ONBOARDING_CONVERSATION_MODEL ||
         process.env.AGENT_ONBOARDING_MODEL ||
         'gpt-4.1',
+      'summary',
     );
     if (
       typeof result?.story !== 'string' ||
