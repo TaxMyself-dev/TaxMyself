@@ -1,6 +1,6 @@
 # KT-118 - Manual allocation portal details
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary
 - Worker: Codex primary (single-agent execution)
 - Worktree: `C:\Users\harel\Elazar Harel\taxmyself\taxmyself-dev\_prod_dump\kt118-worker`
@@ -40,8 +40,13 @@ Authority form, without opening the pending document or PDF.
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary
+- Integrated commit: `2c2c3b6b` (feature commit `9d2d7688`)
+- Combined verification: component-behavior tier; focused Karma spec passed
+  `7 SUCCESS`, and the Angular production build passed with existing
+  bundle/style/CommonJS warnings only. No unrelated suites were run.
+- `origin/main` verification: local `main`, tracking `origin/main` and remote
+  `refs/heads/main` all resolved to `2c2c3b6b` after the code push.
+- User-visible run instructions: refresh/restart the frontend and choose manual
+  allocation from a pending-allocation document. This Git push is not a
+  production deployment.

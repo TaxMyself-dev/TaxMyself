@@ -504,3 +504,16 @@ focused backend tests; its Chrome rerun was blocked before spec loading by a
 local Windows GPU/cache crash, while the identical source had already passed
 35/35 in the isolated worker. No schema, data, amount/VAT, receipt/accounting,
 credential, provider-write, production or deployment action occurred.
+
+## KT-118 manual allocation portal details — 2026-11-19
+
+The pending-allocation manual flow now shows selectable, read-only values for
+the Tax Authority request type, document reference, customer identifier, date,
+pre-VAT amount, VAT amount and item/service descriptions loaded from the
+document lines. A line-loading failure remains non-blocking and preserves the
+general document description as a fallback. Feature commit `9d2d7688` and its
+worker handoff reached `origin/main` at `2c2c3b6b`. The integrated tree passed
+the isolated allocation-flow Karma spec (7 tests) and Angular production build;
+no unrelated suites were run under the component-behavior tier. No schema,
+database, accounting, authorization, Tax Authority write, production change or
+deployment occurred.
