@@ -28,3 +28,12 @@ export function assertEmailIntakeScope(
     );
   }
 }
+
+/** Optional local UI test guard: never usable against another database/environment. */
+export function emailIntakeDevTestQuery(): string | null {
+  const subject = process.env.GMAIL_DURABLE_DEV_TEST_SUBJECT;
+  if (subject === undefined) return null;
+  if (process.env.DB_DATABASE !== 'keepintax-dev' || process.env.COMPOSIO_ENVIRONMENT !== 'dev' || process.env.NODE_ENV === 'production' || !/^KEEPINTAX-DEV-[A-Z0-9-]{8,80}$/.test(subject))
+    throw new Error('Invalid DEV-only Gmail test scope');
+  return 'has:attachment subject:"' + subject + '"';
+}

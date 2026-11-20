@@ -1,4 +1,4 @@
-import { assertEmailIntakeScope } from './email-intake-scope';
+import { assertEmailIntakeScope, emailIntakeDevTestQuery } from './email-intake-scope';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EmailIntakeStore, EmailRun } from './email-intake.store';
@@ -46,7 +46,7 @@ export class EmailIntakeRunsService {
       integration.connectionBackend !== 'COMPOSIO'
     )
       throw new Error('Mailbox unavailable');
-    const suppliedQuery = options.query?.trim();
+    const suppliedQuery = emailIntakeDevTestQuery() || options.query?.trim();
     if (
       suppliedQuery &&
       suppliedQuery !== DEFAULT_GMAIL_QUERY &&

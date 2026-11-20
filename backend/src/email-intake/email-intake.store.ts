@@ -1,3 +1,4 @@
+import { assertEmailIntakeScope, emailIntakeDevTestQuery } from './email-intake-scope';
 import { EmailProviderError } from '../integrations/providers/email-provider.error';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
@@ -304,10 +305,22 @@ export class EmailIntakeStore {
   }
   async dueWork(): Promise<EmailWork[]> {
     if (!this.enabled()) return [];
+    const testQuery = emailIntakeDevTestQuery();
     return this.query(
-      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) ORDER BY id LIMIT 20",
+      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3))" +
+      (testQuery ? ' AND EXISTS (SELECT 1 FROM email_import_runs r WHERE r.id=imported_documents.email_run_id AND r.firebase_id=imported_documents.firebase_id AND r.business_number=imported_documents.business_number AND r.query_text=?)' : '') +
+      ' ORDER BY id LIMIT 20',
+      testQuery ? [testQuery] : [],
     );
   }
+  async assertDevWorkScope(work: EmailWork): Promise<void> {
+    const testQuery = emailIntakeDevTestQuery();
+    if (!testQuery) return;
+    const rows = await this.query('SELECT integration_id FROM email_import_runs WHERE id=? AND firebase_id=? AND business_number=? AND query_text=?', [work.email_run_id, work.firebase_id, work.business_number, testQuery]);
+    if (rows.length !== 1) throw new Error('Work outside DEV test scope');
+    assertEmailIntakeScope(rows[0].integration_id, work.business_number);
+  }
+
   async claimWork(work: EmailWork) {
     const token = randomUUID();
     const r = await this.query(

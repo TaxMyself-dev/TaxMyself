@@ -82,6 +82,7 @@ export class EmailProcessingWorker {
   }
   async runOne(work: EmailWork) {
     if (!this.enabled()) return;
+    if (process.env.GMAIL_DURABLE_DEV_TEST_SUBJECT !== undefined) await this.store.assertDevWorkScope(work);
     const runner = this.store.db.createQueryRunner();
     let locked = false;
     let token: string;
@@ -281,6 +282,7 @@ export class EmailProcessingWorker {
   async deleteOne(work: EmailWork, token: string, business: Business) {
     if (!this.enabled() || process.env.GMAIL_DURABLE_DELETE_ENABLED !== 'true')
       return;
+    if (process.env.GMAIL_DURABLE_DEV_TEST_SUBJECT !== undefined) await this.store.assertDevWorkScope(work);
     let outcome: any;
     try {
       outcome =
