@@ -65,7 +65,7 @@ it('checks every page and rejects damage on a later page', async () => {
   overrideProgram((source) =>
     source.replace(
       'const pdfjs = require(process.argv[1]);',
-      "const pdfjs = {PDFJS:{}, getDocument:()=>({promise:Promise.resolve({numPages:2,getPage:async i=>{if(i===2)throw Error('broken later page');return {getOperatorList:async()=>({})}})})};",
+      "const pdfjs = {PDFJS:{}, NativeImageDecoding:{NONE:'none'}, getDocument:()=>({promise:Promise.resolve({numPages:2,getPage:async i=>{if(i===2)throw Error('broken later page');return {getOperatorList:async()=>({})}})})};",
     ),
   );
   expect(
@@ -84,4 +84,18 @@ it('enforces the page limit without scanning 101 pages', async () => {
   expect(await new PdfInspectionService().inspect(bytes)).toEqual({
     kind: 'limit',
   });
+});
+
+it('reads JPEG image PDFs in Node without a browser Image or native decoder', async () => {
+  const sharp = require('sharp');
+  const jpeg = await sharp({create:{width:120,height:80,channels:3,background:'#70a090'}}).jpeg().toBuffer();
+  const bytes = await new Promise<Buffer>(resolve => {
+    const doc = new PDFDocument(), chunks:Buffer[]=[];
+    doc.on('data',chunk=>chunks.push(chunk));doc.on('end',()=>resolve(Buffer.concat(chunks)));
+    doc.image(jpeg,50,50,{width:240});doc.text('Synthetic JPEG scan',50,240);doc.end();
+  });
+  const inspection = await new PdfInspectionService().inspect(bytes);
+  expect(inspection).toEqual({kind:'readable',pages:1});
+  const extracted = await runIsolatedPdfParser(bytes,'text');
+  expect(extracted).toEqual(expect.objectContaining({kind:'text',pages:1,text:expect.stringContaining('Synthetic JPEG scan')}));
 });
