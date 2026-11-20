@@ -1,3 +1,4 @@
+import { asSchema } from "ai";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -147,5 +148,59 @@ describe("one agent, shared profile", () => {
         { context: context("לא"), toolCallId: "bad2", messages: [] }
       )
     ).rejects.toThrow("BUSINESS_MISMATCH");
+  });
+
+  it("accepts omitted inapplicable fields without dropping required date/replacement semantics", async () => {
+    const input = {
+      businessNumber: "111",
+      version: { person: 1, business: 2 },
+      intent: "share",
+      facts: [
+        {
+          field: "employees",
+          scope: "business",
+          statement: "אין עובדים",
+          value: "לא",
+          state: "known",
+          change: "add",
+          precision: "unknown",
+          evidence: "לא",
+        },
+      ],
+    };
+
+    const parsed = await asSchema(updateUserProfileTool.inputSchema).validate?.(
+      input
+    );
+
+    expect(parsed?.success).toBeTruthy();
+
+    if (parsed?.success !== true) {
+      throw new Error("Profile input validation failed");
+    }
+
+    await updateUserProfileTool.execute?.(parsed.value, {
+      context: context("לא"),
+      toolCallId: "optional_fields",
+      messages: [],
+    });
+    expect(port.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        extraction: {
+          intent: "share",
+          clarification: null,
+          forgetIds: [],
+          facts: [
+            {
+              ...input.facts[0],
+              replaces: null,
+              effectiveDate: null,
+              invalidates: [],
+              workplaceModes: null,
+            },
+          ],
+        },
+      })
+    );
   });
 });

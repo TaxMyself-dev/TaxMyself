@@ -459,3 +459,64 @@ Final checkpoint (base revision 74f5661b, implementation in this local feature c
   rejection; the helper is an ignored local artifact, not a shipped second engine.
 - No main integration, push, dev server start, environment/port change or real-user
   data mutation. Existing 4204/3004 configuration is preserved.
+
+
+### Approved real-model diagnostic after 89cf792e
+
+The user explicitly approved the previously rejected OpenAI diagnostic. Ran six
+synthetic turns through createAppAgent with the existing model, profile tools,
+schemas and template Langfuse integration. The profile port used an in-memory
+fixture, not real-user/DB data; MySQL transaction coverage remains the separate
+passing 14-case dev-store batch. This is not a claimed authenticated UI/DB E2E run.
+
+Passed the intended regression: mixed personal/business car use; no employees;
+no partners; recall; delete employment information without asserting its opposite;
+finish with a natural story excluding the deleted employment information. The
+existing employment=yes remained intact across both short no answers. Live output
+and state evidence: `.test-tmp/onboarding-runtime/last-smoke.json`.
+Session: onboarding-runtime-99b10f70-65bd-4591-a74a-e5026f0f8194.
+Input tokens 86,788; output tokens 958 (SDK total usage, not a cash-price estimate).
+
+Reviewing the actual traces exposed a tool-contract problem, not an answer-field
+mix-up: irrelevant forgetIds was required for ordinary adds. The template's generic
+repair then removed nullable fields, leading to a second validation attempt. Made
+inapplicable replacement/date/workplace/history fields optional at the tool boundary
+and normalized them to canonical null/[] before calling the unchanged store validator.
+Missing replacement still fails a transition; missing dates still fail registration/workplace transitions under existing persistence rules;
+missing forgetIds still fails a targeted deletion. No validation threshold weakened.
+Added a regression through the real AI SDK schema adapter and execution contract.
+
+Reran only the two affected OpenAI turns after the consolidated correction:
+`.test-tmp/onboarding-runtime/contract-recheck.json`. Both passed with exactly
+readUserProfile + updateUserProfile, one successful update each, no repaired call.
+Session: onboarding-runtime-178968d8-047a-4adb-9bf5-7d88016e4974.
+Input tokens 28,219; output tokens 259. No other paid-model repeats.
+
+Tracing verification: read synthetic-session observations back from the existing
+local Langfuse v4 via `/api/public/v2/observations`, with strict session/trace filters
+and credential-free output. Legacy `/api/public/traces` correctly returns 404 in v4;
+used the supported API after consulting the official migration docs:
+https://langfuse.com/faq/all/deprecated-api-migration .
+
+The first diagnostic mistakenly created a second ManagedRuntime while agentTelemetry
+also initialized appRuntime. Its final wrapper root was not flushed by the isolated
+runtime; model/tool IO was present for all six turns (18 generations, 10 executed
+tools). This was a diagnostic harness issue; no production tracing change was made.
+A root-only probe and then a mock-model/profile-tool probe through the sole appRuntime
+confirmed complete ancestry/input/output. The corrected two-turn REAL-model recheck
+also uses appRuntime: both parent answer-chat-message roots, agent observations,
+all six generations and four tools have input/output; zero missing wrapper roots.
+Final trace IDs: 3d254ac89a978ca0e0dcde8ed4e0ed5d and
+f394675bc0ecab203a77ac129865bec5. Local evidence:
+`.test-tmp/onboarding-runtime/contract-trace-verification.json`.
+
+Focused final diagnostic checks:
+- Profile regression suite: 6 passed.
+- Profile + prompt snapshot + harness override + harness tree: 34 passed and one
+  expected tool-schema snapshot failure. Reviewed the required-list-only diff;
+  updated only the intentional schema snapshot. Subsequent snapshot suite: 9 passed.
+- `npm run typecheck`: exit 0, existing non-blocking Effect suggestions only.
+- Final `npm run check`, build and Git status are recorded below.
+- No dev servers, merge, push or real-user mutation. Existing ports unchanged.
+
+Final diagnostic revision: npm run check passed; npm run build passed (475.5 kB agent-http.mjs). git diff --check passed. The focused optional-field correction is the only executable change after the approved live run; the two affected real-model turns ran on that correction. Other executable inputs retain prior passing evidence. Diagnostic command from backend/agent: npx tsx --env-file=../.env .test-tmp/onboarding-runtime-smoke.ts (six-turn version first; bounded two-turn version for recheck). Local-only helpers and full synthetic evidence retained under root .test-tmp/onboarding-runtime.

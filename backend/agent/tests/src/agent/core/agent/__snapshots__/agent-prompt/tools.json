@@ -199,13 +199,9 @@
               "statement",
               "value",
               "state",
-              "replaces",
               "change",
-              "effectiveDate",
               "precision",
-              "evidence",
-              "invalidates",
-              "workplaceModes"
+              "evidence"
             ],
             "additionalProperties": false
           }
@@ -222,8 +218,7 @@
         "businessNumber",
         "version",
         "intent",
-        "facts",
-        "forgetIds"
+        "facts"
       ],
       "additionalProperties": false
     }

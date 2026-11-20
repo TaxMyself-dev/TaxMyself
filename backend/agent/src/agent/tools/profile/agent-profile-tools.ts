@@ -28,14 +28,16 @@ const fact = Schema.Struct({
   statement: Schema.String,
   value: nullableText,
   state: Schema.Literals(["known", "unknown", "skipped", "not_applicable"]),
-  replaces: nullableText,
+  replaces: Schema.optionalKey(nullableText),
   change: Schema.Literals(["add", "transition", "correction"]),
-  effectiveDate: nullableText,
+  effectiveDate: Schema.optionalKey(nullableText),
   precision: Schema.Literals(["day", "month", "unknown"]),
   evidence: Schema.Union([Schema.String, Schema.Array(Schema.String)]),
-  invalidates: Schema.Array(Schema.String),
-  workplaceModes: Schema.NullOr(
-    Schema.Array(Schema.Literals(["home", "office", "field", "other"]))
+  invalidates: Schema.optionalKey(Schema.Array(Schema.String)),
+  workplaceModes: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Array(Schema.Literals(["home", "office", "field", "other"]))
+    )
   ),
 });
 
@@ -81,7 +83,9 @@ export const updateUserProfileTool = tool({
       version: Schema.Struct({ person: Schema.Int, business: Schema.Int }),
       intent: Schema.Literals(["share", "defer", "forget_facts", "forget_all"]),
       facts: Schema.Array(fact).check(Schema.isMaxLength(30)),
-      forgetIds: Schema.Array(Schema.String).check(Schema.isMaxLength(50)),
+      forgetIds: Schema.optionalKey(
+        Schema.Array(Schema.String).check(Schema.isMaxLength(50))
+      ),
     })
   ),
   contextSchema: agentToolContextSchema,
@@ -110,8 +114,14 @@ export const updateUserProfileTool = tool({
       message: context.profileMessage,
       extraction: {
         intent: input.intent,
-        facts: input.facts,
-        forgetIds: input.forgetIds,
+        facts: input.facts.map((entry) => ({
+          ...entry,
+          replaces: entry.replaces ?? null,
+          effectiveDate: entry.effectiveDate ?? null,
+          invalidates: entry.invalidates ?? [],
+          workplaceModes: entry.workplaceModes ?? null,
+        })),
+        forgetIds: input.forgetIds ?? [],
         clarification: null,
       },
       operationId: agentToolCallKey(context.conversationId, toolCallId),
