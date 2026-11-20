@@ -346,7 +346,7 @@ export class GmailDriveImportService {
         `${result.matchedByPdfContent} matched on PDF text, ` +
         `${result.messagesFound} messages, ${result.messagesFailed} failed)`,
     );
-    if (process.env.PROTECTED_PDF_ENABLED === 'true') {
+    {
       await this.documentImportService.recordProtectedRun(firebaseId, integration.id, { messagesFound: result.messagesFound, messagesFailed: result.messagesFailed, passwordRequired: result.passwordRequired, imported: result.imported, alreadyImported: result.alreadyImported, skipped: result.skipped, filteredAttachments: result.filteredAttachments, aiReviewQueued: result.aiReviewQueued, reviewRequired: result.reviewRequired });
     }
     return result;

@@ -99,7 +99,7 @@ describe('completed extraction without an invoice', () => {
     const old = process.env.PROTECTED_PDF_ENABLED;
     process.env.PROTECTED_PDF_ENABLED = 'false';
     try {
-      const processor: any = new DocumentProcessorService();
+      const processor: any = new DocumentProcessorService({inspect:async()=>({kind:'readable',pages:1})} as any);
       const create = jest
         .fn()
         .mockResolvedValue({

@@ -8,7 +8,7 @@
   @for (run of syncState.status()?.runs ?? []; track run.id) {
     <section class="gmail-card" aria-label="התקדמות משיכת מסמכים">
       <p>סטטוס משיכה: {{durableState(run.pull_state)}}</p>
-      <p>סטטוס עיבוד: {{run.processingPaused && run.processing_state !== 'COMPLETE' ? 'מושהה' : durableState(run.processing_state)}}</p>
+      <p>סטטוס עיבוד: {{durableState(run.processing_state)}}</p>
       <p>קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}}</p>
       @if (showRunDiagnostics) {
         <details>

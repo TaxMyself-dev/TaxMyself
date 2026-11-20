@@ -27,7 +27,6 @@ export interface GmailAccountSyncStatus {
 
 /** Response of GET integrations/google/gmail/sync-status. */
 export interface GmailDurableRun {
- processingPaused?:boolean;
  id:string;integrationId:number;businessNumber:string;scan_state:string;pull_state:string;processing_state:string;error_code:string|null;
  messages:Record<string,number>;attachments:Record<string,number>;documents:Record<string,number>;
 }

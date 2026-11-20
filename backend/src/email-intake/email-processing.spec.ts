@@ -198,17 +198,10 @@ describe('durable single-pass work and safe deletion (mocks only)', () => {
     expect(t.work.email_work_state).toBe('DELETE_UNCONFIRMED');
     expect(t.work.email_deleted_at).toBeUndefined();
   });
-  it('keeps runtime disabled paths free of DB/provider calls', async () => {
-    delete process.env.GMAIL_DURABLE_PROCESS_ENABLED;
-    const t = subject();
-    await t.worker.tick();
-    await t.worker.runOne(t.work);
-    expect(t.store.claimWork).not.toHaveBeenCalled();
-    expect(t.store.query).not.toHaveBeenCalled();
-    const db = { query: jest.fn() };
-    delete process.env.GMAIL_DURABLE_INTAKE_ENABLED;
-    expect(await new EmailIntakeStore(db as any).runs('owner')).toEqual([]);
-    expect(db.query).not.toHaveBeenCalled();
+  it('makes the durable store and processing worker available without activation variables', () => {
+    const store=new EmailIntakeStore({} as any);
+    expect(store.enabled()).toBe(true);
+    expect(new EmailProcessingWorker(store,{} as any,{} as any,{} as any).enabled()).toBe(true);
   });
   it('records confirmed deletion only after Drive acknowledgement and DB finalization', async () => {
     const t = subject('DELETE_PENDING');

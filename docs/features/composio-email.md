@@ -20,7 +20,7 @@ Initial, nightly and manual imports claim a database RUNNING marker atomically. 
 
 ## Configuration and schema
 
-Start from `backend/.env.composio.example`, keeping secrets in ignored server configuration. Keep `COMPOSIO_EMAIL_ENABLED=false` until a live DEV test is expressly approved. Set separate DEV/PROD projects, keys, auth configs and callback URLs. `COMPOSIO_ENVIRONMENT=dev|prod` is mandatory; a non-production Node environment cannot select prod. The pinned Gmail toolkit version must be an explicit dated version, never latest. Validate the example version against the selected project before live use.
+Start from `backend/.env.composio.example`, keeping secrets in ignored server configuration. The integration has no runtime activation switch; configure credentials and apply the reviewed schema before starting this release. Set separate DEV/PROD projects, keys, auth configs and callback URLs. `COMPOSIO_ENVIRONMENT=dev|prod` is mandatory; a non-production Node environment cannot select prod. The pinned Gmail toolkit version must be an explicit dated version, never latest. Validate the example version against the selected project before live use.
 
 `COMPOSIO_DOWNLOAD_ALLOWED_HOSTS` has no permissive default. Populate exact hostnames only after inspecting an approved DEV file descriptor. Do not store signed URLs in configuration or logs. OAuth callback and frontend-return URLs are server-configured, never accepted from browser redirect parameters.
 
@@ -73,7 +73,7 @@ Manual sync status/time fields changed as expected; connection ownership, initia
 
 ## Independent nightly Gmail switch
 
-`COMPOSIO_EMAIL_ENABLED` enables the email integration. Automatic nightly Gmail imports additionally require `GMAIL_NIGHTLY_SYNC_ENABLED=true`; unset, false, or any other value disables the nightly candidate scan before database/provider work. For manual DEV UI testing, use email enabled and nightly disabled. This switch does not disable the separate Drive inbox OCR worker, manual import, or initial import. The example defaults both switches off. No persistent environment, database or live account configuration is changed by adding this switch.
+Nightly synchronization is always scheduled at 02:00 Israel time and enumerates only eligible active accounts with completed initial import. No email/nightly activation variables are required. Ownership, bounded concurrency and cursor rules remain unchanged.
 
 Mailbox-to-business routing remains a proposed follow-up, not implemented: keep each OAuth connection owned by the user, give each mailbox an explicit destination business belonging to that owner, allow multiple mailboxes per business, and apply the same routing to manual/initial/nightly imports. Do not silently route an unassigned mailbox among several businesses. Connecting one mailbox should not create duplicate Composio grants merely to represent business routing. Existing imported-document ownership/history must remain unchanged. A shared mailbox serving several businesses needs a separate routing policy before enabling that case.
 
@@ -85,4 +85,4 @@ A separate explicit user request reset only DEV integration 17's seven initial-i
 
 ## Deterministic triage and optional AI review — 2026-11-18
 
-The intake filter now distinguishes clear accounting signals, technical exclusions and unresolved files. Corrected whole-word matching prevents חשבון מסחר matching חשבון מס. Default-off GMAIL_AI_REVIEW_ENABLED forwards bounded readable ambiguous files into the existing durable Drive/single-call AI flow. Password opening failures and unreadable PDFs remain unresolved, and unresolved counts prevent initial/nightly cursor advancement. Detailed behavior, limits and limitations: `email-intake-ai.md`. Full protected-PDF lifecycle/replacement remains design-only in `password-protected-pdf-plan.md`; no schema or user-data change was made.
+The current durable intake always handles unresolved readable files through the single-pass AI processing contract; all six accounting kinds are supported. Confirmed explicit negatives use the guarded deletion path; uncertain results remain pending user review and password-required PDFs use the implemented lifecycle. See `gmail-intake-durable.md` and `protected-pdf.md`. Earlier default-off AI triage was superseded.

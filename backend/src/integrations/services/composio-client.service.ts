@@ -44,7 +44,6 @@ export class ComposioClientService {
   }
 
   assertEnabled(): void {
-    if (process.env.COMPOSIO_EMAIL_ENABLED !== 'true') throw new EmailProviderError('CONFIG');
     this.environment();
   }
 

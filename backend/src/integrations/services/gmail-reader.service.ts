@@ -418,9 +418,6 @@ export class GmailReaderService {
 
       const ext = this.getExtension(filename);
       const metadataMatch = findKeywordMatchSource(filename, subject, snippet);
-      if (ext !== 'pdf' && !metadataMatch && process.env.GMAIL_AI_REVIEW_ENABLED !== 'true') {
-        reviewRequired++; skip(filename, GmailSkipReason.REVIEW_REQUIRED); continue;
-      }
       const content = await this.downloadPartContent(account, messageId, part);
       if (!content) continue;
       if (ext === 'pdf' && !this.looksLikePdf(content)) { skip(filename, GmailSkipReason.PDF_INVALID); continue; }
@@ -435,12 +432,12 @@ export class GmailReaderService {
           if (matches) { matchedBy = GmailKeywordMatchSource.PDF_CONTENT; matchedByPdfContent++; }
         } else pdfStats?.record(PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome], filename, extraction.error);
       }
-      const alreadyImported = !matchedBy && process.env.GMAIL_AI_REVIEW_ENABLED === 'true'
+      const alreadyImported = !matchedBy
         && !!isAlreadyImported && await isAlreadyImported(content);
       const decision = decideEmailIntake({ keyword: !!matchedBy, pdf: extraction, bytes: content.length,
-        aiEnabled: process.env.GMAIL_AI_REVIEW_ENABLED === 'true', remaining: alreadyImported ? 1 : aiBudget.remaining });
+        aiEnabled: true, remaining: alreadyImported ? 1 : aiBudget.remaining });
       if (decision.kind === 'review_required') {
-        if (extraction?.outcome === 'PASSWORD_REQUIRED' && process.env.PROTECTED_PDF_ENABLED === 'true') {
+        if (extraction?.outcome === 'PASSWORD_REQUIRED') {
           matchedBy = GmailKeywordMatchSource.PASSWORD_REQUIRED;
         } else {
         reviewRequired++;

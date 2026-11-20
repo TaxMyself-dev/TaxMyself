@@ -21,10 +21,7 @@ export class EmailProcessingWorker {
     @InjectRepository(Business) readonly businesses: Repository<Business>,
   ) {}
   enabled() {
-    return (
-      this.store.enabled() &&
-      process.env.GMAIL_DURABLE_PROCESS_ENABLED === 'true'
-    );
+    return this.store.enabled();
   }
   @Cron('*/5 * * * * *', { name: 'durableGmailProcessing' })
   async tick() {
@@ -82,7 +79,6 @@ export class EmailProcessingWorker {
   }
   async runOne(work: EmailWork) {
     if (!this.enabled()) return;
-    if (process.env.GMAIL_DURABLE_DEV_TEST_SUBJECT !== undefined) await this.store.assertDevWorkScope(work);
     const runner = this.store.db.createQueryRunner();
     let locked = false;
     let token: string;
@@ -241,8 +237,7 @@ export class EmailProcessingWorker {
         });
       }
       if (
-        ['DELETE_PENDING', 'DELETE_RETRY'].includes(work.email_work_state) &&
-        process.env.GMAIL_DURABLE_DELETE_ENABLED === 'true'
+        ['DELETE_PENDING', 'DELETE_RETRY'].includes(work.email_work_state)
       )
         await this.deleteOne(work, token, business);
     } catch {
@@ -280,9 +275,8 @@ export class EmailProcessingWorker {
     }
   }
   async deleteOne(work: EmailWork, token: string, business: Business) {
-    if (!this.enabled() || process.env.GMAIL_DURABLE_DELETE_ENABLED !== 'true')
+    if (!this.enabled())
       return;
-    if (process.env.GMAIL_DURABLE_DEV_TEST_SUBJECT !== undefined) await this.store.assertDevWorkScope(work);
     let outcome: any;
     try {
       outcome =

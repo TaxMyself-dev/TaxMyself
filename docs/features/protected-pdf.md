@@ -5,7 +5,7 @@ Implemented locally on `codex/protected-pdf`, based on `be87eef7` (Composio/emai
 ## Activation gate
 
 - Prepared SQL: `docs/features/protected-pdf.sql`. Three new InnoDB sidecar tables: `protected_documents`, `document_replacement_operations`, `protected_pdf_import_runs`. Existing entities/columns are unchanged. The prepared block is also included at the end of `docs/redesign/cutover.sql`; execute only one copy, and only with explicit approval for the target DEV database.
-- `PROTECTED_PDF_ENABLED=false` and `PROTECTED_PDF_DISPATCH_ENABLED=false` by default. Keep TypeORM synchronization disabled. Disabled paths do not query new tables. SQL has NOT been applied.
+- Protected handling and committed replacement dispatch are always available. Keep TypeORM synchronization disabled and apply the reviewed SQL before starting this release. DEV SQL was separately approved/applied. See `gmail-email-main-preparation.md`; later dated sections below retain historical verification settings.
 - After separately approved DEV DDL, enable the feature to accept locked originals/replacements. Enable the dispatcher separately to recover staged uploads and deliver accepted replacements to the existing processing inbox. Existing processing may invoke AI after delivery; this is not an AI-free live test.
 - This worktree uses frontend 4203/backend 3003. Its ignored environment was copied from the existing email feature and given distinct ports/callbacks. No secrets are tracked. Original feature servers/configuration were not changed.
 

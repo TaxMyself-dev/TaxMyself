@@ -17,10 +17,7 @@ export class ProtectedPdfWorker {
   ) {}
   @Cron('*/30 * * * * *', { name: 'protectedPdfOutbox' })
   async tick(): Promise<void> {
-    if (
-      !this.service.enabled() ||
-      process.env.PROTECTED_PDF_DISPATCH_ENABLED !== 'true'
-    )
+    if (!this.service.enabled())
       return;
     await this.recoverAbandonedUploads();
     // Bounded batch; every delivery gets a DB lease and an ownership/version recheck.
@@ -34,10 +31,7 @@ export class ProtectedPdfWorker {
     await this.reconcile();
   }
   async deliver(id: string): Promise<void> {
-    if (
-      !this.service.enabled() ||
-      process.env.PROTECTED_PDF_DISPATCH_ENABLED !== 'true'
-    )
+    if (!this.service.enabled())
       return;
     const token = randomUUID();
     const initial = await this.store.operation(id);
@@ -78,7 +72,7 @@ export class ProtectedPdfWorker {
         manager,
       );
       // Reserve management before the external move so the generic INBOX scan cannot claim it.
-      if(process.env.GMAIL_DURABLE_INTAKE_ENABLED==='true') {
+      {
         await this.store.query("UPDATE imported_documents r JOIN protected_documents p ON p.id=? JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='PROTECTED_DELIVERY',r.email_run_id=original.email_run_id,r.email_upload_tag=? WHERE r.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state='LEGACY' AND original.email_work_state='PASSWORD_REQUIRED'",[op.protected_id,id,op.replacement_import_id,op.firebase_id,op.business_number],manager);
       }
       return op;
@@ -130,7 +124,7 @@ export class ProtectedPdfWorker {
           [id, token],
           manager,
         );
-        if(process.env.GMAIL_DURABLE_INTAKE_ENABLED==='true') {
+        {
           await this.store.query("UPDATE imported_documents r JOIN document_replacement_operations o ON o.replacement_import_id=r.id JOIN protected_documents p ON p.id=o.protected_id JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='READY',r.email_run_id=original.email_run_id,r.email_upload_tag=o.id WHERE o.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state IN ('LEGACY','PROTECTED_DELIVERY') AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id,operation.business_number],manager);
           await this.store.query("UPDATE imported_documents original JOIN protected_documents p ON p.original_import_id=original.id JOIN document_replacement_operations o ON o.protected_id=p.id JOIN imported_documents r ON r.id=o.replacement_import_id SET original.email_work_state='REPLACED' WHERE o.id=? AND original.firebase_id=? AND r.email_work_state='READY' AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id],manager);
         }
@@ -158,10 +152,7 @@ export class ProtectedPdfWorker {
    * name/hash association, no password input, and no DB lock held over Drive.
    */
   async recoverAbandonedUploads(): Promise<void> {
-    if (
-      !this.service.enabled() ||
-      process.env.PROTECTED_PDF_DISPATCH_ENABLED !== 'true'
-    )
+    if (!this.service.enabled())
       return;
     const roots = await this.store.query(
       "SELECT * FROM protected_documents WHERE status='IMPORTING' AND recovery_attempts<5 AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (recovery_next_at IS NULL OR recovery_next_at<=UTC_TIMESTAMP(3)) LIMIT 2",
@@ -274,10 +265,7 @@ export class ProtectedPdfWorker {
     return null;
   }
   async reconcile(): Promise<void> {
-    if (
-      !this.service.enabled() ||
-      process.env.PROTECTED_PDF_DISPATCH_ENABLED !== 'true'
-    )
+    if (!this.service.enabled())
       return;
     const queued: ReplacementOperation[] = await this.store.query(
       "SELECT * FROM document_replacement_operations WHERE status='QUEUED' AND processing_status='PENDING' ORDER BY updated_at LIMIT 25",

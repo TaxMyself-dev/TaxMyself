@@ -49,8 +49,9 @@ describe('Composio read-only SDK boundary', () => {
     await expect(service.assertAccount({ ...account, environment: 'prod' })).rejects.toMatchObject({ category: 'AUTH' });
     expect(sdk.connectedAccounts.list).not.toHaveBeenCalled();
   });
-  it('requires feature enablement even with an initialized SDK', async () => {
-    process.env.COMPOSIO_EMAIL_ENABLED = 'false';
+  it('rejects PROD credentials in a non-production runtime even with an initialized SDK', async () => {
+    process.env.COMPOSIO_ENVIRONMENT = 'prod';
+    process.env.NODE_ENV = 'test';
     await expect(service.assertAccount(account)).rejects.toMatchObject({ category: 'CONFIG' });
   });
   it('does not leak SDK error text or request credentials', async () => {

@@ -235,6 +235,7 @@ function subject() {
         return [...operations.values()]
           .filter((o) => o.id !== root.current_operation_id)
           .map((o) => ({ candidate_drive_id: o.candidate_drive_id }));
+      else if (sql.startsWith('UPDATE imported_documents r JOIN protected_documents') || sql.startsWith('UPDATE imported_documents r JOIN document_replacement_operations') || sql.startsWith('UPDATE imported_documents original JOIN protected_documents')) return {affectedRows:0}; // This legacy fixture has no original Gmail ledger; covered separately by email-protected-handoff.spec.
       else throw new Error('Unimplemented fake SQL: ' + sql);
       return { affectedRows: 1 };
     }),
@@ -524,15 +525,8 @@ describe('Protected PDF replacement boundaries (offline)', () => {
       }),
     );
   });
-  it('performs no new-table work or dispatch when disabled', async () => {
-    process.env.PROTECTED_PDF_ENABLED = 'false';
-    const t = subject();
-    await expect(t.replace()).rejects.toThrow('disabled');
-    expect(await t.service.decorateArchive('owner', '123', [], true)).toEqual(
-      [],
-    );
-    await new ProtectedPdfWorker(t.service, t.store, t.drive as any).tick();
-    expect(t.store.query).not.toHaveBeenCalled();
+  it('makes protected PDF handling available without an activation switch', () => {
+    expect(subject().service.enabled()).toBe(true);
   });
 
   it('fences a late upload attempt so it cannot undo a newer retry', async () => {

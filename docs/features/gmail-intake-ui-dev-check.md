@@ -1,4 +1,6 @@
-# Bounded Gmail full-flow UI check in DEV
+# Historical bounded Gmail full-flow UI check in DEV
+
+The 15-file UI exercise completed successfully. Its temporary subject guard and runtime activation variables were subsequently removed for main preparation; they are not current configuration. Normal local ports are 4200/3000. See `gmail-email-main-preparation.md`. The dated steps below are an audit record.
 
 Prepared 2026-11-20 on codex/composio-email, after 77e657d8. No production, schema, main integration, push or deploy.
 

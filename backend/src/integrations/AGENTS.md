@@ -21,8 +21,7 @@ document import/synchronization.
 - OAuth state must bind callback to the initiating owner and exact pending account.
   Credentials stay at Composio; never expose SDK state, signed download URLs or raw errors.
 - Mailbox endpoints are owner-only; delegated/admin impersonation cannot read mail.
-- Keep Composio disabled pending approved live DEV verification. Preserve the separate
-  system Drive OAuth credentials. See `docs/features/composio-email.md`.
+- Gmail integration and nightly eligible-account synchronization are available without feature switches. Preserve the separate system Drive OAuth credentials. See `docs/features/composio-email.md`.
 - Manual/initial/nightly sync share date-range, overlap, concurrency and status
   rules. Imports pass through `DocumentImportService`.
 - External OAuth scopes, credentials, provider contracts and live callbacks are

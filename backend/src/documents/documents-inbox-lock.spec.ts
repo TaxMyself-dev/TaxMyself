@@ -74,13 +74,7 @@ describe('DocumentsService inbox OCR lock', () => {
   });
 });
 
-it('pauses every legacy Inbox OCR entry point without touching DB or Drive',async()=>{
-  const saved=process.env.INBOX_OCR_ENABLED;process.env.INBOX_OCR_ENABLED='false';
-  try {
-    const service:any=Object.create(DocumentsService.prototype);
-    service.acquireInboxOcrSlot=jest.fn();service.processInboxWithDistributedLock=jest.fn();
-    await expect(service.processInboxForUser('owner','synthetic-business')).resolves.toEqual(expect.objectContaining({processed:0,total:0}));
-    expect(service.acquireInboxOcrSlot).not.toHaveBeenCalled();
-    expect(service.processInboxWithDistributedLock).not.toHaveBeenCalled();
-  }finally{if(saved===undefined)delete process.env.INBOX_OCR_ENABLED;else process.env.INBOX_OCR_ENABLED=saved}
+it('runs the existing locked Inbox entry point without an activation switch',async()=>{
+ const service:any=Object.create(DocumentsService.prototype);service.acquireInboxOcrSlot=jest.fn();service.releaseInboxOcrSlot=jest.fn();service.processInboxWithDistributedLock=jest.fn().mockResolvedValue({total:1,processed:1});
+ await expect(service.processInboxForUser('owner','business')).resolves.toEqual({total:1,processed:1});expect(service.acquireInboxOcrSlot).toHaveBeenCalledTimes(1);expect(service.processInboxWithDistributedLock).toHaveBeenCalledWith('owner','business');expect(service.releaseInboxOcrSlot).toHaveBeenCalledTimes(1);
 });

@@ -1,14 +1,4 @@
 import { EmailIntakeRunsService } from './email-intake-runs.service';
-const saved = { ...process.env };
-beforeEach(() => {
-  process.env.GMAIL_DURABLE_SCAN_ENABLED = 'true';
-});
-afterEach(() => {
-  if (saved.GMAIL_DURABLE_SCAN_ENABLED === undefined)
-    delete process.env.GMAIL_DURABLE_SCAN_ENABLED;
-  else
-    process.env.GMAIL_DURABLE_SCAN_ENABLED = saved.GMAIL_DURABLE_SCAN_ENABLED;
-});
 function simulation() {
   const run: any = {
     id: 'run',
@@ -189,12 +179,11 @@ describe('durable Gmail scan continuation (no providers/DB)', () => {
     expect(t.hashes.size).toBe(250);
     expect(t.rows.some((r) => r.state === 'RETRY')).toBe(false);
   });
-  it('does no work when the scanner flag is off', async () => {
-    delete process.env.GMAIL_DURABLE_SCAN_ENABLED;
+  it('continues scans without an activation switch', async () => {
     const t = simulation();
     await t.create().step(t.run);
-    expect(t.store.leaseRun).not.toHaveBeenCalled();
-    expect(t.reader.durablePage).not.toHaveBeenCalled();
+    expect(t.store.leaseRun).toHaveBeenCalledWith('run');
+    expect(t.reader.durablePage).toHaveBeenCalled();
   });
 });
 
@@ -256,19 +245,6 @@ it('reconciles completed pull after a crash before integration finalization with
   expect(download).not.toHaveBeenCalled();
 });
 
-it('rejects out-of-scope creation and existing runs before mailbox or storage access',async()=>{
- const saved=process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS;process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS='17';
- try{const t=simulation();await expect(t.create().start({id:18} as any,{})).rejects.toThrow('scope');t.run.integration_id=18;await expect(t.create().step(t.run)).rejects.toThrow('scope');expect(t.store.leaseRun).not.toHaveBeenCalled();expect(t.reader.durablePage).not.toHaveBeenCalled();}
- finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS;else process.env.GMAIL_DURABLE_ALLOWED_INTEGRATION_IDS=saved}
-});
-it('rejects an existing run for a different business before claiming or downloading',async()=>{
- const saved=process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER;process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER='allowed';
- try{const t=simulation();await expect(t.create().step(t.run)).rejects.toThrow('scope');expect(t.store.leaseRun).not.toHaveBeenCalled();expect(t.reader.durablePage).not.toHaveBeenCalled();}
- finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER;else process.env.GMAIL_DURABLE_REQUIRED_BUSINESS_NUMBER=saved}
-});
-
-it.each(['false','true'])('reports whether processing is paused without starting it (%s)',async(value)=>{
- const saved=process.env.GMAIL_DURABLE_PROCESS_ENABLED;process.env.GMAIL_DURABLE_PROCESS_ENABLED=value;
- try{const t=simulation();t.store.query.mockResolvedValue([{pull_state:'RUNNING',processing_state:'RUNNING'}]);const status=await t.create().status('owner');expect(status[0].processingPaused).toBe(value!=='true');expect(t.reader.durablePage).not.toHaveBeenCalled();expect(t.storage.accept).not.toHaveBeenCalled();}
- finally{if(saved===undefined)delete process.env.GMAIL_DURABLE_PROCESS_ENABLED;else process.env.GMAIL_DURABLE_PROCESS_ENABLED=saved}
+it('reports persisted status without starting work or requiring an activation switch',async()=>{
+ const t=simulation();t.store.query.mockResolvedValue([{pull_state:'RUNNING',processing_state:'RUNNING'}]);const status=await t.create().status('owner');expect(status[0].processing_state).toBe('RUNNING');expect(status[0]).not.toHaveProperty('processingPaused');expect(t.reader.durablePage).not.toHaveBeenCalled();expect(t.storage.accept).not.toHaveBeenCalled();
 });

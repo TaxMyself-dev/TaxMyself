@@ -48,10 +48,3 @@ describe('InboxOcrCronService', () => {
     await first;
   });
 });
-
-it('does not schedule or enumerate businesses while Inbox OCR is paused',async()=>{
- const saved=process.env.INBOX_OCR_ENABLED;process.env.INBOX_OCR_ENABLED='false';
- try{const repo:any={find:jest.fn()},docs:any={processInboxForUser:jest.fn()};const service=new InboxOcrCronService(repo,docs);
- await service.runScheduledSweep();await service.processProvisionedInboxes();expect(repo.find).not.toHaveBeenCalled();expect(docs.processInboxForUser).not.toHaveBeenCalled();
- }finally{if(saved===undefined)delete process.env.INBOX_OCR_ENABLED;else process.env.INBOX_OCR_ENABLED=saved}
-});

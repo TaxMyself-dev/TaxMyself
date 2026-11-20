@@ -50,7 +50,7 @@ export class ProtectedPdfService {
   ) {}
 
   enabled(): boolean {
-    return process.env.PROTECTED_PDF_ENABLED === 'true';
+    return true;
   }
   assertEnabled(): void {
     if (!this.enabled())

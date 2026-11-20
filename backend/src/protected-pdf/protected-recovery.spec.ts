@@ -88,10 +88,11 @@ describe('abandoned protected upload recovery', () => {
     await changed.worker.recoverAbandonedUploads();
     expect(changed.service.replace).not.toHaveBeenCalled();
   });
-  it('performs no recovery when the dispatch flag is off', async () => {
+  it('recovers eligible abandoned uploads without an activation variable', async () => {
     process.env.PROTECTED_PDF_DISPATCH_ENABLED = 'false';
     const t = subject();
     await t.worker.recoverAbandonedUploads();
-    expect(t.store.query).not.toHaveBeenCalled();
+    expect(t.store.query).toHaveBeenCalled();
+    expect(t.service.replace).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,3 @@
-import { assertEmailIntakeScope, emailIntakeDevTestQuery } from './email-intake-scope';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { EmailIntakeStore, EmailRun } from './email-intake.store';
@@ -40,13 +39,12 @@ export class EmailIntakeRunsService {
     },
   ) {
     if (!this.enabled()) throw new Error('Durable Gmail disabled');
-    assertEmailIntakeScope(integration.id);
     if (
       integration.status !== IntegrationStatus.ACTIVE ||
       integration.connectionBackend !== 'COMPOSIO'
     )
       throw new Error('Mailbox unavailable');
-    const suppliedQuery = emailIntakeDevTestQuery() || options.query?.trim();
+    const suppliedQuery = options.query?.trim();
     if (
       suppliedQuery &&
       suppliedQuery !== DEFAULT_GMAIL_QUERY &&
@@ -63,7 +61,6 @@ export class EmailIntakeRunsService {
       integration.firebaseId,
       options.businessNumber,
     );
-    assertEmailIntakeScope(integration.id, business);
     return this.store.createRun({
       owner: integration.firebaseId,
       business,
@@ -91,7 +88,6 @@ export class EmailIntakeRunsService {
         row.provider !== IntegrationProvider.GOOGLE
       )
         throw new Error('Mailbox unavailable');
-      assertEmailIntakeScope(row.id);
       rows.push(row);
     }
     const runIds = [];
@@ -105,7 +101,6 @@ export class EmailIntakeRunsService {
         id: run.id,
         integrationId: run.integration_id,
         businessNumber: run.business_number,
-        processingPaused: process.env.GMAIL_DURABLE_PROCESS_ENABLED !== 'true',
         query: run.query_text,
         ...(await this.store.summary(run)),
         ...(
@@ -121,7 +116,6 @@ export class EmailIntakeRunsService {
   async tick() {
     if (
       !this.enabled() ||
-      process.env.GMAIL_DURABLE_SCAN_ENABLED !== 'true' ||
       this.running
     )
       return;
@@ -157,9 +151,8 @@ export class EmailIntakeRunsService {
     }
   }
   async step(run: EmailRun) {
-    if (!this.enabled() || process.env.GMAIL_DURABLE_SCAN_ENABLED !== 'true')
+    if (!this.enabled())
       return;
-    assertEmailIntakeScope(run.integration_id, run.business_number);
     const token = await this.store.leaseRun(run.id);
     if (!token) return;
     try {

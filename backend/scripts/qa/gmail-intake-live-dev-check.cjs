@@ -10,8 +10,6 @@ const config = require('dotenv').parse(
 );
 assert.equal(config.DB_DATABASE, 'keepintax-dev');
 assert.equal(config.DISABLE_SYNCHRONIZE, 'true');
-assert.equal(config.GMAIL_DURABLE_PROCESS_ENABLED, 'false');
-assert.equal(config.GMAIL_DURABLE_DELETE_ENABLED, 'false');
 Object.assign(process.env, config);
 require('reflect-metadata');
 require('@nestjs/common').Logger.overrideLogger(false);
@@ -392,8 +390,6 @@ async function loadManifest(ctx) {
   }
 }
 async function workerFor(ctx) {
-  process.env.GMAIL_DURABLE_PROCESS_ENABLED = 'true'; // This CLI process only; never writes .env or starts a scheduler.
-  process.env.GMAIL_DURABLE_DELETE_ENABLED = 'false';
   const worker = service(classes.EmailProcessingWorker);
   worker.tick = () => {
     throw Error('Global processing tick is forbidden in the fixture harness');
@@ -552,9 +548,7 @@ async function replace(ctx) {
   manifest.protectedRoot = root.id;
   manifest.replacementOperation = op.id;
   save();
-  process.env.PROTECTED_PDF_DISPATCH_ENABLED = 'true';
   await service(classes.ProtectedPdfWorker).deliver(op.id);
-  process.env.PROTECTED_PDF_DISPATCH_ENABLED = 'false';
   assert.equal((await guardFixture(record)).email_work_state, 'READY');
   assert.equal((await guardFixture(c)).email_work_state, 'REPLACED');
   const countBefore = manifest.cases.length;
@@ -604,7 +598,6 @@ async function removeNegative(ctx, target = 'negative') {
   );
   manifest.syntheticSharedReference = extra.id;
   save();
-  process.env.GMAIL_DURABLE_DELETE_ENABLED = 'true';
   await worker.runOne(w);
   w = await guardFixture(c);
   assert.equal(w.email_work_state, 'DELETE_BLOCKED');
@@ -767,9 +760,7 @@ async function reconcile(ctx) {
       ? result.filter((row) => row.id === manifest.replacementOperation)
       : result;
   };
-  process.env.PROTECTED_PDF_DISPATCH_ENABLED = 'true';
   await service(classes.ProtectedPdfWorker).reconcile();
-  process.env.PROTECTED_PDF_DISPATCH_ENABLED = 'false';
   const [op] = await db.query(
     'SELECT processing_status FROM document_replacement_operations WHERE id=? AND firebase_id=? AND business_number=?',
     [manifest.replacementOperation, manifest.owner, manifest.businessNumber],
