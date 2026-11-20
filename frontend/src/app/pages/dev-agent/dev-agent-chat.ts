@@ -151,6 +151,7 @@ export const createDevAgentChat = (options: {
   conversationId: string;
   agentUserId: string;
   locale: 'he' | 'en';
+  onboarding?: { businessNumber: string };
   auth: DevAgentRequestAuth;
   messages?: UIMessage[];
   // The question calls answered on this page, waiting to be sent.
@@ -183,6 +184,7 @@ export const createDevAgentChat = (options: {
           message: messages.at(-1),
           conversation: { name: null, pinned: false },
           locale: options.locale,
+          ...(options.onboarding && { onboarding: options.onboarding }),
           ...(body?.['origin'] === 'follow-up' && { origin: 'follow-up' }),
         },
       }),

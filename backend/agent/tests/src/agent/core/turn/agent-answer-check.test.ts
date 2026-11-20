@@ -571,3 +571,39 @@ describe("agent answer check", () => {
     })
   );
 });
+
+describe("shared profile deletion claims", () => {
+  it("accepts only a successful profile deletion receipt, not an ordinary profile update", () => {
+    const answers = { ...noAnswers, deleted: { noul: 0.95 } };
+    assert.lengthOf(
+      agentAnswerViolations(answers, [
+        {
+          toolName: "updateUserProfile",
+          outcome: "done",
+          output: JSON.stringify({ profileOperation: "forget_facts" }),
+        },
+      ]),
+      0
+    );
+    assert.lengthOf(
+      agentAnswerViolations(answers, [
+        {
+          toolName: "updateUserProfile",
+          outcome: "done",
+          output: JSON.stringify({ profileOperation: "share" }),
+        },
+      ]),
+      1
+    );
+    assert.lengthOf(
+      agentAnswerViolations(answers, [
+        {
+          toolName: "updateUserProfile",
+          outcome: "failed",
+          output: JSON.stringify({ profileOperation: "forget_all" }),
+        },
+      ]),
+      1
+    );
+  });
+});

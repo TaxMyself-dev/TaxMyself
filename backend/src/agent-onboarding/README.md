@@ -1,351 +1,106 @@
-# Agent onboarding
+# Shared agent profile and onboarding interface
 
-## Behavior
+KeepInTax has one agent system. `/agent/onboarding` is an interface-specific
+policy of `createAppAgent`, not a second assistant, model client or conversation
+engine. The ordinary chat uses the same profile tools without proactively
+asking onboarding questions. The authenticated shell retains the initial
+invitation and permanent navigation link; `/dev/agent/onboarding` redirects.
 
-The normal authenticated application shell offers an incomplete-onboarding dialog and a permanent owner-only navigation link to `/agent/onboarding`. `/dev/agent/onboarding` redirects to that canonical route for existing links. The new page supports free narrative, guided questions,
-natural-language guidance and deferral, continuous chat with automatic per-message persistence, an explicit
-end-of-conversation summary, current stories, basic field status,
-history, corrections and scoped forgetting. Multi-business users choose an owned
-business explicitly. The field list is the initial configurable implementation
-of the specification, not a claim that product field selection is final.
+## Conversation and tracing
 
-Personal facts (preferred name, parallel employment, current need and open
-personal narrative) have one owner-scoped profile with empty `scope_key`.
-Business facts have a separate profile keyed by the owned business number.
-Changing a business does not copy personal facts or mix business stories.
-The initial registration is seeded from existing application data when available;
-onboarding never writes the accounting Business entity or changes tax reports.
+Both Angular interfaces use `createDevAgentChat` and the template's
+`POST /api/agent/chat`, stored `agent_chat_*` messages, streaming/resumption,
+tool loop, write serialization, approval rules, retry behavior and stop hooks.
+Onboarding restricts active tools and the server approval gate to shared profile
+reads/writes and conversation-result reads. Business/profile source is checked
+again in each tool. The existing template Langfuse integration traces the same
+agent model/tool calls, inputs and outputs to the configured local Langfuse.
+There is no separate extractor, responder, summarizer or tracing exporter.
 
-The browser automatically commits each server-side proposal without a per-message
-confirmation screen. A failed commit retains its proposal ID for idempotent retry
-and preserves the draft. The summary is shown only on request; returning to the
-conversation allows corrections. The page and summary scroll within the app shell.
-Invitation and deletion confirmations use the existing PrimeNG dialog and shared
-button components. Enter sends; Shift+Enter inserts a newline and IME composition
-never sends prematurely. The textarea has no placeholder; assistant replies appear
-only in the conversation. The composer has only Send; guidance and leaving a
-question for later happen in the conversation. Basic answers remain visible in
-personal/business groups under one narrative summary.
+The UI explicitly chooses an owned business. For a new onboarding conversation,
+the backend verifies owner access and writes `data-onboardingContext` to stored
+history. Future turns restore this binding, even when the client omits the mode.
+Changing a conversation's interface or bound business is rejected. This never
+uses the application's hidden business header. Incoming user parts cannot write
+the server marker. Delegates/admin impersonation cannot read or edit the owner's
+personal profile. Ordinary accounting tools retain their existing permissions.
 
-## Storage and update contract
+Users tell their story freely and can request guidance in text. The same model
+interprets short answers from the actual transcript. It asks missing basic fields
+one at a time, accepts unknown/deferral, and answers profile-recall questions.
+There are no guidance/skip buttons or repeated textarea placeholders. Enter sends,
+Shift+Enter inserts a newline. Finishing sends an ordinary request in the same
+conversation; its answer becomes the narrative summary. The UI keeps grouped
+basic fields and the existing system buttons/dialogs. It does not recap after
+every message. Historical pre-migration sources remain profile context, while new
+chat messages are stored in the template conversation tables.
 
-Apply `backend/scripts/migrations/2026-11-19_agent_onboarding.sql` manually to an
-authorized isolated development database first. The script creates five new
-InnoDB tables and does not alter existing accounting tables. There are no ORM
-entities for these tables, so TypeORM synchronization cannot create them.
-They are not in the generic agent gateway registry: all access is through the
-owner-scoped Nest service with parameterized SQL.
+## Canonical memory
 
-Profiles have predefined nullable text columns, JSON field states and a
-MEDIUMTEXT story. Facts are open-ended rows with source evidence, scope,
-recording time, effective date text, precision and replacement links. Dates are
-stored as YYYY-MM-DD or YYYY-MM, never a fabricated day. Prior validity ends
-at the transition boundary; end boundaries are exclusive at the stated
-precision. Uncertain transition days remain uncertain.
+The Nest service is a deterministic, owner-scoped store exposed through a typed
+`UserProfileMemory` port. `readUserProfile` returns story, facts/history, basic
+fields, missing fields and versions. `updateUserProfile` supplies structured
+focused mutations. Free narrative facts use `field=null`; no new DB column is
+needed. The profile's original eleven basic fields remain configurable product
+choices: preferred name, employment, business activity/stage/registration,
+workplace, vehicle, employees, partners, international work and current need.
 
-The story is currently a deterministic composition of all active narrative
-facts, rather than a second lossy model rewrite. Original user narrative is
-retained in the source change log and exposed as story.narrative in the API. The
-UI does not display this dated log or duplicate it as a second story. Ordinary chat receives that dated source narrative alongside the summary. This preserves plans and details even when extraction omits them; quoted sources do not override confirmed current facts. Historical superseded and corrected facts
-remain separate and are included in ordinary chat context with status labels.
+Personal facts use the owner's empty scope key; business facts use its business
+number. Existing five InnoDB tables are retained:
 
-POST propose first extracts evidence-backed changes and a validated intent:
-share, guidance, recall, defer, off_topic, or onboarding_question. Conversational
-requests are not personal facts. Guidance asks an unanswered basic question;
-explicit deferral marks only the identified unanswered field skipped and moves
-on. Off-topic requests receive a consistent main-agent referral. Other replies
-are generated from the validated prospective profile, including new answers,
-historical states and original source context. Answered fields are removed from
-the supplied missing-question list. Required date/disambiguation questions take
-precedence. Replies are stored in the existing proposal payload and committed
-atomically with the conversation. Older proposals retain their fallback behavior.
+- `agent_onboarding_profiles`: current basic fields/state, MEDIUMTEXT story, version.
+- `agent_onboarding_facts`: flexible facts, provenance, reporting time, validity,
+  date precision, replacement/correction links.
+- `agent_onboarding_proposals`: validated mutations, base versions and retry receipt.
+- `agent_onboarding_changes`: source audit and change receipt, not a chat engine.
+- `agent_onboarding_story_versions`: historical projections.
 
-POST summary reads the owned profile, checks both versions and produces one
-second-person Hebrew narrative from current facts, relevant genuine transitions
-and consistent source context. Recording dates and technical labels are omitted;
-transition dates remain natural prose with their actual precision. This is an
-on-demand presentation, not a replacement for facts, history or original speech.
-It does not write a rewritten story to MySQL. The page caches it until its profile
-changes, regenerates it after forgetting and preserves the chat on failure.
+The migration SQL remains `backend/scripts/migrations/2026-11-19_agent_onboarding.sql`.
+This runtime migration requires no schema change. Existing data is retained.
+The initial registration can still be seeded from application data with its own
+provenance; profile edits never change accounting entities or tax reports.
 
-POST propose persists an opaque
-server-side proposal for 30 minutes. The browser cannot supply facts to commit.
-The model selects evidence source IDs from an enum generated by the server from
-contiguous segments of the new message. The server resolves them into exact
-quotes before the existing strict validator runs; the model cannot manufacture
-ellipsized evidence strings. Structurally invalid model output is withheld,
-preserving the original story through the normal propose/commit path and asking
-for a rephrasing instead of writing bogus facts or discarding the message.
+`prepareChanges` validates exact evidence against the CURRENT server-provided user
+message, scope, replacement IDs, dates and versions. The model cannot supply an
+alternative source message. A transition preserves the old period; correction
+marks it erroneous. Registration/workplace transitions without an effective date
+are rejected for clarification. Month precision is kept; a day is never invented.
+Concurrent home/office work is represented by all continuing workplace modes.
 
-Transitions without a needed date are withheld and converted to a clarification
-while retaining the original message for the next answer. Workplace modes are
-structured to preserve simultaneous home and office work. Explicit corrections
-can also invalidate disproved historical facts without pretending there was a
-real transition.
+`commit` locks owner profiles and the proposal in deterministic order and writes
+facts, current fields, story/history and receipt in one transaction. The template's
+conversation/tool-call UUID is the operation id: retrying the same operation is
+idempotent before checking a now-stale version. A different stale operation fails;
+the agent rereads and reevaluates it. The proposal expires after 30 minutes.
+No AI call occurs inside the transaction.
 
-POST commit locks profiles in deterministic order and then the proposal, checks
-both personal and business versions and atomically writes facts, current fields,
-story versions and conversation changes. Concurrent stale edits return 409.
-Applied proposal retries do not duplicate writes. No model/network call runs
-inside a database transaction.
+Explicit forgetting removes a fact's field/replacement history, redacts profile
+source audits and drops affected story snapshots, preserving unrelated facts.
+It does not assert the opposite. Forget-all clears profile memory across the
+owner's businesses and retains only a content-free receipt. Accounting records,
+template chat transcripts and backups are not deleted by either operation.
+The fresh profile is authoritative over obsolete transcript/context references.
 
-Forgetting removes the selected fact's replacement chain (or all history of its
-basic field), associated old story versions and affected source text/proposal
-payloads. It rebuilds the current story and discards unapplied owner previews.
-Other facts remain. A forgotten basic field is marked skipped to avoid asking
-for it immediately again. Ordinary chat transcripts and backups are explicitly
-outside this deletion action; the UI states that limitation.
+Legacy `agent_memories` remain readable, but new `business_fact` saves/updates there
+fail with `AGENT_PROFILE_REQUIRED`; business facts use the canonical profile.
+Response preferences still use the template's preference-memory tools. No existing
+legacy memory is silently migrated or deleted.
 
-Chat deletion is a first-class intent: `forget_all` or `forget_facts` with
-existing, owner-scoped fact IDs. It is not an off-topic request, a correction or
-a claim that the opposite fact is true. Ambiguous targets prompt a clarification
-instead of defaulting to delete-all. The UI's normal auto-commit path applies the
-operation; no success reply appears before the transaction commits.
+## Checks and operation
 
-Selective chat deletion reuses the same erasure routine as memory management:
-remove the field/replacement history, redact source records and old story versions,
-clear the structured value and mark it skipped. Historical assistant replies are
-hidden because recaps can repeat a forgotten fact without creating another fact
-row. Unrelated facts and user narrative without the erased source remain.
+`AGENT_ONBOARDING_ENABLED=true` enables the owner-only feature. Existing Firebase,
+OpenAI, MySQL and template Langfuse configuration is reused. No standalone
+`LANGFUSE_ONBOARDING_ENABLED` switch is used. Local application ports remain 4204
+and 3004; this migration does not start servers.
 
-Delete-all clears personal and business onboarding memory for ALL businesses of
-the authenticated owner. It resets fields/stories with monotonic versions and
-removes facts, history, source conversations and other proposals. It never changes
-accounting documents, main-agent conversations or backups. All owner profiles are
-locked in scope-key order before commit; tenant scope, stale-version checks and
-failure atomicity remain enforced. Only a content-free deletion receipt and its
-applied proposal marker remain, making retries idempotent. Initial application
-registration is not re-seeded after the reset because versions never go to zero.
+- Agent package: `npm run typecheck`, `npm run check`, `npm test`, `npm run build`.
+- Nest: focused onboarding domain/store tests and `npm run build`.
+- Approved synthetic dev persistence: `node scripts/run-onboarding-dev-tests.cjs
+  --database=keepintax-dev --persistence-only` from backend. No HTTP listener.
+- Angular: onboarding/shared-chat ChromeHeadless tests using
+  `tsconfig.onboarding-spec.json`, then the production build.
 
-Bounded model-only regression for the two screenshot requests and a genuine
-employment correction:
-`node scripts/onboarding-conversation-smoke.cjs --run-paid-deletion-smoke`.
-This uses synthetic context and mocked DB writes; the existing persistence runner
-verifies the actual erasure SQL separately against approved synthetic dev owners.
-
-## API and authorization
-
-All `/api/agent-profile` routes use FirebaseAuthGuard and the existing domain
-business ownership check. Profile reads/writes are self-service only: delegates
-and admin impersonation cannot read or change someone else's personal profile.
-This adds no new delegation permission. Ordinary chat requests receive profile
-context through an optional verified-owner domain callback. The latest context
-replaces previous context; it is not accounting evidence or an instruction.
-Ordinary chat does not start onboarding or fill gaps automatically. Profile
-updates use the dedicated onboarding conversation, not the old generic memory
-tool as a second profile store.
-
-- GET businesses: owned business directory.
-- GET profile with businessNumber: current state, facts, history and questions.
-- POST propose: message or explicit skip, businessNumber and both versions.
-- POST commit: businessNumber and opaque proposalId only.
-- POST summary: businessNumber and both versions; returns a narrative and source version.
-- POST defer: remember dismissal of the first-visit invitation.
-- POST forget: factId, businessNumber and both versions.
-
-## Local activation
-
-Set `AGENT_ONBOARDING_ENABLED=true` only after the new SQL is applied to the
-intended development database. Disabled onboarding does not query its tables
-from ordinary chat. Extraction uses the existing OPENAI_API_KEY with
-`store:false`, structured output and a 60-second timeout. Optional
-`AGENT_ONBOARDING_MODEL` defaults to `gpt-4.1-mini` for extraction/classification.
-`AGENT_ONBOARDING_CONVERSATION_MODEL` controls replies and narratives; it falls
-back to an explicit `AGENT_ONBOARDING_MODEL`, then `gpt-4.1`. A shared message or
-recall normally makes an extraction call plus a response call. Guidance, deferral,
-off-topic routing and required clarifications need only extraction. Finishing
-adds one narrative call, cached within the page until memory changes. No key is
-committed.
-
-For a bounded paid diagnostic using synthetic users and a mocked database:
-`node scripts/onboarding-conversation-smoke.cjs --run-paid-model-smoke` (backend).
-It runs seven fixed acceptance cases through the real propose service, makes no
-MySQL connection, starts no application server, reports token usage/model names
-and exits nonzero on a failed check. It is outside normal unit tests.
-
-Build backend, backend/agent and frontend independently using npm. Use a distinct
-frontend/backend port pair for this feature checkout; the page accepts the same
-validated localhost `?api=` override as the development agent. The development chat route remains feature-gated; the canonical onboarding route is part of normal authenticated application routing. Background accounting reviews are not
-implemented by this feature.
-
-## Verification
-
-Backend unit/access checks: `npm test -- --runInBand --runTestsByPath
-src/agent-onboarding/onboarding.domain.spec.ts
-src/agent-onboarding/onboarding.service.spec.ts
-src/agent-onboarding/onboarding.mysql.spec.ts
-src/agent-harness/agent-harness.controller.spec.ts
-src/agent-harness/agent-harness.access.spec.ts`.
-
-MySQL integration tests support ONBOARDING_TEST_MYSQL_URL only for a disposable
-local database named onboarding_test. The separately approved development route
-is `node backend/scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev`
-from the repository root. It requires the existing backend/.env database to
-independently equal keepintax-dev and rechecks SELECT DATABASE() before tests.
-Without either explicit test mode, database tests skip. No production target is
-accepted. `--http-only` and `--persistence-only` run bounded affected suites.
-
-Each suite uses a fresh onboarding-qa UUID namespace; all writes and cleanup are
-restricted to its exact synthetic owner IDs in the new onboarding tables. It
-never inserts real User or Business records. HTTP tests use the real controller,
-DTO validation and FirebaseAuthGuard, with token verification and the synthetic
-business directory supplied as test fixtures. One HTTP smoke case uses the
-configured real model on synthetic narrative. This is not a browser login or a
-production Firebase-token integration test. Both suites verify cleanup before
-closing. Default runs execute each suite in its own Jest process and retain
-machine-readable reports/logs under ignored .test-tmp/onboarding-dev.
-
-Schema operations require separate explicit authorization. For the approved
-development target only, `node backend/scripts/apply-agent-onboarding-schema.cjs
---database=keepintax-dev --check` verifies the selected DB and reports existing
-onboarding tables. `--apply` executes only the five allowlisted CREATE statements
-and verifies every column name/type. It does not alter existing application
-tables. Check its guard tests with `node --test
-backend/scripts/onboarding-test-target.test.cjs` from the repository root.
-
-Frontend browser checks: `npm test -- --watch=false --browsers=ChromeHeadless
---include=src/app/pages/agent-onboarding/*.spec.ts
---ts-config=tsconfig.onboarding-spec.json`.
-
-Run Nest and Angular production builds; run agent typecheck, check, unit tests
-and build. Exact results, skips and outstanding activation checks belong to
-the feature task record. Retention/cleanup jobs, profile retrieval optimization,
-background review scheduling and a full erasure policy remain separate work.
-
-## Development verification completed on 19 November 2026
-
-The schema was explicitly approved and applied to keepintax-dev only. All five
-tables and their columns were verified; no accounting tables were altered.
-Final bounded runs passed 10 persistence tests and 8 HTTP-to-MySQL tests, with
-zero skipped. The HTTP suite includes one real-model synthetic narrative case
-and a deterministic omitted-plan regression. Separate owner-scoped cleanup and
-a final read-only count verified zero remaining QA rows in all five tables.
-The auth-token verifier and account directory are fixtures; a real browser login
-against Firebase is not claimed by these HTTP tests. Main integration and push
-remain explicitly prohibited. See the active feature task for exact commands,
-reports, intermediate failures, fixes and reused build evidence.
-
-## Ordinary application entry
-
-The shell mounts the invitation outside the routed content flex container. It
-waits for authentication, startup loading, billing resolution and other visible
-banking/consent dialogs. It never opens on auth, billing, MFA, onboarding or dev
-chat screens, and is absent while acting for a represented client. Pending
-requests are cancelled when the owner context changes or the component leaves.
-
-GET businesses now reports onboardingStatus and missingCount for each owned
-business from personal plus business field states. A complete first business
-does not hide an incomplete second one. No profile is created by this check.
-Unknown, skipped and not-applicable answers continue to count as answered.
-
-The invitation appears at most once for each owner and Firebase sign-in session
-in the browser tab. Later closes it immediately even when the optional backend
-deferral request fails. A new sign-in can offer unfinished onboarding again;
-the menu link always lets the owner resume. Server invitation metadata alone
-does not permanently suppress an unfinished profile.
-
-For an opt-in local worktree, ignored .local-ai-dev/ports.json may contain the
-boolean onboardingEnabled. backend/scripts/start-watch.js reads it and passes
-AGENT_ONBOARDING_ENABLED to the child without modifying backend/.env. Explicit
-process configuration takes priority. With no local setting, existing defaults
-remain unchanged. Check the effective flag and ports with the script's
---print-config option; this never starts a server. Restarting an already-running
-backend remains the user's action. The screenshot's disabled-feature response
-is expected when the running backend has not received the enabled flag.
-
-### Ordinary replies versus recall
-
-Ordinary replies receive a separate newFacts delta alongside full background
-memory. Only that delta may be briefly acknowledged; prior facts guide the
-conversation silently. A short answer gets one or two short sentences and at
-most one follow-up, without repeating the name, registration, activity or other
-previous facts. Explicit recall requests and the end summary remain exceptions.
-Targeted synthetic regression: node scripts/onboarding-conversation-smoke.cjs
---run-paid-recap-smoke (three cases, no DB writes or application server).
-
-
-### Question identity and short answers
-
-The responder now selects a nextField separately from its acknowledgement. The
-server validates it against unanswered basics, renders the canonical question
-and persists askedField in the existing proposal JSON. Profile reads recover that
-identity with an owner/business-scoped join; no schema migration is needed.
-The displayed question must match its field. A stray model-written question in
-ordinary continuation is replaced by a neutral acknowledgement and the bound
-question. Guidance/deferral follow-ups carry the same metadata.
-
-Bare כן/לא (or yes/no) answers to a bound boolean basic question are recorded
-deterministically for that field only, without another model extraction or reply
-call. Old employment/deletion context cannot redirect an answer about employees.
-An unbound or non-boolean short answer asks for clarification and writes no fact.
-An older turn may recover only an exact canonical question; it is never guessed
-from unrelated past statements. Longer answers pass the actual question and its
-field explicitly to extraction. Existing version and transaction guards apply.
-
-Focused checks:
-- node scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev --short-answers-only
-- node scripts/onboarding-conversation-smoke.cjs --run-paid-short-answer-smoke
-
-### Local Langfuse tracing
-
-Onboarding now emits its own isolated OTLP/HTTP JSON traces to the configured
-local Langfuse. It does not depend on backend/agent's separate SDK/provider.
-No global OTel provider, package dependency, accounting or database schema changes
-are required. The transport uses `/api/public/otel/v1/traces`, Basic Auth and
-`x-langfuse-ingestion-version: 4` as documented by
-[Langfuse](https://langfuse.com/integrations/native/opentelemetry).
-
-Use the existing ignored backend/.env settings:
-- LANGFUSE_BASE_URL: loopback HTTP(S) origin, e.g. http://localhost:3100.
-- LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY: the existing local project keys.
-- LANGFUSE_TRACING_ENVIRONMENT=development and LANGFUSE_SAMPLE_RATE=1.
-- LANGFUSE_ONBOARDING_ENABLED=false disables this integration explicitly.
-
-Only localhost, 127.0.0.1 or ::1 origins are allowed, without URL credentials,
-paths or query parameters. Cloud/remote URLs remain disabled even with a production
-label or LANGFUSE_ALLOW_REMOTE. Redirects are rejected. Sampling applies to the
-whole request and suppresses all descendants of an unsampled request.
-
-Each public operation (read, propose, commit, summary, forget, defer, directory)
-creates a request trace. Nested observations include:
-- onboarding.read: complete profile context passed into the request.
-- answer.route: last question, pending field and short-answer decision.
-- extract / model.extract: extraction arguments and the exact model request
-  body (prompt/context/schema), raw response, finish reason and token usage.
-- facts.validate / facts.accepted: raw candidate versus validated/accepted facts
-  and withheld changes, including validation failures.
-- respond / model.respond / response.ready: response context, raw model output,
-  final rendered answer and bound askedField.
-- proposal.persist: scoped proposal input, source, version and write result.
-- memory.commit / proposal.loaded: transaction input, selected stored proposal,
-  completion/failure and the final profile through the enclosing request/read.
-- memory.eraseFact / memory.eraseAll: selected facts/history or owner-wide scope.
-- summarize / model.summary: summary context and raw/final narrative output.
-
-Trace/user/session metadata is copied to every observation. Session IDs are
-onboarding:<ownerUid>:<businessNumber>; proposalId metadata links propose and commit
-requests. Model calls appear as GENERATION observations; non-model short answers
-show routing and persistence stages without inventing a generation. Required app
-errors propagate unchanged while traces preserve their stage/status and raw model
-response when available. Each span is exported once, after completion.
-
-Export is asynchronous, limited to 32 pending batches and a two-second transport
-timeout. Missing keys, disabled tracing, local collector failure or unserializable
-debug values do not fail chat. Failures produce a bounded, content-free warning.
-Input/output is retained in full except masking email, phone and credential data;
-authorization headers/configured secrets are never part of model trace inputs.
-Local trace storage is separate from onboarding memory and is not automatically
-deleted by a memory-forget request or fed back into agent context.
-
-After changing ignored environment settings, an already-running backend must
-reload them. No application server is started by the tracing setup or smoke test.
-
-`node scripts/onboarding-tracing-smoke.cjs` verifies the real local OTLP endpoint
-and reads observations back through Langfuse v4's API. It runs synthetic normal,
-commit-retry, short-answer and summary requests through the actual service;
-OpenAI responses and DB writes are mocked, so it starts no server, performs no
-live DB writes and spends no model tokens. It checks full per-stage IO, matching
-user/session IDs, parent hierarchy, generation types and absence of a generation
-on the deterministic short-answer path. Diagnostic traces remain in the local
-project for inspection; the last verified IDs are in ignored
-.test-tmp/onboarding-tracing/last-smoke.json.
+The old extractor/tracer tests, standalone model smoke scripts and dedicated
+propose/summary HTTP pipeline are removed. Regressions now cover the shared
+agent policy/tool contracts, template harness, scoped persistence and UI transport.
+Authenticated manual visual verification requires the user to start the servers.

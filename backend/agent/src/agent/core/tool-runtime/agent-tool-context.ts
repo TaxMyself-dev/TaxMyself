@@ -2,6 +2,7 @@ import { Predicate, Schema } from "effect";
 
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
 import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
+import type { UserProfileMemory } from "@/agent/core/ports/profile-memory";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
@@ -22,6 +23,13 @@ import { toStandardSchema } from "../../../../backend/shared/schema/standard-sch
 // itself, so they are checked only to be objects.
 export const agentToolContextSchema = toStandardSchema(
   Schema.Struct({
+    profileMemory: Schema.optional(
+      Schema.declare((value): value is UserProfileMemory =>
+        Predicate.isObject(value)
+      )
+    ),
+    profileMessage: Schema.optional(Schema.String),
+    profileBusiness: Schema.optional(Schema.String),
     conversationId: Schema.String.check(Schema.isUUID()),
     userId: Schema.String.check(Schema.isUUID()),
     supabase: Schema.declare((value): value is UserSupabaseClient =>

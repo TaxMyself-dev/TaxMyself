@@ -1,10 +1,12 @@
 import type { OpenAILanguageModelResponsesOptions } from "@ai-sdk/openai";
 import { isStepCount, ToolLoopAgent } from "ai";
 import type { ModelMessage, Telemetry } from "ai";
+import { Predicate } from "effect";
 
 import type { AgentChatUserSteers } from "@/agent/chat/turn/agent-chat-user-steers.server";
 import type { EmailSender, WebSearch } from "@/agent/core/ports/example-ports";
 import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
+import type { UserProfileMemory } from "@/agent/core/ports/profile-memory";
 import type {
   TaskOpportunityStore,
   TrackingTaskStore,
@@ -46,6 +48,9 @@ import { agentInstructions } from "./agent-instructions";
 // their settings, for the tools. The model reads the settings and memories
 // in the user context (agent-user-context.ts), part of the messages.
 interface AppAgentRequest {
+  onboardingBusiness?: string;
+  profileMessage?: string;
+  profileMemory?: UserProfileMemory;
   conversationId: string;
   userId: string;
   // The model to answer with (AgentLanguageModel).
@@ -257,10 +262,16 @@ export const createAppAgent = (request: AppAgentRequest) => {
     books: request.books,
     pageData: request.pageData ?? noAgentChatPageData,
     settings: request.settings,
+    profileMessage: request.profileMessage,
+    profileMemory: request.profileMemory,
+    profileBusiness: request.onboardingBusiness,
   };
 
   const tools = withAgentToolDescriptions(
-    deferRareAgentTools(runnableTools),
+    deferRareAgentTools(
+      runnableTools,
+      request.onboardingBusiness === undefined ? [] : ["updateUserProfile"]
+    ),
     request.harness?.toolDescriptions
   );
 
@@ -268,7 +279,15 @@ export const createAppAgent = (request: AppAgentRequest) => {
   // conversations are never offered (agentToolsNotOffered).
   const offeredTools = Object.keys(tools).filter(
     (name): name is keyof typeof tools =>
-      Object.hasOwn(tools, name) && isAgentToolOffered(name)
+      Object.hasOwn(tools, name) &&
+      isAgentToolOffered(name) &&
+      (request.onboardingBusiness === undefined ||
+        [
+          "readUserProfile",
+          "updateUserProfile",
+          "searchEarlierResults",
+          "readToolResultItems",
+        ].includes(name))
   );
 
   const firstStepTools = offeredTools.filter((name) => name !== "updatePlan");
@@ -285,13 +304,16 @@ export const createAppAgent = (request: AppAgentRequest) => {
     ),
     maxRetries: 0,
     instructions:
-      request.harness?.instructions ?? agentInstructions(request.locale),
+      request.harness?.instructions ??
+      agentInstructions(request.locale, request.onboardingBusiness),
     // Changes and approvals run one at a time (agent-tool-traits.ts),
     // every failure tells the model what to do next, and rare tools load
     // through tool search (agent-tool-search.ts).
     tools,
     // Every tool that declares contextSchema gets the request's context.
     toolsContext: {
+      readUserProfile: toolContext,
+      updateUserProfile: toolContext,
       listTrackingTasks: toolContext,
       createTrackingTask: toolContext,
       updateTrackingTask: toolContext,
@@ -332,11 +354,18 @@ export const createAppAgent = (request: AppAgentRequest) => {
     // that change data the user cannot get back, or act outside the app in
     // the user's name, ask first (agentToolEffects "approval").
     toolApproval: ({ toolCall }) =>
-      agentChatToolApproval(
-        toolCall,
-        request.settings.automation.agentActionRules,
-        request.origin
-      ),
+      request.onboardingBusiness !== undefined &&
+      !offeredTools.some((name) => name === toolCall.toolName)
+        ? {
+            type: "denied",
+            reason:
+              "AGENT_INTERFACE_TOOL_UNAVAILABLE: Use the shared profile tools in this interface.",
+          }
+        : agentChatToolApproval(
+            toolCall,
+            request.settings.automation.agentActionRules,
+            request.origin
+          ),
     stopWhen: [isStepCount(agentMaxSteps)],
     // Adaptive reasoning: each turn starts at agentBaseReasoningEffort and
     // rises with the work through message-level effort updates, which need
@@ -374,6 +403,15 @@ export const createAppAgent = (request: AppAgentRequest) => {
         );
       }
 
+      toolContext.profileMessage = steers
+        .flatMap((message) =>
+          Predicate.isString(message.content)
+            ? [message.content]
+            : message.content.flatMap((part) =>
+                part.type === "text" ? [part.text] : []
+              )
+        )
+        .join("\n");
       classificationStepFloor = step.steps.length;
       const messages = [...step.messages, ...steers];
 

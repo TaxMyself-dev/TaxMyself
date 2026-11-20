@@ -1,5 +1,234 @@
 [
   {
+    "name": "readUserProfile",
+    "description": "Read the shared personal and selected business profile, narrative, fact IDs, historical periods, versions and missing basic fields. Read before any update. Same memory in ordinary chat and onboarding. Business number must belong to the verified owner; delegates cannot access this personal memory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "businessNumber": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "businessNumber"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "updateUserProfile",
+    "description": "Apply focused changes to the shared profile using the version and fact IDs just read. Facts are grounded ONLY in exact evidence from the current user message (server supplied). A short yes/no answers the last assistant question, never an older question. field=null stores any other relevant narrative detail. Transition preserves the past; correction marks the old fact erroneous. Registration/workplace transitions require the actual effective date (YYYY-MM allowed); never invent a day. WorkplaceModes describes all continuing locations. For unknown/skipped use the user's explicit uncertainty/deferral. forget_facts deletes IDs without asserting their opposite; forget_all clears profile memory across owned businesses, not chat/accounting records/backups. Return success before claiming anything saved/deleted. A version conflict requires rereading and reevaluating the same current message.",
+    "openai": {
+      "namespace": {
+        "name": "profile",
+        "description": "Focused updates and forgetting in the shared personal/business profile, preserving dated history. Read the profile first."
+      },
+      "deferLoading": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "businessNumber": {
+          "type": "string"
+        },
+        "version": {
+          "type": "object",
+          "properties": {
+            "person": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "business": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "person",
+            "business"
+          ],
+          "additionalProperties": false
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "share",
+            "defer",
+            "forget_facts",
+            "forget_all"
+          ]
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "preferred_name",
+                      "employment",
+                      "activity",
+                      "business_stage",
+                      "registration",
+                      "workplace",
+                      "vehicle",
+                      "employees",
+                      "partners",
+                      "international",
+                      "current_need"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "business"
+                ]
+              },
+              "statement": {
+                "type": "string"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "known",
+                  "unknown",
+                  "skipped",
+                  "not_applicable"
+                ]
+              },
+              "replaces": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "change": {
+                "type": "string",
+                "enum": [
+                  "add",
+                  "transition",
+                  "correction"
+                ]
+              },
+              "effectiveDate": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "precision": {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "month",
+                  "unknown"
+                ]
+              },
+              "evidence": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "invalidates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "workplaceModes": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "home",
+                        "office",
+                        "field",
+                        "other"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "field",
+              "scope",
+              "statement",
+              "value",
+              "state",
+              "replaces",
+              "change",
+              "effectiveDate",
+              "precision",
+              "evidence",
+              "invalidates",
+              "workplaceModes"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "forgetIds": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "businessNumber",
+        "version",
+        "intent",
+        "facts",
+        "forgetIds"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "listTrackingTasks",
     "description": "List the user's tracking tasks in board order, with each one's id, fields and last scan. Call it before changing a task, to find the one the user means, and when they ask about their tasks. The chat shows them as cards.",
     "inputSchema": {

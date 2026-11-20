@@ -380,3 +380,82 @@ Verification and known limits:
   https://langfuse.com/integrations/native/opentelemetry/migration-to-v4. The
   current supported OTLP endpoint was used instead of legacy trace ingestion.
 - Final backend npm test -- --runInBand --runTestsByPath src/agent-onboarding/onboarding.tracing.spec.ts src/agent-onboarding/onboarding.service.spec.ts src/agent-onboarding/onboarding.domain.spec.ts src/agent-onboarding/onboarding.extractor.spec.ts: exit 0, 68 passed, 0 skipped (49.8 seconds). Final npm run build: exit 0. Final local four-request smoke passed against the same executable inputs, with 27 observations read back; only documentation changed afterward. Complete semantic diff and new exporter/tests/smoke reviewed; git diff --check passed. Existing running backend processes were not restarted; ignored env additions are read on their next reload/start.
+
+
+### 2026-11-20 — unify onboarding with the main agent
+
+Acceptance: one createAppAgent/tool loop and template conversation protocol;
+interface-specific onboarding policy; shared owner-scoped profile tools and temporal
+store; no custom model stages/exporter; preserve free chat, recall, deletion and
+end-only narrative summary. Same worktree/branch; no application server start,
+main integration or push. No schema change.
+
+Implementation: deterministic `prepareChanges` + existing atomic commit behind typed
+profile port; current-message evidence, template call idempotency, marker-bound
+business/mode, mode-restricted tool offering AND approval. All interfaces read/write
+canonical profile facts. Legacy preference memory remains; generic business-fact
+writes are refused. Angular onboarding uses the shared AI SDK transport/resume path.
+Removed standalone extractor, responder, summarizer, custom Langfuse exporter and
+obsolete HTTP pipeline tests/scripts. Existing historical sources stay readable.
+
+Diagnostic findings corrected: missing deletion audit text after removing the
+responder; section replacement matching an inline tag; optional runtime context
+validation breaking ordinary classification flows; tool-budget excess resolved
+by deferring profile mutations in ordinary chat, eager in onboarding. Criteria and
+20,000-character budgets were preserved. Reviewed intentional prompt/tool snapshot
+diffs before updating. Initial broad unit run also hit the existing Git fixture's
+5-second timeout under concurrent checks; targeted verification follows below.
+
+Storage obstacle: C: filled during ts-jest cache writing. Deleted only the resolved
+Angular cache in this feature worktree (3,688,687,535 bytes), then continued checks.
+No user files or dependencies removed.
+
+Evidence before final checkpoint:
+- Nest focused domain/store: 23 passed.
+- Guarded keepintax-dev direct-store suite: 14 passed; cleanup confirmed zero rows
+  for exact synthetic owners. Local report `.test-tmp/onboarding-dev/onboarding.mysql-1795137782617.json`.
+- Angular onboarding/shared-chat ChromeHeadless: 28 passed (no application dev server).
+- Agent focused contract/snapshot tests: 18 passed; subsequent affected
+  classification/harness-budget/snapshot tests: 29 passed.
+- Real-model six-turn diagnostic was rejected by automatic approval review because
+  prompts/tool schemas/synthetic input would be sent to OpenAI. No call executed.
+  Asked user for this specific export/API-cost approval; independent checks continue.
+  Do not represent mocked model tests as a real-model conversation-quality eval.
+
+
+Final checkpoint (base revision 74f5661b, implementation in this local feature commit):
+- backend/agent `npm run check`: passed, including formatting, lint and semantic
+  budgets. `npm run typecheck`: passed; non-blocking Effect suggestions remain.
+- backend/agent `npm test`: 68 files passed, 3 skipped; 372 tests passed, 22 skipped
+  (46.18 s). This full batch preceded the last profile-deletion receipt check and
+  onboarding-only voice adaptation. On those final changes, the affected
+  `agent-answer-check.test.ts` + `agent-profile.test.ts` batch passed 28 tests,
+  and the `agent-profile.test.ts` + `agent-harness-override.test.ts` batch passed
+  9 tests. These are mixed-revision evidence, not a claimed second full final run.
+  The earlier Git fixture timeout did not recur in the successful full batch.
+- backend/agent `npm run build`: passed after the final prompt adaptation;
+  agent-http.mjs and task-worker.mjs rebuilt, no worker/server started.
+- backend `npm test -- --runInBand --runTestsByPath
+  src/agent-onboarding/onboarding.service.spec.ts
+  src/agent-onboarding/onboarding.domain.spec.ts`: final 23 passed (40.209 s).
+  backend `npm run build`: passed afterward.
+- frontend `npm test -- --watch=false --browsers=ChromeHeadless
+  --include=src/app/pages/agent-onboarding/*.spec.ts
+  --include=src/app/pages/dev-agent/dev-agent-chat.spec.ts
+  --ts-config=tsconfig.onboarding-spec.json`: 28 passed. Final production build
+  after removing the old proposal retry button and matching the template's
+  5,000-character input limit passed. Existing module style-size/CommonJS and
+  initial-bundle warnings remain; no new budget/threshold exception introduced.
+- Profile persistence remains the previously passing final-store batch of
+  14 synthetic keepintax-dev tests with cleanup. Later Nest edits only formatted
+  code and removed the unused old short-answer helper; no store logic changed.
+- `git diff --check`: passed. Reviewed runtime integration, owner/business gates,
+  memory tool contracts, temporal transaction behavior, shared frontend transport
+  and intentional snapshots. No schema mutation needed for this migration.
+- Added the shared answer check's support for profile deletion receipts: an
+  ordinary successful profile update cannot justify claiming a deletion.
+- No manual authenticated browser flow or paid model eval was executed. User's
+  specific OpenAI diagnostic approval remains pending following auto-review
+  rejection; the helper is an ignored local artifact, not a shipped second engine.
+- No main integration, push, dev server start, environment/port change or real-user
+  data mutation. Existing 4204/3004 configuration is preserved.

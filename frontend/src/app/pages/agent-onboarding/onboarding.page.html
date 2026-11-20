@@ -33,8 +33,7 @@
     </div>
     } @if (busy()) {
     <p class="muted" role="status" aria-live="polite">
-      {{summarizing() ? 'מכין את הסיפור שלך…' : proposal() ? 'שומר את השיחה…' :
-      'חושב על מה שסיפרת…'}}
+      {{summarizing() ? 'מכין את הסיפור שלך…' : 'חושב על מה שסיפרת…'}}
     </p>
     } @if (!busy() && businesses().length === 0 && !error()) {
     <p>כדי להתחיל היכרות, צריך להוסיף עסק בחשבון.</p>
@@ -47,31 +46,22 @@
         aria-label="הודעות השיחה"
         aria-live="polite"
       >
+        @if (!messages().length) {
         <article class="turn assistant">
           <span>Keepintax</span>
           <p>{{s.opening}}</p>
         </article>
-        @for (turn of s.turns; track $index) {
-        <article class="turn user">
-          <span>אתה</span>
-          <p>{{turn.source_text}}</p>
-        </article>
-        <article class="turn assistant">
-          <span>Keepintax</span>
-          <p>{{turn.assistant_text}}</p>
+        } @for (message of messages(); track message.id) {
+        <article
+          class="turn"
+          [class.user]="message.role === 'user'"
+          [class.assistant]="message.role === 'assistant'"
+        >
+          <span>{{message.role === 'user' ? 'אתם' : 'Keepintax'}}</span>
+          <p>{{message.text}}</p>
         </article>
         }
       </div>
-      @if (proposal() && !busy()) {
-      <p role="status">
-        לא התקבל אישור שההודעה נשמרה. אפשר לנסות שוב בלי לשלוח אותה מחדש.
-      </p>
-      <app-p-button
-        buttonText="ניסיון שמירה נוסף"
-        (onButtonClicked)="save()"
-        [buttonColor]="ButtonColor.WHITE_BORDER"
-      />
-      }
       <form (ngSubmit)="send()" class="composer">
         <label class="sr-only" for="story-input">הודעה לסוכן ההיכרות</label>
         <textarea
@@ -79,9 +69,9 @@
           id="story-input"
           name="draft"
           [(ngModel)]="draft"
-          maxlength="12000"
+          maxlength="5000"
           rows="3"
-          [disabled]="busy() || !!proposal()"
+          [disabled]="busy()"
           (keydown)="onComposerKeydown($event)"
         ></textarea>
         <div class="composer-actions">
@@ -90,7 +80,7 @@
             type="submit"
             buttonText="שלח"
             [buttonColor]="ButtonColor.BLACK"
-            [disabled]="busy() || !!proposal() || !draft.trim()"
+            [disabled]="busy() || !draft.trim()"
           />
         </div>
       </form>
@@ -102,7 +92,7 @@
         <app-p-button
           buttonText="סיום וסיכום ההיכרות"
           [buttonColor]="ButtonColor.WHITE_BORDER"
-          [disabled]="busy() || !!proposal() || !!draft.trim()"
+          [disabled]="busy() || !!draft.trim()"
           (onButtonClicked)="finish()"
         />
       </div>

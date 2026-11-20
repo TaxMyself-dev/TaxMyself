@@ -1,6 +1,7 @@
 import type { Effect } from "effect";
 
 import type { KeepInTaxBooks } from "@/agent/core/ports/keepintax-ports";
+import type { UserProfileMemory } from "@/agent/core/ports/profile-memory";
 
 // A books read's query and answer, as the Effect port types them.
 type PromiseOf<Read> = Read extends (
@@ -19,6 +20,8 @@ type PromiseOf<Read> = Read extends (
  * CODE:.
  */
 export type AgentDomain = {
+  profile?: UserProfileMemory;
+
   // Optional Keepintax onboarding context, bound to the verified owner.
   readOnboardingContext?: (businessNumber: string | null) => Promise<string>;
 } & {

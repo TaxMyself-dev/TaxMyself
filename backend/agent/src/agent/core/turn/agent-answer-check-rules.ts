@@ -97,7 +97,7 @@ export const agentAnswerRules: readonly {
   {
     name: "deleted",
     question: `Does \`answer\` say that something was deleted or removed now (tasks, memories)? ${agentAnswerNotAClaim}`,
-    tools: ["deleteTrackingTasks", "forgetAgentMemories"],
+    tools: ["deleteTrackingTasks", "forgetAgentMemories", "updateUserProfile"],
     violation:
       "Your answer says something was deleted or removed, but no delete or remove tool returned in this answer (it failed, was denied, or still waits for the user's approval).",
   },

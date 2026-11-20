@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import {
   IsInt,
-  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
@@ -24,22 +23,8 @@ class VersionDto {
   @IsInt() person: number;
   @IsInt() business: number;
 }
-class ProposeDto {
-  @IsString() @MaxLength(100) businessNumber: string;
-  @ValidateNested() @Type(() => VersionDto) version: VersionDto;
-  @IsOptional() @IsString() @MaxLength(12000) message?: string;
-  @IsOptional() @IsString() @MaxLength(40) skipField?: string;
-  @IsOptional() @IsString() @MaxLength(40) guidedField?: string;
-}
-class CommitDto {
-  @IsString() @MaxLength(100) businessNumber: string;
-  @IsUUID() proposalId: string;
-}
 class ScopeDto {
   @IsString() @MaxLength(100) businessNumber: string;
-}
-class SummaryDto extends ScopeDto {
-  @ValidateNested() @Type(() => VersionDto) version: VersionDto;
 }
 class ForgetDto extends ScopeDto {
   @IsUUID() factId: string;
@@ -67,32 +52,6 @@ export class OnboardingController {
     @Query('businessNumber') business?: string,
   ) {
     return this.service.read(identity(req), business);
-  }
-  @Post('propose') propose(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: ProposeDto,
-  ) {
-    return this.service.propose(identity(req), body);
-  }
-  @Post('commit') commit(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: CommitDto,
-  ) {
-    return this.service.commit(
-      identity(req),
-      body.businessNumber,
-      body.proposalId,
-    );
-  }
-  @Post('summary') summarize(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: SummaryDto,
-  ) {
-    return this.service.summarize(
-      identity(req),
-      body.businessNumber,
-      body.version,
-    );
   }
   @Post('defer') defer(
     @Req() req: AuthenticatedRequest,

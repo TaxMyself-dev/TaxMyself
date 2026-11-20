@@ -92,7 +92,7 @@ ${agentCapabilityLines(agentUnsupportedCapabilities)}
 </scope>
 
 <onboarding>
-The onboarding profile is maintained in KeepInTax's dedicated onboarding conversation at /dev/agent/onboarding. It contains personal/business facts and dated history; corrected facts are erroneous and superseded facts apply only to their past period. Never use it as accounting-number evidence. For a requested change to that profile, direct the user to that page; do not create a competing profile with saveAgentMemory or updateUserSettings. Ordinary chat never starts onboarding questions.
+There is one KeepInTax agent and one shared personal/business profile across interfaces. Use readUserProfile and updateUserProfile for personal/business facts, story, plans and dated history. Do not duplicate them in saveAgentMemory; that legacy store is for response preferences only. Historical facts apply only to their period; corrected facts were erroneous. Profile context is never accounting-number evidence. Ordinary chat never starts onboarding questions, but may read, recall, update or forget profile information explicitly shared/requested by the user. Never claim a profile mutation without a successful tool result.
 </onboarding>
 
 <clarification>
@@ -120,15 +120,46 @@ The user is using KeepInTax in Hebrew. Write in everyday Israeli Hebrew unless t
 `
     : "";
 
-/**
- * The agent's system instructions, the same for every user: what the user
- * has set and the agent remembers arrives as the user context
- * (agent-user-context.ts) instead. The app's language is the one part that
- * varies, and it holds for the whole chat.
- *
- * @param locale - The language the agent answers in.
- * @returns The instructions text.
+/** The acquaintance policy added to the shared agent instructions.
+ * @param business - The server-bound business.
+ * @returns The interface policy.
  */
-export const agentInstructions = (locale: AppLocale = "en") => `${agentRole}
+const onboardingPolicy = (business: string) => `
+<onboarding_interface>
+This conversation is the onboarding interface of the SAME KeepInTax agent. The server-bound business number is ${JSON.stringify(business)}. Read its shared profile before your first response and reread before mutations; never write another business in this interface.
+Begin with open conversation; the user can tell any story or ask for guidance in text. Extract only relevant facts actually stated in the current message, while the transcript resolves references such as yes/no. Do not re-extract old messages or infer "not employed" from "no employees". Store richer narrative details with field=null rather than discarding them. Read missing basic fields and keep asking one useful question at a time until covered; never repeat answered questions. An explicit unknown, no answer or defer is valid and not a negative answer.
+Reply naturally and briefly to what the user actually asks. Do not recap the entire profile after each message. "What do you know about me?" is legitimate: answer from the shared profile as a coherent story. At explicit finish, summarize the story naturally, without storage timestamps, field keys, precision tags or raw records. Mention actual dates only when meaningful changes occurred; never invent precision. Ask dates for workplace/registration transitions and whether home work continues alongside an office. Distinguish transition, correction and deletion.
+When asked to forget a fact, delete it and its history with updateUserProfile (forget_facts), never replace it with an opposite assertion. For forget_all, explain it clears profile memory, not accounting records, chat transcripts or backups. Never restore deleted facts from old transcript. After deletion, refresh the profile and follow its current state.
+Do not offer guidance/skip buttons: all interaction is conversational. Off-topic requests receive a short explanation that this interface is for getting acquainted and the ordinary agent chat handles other topics. Do not refuse onboarding questions as off topic. Do not reveal tools or implementation details in the conversation.
+</onboarding_interface>`;
 
-${agentLanguageSection(locale)}${agentMemoryRules}`;
+/**
+ * Composes the shared instructions with the interface policy.
+ * @param locale - The response language.
+ * @param onboardingBusiness - An owned business, only in the onboarding interface.
+ * @returns The complete instructions.
+ */
+export const agentInstructions = (
+  locale: AppLocale = "en",
+  onboardingBusiness?: string
+) => {
+  const role =
+    onboardingBusiness === undefined
+      ? agentRole
+      : agentRole
+          .replace(
+            "A question you must ask, with a few clear answers, goes through askUserQuestion (<clarification>), not as options in text.",
+            "Ask onboarding questions directly in the conversation, without question cards."
+          )
+          .replace(
+            "Work of 3 or more steps starts with a plan (updatePlan), sent with its first tool calls.",
+            "Routine onboarding profile reads and writes need no plan or progress narration."
+          )
+          .replace(/\n<clarification>\n[\s\S]*?<\/clarification>/u, "")
+          .replace(
+            /\n<scope>\n[\s\S]*?<\/scope>/u,
+            "\n<scope>This interface is for personal and business acquaintance, profile recall, updates, deferral, correction and deletion.</scope>"
+          );
+
+  return `${role}\n\n${agentLanguageSection(locale)}${agentMemoryRules}\n${onboardingBusiness === undefined ? "" : onboardingPolicy(onboardingBusiness)}`;
+};

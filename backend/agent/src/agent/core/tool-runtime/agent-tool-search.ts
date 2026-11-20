@@ -20,6 +20,12 @@ import type { AppAgentToolName } from "./app-agent-tools";
 // only that tool, so it cannot depend on a deferred namespace/tool_search.
 const agentToolNamespaces = [
   {
+    name: "profile",
+    description:
+      "Focused updates and forgetting in the shared personal/business profile, preserving dated history. Read the profile first.",
+    tools: ["updateUserProfile"],
+  },
+  {
     name: "books",
     description:
       "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers.",
@@ -119,15 +125,19 @@ export const agentDeferredToolsInstructions = () =>
  * The tools, each rare one in its namespace and loaded only through tool
  * search; the others as they are.
  *
+ * @param eagerTools - Domain tools kept loaded for a dedicated interface.
  * @param tools - The agent's tools.
  * @returns The tools, the rare ones deferred.
  */
 export const deferRareAgentTools = <TOOLS extends ToolSet>(
-  tools: TOOLS
+  tools: TOOLS,
+  eagerTools: readonly string[] = []
 ): TOOLS =>
   // Only providerOptions gains the OpenAI namespace and deferLoading.
   patchAgentTools(tools, (name, tool) => {
-    const namespace = agentToolNamespaceByTool.get(name);
+    const namespace = eagerTools.includes(name)
+      ? undefined
+      : agentToolNamespaceByTool.get(name);
 
     return namespace === undefined
       ? undefined

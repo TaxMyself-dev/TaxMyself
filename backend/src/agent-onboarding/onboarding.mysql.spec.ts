@@ -65,19 +65,12 @@ suite('onboarding transactional MySQL', () => {
       for (const statement of sql.split(';').filter((s) => s.trim()))
         await db.query(statement);
     }
-    service = new OnboardingService(
-      db,
-      {
-        ownerBusinesses: async () => [
-          { businessNumber: '111', businessName: 'עסק ראשון' },
-          { businessNumber: '222', businessName: 'עסק שני' },
-        ],
-      } as any,
-      {
-        extract: async () => extraction,
-        respond: async () => ({ kind: 'conversation', reply: 'תשובת בדיקה' }),
-      } as any,
-    );
+    service = new OnboardingService(db, {
+      ownerBusinesses: async () => [
+        { businessNumber: '111', businessName: 'עסק ראשון' },
+        { businessNumber: '222', businessName: 'עסק שני' },
+      ],
+    } as any);
   }, 30000);
   afterAll(async () => {
     delete process.env.AGENT_ONBOARDING_ENABLED;
@@ -89,6 +82,17 @@ suite('onboarding transactional MySQL', () => {
       }
     }
   });
+  async function prepare(
+    store: OnboardingService,
+    owner: typeof user,
+    body: any,
+  ) {
+    return store.prepareChanges(owner, {
+      ...body,
+      extraction,
+      operationId: randomUUID(),
+    });
+  }
   function f(
     field: string | null,
     scope: string,
@@ -112,7 +116,7 @@ suite('onboarding transactional MySQL', () => {
   async function save(facts: any[], message: string, businessNumber = '111') {
     const state = await service.read(user, businessNumber);
     extraction = { facts, clarification: null };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber,
       version: state.version,
       message,
@@ -187,12 +191,12 @@ suite('onboarding transactional MySQL', () => {
       facts: [f(null, 'business', 'מטרה חדשה')],
       clarification: null,
     };
-    const a = await service.propose(user, {
+    const a = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'מטרה חדשה',
     });
-    const b = await service.propose(user, {
+    const b = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'מטרה חדשה',
@@ -207,7 +211,7 @@ suite('onboarding transactional MySQL', () => {
   it('rejects cross-owner proposal IDs', async () => {
     const state = await service.read(user, '111');
     extraction = { facts: [], clarification: 'ממתי?' };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'עדכון',
@@ -238,15 +242,11 @@ suite('onboarding transactional MySQL', () => {
       firebaseId: owners[2],
       actorFirebaseId: owners[2],
     };
-    const seeded = new OnboardingService(
-      db,
-      {
-        ownerBusinesses: async () => [
-          { businessNumber: '333', businessType: 'EXEMPT' },
-        ],
-      } as any,
-      { extract: async () => ({ facts: [], clarification: null }) } as any,
-    );
+    const seeded = new OnboardingService(db, {
+      ownerBusinesses: async () => [
+        { businessNumber: '333', businessType: 'EXEMPT' },
+      ],
+    } as any);
     const first = await seeded.read(seededUser, '333');
     const again = await seeded.read(seededUser, '333');
     expect(first.fields.find((f) => f.key === 'registration')).toMatchObject({
@@ -267,12 +267,12 @@ suite('onboarding transactional MySQL', () => {
       facts: [f(null, 'business', 'תוספת מקבילה')],
       clarification: null,
     };
-    const a = await service.propose(user, {
+    const a = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תוספת מקבילה',
     });
-    const b = await service.propose(user, {
+    const b = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תוספת מקבילה',
@@ -297,7 +297,7 @@ suite('onboarding transactional MySQL', () => {
       facts: [f('activity', 'business', 'תיאור שנכשל בשמירה')],
       clarification: null,
     };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: before.version,
       message: 'תיאור שנכשל בשמירה',
@@ -319,7 +319,6 @@ suite('onboarding transactional MySQL', () => {
     const faulting = new OnboardingService(
       faultingDb as any,
       { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
-      {} as any,
     );
     await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
       'INJECTED_LATE_FAILURE',
@@ -338,7 +337,7 @@ suite('onboarding transactional MySQL', () => {
   it('expires previews using database time without applying changes', async () => {
     const state = await service.read(user, '111');
     extraction = { facts: [], clarification: 'ממתי?' };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'עדכון ישן',
@@ -381,7 +380,7 @@ suite('onboarding transactional MySQL', () => {
       intent: 'forget_facts',
       forgetIds: [target.id],
     };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תמחק את המידע עלי כשכיר',
@@ -405,7 +404,7 @@ suite('onboarding transactional MySQL', () => {
       intent: 'forget_all',
       forgetIds: [],
     };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: before.version,
       message: 'תמחק את כל מה ששמרת עלי',
@@ -426,7 +425,6 @@ suite('onboarding transactional MySQL', () => {
           ),
       } as any,
       { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
-      {} as any,
     );
     await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
       'DELETE_RECEIPT_FAILURE',
@@ -441,7 +439,7 @@ suite('onboarding transactional MySQL', () => {
       facts: [f('preferred_name', 'person', 'שם-בוב')],
       clarification: null,
     };
-    const bobProposal = await service.propose(bob, {
+    const bobProposal = await prepare(service, bob, {
       businessNumber: '111',
       version: bobState.version,
       message: 'שם-בוב',
@@ -459,7 +457,7 @@ suite('onboarding transactional MySQL', () => {
       intent: 'forget_all',
       forgetIds: [],
     };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תמחק את כל מה ששמרת עלי',
@@ -483,82 +481,37 @@ suite('onboarding transactional MySQL', () => {
     expect(stored[0].applied_at).toBeTruthy();
     expect(stored[0].source_text).toBe('בקשת מחיקה מהזיכרון');
   });
-  it('persists the asked field across reads and binds two successive no answers to employees then partners', async () => {
-    const owner = {
-      ...user,
-      firebaseId: owners[3],
-      actorFirebaseId: owners[3],
-    };
-    const scoped = new OnboardingService(
-      db,
-      { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
-      {
-        extract: async () => extraction,
-        respond: async () => ({
-          kind: 'conversation',
-          reply: 'הבנתי.\n\nהאם העסק מעסיק עובדים?',
-          askedField: 'employees',
-        }),
-      } as any,
-    );
-    let state = await scoped.read(owner, '111');
-    extraction = {
-      facts: [f('employment', 'person', 'אינו שכיר')],
-      clarification: null,
-      intent: 'share',
-    };
-    let proposal = await scoped.propose(owner, {
-      businessNumber: '111',
-      version: state.version,
-      message: 'אינו שכיר',
-    });
-    state = await scoped.commit(owner, '111', proposal.id);
-    // Mark unrelated unanswered basics skipped, so the next target is partners.
-    const personal = Object.fromEntries(
-      ['preferred_name', 'current_need'].map((k) => [k, 'skipped']),
-    );
-    personal['employment'] = 'known';
-    const business = Object.fromEntries(
+  it('stores consecutive negative answers in the explicit fields supplied by the shared agent, leaving employment intact', async () => {
+    const state = await service.read(user, '111');
+    const employment = state.fields.find((field) => field.key === 'employment');
+    await save(
       [
-        'activity',
-        'business_stage',
-        'registration',
-        'workplace',
-        'vehicle',
-      ].map((k) => [k, 'skipped']),
+        f('employees', 'business', 'אין עובדים', {
+          value: 'לא',
+          evidence: 'לא',
+        }),
+      ],
+      'לא',
     );
-    await db.query(
-      'UPDATE agent_onboarding_profiles SET field_states=? WHERE owner_uid=? AND scope_key=?',
-      [JSON.stringify(personal), owner.firebaseId, ''],
+    const after = (
+      await save(
+        [
+          f('partners', 'business', 'אין שותפים', {
+            value: 'לא',
+            evidence: 'לא',
+          }),
+        ],
+        'לא',
+      )
+    ).snapshot;
+    expect(after.fields.find((field) => field.key === 'employees')?.value).toBe(
+      'לא',
     );
-    await db.query(
-      'UPDATE agent_onboarding_profiles SET field_states=? WHERE owner_uid=? AND scope_key=?',
-      [JSON.stringify(business), owner.firebaseId, '111'],
+    expect(after.fields.find((field) => field.key === 'partners')?.value).toBe(
+      'לא',
     );
-    state = await scoped.read(owner, '111');
-    expect(state.turns.at(-1).asked_field).toBe('employees');
-    proposal = await scoped.propose(owner, {
-      businessNumber: '111',
-      version: state.version,
-      message: 'לא',
-    });
-    expect(proposal.facts[0].field).toBe('employees');
-    state = await scoped.commit(owner, '111', proposal.id);
-    expect(state.turns.at(-1).asked_field).toBe('partners');
-    proposal = await scoped.propose(owner, {
-      businessNumber: '111',
-      version: state.version,
-      message: 'לא',
-    });
-    expect(proposal.facts[0].field).toBe('partners');
-    state = await scoped.commit(owner, '111', proposal.id);
-    expect(state.fields.find((f) => f.key === 'employees')?.value).toBe('לא');
-    expect(state.fields.find((f) => f.key === 'partners')?.value).toBe('לא');
-    expect(state.fields.find((f) => f.key === 'employment')?.value).toBe(
-      'אינו שכיר',
+    expect(after.fields.find((field) => field.key === 'employment')).toEqual(
+      employment,
     );
-    expect(
-      state.facts.filter((f) => f.field_key === 'employment'),
-    ).toHaveLength(1);
   });
 });

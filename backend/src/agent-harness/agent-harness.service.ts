@@ -107,6 +107,23 @@ export class AgentHarnessService implements OnModuleDestroy {
         ...this.agentDomain.forUser(user),
         ...this.agentBooks.forUser(user),
         ...this.classification.forUser(user),
+        profile: this.onboarding
+          ? {
+              read: (businessNumber) =>
+                this.onboarding.read(user, businessNumber),
+              update: async (input) => {
+                const proposal = await this.onboarding.prepareChanges(
+                  user,
+                  input,
+                );
+                return this.onboarding.commit(
+                  user,
+                  input.businessNumber,
+                  proposal.id,
+                );
+              },
+            }
+          : undefined,
         readOnboardingContext: (businessNumber: string | null) =>
           this.onboarding?.context(user, businessNumber) ?? Promise.resolve(''),
       });

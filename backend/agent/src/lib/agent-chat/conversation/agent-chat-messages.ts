@@ -72,6 +72,7 @@ export type AgentChatMessage = UIMessage<
     // directory (agent-conversation-business.ts); the page cannot write
     // one. Never shown, never read by the model.
     businessContext: { numbers: string[] };
+    onboardingContext: { businessNumber: string };
     documentText: {
       documentId: string | null;
       filename: string;

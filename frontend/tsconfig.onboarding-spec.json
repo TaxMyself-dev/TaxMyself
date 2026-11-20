@@ -5,6 +5,10 @@
     "types": ["jasmine"],
     "skipLibCheck": true
   },
-  "include": ["src/app/pages/agent-onboarding/*.spec.ts", "src/polyfills.ts"],
+  "include": [
+    "src/app/pages/agent-onboarding/*.spec.ts",
+    "src/app/pages/dev-agent/dev-agent-chat.spec.ts",
+    "src/polyfills.ts"
+  ],
   "files": ["src/test.ts"]
 }

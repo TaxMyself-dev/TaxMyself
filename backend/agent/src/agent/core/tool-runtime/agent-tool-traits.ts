@@ -16,6 +16,8 @@ import type { AppAgentToolName } from "./app-agent-tools";
 type AgentToolEffect = "read" | "ui" | "external" | "write" | "approval";
 
 const agentToolEffects = {
+  readUserProfile: "read",
+  updateUserProfile: "write",
   listTrackingTasks: "read",
   createTrackingTask: "write",
   updateTrackingTask: "write",

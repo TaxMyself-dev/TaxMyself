@@ -319,29 +319,3 @@ export function resolveEvidenceIds(
   }
   return result;
 }
-
-// A short yes/no is meaningful only against the actual last question. Metadata
-// is persisted with that reply; old chats can recover an exact canonical question.
-export function pendingBasicField(snapshot: {
-  fields: readonly { key: string; state: string; question?: string }[];
-  turns: { assistant_text: string; asked_field?: string | null }[];
-}) {
-  const turn = snapshot.turns.at(-1);
-  if (!turn?.assistant_text) return null;
-  const candidates = FIELDS.filter((f) =>
-    snapshot.fields.some(
-      (field) => field.key === f.key && field.state === 'unasked',
-    ),
-  );
-  const text = turn.assistant_text.trim().replace(/שלך\s*/gu, '');
-  if (turn.asked_field && turn.asked_field !== 'null') {
-    const field = candidates.find((f) => f.key === turn.asked_field);
-    return field && text.endsWith(field.question.replace(/שלך\s*/gu, ''))
-      ? field
-      : null;
-  }
-  return (
-    candidates.find((f) => text.endsWith(f.question.replace(/שלך\s*/gu, ''))) ??
-    null
-  );
-}
