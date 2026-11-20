@@ -3340,26 +3340,41 @@ ${finalOwnerName}`;
         await repository.save(extractedRows);
   }
   /** Existing claim/catalog/extraction/persistence, bounded to one managed file. */
-  async prepareEmailWork(work:EmailWork,token:string) {
-    if(!this.emailStore?.enabled())throw new Error('Durable email disabled');
-    await this.assertBusinessOwnership(work.firebase_id,work.business_number);
-    const user=await this.userRepo.findOneBy({firebaseId:work.firebase_id});if(!user)throw new NotFoundException('User not found');
-    const file=await this.googleDriveService.getIntakeFileMetadata(work.drive_file_id);
-    const claim=await this.emailStore.transaction(async manager=>{
-      const current=await this.emailStore.work(work.id,work.firebase_id,work.business_number,manager);
-      if(current.email_lease_token!==token)throw new Error('Email lease changed');
-      const repository=manager.getRepository(ExtractedDocument);
-      let row=await repository.findOne({where:{driveFileId:work.drive_file_id,subIndex:0}});
-      if(row&&(row.userId!==user.index||row.businessNumber!==work.business_number))throw new Error('Foreign document claim');
-      if(row&&row.status!==ExtractedDocStatus.PROCESSING)throw new Error('Document already handled');
-      if(!row)row=await repository.save(repository.create({userId:user.index,businessNumber:work.business_number,driveFileId:work.drive_file_id,driveFileName:work.filename,driveFileMd5:file.md5Checksum,subIndex:0,month:this.deriveMonthFromExtraction(null,file.createdTime?new Date(file.createdTime):null),uploadDate:file.createdTime?new Date(file.createdTime):new Date(),status:ExtractedDocStatus.PROCESSING,source:RecordSource.EMAIL}));
-      const saved=await this.emailStore.query('UPDATE imported_documents SET email_claim_id=? WHERE id=? AND email_lease_token=?',[row.id,work.id,token],manager);if(saved.affectedRows!==1)throw new Error('Email lease changed');
-      work.email_claim_id=row.id;return row;
+  async prepareEmailWork(work: EmailWork, token: string, allowNewClaim = true) {
+    if (!this.emailStore?.enabled()) throw new Error('Durable email disabled');
+    await this.assertBusinessOwnership(work.firebase_id, work.business_number);
+    const user = await this.userRepo.findOneBy({ firebaseId: work.firebase_id });
+    if (!user) throw new NotFoundException('User not found');
+    const file = await this.googleDriveService.getIntakeFileMetadata(work.drive_file_id);
+    const bytes = await this.googleDriveService.downloadFile(work.drive_file_id);
+    if (createHash('sha256').update(bytes).digest('hex') !== work.content_hash) throw new Error('Email content changed');
+    const prepared = await this.emailStore.transaction(async manager => {
+      const current = await this.emailStore.work(work.id, work.firebase_id, work.business_number, manager);
+      if (current.email_lease_token !== token) throw new Error('Email lease changed');
+      const repository = manager.getRepository(ExtractedDocument);
+      let row = await repository.findOne({ where: { driveFileId: work.drive_file_id, subIndex: 0 }, lock: { mode: 'pessimistic_write' } });
+      if (row && (row.userId !== user.index || row.businessNumber !== work.business_number)) throw new Error('Foreign document claim');
+      if (row?.status === ExtractedDocStatus.PENDING_REVIEW) {
+        if (!row.driveFileMd5 || row.driveFileMd5 !== file.md5Checksum) throw new Error('Previously processed content changed');
+        const saved = await this.emailStore.query("UPDATE imported_documents SET email_claim_id=?,email_work_state='MOVE_PROCESSED',email_decision='UNCERTAIN',email_ai_state='EXISTING_RESULT',email_error_code='EXISTING_RESULT_ADOPTED' WHERE id=? AND email_lease_token=?", [row.id, work.id, token], manager);
+        if (saved.affectedRows !== 1) throw new Error('Email lease changed');
+        return { claim: row, alreadyHandled: true };
+      }
+      if (row && row.status !== ExtractedDocStatus.PROCESSING) throw new Error('Document already handled');
+      // A PROCESSING row created by another/older consumer is not proof that it is safe to pay again.
+      if (row && (current.email_claim_id !== row.id || current.email_ai_state !== 'NOT_SENT')) throw new Error('Existing OCR outcome is unknown');
+      if (!row && !allowNewClaim) throw new Error('Processed file has no safe prior result');
+      if (!row) row = await repository.save(repository.create({ userId: user.index, businessNumber: work.business_number, driveFileId: work.drive_file_id, driveFileName: work.filename, driveFileMd5: file.md5Checksum, subIndex: 0, month: this.deriveMonthFromExtraction(null, file.createdTime ? new Date(file.createdTime) : null), uploadDate: file.createdTime ? new Date(file.createdTime) : new Date(), status: ExtractedDocStatus.PROCESSING, source: RecordSource.EMAIL }));
+      const saved = await this.emailStore.query('UPDATE imported_documents SET email_claim_id=? WHERE id=? AND email_lease_token=?', [row.id, work.id, token], manager);
+      if (saved.affectedRows !== 1) throw new Error('Email lease changed');
+      return { claim: row, alreadyHandled: false };
     });
-    return {user,file,claim,catalog:await this.buildExtractionCatalog(work.firebase_id,work.business_number)};
+    work.email_claim_id = prepared.claim.id;
+    if (prepared.alreadyHandled) Object.assign(work, { email_work_state: 'MOVE_PROCESSED', email_decision: 'UNCERTAIN', email_ai_state: 'EXISTING_RESULT', email_error_code: 'EXISTING_RESULT_ADOPTED' });
+    return { user, file, bytes, ...prepared, catalog: prepared.alreadyHandled ? [] : await this.buildExtractionCatalog(work.firebase_id, work.business_number) };
   }
   async extractEmailWork(work:EmailWork,context:any) {
-    const bytes=await this.googleDriveService.downloadFile(work.drive_file_id);
+    const bytes=context.bytes || await this.googleDriveService.downloadFile(work.drive_file_id);
     if(createHash('sha256').update(bytes).digest('hex')!==work.content_hash)throw new Error('Email content changed');
     return this.documentProcessor.extract(bytes,work.mime_type,context.catalog,true);
   }

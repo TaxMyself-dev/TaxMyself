@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { EmailProcessingWorker } from './email-processing.worker';
 import { EmailIntakeStore } from './email-intake.store';
 import { GMAIL_POLICY_VERSION } from '../documents/gmail-document-policy';
@@ -18,6 +19,7 @@ afterEach(() => {
 function subject(state = 'READY') {
   const work: any = {
     id: 200,
+    content_hash: createHash('sha256').update('synthetic-bytes').digest('hex'),
     source: 'GMAIL',
     firebase_id: 'owner',
     business_number: '123',
@@ -74,6 +76,7 @@ function subject(state = 'READY') {
     }),
   };
   const drive: any = {
+    downloadFile: jest.fn().mockResolvedValue(Buffer.from('synthetic-bytes')),
     getIntakeFileMetadata: jest.fn(async () => ({
       parents: [parent],
       appProperties: { keepintaxProtectedOperation: 'upload-tag' },
@@ -244,5 +247,40 @@ describe('durable single-pass work and safe deletion (mocks only)', () => {
     await t.worker.deleteOne(t.work, 'token', t.business);
     expect(t.work.email_work_state).toBe('DELETE_RETRY');
     expect(t.drive.deleteIntakeFile).toHaveBeenCalledTimes(1);
+  });
+  it('adopts an existing pending result without a second AI call', async () => {
+    const t = subject();
+    t.drive.getIntakeFileMetadata.mockResolvedValue({ parents: ['processed'] });
+    t.documents.prepareEmailWork.mockImplementation(async () => {
+      t.work.email_work_state = 'MOVE_PROCESSED';
+      return { alreadyHandled: true };
+    });
+    await t.worker.runOne(t.work);
+    expect(t.documents.prepareEmailWork).toHaveBeenCalledWith(
+      t.work,
+      'token',
+      false,
+    );
+    expect(t.documents.extractEmailWork).not.toHaveBeenCalled();
+    expect(t.work.email_work_state).toBe('AWAITING_APPROVAL');
+  });
+  it('blocks deletion if the file content changed after the negative AI decision', async () => {
+    const t = subject('DELETE_PENDING');
+    Object.assign(t.work, {
+      email_decision: 'NOT_ACCOUNTING',
+      email_ai_state: 'RESULT_SAVED',
+      email_result_json: {
+        intakeDecision: 'not_accounting',
+        invoices: [],
+        rawResponse: '{"decision":"not_accounting","invoices":[]}',
+      },
+    });
+    t.drive.downloadFile.mockResolvedValue(
+      Buffer.from('different synthetic content'),
+    );
+    await t.worker.deleteOne(t.work, 'token', t.business);
+    expect(t.work.email_work_state).toBe('DELETE_BLOCKED');
+    expect(t.work.email_error_code).toBe('CONTENT_CHANGED');
+    expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
   });
 });

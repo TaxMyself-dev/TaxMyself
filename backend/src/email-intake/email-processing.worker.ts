@@ -143,37 +143,46 @@ export class EmailProcessingWorker {
         if (
           scopedFile.trashed ||
           scopedFile.parents?.length !== 1 ||
-          scopedFile.parents[0] !== business.driveInboxFolderId
+          ![
+            business.driveInboxFolderId,
+            business.driveProcessedFolderId,
+          ].includes(scopedFile.parents[0])
         )
           throw new Error('AI file outside business inbox');
-        const context = await this.documents.prepareEmailWork(work, token);
-        await this.store.updateWork(work, token, {
-          email_work_state: 'AI_PREPARED',
-          email_ai_attempt_id: work.email_ai_attempt_id || randomUUID(),
-          email_policy_version: GMAIL_POLICY_VERSION,
-        });
-        // Persist the external-call boundary BEFORE sending. No transparent replay.
-        await this.store.updateWork(work, token, {
-          email_work_state: 'AI_IN_FLIGHT',
-          email_ai_state: 'SENT',
-        });
-        let outcome: any;
-        try {
-          outcome = await this.documents.extractEmailWork(work, context);
-        } catch {
-          outcome = {
-            intakeDecision: 'uncertain',
-            invoices: null,
-            rawResponse: null,
-            technicalCode: 'AI_UNKNOWN_OUTCOME',
-          };
+        const context = await this.documents.prepareEmailWork(
+          work,
+          token,
+          scopedFile.parents[0] === business.driveInboxFolderId,
+        );
+        if (!context.alreadyHandled) {
+          await this.store.updateWork(work, token, {
+            email_work_state: 'AI_PREPARED',
+            email_ai_attempt_id: work.email_ai_attempt_id || randomUUID(),
+            email_policy_version: GMAIL_POLICY_VERSION,
+          });
+          // Persist the external-call boundary BEFORE sending. No transparent replay.
+          await this.store.updateWork(work, token, {
+            email_work_state: 'AI_IN_FLIGHT',
+            email_ai_state: 'SENT',
+          });
+          let outcome: any;
+          try {
+            outcome = await this.documents.extractEmailWork(work, context);
+          } catch {
+            outcome = {
+              intakeDecision: 'uncertain',
+              invoices: null,
+              rawResponse: null,
+              technicalCode: 'AI_UNKNOWN_OUTCOME',
+            };
+          }
+          await this.store.updateWork(work, token, {
+            email_work_state: 'RESULT_SAVED',
+            email_ai_state: 'RESULT_SAVED',
+            email_result_json: JSON.stringify(outcome),
+          });
+          await this.documents.persistEmailWork(work, token, outcome, context);
         }
-        await this.store.updateWork(work, token, {
-          email_work_state: 'RESULT_SAVED',
-          email_ai_state: 'RESULT_SAVED',
-          email_result_json: JSON.stringify(outcome),
-        });
-        await this.documents.persistEmailWork(work, token, outcome, context);
       } else if (work.email_work_state === 'AI_IN_FLIGHT') {
         const outcome = {
           intakeDecision: 'uncertain',
@@ -334,6 +343,16 @@ export class EmailProcessingWorker {
         ].includes(meta.parents[0])
       )
         throw new Error('Deletion ownership mismatch');
+      const content = await this.drive.downloadFile(work.drive_file_id);
+      if (
+        createHash('sha256').update(content).digest('hex') !== work.content_hash
+      ) {
+        await this.store.updateWork(work, token, {
+          email_work_state: 'DELETE_BLOCKED',
+          email_error_code: 'CONTENT_CHANGED',
+        });
+        return;
+      }
       const result = await this.drive.deleteIntakeFile(work.drive_file_id);
       if (result !== 'DELETED') {
         await this.store.updateWork(work, token, {
