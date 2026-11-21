@@ -88,4 +88,3 @@ async function main() {
   } finally { await db.destroy(); }
 }
 main().catch(() => { console.error('DEV diagnostic failed; details suppressed'); process.exitCode = 1; });
-
