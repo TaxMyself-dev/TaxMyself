@@ -55,6 +55,8 @@ Upload/OCR endpoints return `{queued:true, jobId, state, driveFileId, filename}`
 
 ## Prepared schema and activation boundary
 
+Update, 2026-11-22: separately authorized DEV schema creation has completed against `keepintax-dev`. Both new tables, columns and indexes were verified; both have zero rows. No existing work was migrated and no application/AI/deletion was started. The initial implementation record below predates this authorization. Production schema remains untouched. Capacity configuration remains absent. Before UI testing without AI/deletion, prepare an isolated startup with automatic workers suspended: the lack of a capacity profile does not disable existing file-lifecycle/deletion workers.
+
 `document-ai-queue.sql` contains two new tables only. The same prepared block is included in `docs/redesign/cutover.sql`. Neither has been applied. No TypeORM synchronization or startup migration creates these tables.
 
 Before any future DEV activation, separately authorize schema application, fill measured quota settings, audit old `AI_IN_FLIGHT`/claims and existing pending jobs, and agree which synthetic batch may execute. Do not automatically transfer old jobs. Stop old dispatch before an approved backfill, retain origin IDs/history and reconcile counts before starting shared admission. Rollback requires stopping dispatch first; unknown paid outcomes and saved results must remain durable. Do not switch old inline AI back on for queued content.

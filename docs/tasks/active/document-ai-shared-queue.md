@@ -1,6 +1,6 @@
 # Shared document AI queue
 
-- Status: IMPLEMENTED / OFFLINE VERIFIED; DEV NOT ACTIVATED
+- Status: IMPLEMENTED / DEV SCHEMA APPLIED; WORKERS NOT STARTED
 - Worktree: TaxMyself-document-ai-queue
 - Branch: codex/document-ai-queue
 - Base: de8369bc (verified clean local main)
@@ -27,6 +27,14 @@
 No schema application, existing-work migration, live DB/provider/app bootstrap, real AI, document deletion, PROD, main integration, push or deploy. Only prepared schema/code and mocked/local tests. The separately approved cleanup removed only the primary checkout's Angular cache. DEV environment files were copied to this new worktree; no secrets are tracked. Main's 4200/3000 defaults stay unchanged; ignored feature backend configuration uses 3004 and return URL 4204. No app is started.
 
 ## Handoff
+
+### DEV schema authorization — 2026-11-22
+
+Elazar explicitly authorized applying the schema to DEV only, with AI and deletion still prohibited. A standalone mysql2 helper loaded only the feature's ignored backend environment and rejected any database other than `keepintax-dev`. Read-only preflight found both queue tables absent and no configured `DOCUMENT_AI_*` keys. Only the two CREATE TABLE statements from `docs/features/document-ai-queue.sql` were executed; the full cutover script and application were not run.
+
+Read-only verification confirmed `document_processing_jobs` has all 43 expected columns, its primary key, two unique indexes and four dispatch/tenant/lease/cleanup indexes; `document_ai_capacity` has all three expected columns and its primary key. Both tables contain zero rows. No old jobs or user data were copied/updated, no AI/provider/deletion call was made, and no frontend/backend process was started. Ports 3004/4204 had no listeners at preflight. Production was not connected.
+
+The earlier implementation/verification record below describes the pre-authorization snapshot. DEV schema creation is now verified against the real engine; live contention/recovery and application/provider behavior remain unverified. Capacity settings have not been filled with invented values. UI testing must first use an isolated backend with automatic workers suspended: missing capacity configuration alone does not disable the existing Gmail deletion or protected-file workers. A normal full backend startup is not a safe no-deletion test mode.
 
 Implementation documentation: `docs/features/document-ai-shared-queue.md`. Two prepared tables are in `docs/features/document-ai-queue.sql` and the required appended block in `docs/redesign/cutover.sql`. No schema was applied and no old job was migrated.
 
