@@ -84,3 +84,6 @@ fieldset { border:0; padding:0; margin:0; min-width:0; }
 }
 @media(max-width:420px) { .fields-grid,.business-fields { grid-template-columns:1fr; } .business-header { gap:12px; } }
 @media(prefers-reduced-motion:reduce) { .settings-scroll { scroll-behavior:auto; } .chevron,.family-add-chevron { transition:none; } }
+
+// Keep the lazy agent anchor reachable before its first activation.
+.agent-panel { margin-top:32px; min-height:300px; }

@@ -45,9 +45,13 @@ The Nest service is a deterministic, owner-scoped store exposed through a typed
 `UserProfileMemory` port. `readUserProfile` returns story, facts/history, basic
 fields, missing fields and versions. `updateUserProfile` supplies structured
 focused mutations. Free narrative facts use `field=null`; no new DB column is
-needed. The profile's original eleven basic fields remain configurable product
-choices: preferred name, employment, business activity/stage/registration,
-workplace, vehicle, employees, partners, international work and current need.
+needed. The ten basic fields are preferred name, employment, business
+activity/stage/registration, workplace, vehicle, employees, partners and
+international work. Needs and goals are optional narrative/flexible facts
+(field=null), never a missing basic field or a required onboarding question.
+The retired current_need column and historical tool key remain for compatibility;
+old facts are exposed as flexible memories, and erasure still clears the column.
+No schema or data migration is needed.
 
 Personal facts use the owner's empty scope key; business facts use its business
 number. Existing five InnoDB tables are retained:
@@ -92,7 +96,7 @@ legacy memory is silently migrated or deleted.
 
 ## Checks and operation
 
-`AGENT_ONBOARDING_ENABLED=true` enables the owner-only feature. Existing Firebase,
+There is no environment activation switch; owner/Admin checks remain. Existing Firebase,
 OpenAI, MySQL and template Langfuse configuration is reused. No standalone
 `LANGFUSE_ONBOARDING_ENABLED` switch is used. Local application ports remain 4204
 and 3004; this migration does not start servers.
@@ -126,3 +130,12 @@ Admin entry does not grant access to another owner's personal profile: the exist
 self-service/delegation/impersonation restrictions remain. Ordinary agent profile
 memory stays shared; this access restriction applies to the dedicated onboarding
 surface and its HTTP management endpoints.
+
+## Automation integration
+
+Automatic classification keeps the authenticated /agent/chat entry. The dedicated
+/agent/onboarding surface and its profile HTTP endpoints retain the onboarding
+branch's Admin authorization. Settings links include the owned business number.
+Completion requires known nonempty FIELDS values or explicit not_applicable;
+unknown/skipped remain valid memory but block unattended classification. The
+worker reads current versions and locks them again before classification writes.

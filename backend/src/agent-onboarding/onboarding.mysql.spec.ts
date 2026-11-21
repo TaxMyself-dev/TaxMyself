@@ -44,7 +44,7 @@ suite('onboarding transactional MySQL', () => {
         );
       options = { url: local };
     }
-    process.env.AGENT_ONBOARDING_ENABLED = 'true';
+
     db = new DataSource({
       type: 'mysql',
       ...options,
@@ -73,7 +73,6 @@ suite('onboarding transactional MySQL', () => {
     } as any);
   }, 30000);
   afterAll(async () => {
-    delete process.env.AGENT_ONBOARDING_ENABLED;
     if (db?.isInitialized) {
       try {
         await cleanupOwners(db, owners);

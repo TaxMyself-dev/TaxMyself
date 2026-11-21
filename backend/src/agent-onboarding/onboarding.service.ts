@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
@@ -29,14 +28,7 @@ export class OnboardingService {
     private readonly db: DataSource,
     private readonly domain: AgentDomainService,
   ) {}
-  private enabled() {
-    if (process.env.AGENT_ONBOARDING_ENABLED !== 'true')
-      throw new ServiceUnavailableException(
-        'מערכת ההיכרות טרם הופעלה בסביבה הזאת',
-      );
-  }
   async scope(user: AgentHarnessUser, requested?: string) {
-    this.enabled();
     // Profile editing is self-service. Do not give a read-only delegate a new write permission.
     if (
       user.actorFirebaseId !== user.firebaseId ||
@@ -61,7 +53,6 @@ export class OnboardingService {
     };
   }
   async businesses(user: AgentHarnessUser) {
-    this.enabled();
     if (
       user.actorFirebaseId !== user.firebaseId ||
       user.isDelegatedAccess ||
@@ -191,6 +182,10 @@ export class OnboardingService {
       `SELECT * FROM agent_onboarding_facts WHERE profile_id IN (?,?) ORDER BY recorded_at,id`,
       [person.id, business.id],
     );
+    // Retain legacy need facts/history as flexible memories, not basic fields.
+    for (const fact of facts) {
+      if (fact.field_key === 'current_need') fact.field_key = null;
+    }
     const turns = await this.db.query(
       `SELECT c.source_text,c.assistant_text,c.created_at,JSON_UNQUOTE(JSON_EXTRACT(p.payload,'$.askedField')) AS asked_field FROM agent_onboarding_changes c LEFT JOIN agent_onboarding_proposals p ON p.id=c.proposal_id AND p.owner_uid=c.owner_uid AND p.business_number=c.business_number WHERE c.owner_uid=? AND c.business_number=? ORDER BY c.created_at,c.id`,
       [scope.owner, scope.business],
@@ -643,8 +638,13 @@ export class OnboardingService {
       'DELETE FROM agent_onboarding_story_versions WHERE profile_id=?',
       [profile.id],
     );
-    const key = target.field_key;
-    if (key && !FIELDS.some((f) => f.key === key))
+    // A flexible replacement may still have an ancestor in the retired column.
+    const key =
+      target.field_key ??
+      (erased.some((f) => f.field_key === 'current_need')
+        ? 'current_need'
+        : null);
+    if (key && key !== 'current_need' && !FIELDS.some((f) => f.key === key))
       throw new BadRequestException();
     await manager.query(
       `UPDATE agent_onboarding_profiles SET ${
@@ -680,7 +680,11 @@ export class OnboardingService {
       'DELETE FROM agent_onboarding_proposals WHERE owner_uid=? AND id<>?',
       [owner, keepProposal],
     );
-    const fields = FIELDS.map((f) => '`' + f.key + '`=NULL').join(',');
+    // The retired column can still contain old personal data; erase it too.
+    const fields = [
+      ...FIELDS.map((f) => '`' + f.key + '`=NULL'),
+      '`current_need`=NULL',
+    ].join(',');
     await manager.query(
       `UPDATE agent_onboarding_profiles SET ${fields},field_states=JSON_OBJECT(),story='',version=version+1,invitation='deferred' WHERE owner_uid=?`,
       [owner],
@@ -688,11 +692,7 @@ export class OnboardingService {
   }
   async context(user: AgentHarnessUser, businessNumber: string | null) {
     // No delegated exposure: the personal profile is owned by the person, not their accountant.
-    if (
-      process.env.AGENT_ONBOARDING_ENABLED !== 'true' ||
-      user.actorFirebaseId !== user.firebaseId
-    )
-      return '';
+    if (user.actorFirebaseId !== user.firebaseId) return '';
     if (businessNumber) await this.scope(user, businessNumber);
     else {
       const directory = await this.domain.ownerBusinesses(user);

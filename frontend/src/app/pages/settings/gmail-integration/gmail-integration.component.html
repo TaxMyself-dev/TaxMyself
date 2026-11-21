@@ -190,13 +190,30 @@
 </div>
 
 <!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
-<p-dialog header="בחירת חשבונות למשיכת מסמכים" [visible]="importDialogVisible()"
+<p-dialog header="משיכת מסמכים לפי תאריכים" [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"
   [style]="{ width: 'min(440px, 95vw)' }"
   [contentStyle]="{ 'max-height': '60vh', 'overflow-y': 'auto' }"
   (onHide)="importDialogVisible.set(false)">
   <div class="gmail-import-dialog">
-    <p class="gmail-import-description">בחר מאילו חשבונות Gmail למשוך מסמכים כעת.</p>
+    <p class="gmail-import-description">בחר טווח תאריכים ואת חשבונות Gmail שמהם יימשכו המסמכים. ניתן לבחור מתחילת השנה הקודמת ועד היום.</p>
+    <div class="gmail-date-range">
+      <div class="gmail-date-field">
+        <app-input-date [parentForm]="manualImportForm" [controlName]="'fromDate'"
+          [labelText]="'מתאריך'" [placeholder]="'dd/mm/yyyy'"
+          [minDate]="minFromDate()" [maxDate]="maxToDate()"
+          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+      </div>
+      <div class="gmail-date-field">
+        <app-input-date [parentForm]="manualImportForm" [controlName]="'toDate'"
+          [labelText]="'עד תאריך'" [placeholder]="'dd/mm/yyyy'"
+          [minDate]="manualImportForm.controls.fromDate.value || minFromDate()" [maxDate]="maxToDate()"
+          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+      </div>
+    </div>
+    @if (manualImportForm.controls.fromDate.value && manualImportForm.controls.toDate.value && !manualRangeValid() && !importing()) {
+      <p class="gmail-muted" role="alert">יש לבחור טווח תקין מתחילת השנה הקודמת ועד היום, כשהתאריך הראשון אינו מאוחר מהאחרון.</p>
+    }
 
     @if (selectableAccounts().length === 0) {
       <p class="gmail-muted">
@@ -247,7 +264,7 @@
         [buttonSize]="buttonSize.SMALL" [disabled]="importing()"
         (onButtonClicked)="closeImportDialog()"></app-p-button>
       <app-p-button [buttonText]="'משוך מסמכים'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection() || !manualRangeValid()"
         [isLoading]="importing()" (onButtonClicked)="importSelected()"></app-p-button>
     </div>
   </ng-template>

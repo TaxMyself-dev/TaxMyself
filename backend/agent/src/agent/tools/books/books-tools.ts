@@ -129,3 +129,22 @@ export const listClientsTool = tool({
   execute: async (query, { context, abortSignal }) =>
     await runBooksRead(context.books.listClients(query), abortSignal),
 });
+
+/** Enqueue the existing user-authorized background classifier; never grants consent. */
+export const startAutomaticClassificationTool = tool({
+  description:
+    "Start automatic classification of ALL eligible unclassified outgoing transactions across the owner's businesses, ONLY when the user explicitly asks to classify everything. The server requires the owner's standing consent in Settings / My Agent, complete onboarding for each business, active open banking and linked payment sources. Never enables consent. Returns queued, not completed; questions and progress appear in Settings / My Agent. Background creates permanent rules only; one-time choices remain on the individual chat approval card.",
+  inputSchema: toStandardSchema(
+    Schema.Struct({ scope: Schema.Literal("all") })
+  ),
+  contextSchema: agentToolContextSchema,
+  execute: async (_query, { context, abortSignal }) => {
+    const start = context.books.startAutomaticClassification;
+
+    if (start === undefined) {
+      throw new Error("AUTOMATION_UNAVAILABLE: unavailable");
+    }
+
+    return await runBooksRead(start({}), abortSignal);
+  },
+});

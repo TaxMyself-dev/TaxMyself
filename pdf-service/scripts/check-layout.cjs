@@ -4,10 +4,10 @@ const assert = require("node:assert/strict");
 async function verifyLayout({ executablePath, fontDirectory, template }) {
   const fonts = template.fontCss(
     fs
-      .readFileSync(path.join(fontDirectory, "Simpler-Regular.otf"))
+      .readFileSync(path.join(fontDirectory, "Simpler-Regular.ttf"))
       .toString("base64"),
     fs
-      .readFileSync(path.join(fontDirectory, "Simpler-Bold.otf"))
+      .readFileSync(path.join(fontDirectory, "Simpler-Bold.ttf"))
       .toString("base64")
   );
   const browser = await require("puppeteer-core").launch({

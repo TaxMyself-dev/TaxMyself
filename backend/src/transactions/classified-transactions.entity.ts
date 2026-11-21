@@ -24,6 +24,10 @@ import {
 @Entity()
 @Index('IDX_rule_user_bill_merchant', ['userId', 'billId', 'transactionName'])
 export class ClassifiedTransactions {
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  createdBySource: 'USER' | 'SYSTEM' | null;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  updatedBySource: 'USER' | 'SYSTEM' | null;
 
   @PrimaryGeneratedColumn()
   id: number;

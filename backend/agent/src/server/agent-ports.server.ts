@@ -137,6 +137,13 @@ export const createKeepInTaxBooks = (): KeepInTaxBooks => {
     };
 
   return {
+    startAutomaticClassification: read((backend) => {
+      if (backend.startAutomaticClassification === undefined) {
+        throw keepInTaxFailure("AUTOMATION_UNAVAILABLE: unavailable");
+      }
+
+      return backend.startAutomaticClassification;
+    }),
     prepareTransactionClassification: read((backend) => {
       if (backend.prepareTransactionClassification === undefined) {
         throw keepInTaxFailure("CLASSIFICATION_UNAVAILABLE: unavailable");

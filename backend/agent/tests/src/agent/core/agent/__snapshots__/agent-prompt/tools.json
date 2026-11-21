@@ -17,7 +17,7 @@
   },
   {
     "name": "updateUserProfile",
-    "description": "Apply focused changes to the shared profile using the version and fact IDs just read. Facts are grounded ONLY in exact evidence from the current user message (server supplied). A short yes/no answers the last assistant question, never an older question. field=null stores any other relevant narrative detail. Transition preserves the past; correction marks the old fact erroneous. Registration/workplace transitions require the actual effective date (YYYY-MM allowed); never invent a day. WorkplaceModes describes all continuing locations. For unknown/skipped use the user's explicit uncertainty/deferral. forget_facts deletes IDs without asserting their opposite; forget_all clears profile memory across owned businesses, not chat/accounting records/backups. Return success before claiming anything saved/deleted. A version conflict requires rereading and reevaluating the same current message.",
+    "description": "Apply focused changes to the shared profile using the version and fact IDs just read. Facts are grounded ONLY in exact evidence from the current user message (server supplied). A short yes/no answers the last assistant question, never an older question. field=null stores any other relevant narrative detail, including voluntarily shared needs and goals. current_need is a retired key accepted only for historical tool compatibility; use field=null for new needs and goals. Transition preserves the past; correction marks the old fact erroneous. Registration/workplace transitions require the actual effective date (YYYY-MM allowed); never invent a day. WorkplaceModes describes all continuing locations. For unknown/skipped use the user's explicit uncertainty/deferral. forget_facts deletes IDs without asserting their opposite; forget_all clears profile memory across owned businesses, not chat/accounting records/backups. Return success before claiming anything saved/deleted. A version conflict requires rereading and reevaluating the same current message.",
     "openai": {
       "namespace": {
         "name": "profile",
@@ -914,6 +914,32 @@
       },
       "required": [
         "proposalId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "startAutomaticClassification",
+    "description": "Start automatic classification of ALL eligible unclassified outgoing transactions across the owner's businesses, ONLY when the user explicitly asks to classify everything. The server requires the owner's standing consent in Settings / My Agent, complete onboarding for each business, active open banking and linked payment sources. Never enables consent. Returns queued, not completed; questions and progress appear in Settings / My Agent. Background creates permanent rules only; one-time choices remain on the individual chat approval card.",
+    "openai": {
+      "namespace": {
+        "name": "books",
+        "description": "The user's books beyond expenses: bank and card transactions (money in and out), the invoices and receipts their business issued, their expense categories, and their customers."
+      },
+      "deferLoading": true
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "all"
+          ]
+        }
+      },
+      "required": [
+        "scope"
       ],
       "additionalProperties": false
     }

@@ -101,10 +101,10 @@ export class IntegrationsService {
   }
 
   /** ייבוא ידני מחשבונות Gmail נבחרים (הבחירה נעשית בדיאלוג "משוך מסמכים עכשיו"). */
-  importGmail(integrationIds: number[]): Observable<GmailImportAllResult> {
+  importGmail(integrationIds: number[], fromDate: string, toDate: string): Observable<GmailImportAllResult> {
     return this.http.post<GmailImportAllResult>(
       `${environment.apiUrl}integrations/google/gmail/import`,
-      { integrationIds },
+      { integrationIds, fromDate, toDate },
     );
   }
 

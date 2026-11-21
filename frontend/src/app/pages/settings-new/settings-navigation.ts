@@ -1,6 +1,7 @@
 export const PERSONAL_SETTINGS_LINKS = [
   { key: 'account', label: 'החשבון שלי' },
   { key: 'businesses', label: 'העסקים שלי' },
+  { key: 'agent', label: 'הסוכן שלי' },
 ] as const;
 export const SUBSCRIPTION_SETTINGS_LINKS = [
   { key: 'subscription', label: 'פרטי המנוי' },

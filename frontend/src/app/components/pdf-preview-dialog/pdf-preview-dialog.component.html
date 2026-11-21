@@ -33,7 +33,7 @@
         }
 
         @for (page of pages(); track page) {
-          <canvas #pageCanvas class="pdf-preview__page" [attr.aria-label]="'עמוד ' + page"></canvas>
+          <canvas #pageCanvas dir="ltr" class="pdf-preview__page" [attr.aria-label]="'עמוד ' + page"></canvas>
         }
 
       </div>

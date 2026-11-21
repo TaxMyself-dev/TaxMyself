@@ -1,6 +1,6 @@
 # Agent voice messages
 
-- Status: IMPLEMENTED_AUTOMATED_VERIFIED
+- Status: LOCAL_MAIN_READY
 - Worktree: C:/Users/user/Keepintax/TaxMyself-agent-voice-messages
 - Branch: codex/agent-voice-messages
 - Base: c94b2c578cfd27f763bca1a68fb2c506b6a22078 (verified local main, clean).
@@ -81,3 +81,25 @@ Earlier diagnostic runs: default Angular discovery tried unrelated files outside
 - frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include='src/app/pages/dev-agent/*.spec.ts' --karma-config=../.local-ai-dev/karma.voice.cjs — exit 0, 40/40 passed. New cases cover capture/timer before connection, send before connection, preservation of processing state on late connection, and connection timeout after capture begins.
 - frontend: npx ng build --configuration production — exit 0, existing budget/CommonJS warnings. Development frontend recompiled successfully on 4207.
 - git diff --check — exit 0. Backend executable sources unchanged; no backend tests repeated. Actual Hebrew transcription remains dependent on available Soniox balance and user microphone verification.
+
+## Authorized local main integration (2026-11-22)
+
+- Elazar explicitly requested local main integration and copying required environment values. Push remains unapproved.
+- Integration base: local main 9d2b4c2c849a0c0f8e5f187d1fb91d8705ef2efb, clean. origin/main refreshed at 82446400227ee6e5ed8751eafc2eab1656c4161c; existing local/remote divergence preserved, no unrelated remote integration.
+- Before main integration: frontend npm start -- --print-config returned frontendPort=4200, backendPort=3000, apiUrl=http://localhost:3000/, main defaults; backend npm run start:watch -- --print-config returned backendPort=3000, synchronize=false. No feature port overrides copied.
+- Staged latest local main into the existing voice branch for combined verification. Resolved additive imports in DevAgentPage and appended GUIDE sections by preserving both sides. Existing automatic-classification notice handling and shared Luna model configuration retained.
+- Updated the chat-startup fixture to provide main's MyAgentService without constructing unrelated HTTP services. No production behavior change from the fixture adjustment.
+- Generated backend/journey-timings.local preserved in the ignored .local-ai-dev directory before integration; no secrets, env files, timing logs, or local launch configuration staged.
+
+### Combined integration verification against local main 9d2b4c2c
+
+- frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include='src/app/pages/dev-agent/*.spec.ts' --karma-config=../.local-ai-dev/karma.voice.cjs — exit 0, 40/40 passed.
+- frontend: npx ng build --configuration production — exit 0. Existing budget/CommonJS warnings remain; no errors.
+- backend: npm run build — exit 0.
+- backend: npx jest --runInBand src/agent-harness/agent-harness.access.spec.ts src/agent-harness/agent-harness.controller.spec.ts — exit 0, 2 suites / 18 tests passed. AGENT_BUNDLE_UNAVAILABLE log is the intentional tested error branch.
+- backend/agent: npm run typecheck — exit 0, suggestions only; npm run check — exit 0; npm run build — exit 0.
+- backend/agent: npm test -- tests/agent-dictation-limit.test.ts tests/src/agent/core/model/agent-openai-privacy.test.ts tests/src/agent/chat/turn/agent-chat-errors.test.ts — exit 0, 3 files / 7 tests passed. The full 379-test result earlier is from the feature before current-main integration, not a full run of this combined tree. No paid evals or database mutations run for integration.
+- git diff --check and unresolved-conflict checks passed. Delta from main reviewed; unrelated main work preserved.
+- Main ENV: only missing SONIOX_API_KEY copied from voice backend/.env; existing main OPENAI_API_KEY retained. Both keys remain ignored. No PORT/API/region/production settings copied.
+- Independent main agent dependencies installed with npm ci --no-audit --no-fund (exit 0); no shared node_modules. Main frontend dependency refresh and local agent bundle build follow the authorized fast-forward.
+- Executable sources fully verified before local main fast-forward. Main integration approval is explicit; remote push still requires Elazar to personally test the resulting current main revision and approve pushing.

@@ -1,3 +1,4 @@
+import { AgentBellComponent } from '../my-agent/agent-bell.component';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, ViewChild } from '@angular/core';
 import { Menubar, MenubarModule } from 'primeng/menubar';
 import { ButtonModule } from 'primeng/button';
@@ -21,7 +22,7 @@ import { AppRefreshService } from 'src/app/services/pwa/app-refresh.service';
     standalone: true,
     templateUrl: './topNav.component.html',
     styleUrls: ['./topNav.component.scss'],
-    imports: [ButtonModule, MenubarModule, ImageModule, ButtonComponent, MenuButtonComponent],
+    imports: [AgentBellComponent, ButtonModule, MenubarModule, ImageModule, ButtonComponent, MenuButtonComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNavComponent {

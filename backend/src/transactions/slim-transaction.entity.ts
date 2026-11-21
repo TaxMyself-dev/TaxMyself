@@ -14,6 +14,8 @@ import { ClassificationType } from './enums/classification-type.enum';
 @Index('IDX_slim_userId', ['userId'])
 @Index('IDX_slim_archive_pending', ['userId', 'businessNumber', 'isRecognized', 'confirmed', 'matchedDocumentId'])
 export class SlimTransaction {
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  classificationSource: 'USER' | 'SYSTEM' | null;
   @Column({ type: 'int', nullable: true })
   sourceRecordId: number | null;
 

@@ -1,3 +1,4 @@
+import { MyAgentService } from '../../components/my-agent/my-agent.service';
 import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -26,6 +27,7 @@ describe('chat startup', () => {
       {provide:ActivatedRoute,useValue:{snapshot:{queryParamMap:convertToParamMap({})}}},
       {provide:Router,useValue:{navigate:()=>Promise.resolve(true)}}]});
     TestBed.overrideComponent(DevAgentPage, {add:{providers:[{provide:AngularFireAuth,useValue:{authState:of(null)}},{provide:ClientPanelService,useValue:{getSelectedClientId:()=>null,selectedClientId$:of(null)}}]}});
+    TestBed.overrideProvider(MyAgentService, {useValue:{context:()=>null}});
     TestBed.overrideProvider(ClientPanelService, {useValue:{getSelectedClientId:()=>null,selectedClientId$:of(null)}});
     const fixture=TestBed.createComponent(DevAgentPage);
     spyOn(fixture.componentInstance,'startSession').and.returnValue(new Promise<void>(()=>{}));

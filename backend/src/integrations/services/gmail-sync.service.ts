@@ -509,7 +509,8 @@ export class GmailSyncService {
    * Gmail search for the chosen range. Gmail's `before:` is EXCLUSIVE, so the
    * day after toDate makes toDate itself inclusive. Gmail expects YYYY/MM/DD.
    */
-  private buildDateRangeQuery(fromDate: string, toDate: string): string {
+  buildDateRangeQuery(fromDate: string, toDate: string): string {
+    this.validateDateRange(fromDate, toDate);
     const after = fromDate.replace(/-/g, '/');
     const before = this.dayAfter(toDate).replace(/-/g, '/');
     return `has:attachment after:${after} before:${before}`;

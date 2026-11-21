@@ -65,3 +65,10 @@ See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
 ## Full sync retry from banking errors (2026-11-04)
 
 Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.
+
+## Classification provenance
+
+Outgoing classified tables include סווג על ידי from the durable slim/cache
+decision source; USER/SYSTEM/null render as המשתמש/המערכת/מקור לא ידוע. Income
+and the dashboard's unclassified view omit that column. No classification or
+accounting behavior is authorized by this display field.

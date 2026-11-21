@@ -616,6 +616,10 @@ export interface ClassificationResult {
 
 /** Request-bound books reads and optional Phase A classification actions. */
 export interface KeepInTaxBooks {
+  startAutomaticClassification?: BooksRead<
+    Record<string, never>,
+    { readonly queued: boolean; readonly message: string }
+  >;
   prepareTransactionClassification?: BooksRead<
     ClassificationQuery,
     ClassificationProposal

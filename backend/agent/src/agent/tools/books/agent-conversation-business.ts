@@ -500,6 +500,7 @@ export const withConversationBusiness = (
         ? undefined
         : single(books.prepareTransactionClassification),
     classifyTransaction: books.classifyTransaction,
+    startAutomaticClassification: books.startAutomaticClassification,
     queryTransactions: single(books.queryTransactions),
     queryIssuedDocuments: single(books.queryIssuedDocuments),
     listCategories: single(books.listCategories),

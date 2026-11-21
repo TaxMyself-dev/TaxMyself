@@ -31,7 +31,6 @@ describe('shared profile store', () => {
     extraction: { facts, clarification: null },
   });
   beforeEach(() => {
-    process.env.AGENT_ONBOARDING_ENABLED = 'true';
     db = {
       query: jest.fn().mockResolvedValue([]),
       manager: {},
@@ -41,17 +40,14 @@ describe('shared profile store', () => {
       ownerBusinesses: jest.fn().mockResolvedValue([{ businessNumber: '111' }]),
     };
     service = new OnboardingService(db, domain);
-    jest
-      .spyOn(service, 'read')
-      .mockResolvedValue({
-        businessNumber: '111',
-        version: { person: 1, business: 1 },
-        facts: [],
-        fields: [],
-        turns: [],
-      } as any);
+    jest.spyOn(service, 'read').mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      facts: [],
+      fields: [],
+      turns: [],
+    } as any);
   });
-  afterEach(() => delete process.env.AGENT_ONBOARDING_ENABLED);
   it('rejects delegates before reading any business', async () => {
     await expect(
       service.prepareChanges(
@@ -66,14 +62,26 @@ describe('shared profile store', () => {
       service.prepareChanges(user, { ...body(), businessNumber: '999' }),
     ).rejects.toThrow();
   });
-  it('does not expose context when disabled or delegated', async () => {
-    delete process.env.AGENT_ONBOARDING_ENABLED;
-    expect(await service.context(user, '111')).toBe('');
-    process.env.AGENT_ONBOARDING_ENABLED = 'true';
-    expect(
-      await service.context({ ...user, actorFirebaseId: 'other' }, '111'),
-    ).toBe('');
-    expect(db.query).not.toHaveBeenCalled();
+  it('exposes owned context without a flag and still rejects delegated context', async () => {
+    const previous = process.env.AGENT_ONBOARDING_ENABLED;
+    process.env.AGENT_ONBOARDING_ENABLED = 'false';
+    try {
+      db.query
+        .mockResolvedValueOnce([
+          { id: 'personal', scope_key: '', story: 'העסק שלי' },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      expect(await service.context(user, '111')).toContain('העסק שלי');
+      db.query.mockClear();
+      expect(
+        await service.context({ ...user, actorFirebaseId: 'other' }, '111'),
+      ).toBe('');
+      expect(db.query).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) delete process.env.AGENT_ONBOARDING_ENABLED;
+      else process.env.AGENT_ONBOARDING_ENABLED = previous;
+    }
   });
   it('rejects stale versions before preparing a write', async () => {
     await expect(
@@ -101,6 +109,92 @@ describe('shared profile store', () => {
     expect(payload.askedField).toBeNull();
     expect(db.query.mock.calls[1][1][6]).toBe('אני שכיר');
   });
+  it('reads legacy needs as flexible history without blocking onboarding', async () => {
+    jest.mocked(service.read).mockRestore();
+    const person = {
+      id: 'person',
+      scope_key: '',
+      version: 1,
+      story: 'רוצה לגדול',
+      field_states: { preferred_name: 'known', employment: 'known' },
+    };
+    const business = {
+      id: 'business',
+      scope_key: '111',
+      version: 1,
+      story: '',
+      field_states: {},
+    };
+    jest
+      .spyOn(service as any, 'profiles')
+      .mockResolvedValue({ person, business });
+    db.query
+      .mockResolvedValueOnce([
+        {
+          id: 'legacy',
+          field_key: 'current_need',
+          statement: 'רוצה לגדול',
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const snapshot = await service.read(user, '111');
+    expect(snapshot.facts[0]).toMatchObject({
+      id: 'legacy',
+      field_key: null,
+      statement: 'רוצה לגדול',
+    });
+    expect(snapshot.fields.map((field) => field.key)).not.toContain(
+      'current_need',
+    );
+    expect(snapshot.missing).not.toContain('current_need');
+    expect(snapshot.story.person).toBe('רוצה לגדול');
+  });
+  it('erases the retired need column when forgetting all personal memory', async () => {
+    const manager = { query: jest.fn().mockResolvedValue([]) };
+    await (service as any).eraseAll(manager, 'owner', 'keep');
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('`current_need`=NULL'),
+      ['owner'],
+    );
+  });
+  it.each(['legacy', 'replacement'])(
+    'forgets %s need and clears its retired projection',
+    async (factId) => {
+      const target = {
+        id: 'legacy',
+        profile_id: 'person',
+        field_key: 'current_need',
+        change_id: 'change',
+      };
+      const manager = {
+        query: jest
+          .fn()
+          .mockResolvedValue([])
+          .mockResolvedValueOnce([
+            target,
+            {
+              id: 'replacement',
+              profile_id: 'person',
+              field_key: null,
+              replaces_id: 'legacy',
+              change_id: 'next',
+            },
+          ]),
+      };
+      await (service as any).eraseFact(
+        manager,
+        { owner: 'owner', business: '111' },
+        { id: 'person', field_states: {} },
+        { id: 'business', field_states: {} },
+        factId,
+      );
+      expect(manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('SET `current_need`=NULL,'),
+        expect.any(Array),
+      );
+    },
+  );
   it('returns an existing operation before a stale-version retry', async () => {
     const input = body();
     db.query.mockResolvedValueOnce([{ id: input.operationId }]);
@@ -113,22 +207,20 @@ describe('shared profile store', () => {
     expect(service.read).not.toHaveBeenCalled();
   });
   it('refuses a workplace transition without its effective date', async () => {
-    jest
-      .mocked(service.read)
-      .mockResolvedValue({
-        businessNumber: '111',
-        version: { person: 1, business: 1 },
-        facts: [
-          {
-            id: 'old',
-            status: 'active',
-            scope_kind: 'business',
-            field_key: 'workplace',
-          },
-        ],
-        fields: [],
-        turns: [],
-      } as any);
+    jest.mocked(service.read).mockResolvedValue({
+      businessNumber: '111',
+      version: { person: 1, business: 1 },
+      facts: [
+        {
+          id: 'old',
+          status: 'active',
+          scope_kind: 'business',
+          field_key: 'workplace',
+        },
+      ],
+      fields: [],
+      turns: [],
+    } as any);
     const input = body([
       fact({
         field: 'workplace',
@@ -146,19 +238,17 @@ describe('shared profile store', () => {
     expect(db.query).toHaveBeenCalledTimes(1);
   });
   it('rejects cross-field replacements even with a visible fact id', async () => {
-    jest
-      .mocked(service.read)
-      .mockResolvedValue({
-        version: { person: 1, business: 1 },
-        facts: [
-          {
-            id: 'old',
-            status: 'active',
-            scope_kind: 'business',
-            field_key: 'employees',
-          },
-        ],
-      } as any);
+    jest.mocked(service.read).mockResolvedValue({
+      version: { person: 1, business: 1 },
+      facts: [
+        {
+          id: 'old',
+          status: 'active',
+          scope_kind: 'business',
+          field_key: 'employees',
+        },
+      ],
+    } as any);
     await expect(
       service.prepareChanges(
         user,

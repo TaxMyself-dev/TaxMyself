@@ -89,3 +89,11 @@ state is checked before replacement. Legacy signed cards authorize one-time only
 ## Owner onboarding profile
 
 OnboardingController serves /api/agent-profile through FirebaseAuthGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. The onboarding feature is off unless AGENT_ONBOARDING_ENABLED=true and uses its own manual SQL migration, never synchronize. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.
+
+## Automatic classification
+
+This module also registers the owner-only AutoClassificationController and its
+bounded scheduled service. AgentHarnessService exposes only an enqueue callback
+to chat; it cannot enable standing consent. Delegate/admin impersonation is
+denied by the automation service independently of normal chat classification.
+See ../auto-classification/AGENTS.md and the feature document.

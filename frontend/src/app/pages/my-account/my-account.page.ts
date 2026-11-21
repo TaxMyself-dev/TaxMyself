@@ -33,6 +33,7 @@ import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enum
 import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
+import { AgentConsentComponent } from '../../components/my-agent/agent-consent.component';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -50,7 +51,7 @@ import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [AccountImageComponent, OpenBankingErrorComponent, DirectCardNoticeComponent,
+  imports: [AgentConsentComponent, AccountImageComponent, OpenBankingErrorComponent, DirectCardNoticeComponent,
     CommonModule,
     FormsModule,
     IonicModule,
@@ -72,6 +73,7 @@ import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice
 export class MyAccountPage implements OnInit {
   // Root uses Angular router-outlet; Ionic entry hooks are not guaranteed.
   readonly directNoticeActive = signal(true);
+  readonly agentConsentReturn=signal(false);
   readonly directNoticeRefresh = signal(0);
   readonly bankingError = signal<BankingSupportError | null>(null);
   private readonly fullSyncRetryStarting=signal(false);
@@ -874,6 +876,7 @@ export class MyAccountPage implements OnInit {
                 next: user => {
                   this.hasOpenBanking.set(!!user?.hasOpenBanking);
                   this.feezbackDialogStatus.set(user?.hasOpenBanking ? 'prompt' : 'failure');
+                  if(user?.hasOpenBanking && !this.isDelegatedClientView())this.agentConsentReturn.set(true);
                   if (!user?.hasOpenBanking) this.feezbackDialogTitle.set('לא נמצא חיבור פעיל לבנקאות הפתוחה.');
                 },
                 error: () => {

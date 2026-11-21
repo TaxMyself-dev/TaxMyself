@@ -1,3 +1,4 @@
+import { MyAgentService } from '../my-agent/my-agent.service';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
@@ -17,7 +18,7 @@ describe('settings navigation entry', () => {
   let refresh: jasmine.Spy;
   beforeEach(() => {
     installed.set(false);refreshing.set(false);refresh=jasmine.createSpy().and.returnValue(Promise.resolve());
-    TestBed.configureTestingModule({imports:[TopNavComponent,NoopAnimationsModule],providers:[provideRouter([]),
+    TestBed.configureTestingModule({imports:[TopNavComponent,NoopAnimationsModule],providers:[provideRouter([]),{provide:MyAgentService,useValue:{context:()=>null,unread:signal(0)}},
       {provide:AccessService,useValue:{getFeatureState:()=>({visible:false})}},
       {provide:AccessHandlerService,useValue:{}},
       {provide:RuntimeContextService,useValue:{isInstalledPwa:installed}},
@@ -29,9 +30,9 @@ describe('settings navigation entry', () => {
     const navigate=spyOn(TestBed.inject(Router),'navigate').and.returnValue(Promise.resolve(true));
     const buttons=f.debugElement.queryAll(By.directive(ButtonComponent));
     expect(buttons.length).toBe(1);
-    expect(buttons[0].componentInstance.buttonColor()).toBe(ButtonColor.WHITE_BORDER);
+    expect(buttons[0].componentInstance.buttonColor()).toBe(ButtonColor.TRANSPARET);
     expect(buttons[0].componentInstance.buttonSize()).toBe(ButtonSize.ICON);
-    expect(buttons[0].componentInstance.variant()).toBeNull();
+    expect(buttons[0].componentInstance.variant()).toBe('text');
     buttons[0].query(By.css('button')).nativeElement.click();
     expect(navigate).toHaveBeenCalledOnceWith(['/settings-new']);
     expect(f.debugElement.query(By.directive(MenuButtonComponent)).componentInstance.open()).toBeFalse();
