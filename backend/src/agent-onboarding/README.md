@@ -3,8 +3,10 @@
 KeepInTax has one agent system. `/agent/onboarding` is an interface-specific
 policy of `createAppAgent`, not a second assistant, model client or conversation
 engine. The ordinary chat uses the same profile tools without proactively
-asking onboarding questions. The authenticated shell retains the initial
-invitation and permanent navigation link; `/dev/agent/onboarding` redirects.
+asking onboarding questions. The dedicated onboarding interface is admin-only,
+launched from the admin console tab "היכרות עם הסוכן". The normal app shell has
+no onboarding menu link or automatic invitation. `/dev/agent/onboarding` redirects
+to the same admin-guarded canonical route.
 
 ## Conversation and tracing
 
@@ -18,9 +20,11 @@ agent model/tool calls, inputs and outputs to the configured local Langfuse.
 There is no separate extractor, responder, summarizer or tracing exporter.
 
 The UI explicitly chooses an owned business. For a new onboarding conversation,
-the backend verifies owner access and writes `data-onboardingContext` to stored
+the backend verifies the persisted actor ADMIN role and owner access, and writes `data-onboardingContext` to stored
 history. Future turns restore this binding, even when the client omits the mode.
-Changing a conversation's interface or bound business is rejected. This never
+Changing a conversation's interface or bound business is rejected. The shared chat
+endpoint rechecks admin authorization on every onboarding turn, including stored
+mode restoration; profile HTTP endpoints use Firebase plus OnboardingAdminGuard. This never
 uses the application's hidden business header. Incoming user parts cannot write
 the server marker. Delegates/admin impersonation cannot read or edit the owner's
 personal profile. Ordinary accounting tools retain their existing permissions.
@@ -104,3 +108,21 @@ The old extractor/tracer tests, standalone model smoke scripts and dedicated
 propose/summary HTTP pipeline are removed. Regressions now cover the shared
 agent policy/tool contracts, template harness, scoped persistence and UI transport.
 Authenticated manual visual verification requires the user to start the servers.
+
+
+## Chat feedback and recovery (2026-11-21)
+
+The thinking indicator is a live assistant bubble inside the scrollable chat,
+covering submitted/streaming states, with a reduced-motion-safe pulse. New messages
+and status changes scroll it into view. Summary generation uses its own label.
+Late callbacks after component destruction are ignored. The shared transport passes
+SDK isError/isAbort/isDisconnect flags to consumers; onboarding never treats these
+as successful summary completion. Profile refresh blocks competing sends briefly,
+retains a completed answer on failure, and discards stale business/generation reads.
+Credential-free client warning names identify chat transport versus profile-refresh
+failure. These do not prove the cause of an unrecorded historical browser error.
+
+Admin entry does not grant access to another owner's personal profile: the existing
+self-service/delegation/impersonation restrictions remain. Ordinary agent profile
+memory stays shared; this access restriction applies to the dedicated onboarding
+surface and its HTTP management endpoints.

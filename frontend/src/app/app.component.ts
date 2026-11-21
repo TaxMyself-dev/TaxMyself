@@ -1,6 +1,4 @@
-import { toSignal } from '@angular/core/rxjs-interop';
 import { environment } from '../environments/environment';
-import { canOfferOnboarding, onboardingMenuItems } from './pages/agent-onboarding/onboarding-navigation';
 import { Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
@@ -40,16 +38,6 @@ export class AppComponent implements OnInit {
   private readonly appRefresh = inject(AppRefreshService);
   /** Eagerly construct the cold-start gate so the global loader is on immediately. */
   private readonly startup = inject(StartupService);
-
-  readonly onboardingApiUrl = environment.apiUrl;
-  readonly onboardingClientId = toSignal(inject(ClientPanelService).selectedClientId$, { initialValue: null });
-  readonly allowOnboardingPopup = computed(() => canOfferOnboarding({
-    uid: this.authService.currentUser()?.uid,
-    clientId: this.onboardingClientId(),
-    url: this.currentUrl(),
-    loading: this.genericService.isLoading(),
-    billingBlocked: this.showBillingDialog() || this.billingStateService.isLoading() || !this.billingStateService.billingState(),
-  }));
 
   // Tracks the settled URL after each navigation — drives billing dialog visibility.
   private readonly currentUrl = signal<string>('');
@@ -157,7 +145,6 @@ export class AppComponent implements OnInit {
 
     const items = [
       { label: 'דף הבית', routerLink: '/my-account' },
-      ...onboardingMenuItems(this.authService.currentUser()?.uid,this.onboardingClientId()),
       ...(showTransactions ? [{ label: 'תזרים', routerLink: '/transactions' }] : []),
       { label: 'דוחות', routerLink: '/reports' },
       ...(hasBusiness ? [{ label: 'הנהלת חשבונות', routerLink: '/book-keeping' }] : []),

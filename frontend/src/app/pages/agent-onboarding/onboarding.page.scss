@@ -261,3 +261,27 @@ summary:focus-visible {
     font-size: 17px;
   }
 }
+
+.thinking p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #707070;
+}
+.thinking-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: thinking-pulse 1.2s ease-in-out infinite;
+}
+@keyframes thinking-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking-dot {
+    animation: none;
+  }
+}

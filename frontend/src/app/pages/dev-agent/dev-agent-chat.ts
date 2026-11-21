@@ -156,7 +156,11 @@ export const createDevAgentChat = (options: {
   messages?: UIMessage[];
   // The question calls answered on this page, waiting to be sent.
   pendingAnswers?: Set<string>;
-  onFinish?: () => void;
+  onFinish?: (outcome: {
+    isError: boolean;
+    isAbort: boolean;
+    isDisconnect: boolean;
+  }) => void;
   onError?: (error: Error) => void;
   onData?: (part: { type: string }) => void;
 }) => {
@@ -168,7 +172,7 @@ export const createDevAgentChat = (options: {
     generateId: () => crypto.randomUUID(),
     sendAutomaticallyWhen: ({ messages }) =>
       devAgentShouldContinue(messages, pending, lastAssistantMessageIsCompleteWithApprovalResponses({ messages })),
-    onFinish: () => options.onFinish?.(),
+    onFinish: (outcome) => options.onFinish?.(outcome),
     onError: (error) => options.onError?.(error),
     onData: (part) => options.onData?.(part),
     transport: new DefaultChatTransport({

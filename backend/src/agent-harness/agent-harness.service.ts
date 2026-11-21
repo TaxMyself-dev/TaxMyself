@@ -107,6 +107,7 @@ export class AgentHarnessService implements OnModuleDestroy {
         ...this.agentDomain.forUser(user),
         ...this.agentBooks.forUser(user),
         ...this.classification.forUser(user),
+        authorizeOnboarding: () => this.agentDomain.assertOnboardingAdmin(user),
         profile: this.onboarding
           ? {
               read: (businessNumber) =>

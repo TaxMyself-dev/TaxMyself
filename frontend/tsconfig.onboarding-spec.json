@@ -2,12 +2,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/onboarding-spec",
-    "types": ["jasmine"],
+    "types": ["jasmine", "node"],
     "skipLibCheck": true
   },
   "include": [
     "src/app/pages/agent-onboarding/*.spec.ts",
     "src/app/pages/dev-agent/dev-agent-chat.spec.ts",
+    "src/app/pages/admin-panel/admin-panel.page.spec.ts",
+    "src/app/shared/guard/admin-route.guard.spec.ts",
     "src/polyfills.ts"
   ],
   "files": ["src/test.ts"]

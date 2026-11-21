@@ -4,6 +4,7 @@ import {
   OnInit,
   OnDestroy,
   computed,
+  effect,
   ElementRef,
   ViewChild,
   afterNextRender,
@@ -97,10 +98,13 @@ export class OnboardingPage implements OnInit, OnDestroy {
       this.loading() ||
       ["submitted", "streaming"].includes(this.chat()?.status ?? ""),
   );
+  readonly thinking = computed(() =>
+    ["submitted", "streaming"].includes(this.chat()?.status ?? ""),
+  );
   private finishRequested = false;
   private generation = 0;
+  private destroyed = false;
   private conversationId = "";
-  private agentUserId = "";
   readonly messages = computed(() =>
     (this.chat()?.messages ?? []).flatMap((message) => {
       const text = message.parts
@@ -109,11 +113,18 @@ export class OnboardingPage implements OnInit, OnDestroy {
       return text ? [{ id: message.id, role: message.role, text }] : [];
     }),
   );
+  private readonly scrollWithConversation = effect(() => {
+    this.messages();
+    this.thinking();
+    this.scrollToLatest();
+  });
   ngOnDestroy() {
+    this.destroyed = true;
     this.generation++;
     void this.chat()?.stop();
   }
   private scrollToLatest() {
+    if (this.destroyed) return;
     afterNextRender(
       () => {
         const element = this.turns?.nativeElement;
@@ -133,7 +144,6 @@ export class OnboardingPage implements OnInit, OnDestroy {
       {},
     )) as { userId: string };
     if (generation !== this.generation) return;
-    this.agentUserId = session.userId;
     const key = `keepintax:onboarding:${session.userId}:${this.selected}`;
     const stored = localStorage.getItem(key);
     this.conversationId =
@@ -158,14 +168,24 @@ export class OnboardingPage implements OnInit, OnDestroy {
         messages: history,
         onboarding: { businessNumber: this.selected },
         onData: () => this.scrollToLatest(),
-        onError: () => {
+        onError: (failure) => {
+          console.warn("ONBOARDING_CHAT_FAILED", {
+            conversationId: this.conversationId,
+            message: failure.message,
+          });
           if (generation !== this.generation) return;
           this.summarizing.set(false);
           this.finishRequested = false;
           this.error.set("לא הצלחנו להשלים את התשובה. אפשר לרענן ולנסות שוב.");
         },
-        onFinish: () => {
-          if (generation === this.generation) void this.answerFinished();
+        onFinish: (outcome) => {
+          if (generation !== this.generation) return;
+          if (outcome.isError || outcome.isAbort || outcome.isDisconnect) {
+            this.finishRequested = false;
+            this.summarizing.set(false);
+            return;
+          }
+          void this.answerFinished();
         },
       }),
     );
@@ -173,8 +193,11 @@ export class OnboardingPage implements OnInit, OnDestroy {
     this.scrollToLatest();
   }
   private async answerFinished() {
+    const generation = this.generation;
+    this.loading.set(true);
     try {
       await this.load();
+      if (generation !== this.generation) return;
       if (this.finishRequested) {
         const last = this.messages()
           .filter((message) => message.role === "assistant")
@@ -182,9 +205,14 @@ export class OnboardingPage implements OnInit, OnDestroy {
         this.summaryText.set(last?.text ?? "");
         this.summary.set(true);
       }
-    } catch {
+    } catch (failure) {
+      console.warn("ONBOARDING_PROFILE_REFRESH_FAILED", {
+        conversationId: this.conversationId,
+        status: (failure as HttpErrorResponse).status,
+      });
       this.error.set("התשובה התקבלה, אך לא הצלחנו לרענן את הפרטים שנשמרו.");
     } finally {
+      this.loading.set(false);
       this.finishRequested = false;
       this.summarizing.set(false);
       this.scrollToLatest();
@@ -264,13 +292,15 @@ export class OnboardingPage implements OnInit, OnDestroy {
     });
   }
   private async load() {
-    this.snapshot.set(
-      await firstValueFrom(
-        this.http.get<Snapshot>(this.api + "api/agent-profile", {
-          params: { businessNumber: this.selected },
-        }),
-      ),
+    const requested = this.selected;
+    const generation = this.generation;
+    const snapshot = await firstValueFrom(
+      this.http.get<Snapshot>(this.api + "api/agent-profile", {
+        params: { businessNumber: requested },
+      }),
     );
+    if (this.selected === requested && generation === this.generation)
+      this.snapshot.set(snapshot);
   }
   async select() {
     this.snapshot.set(null);

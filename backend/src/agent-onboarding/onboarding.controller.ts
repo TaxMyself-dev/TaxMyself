@@ -1,4 +1,8 @@
+import { AgentDomainService } from '../agent-harness/agent-domain.service';
 import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
   Body,
   Controller,
   Get,
@@ -40,8 +44,16 @@ function identity(req: AuthenticatedRequest): AgentHarnessUser {
     isAdminImpersonation: req.isAdminImpersonation === true,
   };
 }
+@Injectable()
+export class OnboardingAdminGuard implements CanActivate {
+  constructor(private readonly domain: AgentDomainService) {}
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    await this.domain.assertOnboardingAdmin(identity(context.switchToHttp().getRequest<AuthenticatedRequest>()));
+    return true;
+  }
+}
 @Controller('api/agent-profile')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, OnboardingAdminGuard)
 export class OnboardingController {
   constructor(private readonly service: OnboardingService) {}
   @Get('businesses') businesses(@Req() req: AuthenticatedRequest) {

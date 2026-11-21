@@ -29,7 +29,7 @@ interface InvitationBusiness {
     <div dir="rtl">
       <p>אשמח להכיר אותך ואת העסק כדי להתאים לך את העזרה בהמשך.</p>
       <p>אפשר לספר בחופשיות, או שאכווין אותך בשאלות. ההתקדמות נשמרת במהלך השיחה, ובסיום אציג את מה שהבנתי.</p>
-      <p>אפשר לעצור ולחזור דרך ״ההיכרות שלי עם הסוכן״ בתפריט.</p>
+      <p>אפשר לעצור ולחזור דרך פאנל הניהול.</p>
       <div style="display:flex;gap:12px;margin-top:24px">
         <app-p-button buttonText="בואו נכיר" [buttonColor]="ButtonColor.BLACK" [link]="onboardingPath" (onButtonClicked)="close()" />
         <app-p-button buttonText="אחר כך" [buttonColor]="ButtonColor.WHITE_BORDER" (onButtonClicked)="later()" />

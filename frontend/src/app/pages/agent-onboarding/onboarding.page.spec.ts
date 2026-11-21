@@ -1,3 +1,4 @@
+import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { provideHttpClient } from "@angular/common/http";
 import {
@@ -93,5 +94,36 @@ describe("onboarding shared chat", () => {
     await done;
     expect(page.summaryText()).toBe("");
     expect(page.summary()).toBeFalse();
+  });
+});
+
+describe("onboarding thinking state", () => {
+  it("tracks submitted and streaming status reactively", () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AngularFireAuth, useValue: { idToken: of("token") } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({}) } },
+        },
+      ],
+    });
+    const page = TestBed.runInInjectionContext(() => new OnboardingPage());
+    const state = signal("ready");
+    page.chat.set({
+      get status() {
+        return state();
+      },
+      messages: [],
+    } as any);
+    expect(page.thinking()).toBeFalse();
+    state.set("submitted");
+    expect(page.thinking()).toBeTrue();
+    state.set("streaming");
+    expect(page.thinking()).toBeTrue();
+    state.set("error");
+    expect(page.thinking()).toBeFalse();
   });
 });

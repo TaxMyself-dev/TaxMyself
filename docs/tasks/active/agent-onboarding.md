@@ -520,3 +520,94 @@ Focused final diagnostic checks:
 - No dev servers, merge, push or real-user mutation. Existing ports unchanged.
 
 Final diagnostic revision: npm run check passed; npm run build passed (475.5 kB agent-http.mjs). git diff --check passed. The focused optional-field correction is the only executable change after the approved live run; the two affected real-model turns ran on that correction. Other executable inputs retain prior passing evidence. Diagnostic command from backend/agent: npx tsx --env-file=../.env .test-tmp/onboarding-runtime-smoke.ts (six-turn version first; bounded two-turn version for recheck). Local-only helpers and full synthetic evidence retained under root .test-tmp/onboarding-runtime.
+
+
+### 2026-11-21 — reported chat error, thinking feedback, admin-only entry
+
+Scope/acceptance: diagnose the exact "מה עוד לספר עלי?" request; visible thinking
+feedback in the chat; retire normal-shell entry and expose an admin-console tab;
+enforce admin at UI route, profile API and shared onboarding-mode boundary. Same
+worktree/branch; no app servers, main integration, push or live data mutation.
+Preserved the pre-existing untracked backend/journey-timings.local file.
+
+Diagnostic evidence: owner-scoped, read-only keepintax-dev messages and local
+Langfuse v4 observations for conversation d09750bb-9550-4198-98c1-8cef99a41048.
+The user question at 2026-11-21T17:58:54.976Z received the completed/stored answer
+at 17:59:10.098Z, asking whether work is at customer sites/workshop/both.
+Trace f7c7a9b34ee30b913cb7bb0bffa3af1b has a successful answer-chat-message input
+and output and no ERROR observation. The next "מה זה משנה?" also completed.
+This disproves a model/server-generation failure for that request; it does NOT
+identify the precise browser-visible error, since client exceptions were not
+recorded. Do not report an invented root cause or a reproduced historical failure.
+
+Found and corrected client recovery gaps independently: shared transport discarded
+the SDK completion flags; onboarding treated all finishes as success. It now skips
+success processing after error/abort/disconnect and records scoped client warnings.
+Profile refresh now prevents overlapping sends and ignores stale business/generation
+reads; completed answers remain visible if refresh fails. Destroyed views do not
+schedule more scroll callbacks. Thinking is now inside the visible conversation
+with aria-live, aria-busy and reduced-motion-safe animation, not above its viewport.
+
+Admin access: removed root-shell invitation and top-navigation item; added
+"היכרות עם הסוכן" admin tab, returning to /admin-panel, preserving safe local API
+overrides. Canonical route uses AuthGuard + existing AdminRouteGuard. All profile
+HTTP endpoints use FirebaseAuthGuard + OnboardingAdminGuard. The host checks the
+persisted actor role through existing User repository; the ESM endpoint invokes
+authorizeOnboardingSurface before profile reads for new AND restored onboarding
+mode, and fails closed when no host check exists. Existing owner-only profile
+rules remain; ordinary shared-agent memory is not replaced or forked.
+
+Verification so far:
+- Nest focused onboarding admin/domain/store tests: 26 passed (109.548 s).
+- Agent focused profile/chat tests: 17 passed; typecheck exit 0.
+- Agent full unit suite: 68 files passed, 3 skipped; 377 tests passed, 22 skipped
+  (64.19 s). Subsequent edits only cleaned test mock syntax/formatting; targeted
+  profile test batch: 9 passed. No paid model calls required or performed.
+- Angular focused suite: 41 passed. Includes real synthetic SSE error handling,
+  reactive thinking status, admin navigation and existing admin-guard role tests.
+  Command: node --max-old-space-size=6144 node_modules/@angular/cli/bin/ng.js test
+  --watch=false --browsers=ChromeHeadless --progress=false --source-map=false
+  --ts-config=tsconfig.onboarding-spec.json
+  --include=src/app/pages/agent-onboarding/*.spec.ts
+  --include=src/app/pages/dev-agent/dev-agent-chat.spec.ts
+  --include=src/app/pages/admin-panel/admin-panel.page.spec.ts
+  --include=src/app/shared/guard/admin-route.guard.spec.ts.
+  Logs: .test-tmp/onboarding-followup/frontend-tests.log (ignored).
+- Initial browser test compile surfaced existing files.service.ts console import;
+  supplied Node typings in this isolated test config when adding admin dependencies,
+  without changing that unrelated service. Then two assertions expected localhost
+  instead of existing devAgentApiOverride IPv4 normalization: corrected expectations
+  after reviewing the source, leaving behavior/criteria unchanged. Final 41 passed.
+- Windows Application Control blocked oxfmt.win32-x64-msvc.node. Did not remove
+  lockfiles/dependencies or bypass policy. Used existing JS Prettier for formatting
+  and direct configured Oxlint for type-aware lint independently of oxfmt. Aggregate
+  npm run check cannot be reported passing while the native formatter is blocked.
+- Frontend npx tsc --noEmit -p tsconfig.app.json passed. Agent and Nest build
+  checkpoint outcomes are appended below. No manual authenticated browser session
+  or claim that the original transient client error was reproduced.
+
+
+Final follow-up checkpoint:
+- Native oxfmt became available again on a later normal invocation; no policy,
+  dependency or environment override was made. The aggregate check then reported
+  only intentional formatting differences, corrected with the configured formatter.
+  `npx oxfmt --check` passed across all 345 files. Direct configured type-aware
+  Oxlint on the four changed agent source/test files passed. The final scoped
+  `npm run check -- src/agent/chat/turn/agent-chat-response.server.ts
+  src/agent/tools/profile/agent-profile-surface.ts src/server/runtime/agent-domain.ts
+  tests/src/agent/tools/profile/agent-profile.test.ts GUIDE.md` passed (exit 0).
+- Agent `npm run build` passed on the final functional source (475.7 kB agent-http.mjs).
+  Later edits only canonicalized formatting and test mock syntax; no broader test
+  repetition after prose/format-only changes. Full test evidence above remains valid
+  for functional code; it is not misrepresented as a new full run on every later edit.
+- Nest `npm run build`: exit 0 on the final runtime/guard implementation.
+- Frontend production build: exit 0. Existing unrelated component-style size,
+  CommonJS and initial-bundle warnings remain (3.20 MB initial vs 2 MB warning).
+  Command: node --max-old-space-size=6144 node_modules/@angular/cli/bin/ng.js build
+  --configuration=production --progress=false . Ignored evidence:
+  .test-tmp/onboarding-followup/frontend-build.log.
+- Final frontend 41/41 and Nest 26/26 tests passed; agent full 377 passed/22 skipped
+  plus final affected profile batch 9/9. Final source/auth/lifecycle diff reviewed.
+- `git diff --check` passed after removing trailing blank lines in two test/config
+  files. Final local feature commit only; no schema or real-user mutation, no
+  application-server start, no main integration and no push.

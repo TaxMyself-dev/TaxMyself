@@ -1,4 +1,4 @@
-import { OnboardingController } from '../agent-onboarding/onboarding.controller';
+import { OnboardingController, OnboardingAdminGuard } from '../agent-onboarding/onboarding.controller';
 import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -44,6 +44,7 @@ import { AgentHarnessService } from './agent-harness.service';
   controllers: [AgentHarnessController, OnboardingController],
   providers: [
     OnboardingService,
+    OnboardingAdminGuard,
     AgentHarnessService,
     AgentDomainService,
     AgentBooksService,

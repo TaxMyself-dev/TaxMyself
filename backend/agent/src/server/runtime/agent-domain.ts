@@ -20,6 +20,7 @@ type PromiseOf<Read> = Read extends (
  * CODE:.
  */
 export type AgentDomain = {
+  authorizeOnboarding?: () => Promise<void>;
   profile?: UserProfileMemory;
 
   // Optional Keepintax onboarding context, bound to the verified owner.

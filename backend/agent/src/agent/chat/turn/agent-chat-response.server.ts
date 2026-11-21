@@ -39,7 +39,10 @@ import {
   agentConversationBusinessState,
   withAgentBusinessContext,
 } from "@/agent/tools/books/agent-conversation-business";
-import { profileConversationBusiness } from "@/agent/tools/profile/agent-profile-surface";
+import {
+  authorizeOnboardingSurface,
+  profileConversationBusiness,
+} from "@/agent/tools/profile/agent-profile-surface";
 import { createKeepInTaxBooks } from "@/server/agent-ports.server";
 import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
@@ -254,13 +257,10 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
         );
 
         if (businessNumber !== undefined) {
-          const port = currentAgentDomain()?.profile;
-
-          if (!port) {
-            throw new Error("AGENT_PROFILE_UNAVAILABLE");
-          }
-
-          await port.read(businessNumber);
+          await authorizeOnboardingSurface(
+            currentAgentDomain(),
+            businessNumber
+          );
         }
 
         return businessNumber;

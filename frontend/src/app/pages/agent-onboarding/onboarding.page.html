@@ -1,7 +1,7 @@
 <main dir="rtl" class="onboarding">
   <div class="page-content">
     <header>
-      <a routerLink="/my-account">חזרה לאפליקציה</a><span>Keepintax</span>
+      <a routerLink="/admin-panel">חזרה לפאנל הניהול</a><span>Keepintax</span>
     </header>
     <section class="intro">
       <h1>נעים להכיר</h1>
@@ -31,14 +31,16 @@
         [disabled]="busy() || !selected"
       />
     </div>
-    } @if (busy()) {
-    <p class="muted" role="status" aria-live="polite">
-      {{summarizing() ? 'מכין את הסיפור שלך…' : 'חושב על מה שסיפרת…'}}
-    </p>
+    } @if (busy() && !snapshot()) {
+    <p class="muted" role="status">טוען את ההיכרות…</p>
     } @if (!busy() && businesses().length === 0 && !error()) {
     <p>כדי להתחיל היכרות, צריך להוסיף עסק בחשבון.</p>
     } @if (snapshot(); as s) { @if (!summary()) {
-    <section class="conversation" aria-label="שיחת ההיכרות">
+    <section
+      class="conversation"
+      aria-label="שיחת ההיכרות"
+      [attr.aria-busy]="thinking()"
+    >
       <div
         #turns
         class="turns"
@@ -59,6 +61,18 @@
         >
           <span>{{message.role === 'user' ? 'אתם' : 'Keepintax'}}</span>
           <p>{{message.text}}</p>
+        </article>
+        } @if (thinking()) {
+        <article
+          class="turn assistant thinking"
+          role="status"
+          aria-live="polite"
+        >
+          <span>Keepintax</span>
+          <p>
+            <span class="thinking-dot" aria-hidden="true"></span>{{summarizing()
+            ? 'מכין את הסיכום…' : 'חושב…'}}
+          </p>
         </article>
         }
       </div>

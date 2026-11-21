@@ -10,7 +10,10 @@ import type {
 import { noAgentChatPageData } from "@/agent/core/tool-runtime/agent-chat-page-data-port";
 import type { AgentToolContext } from "@/agent/core/tool-runtime/agent-tool-context";
 import { agentToolCallKey } from "@/agent/core/tool-runtime/agent-tool-idempotency";
-import { profileConversationBusiness } from "@/agent/tools/profile/agent-profile-surface";
+import {
+  authorizeOnboardingSurface,
+  profileConversationBusiness,
+} from "@/agent/tools/profile/agent-profile-surface";
 import {
   readUserProfileTool,
   updateUserProfileTool,
@@ -202,5 +205,41 @@ describe("one agent, shared profile", () => {
         },
       })
     );
+  });
+});
+
+describe("onboarding interface admin boundary", () => {
+  it("fails closed without the host admin check", async () => {
+    await expect(
+      authorizeOnboardingSurface({ profile: port }, "111")
+    ).rejects.toThrow("ADMIN_REQUIRED");
+  });
+
+  it("rejects a non-admin before reading profile data", async () => {
+    const read = vi.fn<UserProfileMemory["read"]>();
+    await expect(
+      authorizeOnboardingSurface(
+        {
+          authorizeOnboarding: vi
+            .fn<() => Promise<void>>()
+            .mockRejectedValue(new Error("Admin required")),
+          profile: { ...port, read },
+        },
+        "111"
+      )
+    ).rejects.toThrow("Admin required");
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("checks owner scope after the admin check", async () => {
+    const read = vi.fn<UserProfileMemory["read"]>().mockResolvedValue(snapshot);
+    await authorizeOnboardingSurface(
+      {
+        authorizeOnboarding: vi.fn<() => Promise<void>>().mockResolvedValue(),
+        profile: { ...port, read },
+      },
+      "111"
+    );
+    expect(read).toHaveBeenCalledExactlyOnceWith("111");
   });
 });

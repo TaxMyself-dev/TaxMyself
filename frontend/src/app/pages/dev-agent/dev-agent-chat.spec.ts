@@ -8,7 +8,7 @@ import {
   devAgentShouldContinue,
   withDevAgentFollowUps,
 } from './dev-agent-chat-parts';
-import { devAgentHeaders } from './dev-agent-chat';
+import { devAgentHeaders, createDevAgentChat } from './dev-agent-chat';
 
 type Part = DevAgentPart;
 
@@ -146,5 +146,37 @@ describe('approval cards after clarification',()=>{
     const closed:any={...part,state:'output-denied',approval:{id:'a',approved:false,reason:'Superseded by a newer user message; request a fresh approval card.'}};
     expect(devAgentApprovalView(closed,'old',[{...original,parts:[closed]}])).toEqual({id:'a',active:false});
     expect(devAgentApprovalView({...part,state:'output-available'},'old',[original])).toBeNull();
+  });
+});
+
+describe("shared chat completion outcome", () => {
+  it("preserves streaming failure flags instead of reporting successful completion", async () => {
+    spyOn(window, "fetch").and.resolveTo(
+      new Response(
+        'data: {"type":"start","messageId":"assistant-error"}\n\ndata: {"type":"error","errorText":"synthetic stream failure"}\n\ndata: [DONE]\n\n',
+        {
+          headers: {
+            "content-type": "text/event-stream",
+            "x-vercel-ai-ui-message-stream": "v1",
+          },
+        },
+      ),
+    );
+    const onFinish = jasmine.createSpy();
+    const onError = jasmine.createSpy();
+    const chat = createDevAgentChat({
+      apiUrl: "http://localhost:3004/",
+      conversationId: crypto.randomUUID(),
+      agentUserId: crypto.randomUUID(),
+      locale: "he",
+      auth: { token: () => Promise.resolve("token"), clientId: () => null },
+      onFinish,
+      onError,
+    });
+    await chat.sendMessage({ text: "מה עוד לספר עליי?" });
+    expect(onError).toHaveBeenCalled();
+    expect(onFinish).toHaveBeenCalledWith(
+      jasmine.objectContaining({ isError: true }),
+    );
   });
 });
