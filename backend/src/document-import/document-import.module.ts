@@ -1,3 +1,4 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
@@ -8,6 +9,7 @@ import { BusinessModule } from 'src/business/business.module';
 import { GoogleDriveModule } from 'src/google-drive/google-drive.module';
 import { ImportedDocument } from './entities/imported-document.entity';
 import { DocumentImportService } from './document-import.service';
+import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 
 /**
  * The shared document-intake pipeline. Every import channel (Gmail import,
@@ -19,7 +21,8 @@ import { DocumentImportService } from './document-import.service';
  * owns what happens after a file candidate exists.
  */
 @Module({
-  imports: [
+  imports: [EmailIntakeModule,
+    ProtectedPdfModule,
     TypeOrmModule.forFeature([ImportedDocument, Business]),
     // Reuses the existing service-account Drive client for inbox uploads
     GoogleDriveModule,

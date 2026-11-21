@@ -1,0 +1,13 @@
+# Comprehensive Gmail intake QA
+
+Status: COMPLETE for the authorized automated and bounded artificial DEV scenarios. Base 507defaf on existing codex/composio-email, initially clean. User explicitly approved live AI and Drive deletion for artificial documents only in Nagrut 5; never a global processing/deletion activation. No PROD/main integration/push/deploy.
+
+Acceptance: genuine queue/claim/resume/dedup; six-type single-pass classification/extraction; uncertain ordinary approval; strict scoped deletion, references/content identity/tombstones; retained protected originals and explicit replacements; real Gmail read adapter; no old-document modification or financial posting.
+
+Found and fixed three issues: coherent six-type SDK request replacing contradictory legacy enum/envelope/trailer; safe reuse of a completed owned result with no repeated AI or new claim for an unexpected processed file; SHA-256 recheck before adoption/deletion. Added focused SDK-boundary, existing-result/unknown-claim and changed-content tests. No parser criteria weakened or thresholds changed; no dependency/schema change.
+
+Final relevant backend run: 47 suites / 385 tests PASS in 58.987s. Frontend: 13 tests PASS. Backend Nest build PASS; unchanged frontend production build evidence reused. All exact commands, failed diagnostics/corrections, private evidence ids, live scope, per-fixture results and operational limitations: docs/features/gmail-intake-verification-2026-11-20.md.
+
+Real DEV integration results passed through actual repositories/catalog/AI/Drive/services. Six harness extraction attempts capped at six; pre-existing replacement result reused with no additional request. Exactly two owned artificial negatives deleted, including live shared-reference and changed-content blockers; originals retained, duplicate and access checks passed, no confirmed expenses or financial approval. Real Composio read/download found one known artificial email and deduplicated original import 201. Existing import state/identity signatures unchanged. Artificial ids 345–352 retained as audit history (negative tombstones, protected original and pending positive/uncertain examples).
+
+New QA harness does not bootstrap Nest/schedulers/seeders; explicit manifest id/hash/owner/business bounds and a scanner lock isolate every mutation. No .env changes; global AI/deletion/legacy OCR/nightly/protected dispatch remain off. Restored owned backend 3002 with fixes and verified frontend 4202/root health. Existing queue 101 waiting / 32 blocked / 5 password-required was deliberately not reprocessed or deleted. Live financial approval, broad model accuracy, cloud wakeup and multi-host load are outside this evidence. No claim that all existing queued records completed.

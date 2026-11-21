@@ -2927,3 +2927,126 @@ ALTER TABLE subscription
   ADD CONSTRAINT ck_subscription_frozen_price CHECK (frozen_monthly_price_agorot IS NULL OR frozen_monthly_price_agorot BETWEEN 0 AND 100000000),
   ADD CONSTRAINT ck_subscription_custom_price CHECK (custom_monthly_price_agorot IS NULL OR custom_monthly_price_agorot BETWEEN 0 AND 100000000),
   ADD CONSTRAINT ck_subscription_custom_window CHECK (custom_price_start_date IS NULL OR custom_price_end_date IS NULL OR custom_price_start_date <= custom_price_end_date);
+
+-- Composio managed Gmail: applied to DEV only with explicit approval on 2026-11-17.
+-- PROD has not been modified. Preserve legacy columns; no data deletion.
+-- For DEV reruns use backend/scripts/apply-composio-dev-schema.cjs; raw ALTER statements are not idempotent.
+ALTER TABLE user_integrations
+  ADD COLUMN connection_backend VARCHAR(32) NULL,
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN connection_verified_at DATETIME NULL,
+  ADD COLUMN remote_disconnect_pending TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN retired_connected_account_ids JSON NULL,
+  ADD UNIQUE INDEX ux_user_integrations_connected_account (connected_account_id);
+
+ALTER TABLE oauth_states
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN target_integration_id INT NULL;
+
+-- Protected PDF lifecycle: PREPARED ONLY, separate execution approval required (2026-11-19).
+-- Prepared only. DO NOT apply without explicit DEV schema approval.
+-- No ALTER of existing columns: sidecar tables keep disabled application paths compatible.
+CREATE TABLE protected_documents (
+ id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ original_import_id INT NULL,
+ original_drive_id VARCHAR(255) NULL,
+ filename VARCHAR(512) NOT NULL,
+ source VARCHAR(32) NOT NULL,
+ metadata_json JSON NOT NULL,
+ integration_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'IMPORTING',
+ current_operation_id CHAR(36) NULL,
+ version INT NOT NULL DEFAULT 0,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ recovery_attempts INT NOT NULL DEFAULT 0,
+ recovery_next_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_protected_owner_content(firebase_id,business_number,content_hash),
+ UNIQUE KEY ux_protected_original_import(original_import_id),
+ KEY ix_protected_business(firebase_id,business_number,status),
+ KEY ix_protected_integration(firebase_id,integration_id,status),
+ CONSTRAINT fk_protected_original_import FOREIGN KEY(original_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE document_replacement_operations (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ protected_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ actor_id VARCHAR(255) NOT NULL,
+ idempotency_key VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ filename VARCHAR(512) NOT NULL,
+ size INT NOT NULL,
+ candidate_drive_id VARCHAR(255) NULL,
+ replacement_import_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',
+ processing_status VARCHAR(32) NOT NULL DEFAULT 'NOT_STARTED',
+ expected_version INT NOT NULL,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ attempts INT NOT NULL DEFAULT 0,
+ next_attempt_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_replacement_request(protected_id,idempotency_key),
+ UNIQUE KEY ux_replacement_import(replacement_import_id),
+ KEY ix_replacement_outbox(status,next_attempt_at,lease_expires_at),
+ KEY ix_replacement_processing(status,processing_status,updated_at),
+ CONSTRAINT fk_replacement_protected FOREIGN KEY(protected_id) REFERENCES protected_documents(id),
+ CONSTRAINT fk_replacement_import FOREIGN KEY(replacement_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE protected_pdf_import_runs (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ integration_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ summary_json JSON NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ KEY ix_protected_run_owner(firebase_id,integration_id,created_at)
+) ENGINE=InnoDB;
+
+
+-- Gmail durable intake: PREPARED ONLY; separate schema approval required.
+-- PREPARED ONLY. Requires separate approval before applying to any database.
+CREATE TABLE email_import_runs (
+ id CHAR(36) PRIMARY KEY, firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL, integration_id INT NOT NULL, sync_type VARCHAR(16) NOT NULL,
+ query_text TEXT NOT NULL, from_date DATE NULL, to_date DATE NULL,
+ scan_state VARCHAR(24) NOT NULL DEFAULT 'READY', pull_state VARCHAR(24) NOT NULL DEFAULT 'RUNNING',
+ processing_state VARCHAR(24) NOT NULL DEFAULT 'WAITING', page_token TEXT NULL, page_history_json JSON NULL, scan_generation INT NOT NULL DEFAULT 0,
+ lease_token CHAR(36) NULL, lease_expires_at DATETIME(3) NULL, next_attempt_at DATETIME(3) NULL,
+ attempts INT NOT NULL DEFAULT 0, error_code VARCHAR(64) NULL, summary_json JSON NULL,
+ started_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), pull_finished_at DATETIME(3) NULL,
+ processing_finished_at DATETIME(3) NULL, integration_finalized_at DATETIME(3) NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ KEY ix_email_runs_owner(firebase_id,integration_id), KEY ix_email_runs_due(pull_state,next_attempt_at,lease_expires_at)
+) ENGINE=InnoDB;
+CREATE TABLE email_import_items (
+ id CHAR(36) PRIMARY KEY, run_id CHAR(36) NOT NULL, message_id VARCHAR(128) NOT NULL,
+ part_path VARCHAR(160) NOT NULL, state VARCHAR(24) NOT NULL DEFAULT 'DISCOVERED', filename VARCHAR(512) NULL,
+ mime_type VARCHAR(128) NULL, source_metadata_json JSON NULL, imported_document_id INT NULL, error_code VARCHAR(64) NULL,
+ attempts INT NOT NULL DEFAULT 0, next_attempt_at DATETIME(3) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_email_item(run_id,message_id,part_path), KEY ix_email_items_work(run_id,state,next_attempt_at),
+ CONSTRAINT fk_email_item_run FOREIGN KEY(run_id) REFERENCES email_import_runs(id),
+ CONSTRAINT fk_email_item_import FOREIGN KEY(imported_document_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+ALTER TABLE imported_documents
+ MODIFY drive_file_id VARCHAR(255) NULL, MODIFY drive_file_name VARCHAR(512) NULL, MODIFY drive_folder_id VARCHAR(255) NULL,
+ ADD email_work_state VARCHAR(32) NOT NULL DEFAULT 'LEGACY', ADD email_decision VARCHAR(24) NULL,
+ ADD email_policy_version VARCHAR(32) NULL, ADD email_decided_at DATETIME(3) NULL, ADD email_run_id CHAR(36) NULL,
+ ADD email_lease_token CHAR(36) NULL, ADD email_lease_expires_at DATETIME(3) NULL,
+ ADD email_next_at DATETIME(3) NULL, ADD email_attempts INT NOT NULL DEFAULT 0,
+ ADD email_ai_attempt_id CHAR(36) NULL, ADD email_ai_state VARCHAR(24) NOT NULL DEFAULT 'NOT_SENT',
+ ADD email_result_json JSON NULL, ADD email_claim_id INT NULL, ADD email_error_code VARCHAR(64) NULL,
+ ADD email_upload_tag CHAR(36) NULL, ADD email_deleted_at DATETIME(3) NULL,
+ ADD KEY ix_email_import_work(email_work_state,email_next_at,email_lease_expires_at);
+-- extracted_document.document_type is VARCHAR(32) in the checked-in entity.
+-- Verify the actual target column before applying; if ENUM, prepare a separate
+-- explicit extension preserving every existing value. No automatic backfill/job.

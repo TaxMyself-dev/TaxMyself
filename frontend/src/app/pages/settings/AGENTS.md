@@ -1,6 +1,15 @@
 ## Purpose
 Account/profile settings hub: tabbed page for editing personal details, spouse details, children, businesses, category customization, permissions, and connected-account management.
 
+## Gmail connection boundary
+
+- Gmail uses Composio Managed OAuth; retain the shared component in both settings pages.
+- Pass the local integration ID for reconnect, never a provider connection ID from UI.
+- Callback query parameters only indicate a return; connection success comes from saved
+  server-verified account state. Represented-client mode cannot manage/read mailboxes.
+- Pending remote disconnect remains visible and retryable after local access stops.
+- Focused specs use `tsconfig.email-spec.json`; see `docs/features/composio-email.md`.
+
 ## Key entities/files
 - `settings.page.ts` — `SettingsPage` (standalone component, no module.ts — routed directly via `loadComponent` in `app-routing.module.ts`). Owns per-tab reactive forms (`personalFormGroup`, `spouseFormGroup`, `childrenFormArray`, `businessesFormArray`, `addBusinessFormGroup`, `addPermissionFormGroup`). Categories and permission management are available to every authenticated user; only the open-banking account-source subsection is entitlement-gated.
 - `settings-access.policy.ts` — testable settings-tab policy and the narrow predicate that prevents users without `OPEN_BANKING` from loading bank account sources.

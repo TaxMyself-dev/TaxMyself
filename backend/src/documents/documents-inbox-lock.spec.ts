@@ -73,3 +73,8 @@ describe('DocumentsService inbox OCR lock', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 });
+
+it('runs the existing locked Inbox entry point without an activation switch',async()=>{
+ const service:any=Object.create(DocumentsService.prototype);service.acquireInboxOcrSlot=jest.fn();service.releaseInboxOcrSlot=jest.fn();service.processInboxWithDistributedLock=jest.fn().mockResolvedValue({total:1,processed:1});
+ await expect(service.processInboxForUser('owner','business')).resolves.toEqual({total:1,processed:1});expect(service.acquireInboxOcrSlot).toHaveBeenCalledTimes(1);expect(service.processInboxWithDistributedLock).toHaveBeenCalledWith('owner','business');expect(service.releaseInboxOcrSlot).toHaveBeenCalledTimes(1);
+});

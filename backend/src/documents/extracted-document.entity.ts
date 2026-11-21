@@ -35,6 +35,8 @@ export enum ExtractedDocStatus {
   /** OCR failed on the file; row exists for diagnostics and the file is moved
    *  to processed/ so automatic intake can never parse it again. */
   ERROR = 'error',
+  /** Valid completed extraction with no identified invoice; retain for review. */
+  NO_INVOICE_FOUND = 'no_invoice_found',
   /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
    *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
    *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to
@@ -58,6 +60,8 @@ export enum ExtractedDocStatus {
 export enum ExtractedDocumentType {
   INVOICE = 'invoice',
   RECEIPT = 'receipt',
+  INSURANCE_POLICY = 'insurance_policy',
+  LICENSE_FEE = 'license_fee',
   TAX_INVOICE_RECEIPT = 'tax_invoice_receipt',
   /** חשבונית זיכוי — credit/refund invoice. Negative-amount invoice
    *  issued to reverse a prior charge. Claude returns this when the doc

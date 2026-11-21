@@ -1,0 +1,2 @@
+# Synthetic encrypted fixtures contain binary streams and byte-offset cross references.
+*.pdf binary

@@ -1,8 +1,10 @@
+import { EmailIntakeRunsService } from '../../email-intake/email-intake-runs.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
@@ -20,6 +22,7 @@ import {
 } from '../utils/gmail-sync-logging.util';
 import { GmailDriveImportService, GmailImportResult } from './gmail-drive-import.service';
 import { UserIntegrationsService } from './user-integrations.service';
+import { ProtectedPdfService } from '../../protected-pdf/protected-pdf.service';
 
 /** All user-facing date boundaries are computed on Israel's calendar day. */
 const ISRAEL_TIMEZONE = 'Asia/Jerusalem';
@@ -54,16 +57,19 @@ interface GmailSyncRunContext {
 
 /** Per-connected-mailbox sync state, one entry per Google integration row. */
 export interface GmailAccountSyncStatus {
+  passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
   /** Integration status — ACTIVE or EXPIRED (REVOKED accounts are excluded). */
   status: IntegrationStatus;
   connected: boolean;
+  remoteDisconnectPending: boolean;
   initialImportCompleted: boolean;
   initialImportCompletedAt: string | null;
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: IntegrationSyncStatus | null;
   lastSyncError: string | null;
+  syncErrorPredatesConnection: boolean;
 }
 
 export interface GmailSyncStatusResponse {
@@ -91,6 +97,8 @@ export class GmailSyncService {
   constructor(
     private readonly userIntegrationsService: UserIntegrationsService,
     private readonly gmailDriveImportService: GmailDriveImportService,
+    @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly durableRuns?: EmailIntakeRunsService,
   ) {}
 
   // --- Date boundaries -------------------------------------------------------
@@ -124,19 +132,28 @@ export class GmailSyncService {
       IntegrationProvider.GOOGLE,
     );
 
+    const passwordCounts = this.protectedPdf?.enabled()
+      ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
     return {
+      ...(this.durableRuns?.enabled()?{runs:await this.durableRuns.status(firebaseId)}:{}),
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
         id: integration.id,
+        passwordRequiredCount: passwordCounts.get(integration.id) || 0,
         accountEmail: integration.accountEmail,
         status: integration.status,
         connected: integration.status === IntegrationStatus.ACTIVE,
+        remoteDisconnectPending: integration.remoteDisconnectPending === true,
         initialImportCompleted: !!integration.initialImportCompletedAt,
         initialImportCompletedAt: integration.initialImportCompletedAt?.toISOString() ?? null,
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
         lastSyncStatus: integration.lastSyncStatus ?? null,
         lastSyncError: integration.lastSyncError ?? null,
+        syncErrorPredatesConnection: integration.status === IntegrationStatus.ACTIVE
+          && integration.lastSyncStatus === IntegrationSyncStatus.ERROR
+          && !!integration.connectionVerifiedAt && !!integration.lastSyncStartedAt
+          && integration.lastSyncStartedAt.getTime() < integration.connectionVerifiedAt.getTime(),
       })),
     };
   }
@@ -153,11 +170,16 @@ export class GmailSyncService {
     integrationId: number,
     fromDate: string,
     toDate: string,
-  ): Promise<{ started: true }> {
+  ): Promise<{ started: true; runId?: string }> {
     const integration = await this.getConnectedIntegration(firebaseId, integrationId);
     this.validateDateRange(fromDate, toDate);
     this.assertNoConflictingRun(integration);
 
+    if(this.durableRuns?.enabled()) {
+      const runId=await this.durableRuns.start(integration,{type:'INITIAL',query:this.buildDateRangeQuery(fromDate,toDate),from:fromDate,to:toDate});
+      await this.userIntegrationsService.markSyncRunning(integration.id);
+      return {started:true,runId};
+    }
     await this.userIntegrationsService.markSyncRunning(integration.id);
 
     const context: GmailSyncRunContext = {
@@ -274,6 +296,8 @@ export class GmailSyncService {
         pdfStats,
       });
 
+      this.assertCompleteScan(result);
+
       // Cursor for the nightly sync. End of the imported range is the day
       // AFTER toDate at midnight; but when toDate is today, mail keeps
       // arriving after the scan — so never place the cursor past the moment
@@ -328,6 +352,11 @@ export class GmailSyncService {
       return { outcome: 'skipped', detail: 'no sync cursor' };
     }
 
+    if(this.durableRuns?.enabled()) {
+      const after=Math.floor((integration.lastSuccessfulSyncAt.getTime()-NIGHTLY_SYNC_OVERLAP_MS)/1000);
+      await this.durableRuns.start(integration,{type:'NIGHTLY',query:'has:attachment after:'+after});
+      return {outcome:'skipped',detail:'Durable scan queued; completion tracked separately'};
+    }
     const windowEnd = new Date();
     const context: GmailSyncRunContext = {
       syncType: 'NIGHTLY',
@@ -339,7 +368,11 @@ export class GmailSyncService {
 
     const skipStats = new SkippedAttachmentsAccumulator();
     const pdfStats = new PdfContentScanAccumulator();
-    await this.userIntegrationsService.markSyncRunning(integration.id);
+    try { await this.userIntegrationsService.markSyncRunning(integration.id); }
+    catch (error) {
+      if (error instanceof ConflictException) return { outcome: 'skipped', detail: 'sync claimed by another worker or inactive connection' };
+      return { outcome: 'error', detail: 'Unable to claim synchronization' };
+    }
     this.logRunStart(context);
     try {
       // Epoch seconds, not a YYYY/MM/DD date: after: with a date is
@@ -353,6 +386,8 @@ export class GmailSyncService {
         skipStats,
         pdfStats,
       });
+
+      this.assertCompleteScan(result);
 
       try {
         await this.userIntegrationsService.markSyncSuccess(integration.id, {
@@ -376,6 +411,15 @@ export class GmailSyncService {
   }
 
   // --- Run logging (see gmail-sync-logging.util.ts for the stage vocabulary) ----
+
+  private assertCompleteScan(result: GmailImportResult): void {
+    if (result.reviewRequired) {
+      throw tagGmailSyncError(new Error(`${result.reviewRequired} קבצים דורשים בדיקה; סמן הסנכרון לא התקדם.`), 'LOAD_MESSAGE', false);
+    }
+    if (result.messagesFailed > 0) {
+      throw tagGmailSyncError(new Error('Some messages could not be read; synchronization will retry without advancing its cursor.'), 'LOAD_MESSAGE', true);
+    }
+  }
 
   private runPrefix(context: GmailSyncRunContext): string {
     return (
