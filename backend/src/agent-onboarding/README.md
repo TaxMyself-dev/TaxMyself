@@ -1,165 +1,137 @@
-# Agent onboarding
+# Shared agent profile and onboarding interface
 
-## Behavior
+KeepInTax has one agent system. `/agent/onboarding` is an interface-specific
+policy of `createAppAgent`, not a second assistant, model client or conversation
+engine. The ordinary chat uses the same profile tools without proactively
+asking onboarding questions. The dedicated onboarding interface is admin-only,
+launched from the admin console tab "היכרות עם הסוכן". The normal app shell has
+no onboarding menu link or automatic invitation. `/dev/agent/onboarding` redirects
+to the same admin-guarded canonical route.
 
-The development agent page offers a first-visit dialog and a permanent link to
-`/dev/agent/onboarding`. The new page supports free narrative, guided questions,
-explicit skips, a preview before saving, current stories, basic field status,
-history, corrections and scoped forgetting. Multi-business users choose an owned
-business explicitly. The field list is the initial configurable implementation
-of the specification, not a claim that product field selection is final.
+## Conversation and tracing
 
-Personal facts (preferred name, parallel employment, current need and open
-personal narrative) have one owner-scoped profile with empty `scope_key`.
-Business facts have a separate profile keyed by the owned business number.
-Changing a business does not copy personal facts or mix business stories.
-The initial registration is seeded from existing application data when available;
-onboarding never writes the accounting Business entity or changes tax reports.
+Both Angular interfaces use `createDevAgentChat` and the template's
+`POST /api/agent/chat`, stored `agent_chat_*` messages, streaming/resumption,
+tool loop, write serialization, approval rules, retry behavior and stop hooks.
+Onboarding restricts active tools and the server approval gate to shared profile
+reads/writes and conversation-result reads. Business/profile source is checked
+again in each tool. The existing template Langfuse integration traces the same
+agent model/tool calls, inputs and outputs to the configured local Langfuse.
+There is no separate extractor, responder, summarizer or tracing exporter.
 
-## Storage and update contract
+The UI explicitly chooses an owned business. For a new onboarding conversation,
+the backend verifies the persisted actor ADMIN role and owner access, and writes `data-onboardingContext` to stored
+history. Future turns restore this binding, even when the client omits the mode.
+Changing a conversation's interface or bound business is rejected. The shared chat
+endpoint rechecks admin authorization on every onboarding turn, including stored
+mode restoration; profile HTTP endpoints use Firebase plus OnboardingAdminGuard. This never
+uses the application's hidden business header. Incoming user parts cannot write
+the server marker. Delegates/admin impersonation cannot read or edit the owner's
+personal profile. Ordinary accounting tools retain their existing permissions.
 
-Apply `backend/scripts/migrations/2026-11-19_agent_onboarding.sql` manually to an
-authorized isolated development database first. The script creates five new
-InnoDB tables and does not alter existing accounting tables. There are no ORM
-entities for these tables, so TypeORM synchronization cannot create them.
-They are not in the generic agent gateway registry: all access is through the
-owner-scoped Nest service with parameterized SQL.
+Users tell their story freely and can request guidance in text. The same model
+interprets short answers from the actual transcript. It asks missing basic fields
+one at a time, accepts unknown/deferral, and answers profile-recall questions.
+There are no guidance/skip buttons or repeated textarea placeholders. Enter sends,
+Shift+Enter inserts a newline. Finishing sends an ordinary request in the same
+conversation; its answer becomes the narrative summary. The UI keeps grouped
+basic fields and the existing system buttons/dialogs. It does not recap after
+every message. Historical pre-migration sources remain profile context, while new
+chat messages are stored in the template conversation tables.
 
-Profiles have predefined nullable text columns, JSON field states and a
-MEDIUMTEXT story. Facts are open-ended rows with source evidence, scope,
-recording time, effective date text, precision and replacement links. Dates are
-stored as YYYY-MM-DD or YYYY-MM, never a fabricated day. Prior validity ends
-at the transition boundary; end boundaries are exclusive at the stated
-precision. Uncertain transition days remain uncertain.
+## Canonical memory
 
-The story is currently a deterministic composition of all active narrative
-facts, rather than a second lossy model rewrite. Original user narrative is
-retained in the source change log and exposed as story.narrative in the API and the original-story panel. Ordinary chat receives that dated source narrative alongside the summary. This preserves plans and details even when extraction omits them; quoted sources do not override confirmed current facts. Historical superseded and corrected facts
-remain separate and are included in ordinary chat context with status labels.
+The Nest service is a deterministic, owner-scoped store exposed through a typed
+`UserProfileMemory` port. `readUserProfile` returns story, facts/history, basic
+fields, missing fields and versions. `updateUserProfile` supplies structured
+focused mutations. Free narrative facts use `field=null`; no new DB column is
+needed. The profile's original eleven basic fields remain configurable product
+choices: preferred name, employment, business activity/stage/registration,
+workplace, vehicle, employees, partners, international work and current need.
 
-POST propose extracts only evidence-backed changes and persists an opaque
-server-side proposal for 30 minutes. The browser cannot supply facts to commit.
-The model selects evidence source IDs from an enum generated by the server from
-contiguous segments of the new message. The server resolves them into exact
-quotes before the existing strict validator runs; the model cannot manufacture
-ellipsized evidence strings. Structurally invalid model output is withheld,
-preserving the original story through the normal preview/commit path and asking
-for a missing detail instead of writing bogus facts or discarding the message.
+Personal facts use the owner's empty scope key; business facts use its business
+number. Existing five InnoDB tables are retained:
 
-Transitions without a needed date are withheld and converted to a clarification
-while retaining the original message for the next answer. Workplace modes are
-structured to preserve simultaneous home and office work. Explicit corrections
-can also invalidate disproved historical facts without pretending there was a
-real transition.
+- `agent_onboarding_profiles`: current basic fields/state, MEDIUMTEXT story, version.
+- `agent_onboarding_facts`: flexible facts, provenance, reporting time, validity,
+  date precision, replacement/correction links.
+- `agent_onboarding_proposals`: validated mutations, base versions and retry receipt.
+- `agent_onboarding_changes`: source audit and change receipt, not a chat engine.
+- `agent_onboarding_story_versions`: historical projections.
 
-POST commit locks profiles in deterministic order and then the proposal, checks
-both personal and business versions and atomically writes facts, current fields,
-story versions and conversation changes. Concurrent stale edits return 409.
-Applied proposal retries do not duplicate writes. No model/network call runs
-inside a database transaction.
+The migration SQL remains `backend/scripts/migrations/2026-11-19_agent_onboarding.sql`.
+This runtime migration requires no schema change. Existing data is retained.
+The initial registration can still be seeded from application data with its own
+provenance; profile edits never change accounting entities or tax reports.
 
-Forgetting removes the selected fact's replacement chain (or all history of its
-basic field), associated old story versions and affected source text/proposal
-payloads. It rebuilds the current story and discards unapplied owner previews.
-Other facts remain. A forgotten basic field is marked skipped to avoid asking
-for it immediately again. Ordinary chat transcripts and backups are explicitly
-outside this deletion action; the UI states that limitation.
+`prepareChanges` validates exact evidence against the CURRENT server-provided user
+message, scope, replacement IDs, dates and versions. The model cannot supply an
+alternative source message. A transition preserves the old period; correction
+marks it erroneous. Registration/workplace transitions without an effective date
+are rejected for clarification. Month precision is kept; a day is never invented.
+Concurrent home/office work is represented by all continuing workplace modes.
 
-## API and authorization
+`commit` locks owner profiles and the proposal in deterministic order and writes
+facts, current fields, story/history and receipt in one transaction. The template's
+conversation/tool-call UUID is the operation id: retrying the same operation is
+idempotent before checking a now-stale version. A different stale operation fails;
+the agent rereads and reevaluates it. The proposal expires after 30 minutes.
+No AI call occurs inside the transaction.
 
-All `/api/agent-profile` routes use FirebaseAuthGuard and the existing domain
-business ownership check. Profile reads/writes are self-service only: delegates
-and admin impersonation cannot read or change someone else's personal profile.
-This adds no new delegation permission. Ordinary chat requests receive profile
-context through an optional verified-owner domain callback. The latest context
-replaces previous context; it is not accounting evidence or an instruction.
-Ordinary chat does not start onboarding or fill gaps automatically. Profile
-updates use the dedicated onboarding conversation, not the old generic memory
-tool as a second profile store.
+Explicit forgetting removes a fact's field/replacement history, redacts profile
+source audits and drops affected story snapshots, preserving unrelated facts.
+It does not assert the opposite. Forget-all clears profile memory across the
+owner's businesses and retains only a content-free receipt. Accounting records,
+template chat transcripts and backups are not deleted by either operation.
+The fresh profile is authoritative over obsolete transcript/context references.
 
-- GET businesses: owned business directory.
-- GET profile with businessNumber: current state, facts, history and questions.
-- POST propose: message or explicit skip, businessNumber and both versions.
-- POST commit: businessNumber and opaque proposalId only.
-- POST defer: remember dismissal of the first-visit invitation.
-- POST forget: factId, businessNumber and both versions.
+Legacy `agent_memories` remain readable, but new `business_fact` saves/updates there
+fail with `AGENT_PROFILE_REQUIRED`; business facts use the canonical profile.
+Response preferences still use the template's preference-memory tools. No existing
+legacy memory is silently migrated or deleted.
 
-## Local activation
+## Checks and operation
 
-Set `AGENT_ONBOARDING_ENABLED=true` only after the new SQL is applied to the
-intended development database. Disabled onboarding does not query its tables
-from ordinary chat. Extraction uses the existing OPENAI_API_KEY with
-`store:false`, structured output and a 60-second timeout. Optional
-AGENT_ONBOARDING_MODEL defaults to gpt-4.1-mini. No key is committed.
+`AGENT_ONBOARDING_ENABLED=true` enables the owner-only feature. Existing Firebase,
+OpenAI, MySQL and template Langfuse configuration is reused. No standalone
+`LANGFUSE_ONBOARDING_ENABLED` switch is used. Local application ports remain 4204
+and 3004; this migration does not start servers.
 
-Build backend, backend/agent and frontend independently using npm. Use a distinct
-frontend/backend port pair for this feature checkout; the page accepts the same
-validated localhost `?api=` override as the development agent. Production builds
-keep both development routes disabled. Background accounting reviews are not
-implemented by this feature.
+- Agent package: `npm run typecheck`, `npm run check`, `npm test`, `npm run build`.
+- Nest: focused onboarding domain/store tests and `npm run build`.
+- Approved synthetic dev persistence: `node scripts/run-onboarding-dev-tests.cjs
+  --database=keepintax-dev --persistence-only` from backend. No HTTP listener.
+- Angular: onboarding/shared-chat ChromeHeadless tests using
+  `tsconfig.onboarding-spec.json`, then the production build.
 
-## Verification
+The old extractor/tracer tests, standalone model smoke scripts and dedicated
+propose/summary HTTP pipeline are removed. Regressions now cover the shared
+agent policy/tool contracts, template harness, scoped persistence and UI transport.
+Authenticated manual visual verification requires the user to start the servers.
 
-Backend unit/access checks: `npm test -- --runInBand --runTestsByPath
-src/agent-onboarding/onboarding.domain.spec.ts
-src/agent-onboarding/onboarding.service.spec.ts
-src/agent-onboarding/onboarding.mysql.spec.ts
-src/agent-harness/agent-harness.controller.spec.ts
-src/agent-harness/agent-harness.access.spec.ts`.
 
-MySQL integration tests support ONBOARDING_TEST_MYSQL_URL only for a disposable
-local database named onboarding_test. The separately approved development route
-is `node backend/scripts/run-onboarding-dev-tests.cjs --database=keepintax-dev`
-from the repository root. It requires the existing backend/.env database to
-independently equal keepintax-dev and rechecks SELECT DATABASE() before tests.
-Without either explicit test mode, database tests skip. No production target is
-accepted. `--http-only` and `--persistence-only` run bounded affected suites.
+## Chat feedback and recovery (2026-11-21)
 
-Each suite uses a fresh onboarding-qa UUID namespace; all writes and cleanup are
-restricted to its exact synthetic owner IDs in the new onboarding tables. It
-never inserts real User or Business records. HTTP tests use the real controller,
-DTO validation and FirebaseAuthGuard, with token verification and the synthetic
-business directory supplied as test fixtures. One HTTP smoke case uses the
-configured real model on synthetic narrative. This is not a browser login or a
-production Firebase-token integration test. Both suites verify cleanup before
-closing. Default runs execute each suite in its own Jest process and retain
-machine-readable reports/logs under ignored .test-tmp/onboarding-dev.
+The thinking indicator is a live assistant bubble inside the scrollable chat,
+covering submitted/streaming states, with a reduced-motion-safe pulse. New messages
+and status changes scroll it into view. Summary generation uses its own label.
+Late callbacks after component destruction are ignored. The shared transport passes
+SDK isError/isAbort/isDisconnect flags to consumers; onboarding never treats these
+as successful summary completion. Profile refresh blocks competing sends briefly,
+retains a completed answer on failure, and discards stale business/generation reads.
+Credential-free client warning names identify chat transport versus profile-refresh
+failure. These do not prove the cause of an unrecorded historical browser error.
 
-Schema operations require separate explicit authorization. For the approved
-development target only, `node backend/scripts/apply-agent-onboarding-schema.cjs
---database=keepintax-dev --check` verifies the selected DB and reports existing
-onboarding tables. `--apply` executes only the five allowlisted CREATE statements
-and verifies every column name/type. It does not alter existing application
-tables. Check its guard tests with `node --test
-backend/scripts/onboarding-test-target.test.cjs` from the repository root.
-
-Frontend browser checks: `npm test -- --watch=false --browsers=ChromeHeadless
---include=src/app/pages/agent-onboarding/*.spec.ts
---ts-config=tsconfig.onboarding-spec.json`.
-
-Run Nest and Angular production builds; run agent typecheck, check, unit tests
-and build. Exact results, skips and outstanding activation checks belong to
-the feature task record. Retention/cleanup jobs, profile retrieval optimization,
-background review scheduling and a full erasure policy remain separate work.
-
-## Development verification completed on 19 November 2026
-
-The schema was explicitly approved and applied to keepintax-dev only. All five
-tables and their columns were verified; no accounting tables were altered.
-Final bounded runs passed 10 persistence tests and 8 HTTP-to-MySQL tests, with
-zero skipped. The HTTP suite includes one real-model synthetic narrative case
-and a deterministic omitted-plan regression. Separate owner-scoped cleanup and
-a final read-only count verified zero remaining QA rows in all five tables.
-The auth-token verifier and account directory are fixtures; a real browser login
-against Firebase is not claimed by these HTTP tests. Main integration and push
-remain explicitly prohibited. See the active feature task for exact commands,
-reports, intermediate failures, fixes and reused build evidence.
+Admin entry does not grant access to another owner's personal profile: the existing
+self-service/delegation/impersonation restrictions remain. Ordinary agent profile
+memory stays shared; this access restriction applies to the dedicated onboarding
+surface and its HTTP management endpoints.
 
 ## Automation integration
 
-The automatic-classification feature adds public authenticated /agent/onboarding
-and /agent/chat entries reusing these components. The existing dev routes keep
-their gate. Its completion policy reuses FIELDS but requires known nonempty
-values or explicit not_applicable; unknown/skipped answers remain valid onboarding
-responses but do not authorize unattended classification. It reads current profile
-versions directly and locks them again before a classification write.
+Automatic classification keeps the authenticated /agent/chat entry. The dedicated
+/agent/onboarding surface and its profile HTTP endpoints retain the onboarding
+branch's Admin authorization. Settings links include the owned business number.
+Completion requires known nonempty FIELDS values or explicit not_applicable;
+unknown/skipped remain valid memory but block unattended classification. The
+worker reads current versions and locks them again before classification writes.

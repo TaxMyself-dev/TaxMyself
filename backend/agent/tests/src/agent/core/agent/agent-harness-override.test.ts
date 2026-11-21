@@ -20,7 +20,10 @@ import { exampleEvalSettings } from "../../../../evals/agent/harness/agent-eval-
 // it leaves.
 
 // The body of the agent's first request, with the given harness.
-const firstRequestBody = async (harness?: AgentHarnessOverride) => {
+const firstRequestBody = async (
+  harness?: AgentHarnessOverride,
+  onboardingBusiness?: string
+) => {
   const bodies: string[] = [];
 
   const model = createOpenAI({
@@ -45,6 +48,7 @@ const firstRequestBody = async (harness?: AgentHarnessOverride) => {
     email: { send: () => Effect.die(new Error("unused")) },
     books: unusedEvalBooks(() => Effect.die(new Error("unused"))),
     harness,
+    onboardingBusiness,
   });
 
   try {
@@ -84,5 +88,14 @@ describe("agent harness override", () => {
     });
 
     assert.notInclude(body, "HARNESS_UNKNOWN_TOOL_MARKER");
+  });
+
+  it("the same agent uses onboarding policy and only profile tools for that interface", async () => {
+    const body = await firstRequestBody(undefined, "111");
+    assert.include(body, "onboarding_interface");
+    assert.include(body, "readUserProfile");
+    assert.include(body, "updateUserProfile");
+    assert.notInclude(body, '"name":"queryExpenses"');
+    assert.include(body, "<approvals>");
   });
 });

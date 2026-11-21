@@ -38,6 +38,7 @@ import {
   langfuseIntegrations,
   traceLangfuseAgentAnswer,
 } from "@/server/integrations/langfuse-tracing.server";
+import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import {
   appRuntime,
   flushAppTelemetry,
@@ -45,6 +46,8 @@ import {
 } from "@/server/runtime/app-runtime.server";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
 import type { SupabaseQueryError } from "@/server/runtime/supabase-query";
+
+import { agentChatSentText } from "./agent-chat-request.server";
 
 // Running one answer once its conversation is opened (answerAgentChatRequest,
 // agent-chat-response.server.ts): the agent in its Langfuse trace, the
@@ -131,6 +134,7 @@ const logAgentChatAnswerSaveFailure = (error: SupabaseQueryError) =>
  * release.
  */
 interface AgentChatAnswerRun {
+  readonly onboardingBusiness?: string;
   readonly request: Request;
   readonly supabase: UserSupabaseClient;
   readonly body: AgentChatRequest;
@@ -198,6 +202,12 @@ export const streamAgentChatAnswer = Effect.fn("streamAgentChatAnswer")(
     const runAgentChatAnswer = async (finishTrace: (output: string) => void) =>
       await streamAgentChatTurn({
         agent: createAppAgent({
+          onboardingBusiness: run.onboardingBusiness,
+          profileMemory: currentAgentDomain()?.profile,
+          profileMessage:
+            body.message.role === "user"
+              ? agentChatSentText(body.message.parts)
+              : undefined,
           conversationId: body.id,
           userId,
           model,

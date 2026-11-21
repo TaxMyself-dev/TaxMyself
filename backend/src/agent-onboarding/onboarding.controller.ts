@@ -1,4 +1,8 @@
+import { AgentDomainService } from '../agent-harness/agent-domain.service';
 import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
   Body,
   Controller,
   Get,
@@ -9,7 +13,6 @@ import {
 } from '@nestjs/common';
 import {
   IsInt,
-  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
@@ -23,17 +26,6 @@ import { OnboardingService } from './onboarding.service';
 class VersionDto {
   @IsInt() person: number;
   @IsInt() business: number;
-}
-class ProposeDto {
-  @IsString() @MaxLength(100) businessNumber: string;
-  @ValidateNested() @Type(() => VersionDto) version: VersionDto;
-  @IsOptional() @IsString() @MaxLength(12000) message?: string;
-  @IsOptional() @IsString() @MaxLength(40) skipField?: string;
-  @IsOptional() @IsString() @MaxLength(40) guidedField?: string;
-}
-class CommitDto {
-  @IsString() @MaxLength(100) businessNumber: string;
-  @IsUUID() proposalId: string;
 }
 class ScopeDto {
   @IsString() @MaxLength(100) businessNumber: string;
@@ -52,8 +44,16 @@ function identity(req: AuthenticatedRequest): AgentHarnessUser {
     isAdminImpersonation: req.isAdminImpersonation === true,
   };
 }
+@Injectable()
+export class OnboardingAdminGuard implements CanActivate {
+  constructor(private readonly domain: AgentDomainService) {}
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    await this.domain.assertOnboardingAdmin(identity(context.switchToHttp().getRequest<AuthenticatedRequest>()));
+    return true;
+  }
+}
 @Controller('api/agent-profile')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, OnboardingAdminGuard)
 export class OnboardingController {
   constructor(private readonly service: OnboardingService) {}
   @Get('businesses') businesses(@Req() req: AuthenticatedRequest) {
@@ -64,22 +64,6 @@ export class OnboardingController {
     @Query('businessNumber') business?: string,
   ) {
     return this.service.read(identity(req), business);
-  }
-  @Post('propose') propose(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: ProposeDto,
-  ) {
-    return this.service.propose(identity(req), body);
-  }
-  @Post('commit') commit(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: CommitDto,
-  ) {
-    return this.service.commit(
-      identity(req),
-      body.businessNumber,
-      body.proposalId,
-    );
   }
   @Post('defer') defer(
     @Req() req: AuthenticatedRequest,

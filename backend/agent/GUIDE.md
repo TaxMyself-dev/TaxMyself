@@ -266,7 +266,17 @@ KeepInTax's dev page assigns a conversation UUID before its first saved message.
 
 ## Onboarding profile
 
-The owner-only onboarding conversation and MySQL memory are served by the Nest module at backend/src/agent-onboarding. The development page links to /dev/agent/onboarding. An optional readOnboardingContext domain callback adds the current story and dated history to each ordinary chat turn; it does not start profile questions or change accounting data. AGENT_ONBOARDING_ENABLED defaults off, and SQL must be applied to an authorized development database first. Profile updates and scoped forgetting use the dedicated onboarding page, not the legacy generic memory tools. See ../src/agent-onboarding/README.md for tables, APIs, activation, test commands and deletion limits.
+The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agent/onboarding` uses the shared template chat runtime with an onboarding interface policy; ordinary chat uses the same canonical read/update tools without proactive profile questions. The optional readOnboardingContext callback supplies existing story and dated history. AGENT_ONBOARDING_ENABLED defaults off. See the one-agent section below and ../src/agent-onboarding/README.md for ownership, versioned writes, history and deletion limits.
+
+## One agent, onboarding interface (2026-11-20)
+
+`createAppAgent` composes one common harness with an optional server-bound onboarding policy. Both Angular chat surfaces use its normal streaming endpoint, stored conversation lifecycle and template Langfuse integration. The server stores the explicit owned business in `data-onboardingContext`; it rejects mode/business switches and rechecks owner-only access. No hidden business header is used.
+
+`UserProfileMemory` is the host-supplied canonical personal/business memory port. `readUserProfile` is common/eager; `updateUserProfile` is normally deferred under `profile` to preserve the existing 20,000-character up-front budget. Onboarding keeps this tool eager and restricts both activeTools and toolApproval to profile and conversation-result reads. Source evidence comes from the server's current message (or validated steer), never an input field supplied by the model. The existing Nest store retains atomic versioned writes, temporal facts and deletion. Legacy generic business_fact writes fail rather than creating a competing profile; preference memory still works. Ordinary chat can act on explicit profile requests without starting onboarding questions. The summary is an ordinary turn in the same conversation. See `../src/agent-onboarding/README.md` for storage and verification. This supersedes the earlier dedicated extractor/tracing design and profile-edit redirect.
+
+### Admin onboarding entry (2026-11-21)
+
+The onboarding interface is launched only from the admin console. `authorizeOnboarding` is a host-bound callback that checks the actor's persisted ADMIN role before any profile read in that mode, including mode recovered from stored conversation history. Missing callback fails closed. Profile HTTP management has the same persisted-role guard; the normal app no longer mounts the invitation or menu link. Personal profile ownership/delegation checks and ordinary shared-agent memory behavior are unchanged.
 
 ## Automatic classification enqueue (2026-11-19)
 

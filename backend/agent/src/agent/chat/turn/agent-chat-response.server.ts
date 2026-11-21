@@ -39,6 +39,10 @@ import {
   agentConversationBusinessState,
   withAgentBusinessContext,
 } from "@/agent/tools/books/agent-conversation-business";
+import {
+  authorizeOnboardingSurface,
+  profileConversationBusiness,
+} from "@/agent/tools/profile/agent-profile-surface";
 import { createKeepInTaxBooks } from "@/server/agent-ports.server";
 import { currentAgentDomain } from "@/server/runtime/agent-request-context";
 import type { UserSupabaseClient } from "@/server/runtime/supabase-client";
@@ -246,12 +250,64 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
       // KeepInTax (2026-11-15, business selection): the businesses a new
       // message names are recorded on it, and the conversation's business
       // is read from the stored messages (agent-conversation-business.ts).
+      const surface = yield* Effect.tryPromise(async () => {
+        const businessNumber = profileConversationBusiness(
+          history,
+          body.onboarding?.businessNumber
+        );
+
+        if (businessNumber !== undefined) {
+          await authorizeOnboardingSurface(
+            currentAgentDomain(),
+            businessNumber
+          );
+        }
+
+        return businessNumber;
+      }).pipe(
+        Effect.match({
+          onFailure: () => ({ ok: false as const, businessNumber: null }),
+          onSuccess: (businessNumber) => ({
+            ok: true as const,
+            businessNumber,
+          }),
+        })
+      );
+
+      if (!surface.ok) {
+        return agentChatError(
+          "AGENT_PROFILE_ACCESS",
+          "Profile/interface is unavailable or belongs to another business.",
+          403
+        );
+      }
+
+      const onboardingBusiness = surface.businessNumber ?? undefined;
+
+      if (onboardingBusiness !== undefined) {
+        const last = prepared.at(-1);
+
+        if (
+          last &&
+          !last.parts.some((part) => part.type === "data-onboardingContext")
+        ) {
+          last.parts.push({
+            type: "data-onboardingContext",
+            data: { businessNumber: onboardingBusiness },
+          });
+        }
+      }
+
       const withBusinesses = withAgentBusinessContext(prepared, directory);
 
       const business = agentConversationBusinessState(
         directory,
         withBusinesses
       );
+
+      if (onboardingBusiness !== undefined) {
+        business.current = onboardingBusiness;
+      }
 
       const onboardingContext = yield* Effect.promise(
         async () =>
@@ -301,6 +357,7 @@ export const answerAgentChatRequest = Effect.fn("answerAgentChatRequest")(
         answerSignal,
         releaseAnswer,
         business,
+        onboardingBusiness,
       });
 
       streaming = true;

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Business } from 'src/business/business.entity';
@@ -250,6 +250,12 @@ export class AgentDomainService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
+
+  async assertOnboardingAdmin(user: AgentHarnessUser): Promise<void> {
+    if (!user.actorFirebaseId) throw new ForbiddenException('Admin access required');
+    const actor = await this.userRepository.findOne({ where: { firebaseId: user.actorFirebaseId } });
+    if (!actor?.role?.includes(UserRole.ADMIN)) throw new ForbiddenException('Admin access required');
+  }
 
   forUser(user: AgentHarnessUser): AgentExpensesDomain {
     return {

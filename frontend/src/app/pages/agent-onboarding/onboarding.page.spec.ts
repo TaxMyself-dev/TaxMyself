@@ -1,42 +1,32 @@
+import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { provideHttpClient } from "@angular/common/http";
 import {
-  provideHttpClientTesting,
   HttpTestingController,
+  provideHttpClientTesting,
 } from "@angular/common/http/testing";
-import {
-  ActivatedRoute,
-  convertToParamMap,
-  provideRouter,
-} from "@angular/router";
+import { ActivatedRoute, convertToParamMap } from "@angular/router";
+import { AngularFireAuth } from "@angular/fire/compat/auth";
+import { of } from "rxjs";
 import { OnboardingPage } from "./onboarding.page";
-describe("OnboardingPage", () => {
-  let page: OnboardingPage;
-  let http: HttpTestingController;
+describe("onboarding shared chat", () => {
+  let page: OnboardingPage, http: HttpTestingController;
   const snapshot: any = {
     businessNumber: "111",
-    version: { person: 0, business: 0 },
-    invitation: "new",
+    version: { person: 1, business: 1 },
     story: { person: "", business: "" },
-    fields: [
-      {
-        key: "preferred_name",
-        label: "שם",
-        question: "איך לפנות?",
-        state: "unasked",
-      },
-    ],
     facts: [],
+    fields: [],
     turns: [],
-    missing: ["preferred_name"],
-    opening: "ספר לי",
+    missing: [],
+    opening: "ספרו לי",
   };
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([]),
+        { provide: AngularFireAuth, useValue: { idToken: of("token") } },
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParamMap: convertToParamMap({}) } },
@@ -45,112 +35,95 @@ describe("OnboardingPage", () => {
     });
     page = TestBed.runInInjectionContext(() => new OnboardingPage());
     http = TestBed.inject(HttpTestingController);
+    page.snapshot.set(snapshot);
+    page.selected = "111";
   });
   afterEach(() => http.verify());
-  it("loads one business and offers first introduction", async () => {
-    const done = page.ngOnInit();
-    http
-      .expectOne(page.api + "api/agent-profile/businesses")
-      .flush([{ number: "111", name: "עסק" }]);
-    await Promise.resolve();
-    http
-      .expectOne((r) => r.url === page.api + "api/agent-profile")
-      .flush(snapshot);
-    await done;
-    expect(page.welcome()).toBeTrue();
-  });
-  it("previews before saving and keeps the user text", async () => {
-    page.snapshot.set(snapshot);
-    page.selected = "111";
-    page.draft = "אלעזר";
-    await page.guided();
-    const done = page.send();
-    const req = http.expectOne(page.api + "api/agent-profile/propose");
-    expect(req.request.body.message).toBe("אלעזר");
-    expect(req.request.body.guidedField).toBe("preferred_name");
-    req.flush({
-      id: "p",
-      facts: [{ statement: "אלעזר" }],
-      clarification: null,
-    });
-    await done;
-    expect(page.proposal()?.id).toBe("p");
-    expect(page.draft).toBe("אלעזר");
-  });
-  it("keeps draft on version conflict", async () => {
-    page.snapshot.set(snapshot);
-    page.draft = "עדכון";
-    const done = page.send();
-    http
-      .expectOne(page.api + "api/agent-profile/propose")
-      .flush({}, { status: 409, statusText: "Conflict" });
-    await done;
-    expect(page.draft).toBe("עדכון");
-    expect(page.error()).toContain("חלון אחר");
-    expect(page.busy()).toBeFalse();
-  });
-  it("submits only a server-side proposal ID when confirming", async () => {
-    page.selected = "111";
-    page.proposal.set({ id: "p", facts: [], clarification: null });
-    page.draft = "טקסט";
-    const done = page.save();
-    const req = http.expectOne(page.api + "api/agent-profile/commit");
-    expect(req.request.body).toEqual({
-      businessNumber: "111",
-      proposalId: "p",
-    });
-    req.flush(snapshot);
-    await done;
-    expect(page.proposal()).toBeNull();
+  it("sends text using the shared chat, with no extraction or commit request", async () => {
+    const send = jasmine.createSpy().and.resolveTo();
+    page.chat.set({ status: "ready", messages: [], sendMessage: send } as any);
+    page.draft = "מה אתה כבר יודע עליי?";
+    await page.send();
+    expect(send).toHaveBeenCalledOnceWith({ text: "מה אתה כבר יודע עליי?" });
     expect(page.draft).toBe("");
   });
-  it("renders the actual Hebrew conversation and memory panels", async () => {
-    spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();
-    const fixture = TestBed.createComponent(OnboardingPage);
-    fixture.componentInstance.snapshot.set(snapshot);
-    fixture.detectChanges();
-    expect(
-      fixture.nativeElement.querySelector("main").getAttribute("dir")
-    ).toBe("rtl");
-    expect(fixture.nativeElement.querySelector("textarea")).not.toBeNull();
-    expect(fixture.nativeElement.textContent).toContain("מה אני זוכר עליך");
-    expect(fixture.nativeElement.textContent).toContain(
-      "היסטוריית המידע ומחיקה מהזיכרון"
-    );
+  it("requests a summary in the same conversation only when finishing", async () => {
+    const send = jasmine.createSpy().and.resolveTo();
+    page.chat.set({ status: "ready", messages: [], sendMessage: send } as any);
+    await page.finish();
+    expect(send.calls.mostRecent().args[0].text).toContain("סכם לי בסיפור");
+    expect(page.summary()).toBeFalse();
   });
-  it("locks the composer while a saved preview needs a decision", async () => {
-    spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();
-    const fixture = TestBed.createComponent(OnboardingPage);
-    fixture.componentInstance.snapshot.set(snapshot);
-    fixture.componentInstance.proposal.set({
-      id: "p",
-      facts: [
+  it("Enter sends and Shift+Enter preserves a newline", () => {
+    const send = spyOn(page, "send").and.resolveTo();
+    const enter = new KeyboardEvent("keydown", {
+      key: "Enter",
+      cancelable: true,
+    });
+    page.onComposerKeydown(enter);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(enter.defaultPrevented).toBeTrue();
+    page.onComposerKeydown(
+      new KeyboardEvent("keydown", { key: "Enter", shiftKey: true }),
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+  it("does not submit while an answer is streaming", async () => {
+    const send = jasmine.createSpy();
+    page.chat.set({
+      status: "streaming",
+      messages: [],
+      sendMessage: send,
+    } as any);
+    page.draft = "לא";
+    await page.send();
+    expect(send).not.toHaveBeenCalled();
+    expect(page.draft).toBe("לא");
+  });
+  it("deletes an identified fact with the current version and invalidates the summary", async () => {
+    page.summary.set(true);
+    page.summaryText.set("סיפור ישן");
+    const done = page.forget("fact-id");
+    const request = http.expectOne(page.api + "api/agent-profile/forget");
+    expect(request.request.body).toEqual({
+      businessNumber: "111",
+      factId: "fact-id",
+      version: snapshot.version,
+    });
+    request.flush(snapshot);
+    await done;
+    expect(page.summaryText()).toBe("");
+    expect(page.summary()).toBeFalse();
+  });
+});
+
+describe("onboarding thinking state", () => {
+  it("tracks submitted and streaming status reactively", () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AngularFireAuth, useValue: { idToken: of("token") } },
         {
-          statement: "עובד מהבית",
-          effectiveDate: null,
-          precision: "unknown",
-          change: "add",
+          provide: ActivatedRoute,
+          useValue: { snapshot: { queryParamMap: convertToParamMap({}) } },
         },
       ],
-      clarification: null,
     });
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector("textarea").disabled).toBeTrue();
-    expect(fixture.nativeElement.textContent).toContain("עובד מהבית");
-  });
-  it("shows original narrative even if the summary omits a plan", async () => {
-    spyOn(OnboardingPage.prototype, "ngOnInit").and.resolveTo();
-    const fixture = TestBed.createComponent(OnboardingPage);
-    fixture.componentInstance.snapshot.set({
-      ...snapshot,
-      story: { person: "", business: "", narrative: "אני מתכנן קורס דיגיטלי" },
-    });
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain("הסיפור במילים שלך");
-    expect(fixture.nativeElement.textContent).toContain(
-      "אני מתכנן קורס דיגיטלי"
-    );
+    const page = TestBed.runInInjectionContext(() => new OnboardingPage());
+    const state = signal("ready");
+    page.chat.set({
+      get status() {
+        return state();
+      },
+      messages: [],
+    } as any);
+    expect(page.thinking()).toBeFalse();
+    state.set("submitted");
+    expect(page.thinking()).toBeTrue();
+    state.set("streaming");
+    expect(page.thinking()).toBeTrue();
+    state.set("error");
+    expect(page.thinking()).toBeFalse();
   });
 });

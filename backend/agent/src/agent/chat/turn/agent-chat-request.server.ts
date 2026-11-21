@@ -13,6 +13,9 @@ import { trimmedLengthString } from "../../../../backend/shared/schema/trimmed-l
 const agentChatUuid = Schema.String.check(Schema.isUUID());
 
 export const agentChatRequestSchema = Schema.Struct({
+  onboarding: Schema.optionalKey(
+    Schema.Struct({ businessNumber: trimmedLengthString(1, 100) })
+  ),
   userId: agentChatUuid,
   id: agentChatUuid,
   message: Schema.Struct({

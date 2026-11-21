@@ -28,6 +28,10 @@ import { updateUserSettingsTool } from "@/agent/tools/conversation/user-settings
 import { sendEmailTool } from "@/agent/tools/examples/example-email-tool";
 import { searchWebTool } from "@/agent/tools/examples/example-web-search-tool";
 import {
+  readUserProfileTool,
+  updateUserProfileTool,
+} from "@/agent/tools/profile/agent-profile-tools";
+import {
   getAdvanceTaxStatusTool,
   getProfitAndLossTool,
   getReportReadinessTool,
@@ -52,6 +56,8 @@ import { startAutomaticClassificationTool } from "../../tools/books/books-tools"
 
 // Every tool the agent has; stored chat messages are validated against them.
 export const appAgentTools = {
+  readUserProfile: readUserProfileTool,
+  updateUserProfile: updateUserProfileTool,
   // Tracking tasks and what the background monitor found for them
   // (src/agent/tools/tasks).
   listTrackingTasks: listTrackingTasksTool,

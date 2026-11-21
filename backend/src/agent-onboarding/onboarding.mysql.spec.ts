@@ -13,7 +13,7 @@ const {
 const approvedDev =
   process.env.ONBOARDING_APPROVED_DATABASE === 'keepintax-dev';
 const runId = randomUUID();
-const owners = ['alice', 'bob', 'seed'].map(
+const owners = ['alice', 'bob', 'seed', 'live'].map(
   (name) => `onboarding-qa-${runId}-${name}`,
 );
 const local = process.env.ONBOARDING_TEST_MYSQL_URL;
@@ -65,16 +65,12 @@ suite('onboarding transactional MySQL', () => {
       for (const statement of sql.split(';').filter((s) => s.trim()))
         await db.query(statement);
     }
-    service = new OnboardingService(
-      db,
-      {
-        ownerBusinesses: async () => [
-          { businessNumber: '111', businessName: 'עסק ראשון' },
-          { businessNumber: '222', businessName: 'עסק שני' },
-        ],
-      } as any,
-      { extract: async () => extraction } as any,
-    );
+    service = new OnboardingService(db, {
+      ownerBusinesses: async () => [
+        { businessNumber: '111', businessName: 'עסק ראשון' },
+        { businessNumber: '222', businessName: 'עסק שני' },
+      ],
+    } as any);
   }, 30000);
   afterAll(async () => {
     delete process.env.AGENT_ONBOARDING_ENABLED;
@@ -86,6 +82,17 @@ suite('onboarding transactional MySQL', () => {
       }
     }
   });
+  async function prepare(
+    store: OnboardingService,
+    owner: typeof user,
+    body: any,
+  ) {
+    return store.prepareChanges(owner, {
+      ...body,
+      extraction,
+      operationId: randomUUID(),
+    });
+  }
   function f(
     field: string | null,
     scope: string,
@@ -109,7 +116,7 @@ suite('onboarding transactional MySQL', () => {
   async function save(facts: any[], message: string, businessNumber = '111') {
     const state = await service.read(user, businessNumber);
     extraction = { facts, clarification: null };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber,
       version: state.version,
       message,
@@ -184,12 +191,12 @@ suite('onboarding transactional MySQL', () => {
       facts: [f(null, 'business', 'מטרה חדשה')],
       clarification: null,
     };
-    const a = await service.propose(user, {
+    const a = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'מטרה חדשה',
     });
-    const b = await service.propose(user, {
+    const b = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'מטרה חדשה',
@@ -204,7 +211,7 @@ suite('onboarding transactional MySQL', () => {
   it('rejects cross-owner proposal IDs', async () => {
     const state = await service.read(user, '111');
     extraction = { facts: [], clarification: 'ממתי?' };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'עדכון',
@@ -235,15 +242,11 @@ suite('onboarding transactional MySQL', () => {
       firebaseId: owners[2],
       actorFirebaseId: owners[2],
     };
-    const seeded = new OnboardingService(
-      db,
-      {
-        ownerBusinesses: async () => [
-          { businessNumber: '333', businessType: 'EXEMPT' },
-        ],
-      } as any,
-      { extract: async () => ({ facts: [], clarification: null }) } as any,
-    );
+    const seeded = new OnboardingService(db, {
+      ownerBusinesses: async () => [
+        { businessNumber: '333', businessType: 'EXEMPT' },
+      ],
+    } as any);
     const first = await seeded.read(seededUser, '333');
     const again = await seeded.read(seededUser, '333');
     expect(first.fields.find((f) => f.key === 'registration')).toMatchObject({
@@ -264,12 +267,12 @@ suite('onboarding transactional MySQL', () => {
       facts: [f(null, 'business', 'תוספת מקבילה')],
       clarification: null,
     };
-    const a = await service.propose(user, {
+    const a = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תוספת מקבילה',
     });
-    const b = await service.propose(user, {
+    const b = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'תוספת מקבילה',
@@ -294,7 +297,7 @@ suite('onboarding transactional MySQL', () => {
       facts: [f('activity', 'business', 'תיאור שנכשל בשמירה')],
       clarification: null,
     };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: before.version,
       message: 'תיאור שנכשל בשמירה',
@@ -316,7 +319,6 @@ suite('onboarding transactional MySQL', () => {
     const faulting = new OnboardingService(
       faultingDb as any,
       { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
-      {} as any,
     );
     await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
       'INJECTED_LATE_FAILURE',
@@ -335,7 +337,7 @@ suite('onboarding transactional MySQL', () => {
   it('expires previews using database time without applying changes', async () => {
     const state = await service.read(user, '111');
     extraction = { facts: [], clarification: 'ממתי?' };
-    const proposal = await service.propose(user, {
+    const proposal = await prepare(service, user, {
       businessNumber: '111',
       version: state.version,
       message: 'עדכון ישן',
@@ -348,5 +350,168 @@ suite('onboarding transactional MySQL', () => {
       'פג',
     );
     expect((await service.read(user, '111')).version).toEqual(state.version);
+  });
+  it('deletes employment through chat including past corrections and assistant recaps, without asserting the opposite', async () => {
+    let state = (
+      await save([f('employment', 'person', 'סוד-שכיר-כן')], 'סוד-שכיר-כן')
+    ).snapshot;
+    const old = state.facts.find((f) => f.field_key === 'employment');
+    state = (
+      await save(
+        [
+          f('employment', 'person', 'סוד-שכיר-לא', {
+            replaces: old.id,
+            change: 'correction',
+          }),
+        ],
+        'סוד-שכיר-לא',
+      )
+    ).snapshot;
+    await db.query(
+      'UPDATE agent_onboarding_changes SET assistant_text=? WHERE owner_uid=?',
+      ['סוד-שכיר-כן סוד-שכיר-לא', user.firebaseId],
+    );
+    const target = state.facts.find(
+      (f) => f.field_key === 'employment' && f.status === 'active',
+    );
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_facts',
+      forgetIds: [target.id],
+    };
+    const proposal = await prepare(service, user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תמחק את המידע עלי כשכיר',
+    });
+    const after = await service.commit(user, '111', proposal.id);
+    expect(after.facts.some((f) => f.field_key === 'employment')).toBe(false);
+    expect(after.fields.find((f) => f.key === 'employment')).toMatchObject({
+      value: null,
+      state: 'skipped',
+    });
+    expect(after.story.business).toContain('תבניות');
+    expect(JSON.stringify(after)).not.toContain('סוד-שכיר');
+    const again = await service.commit(user, '111', proposal.id);
+    expect(again.version).toEqual(after.version);
+  });
+  it('rolls back a chat-wide deletion if its receipt cannot be saved', async () => {
+    const before = await service.read(user, '111');
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_all',
+      forgetIds: [],
+    };
+    const proposal = await prepare(service, user, {
+      businessNumber: '111',
+      version: before.version,
+      message: 'תמחק את כל מה ששמרת עלי',
+    });
+    const faulting = new OnboardingService(
+      {
+        query: db.query.bind(db),
+        manager: db.manager,
+        transaction: (work) =>
+          db.transaction((manager) =>
+            work({
+              query: (sql, params) => {
+                if (sql.startsWith('INSERT INTO agent_onboarding_changes'))
+                  throw new Error('DELETE_RECEIPT_FAILURE');
+                return manager.query(sql, params);
+              },
+            }),
+          ),
+      } as any,
+      { ownerBusinesses: async () => [{ businessNumber: '111' }] } as any,
+    );
+    await expect(faulting.commit(user, '111', proposal.id)).rejects.toThrow(
+      'DELETE_RECEIPT_FAILURE',
+    );
+    const after = await service.read(user, '111');
+    expect(after).toEqual(before);
+  });
+  it('clears all owner businesses through chat and preserves another owner and the applied receipt', async () => {
+    const bob = { ...user, firebaseId: owners[1], actorFirebaseId: owners[1] };
+    const bobState = await service.read(bob, '111');
+    extraction = {
+      facts: [f('preferred_name', 'person', 'שם-בוב')],
+      clarification: null,
+    };
+    const bobProposal = await prepare(service, bob, {
+      businessNumber: '111',
+      version: bobState.version,
+      message: 'שם-בוב',
+    });
+    await service.commit(bob, '111', bobProposal.id);
+    await save(
+      [f(null, 'business', 'מידע בעסק נוסף')],
+      'מידע בעסק נוסף',
+      '222',
+    );
+    const state = await service.read(user, '111');
+    extraction = {
+      facts: [],
+      clarification: null,
+      intent: 'forget_all',
+      forgetIds: [],
+    };
+    const proposal = await prepare(service, user, {
+      businessNumber: '111',
+      version: state.version,
+      message: 'תמחק את כל מה ששמרת עלי',
+    });
+    const after = await service.commit(user, '111', proposal.id);
+    for (const number of ['111', '222']) {
+      const result = await service.read(user, number);
+      expect(result.facts).toEqual([]);
+      expect(result.fields.every((f) => f.value === null)).toBe(true);
+      expect(result.story.person).toBe('');
+      expect(result.story.business).toBe('');
+    }
+    expect((await service.read(bob, '111')).story.person).toContain('שם-בוב');
+    expect((await service.commit(user, '111', proposal.id)).version).toEqual(
+      after.version,
+    );
+    const stored = await db.query(
+      'SELECT source_text,payload,applied_at FROM agent_onboarding_proposals WHERE id=?',
+      [proposal.id],
+    );
+    expect(stored[0].applied_at).toBeTruthy();
+    expect(stored[0].source_text).toBe('בקשת מחיקה מהזיכרון');
+  });
+  it('stores consecutive negative answers in the explicit fields supplied by the shared agent, leaving employment intact', async () => {
+    const state = await service.read(user, '111');
+    const employment = state.fields.find((field) => field.key === 'employment');
+    await save(
+      [
+        f('employees', 'business', 'אין עובדים', {
+          value: 'לא',
+          evidence: 'לא',
+        }),
+      ],
+      'לא',
+    );
+    const after = (
+      await save(
+        [
+          f('partners', 'business', 'אין שותפים', {
+            value: 'לא',
+            evidence: 'לא',
+          }),
+        ],
+        'לא',
+      )
+    ).snapshot;
+    expect(after.fields.find((field) => field.key === 'employees')?.value).toBe(
+      'לא',
+    );
+    expect(after.fields.find((field) => field.key === 'partners')?.value).toBe(
+      'לא',
+    );
+    expect(after.fields.find((field) => field.key === 'employment')).toEqual(
+      employment,
+    );
   });
 });

@@ -129,6 +129,18 @@ export const agentAnswerNumberViolations = (
   return unbacked.length === 0 ? [] : [agentUnbackedNumbersViolation(unbacked)];
 };
 
+const decodeProfileDeletion = Schema.decodeUnknownOption(
+  Schema.fromJsonString(
+    Schema.Struct({
+      profileOperation: Schema.Literals(["forget_facts", "forget_all"]),
+    })
+  )
+);
+
+const profileDeletionReturned = (call: AgentTurnToolOutcome) =>
+  call.toolName !== "updateUserProfile" ||
+  Option.isSome(decodeProfileDeletion(call.output));
+
 /**
  * The rules Jev's answers break, given what the tools returned.
  *
@@ -146,7 +158,9 @@ export const agentAnswerViolations = (
     answers[name].noul >= agentAnswerRuleBroken &&
     !outcomes.some(
       (call) =>
-        call.outcome === "done" && tools?.includes(call.toolName) === true
+        call.outcome === "done" &&
+        tools?.includes(call.toolName) === true &&
+        (name !== "deleted" || profileDeletionReturned(call))
     )
       ? [violation]
       : []

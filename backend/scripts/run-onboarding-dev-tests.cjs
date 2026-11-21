@@ -14,10 +14,10 @@ const selector = process.argv[3];
 if (
   process.argv[2] !== '--database=keepintax-dev' ||
   process.argv.length > 4 ||
-  (selector && !['--http-only', '--persistence-only'].includes(selector))
+  (selector && selector !== '--persistence-only')
 )
   throw new Error(
-    'Use --database=keepintax-dev with optional --http-only or --persistence-only',
+    'Use --database=keepintax-dev with optional --persistence-only',
   );
 developmentOptions({
   ...process.env,
@@ -26,12 +26,7 @@ developmentOptions({
 const root = join(__dirname, '../..');
 const logs = join(root, '.test-tmp/onboarding-dev');
 mkdirSync(logs, { recursive: true });
-const files =
-  selector === '--http-only'
-    ? ['onboarding.http-mysql']
-    : selector === '--persistence-only'
-    ? ['onboarding.mysql']
-    : ['onboarding.mysql', 'onboarding.http-mysql'];
+const files = ['onboarding.mysql'];
 let passed = 0;
 let failed = 0;
 for (const file of files) {

@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { Effect, Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 
 import {
   agentMemoryKindOf,
@@ -18,6 +18,10 @@ import { trimmedLengthString } from "../../../../backend/shared/schema/trimmed-l
 import { agentToolContextSchema } from "../../core/tool-runtime/agent-tool-context";
 import { agentToolCallKey } from "../../core/tool-runtime/agent-tool-idempotency";
 import { agentToolUuid } from "../../core/tool-runtime/agent-tool-uuid";
+
+class ProfileMemoryRequired extends Data.TaggedError("ProfileMemoryRequired")<{
+  message: string;
+}> {}
 
 // The agent's tools for its long-term memory about the user (see
 // agentMemoryRules for when it uses them).
@@ -88,6 +92,12 @@ export const saveAgentMemoryTool = tool({
     const { text, kind: prefixed } = agentMemoryContentAndKind(input.content);
     const kind = input.kind ?? prefixed ?? "preference";
 
+    if (kind === "business_fact") {
+      throw new Error(
+        "AGENT_PROFILE_REQUIRED: Use readUserProfile/updateUserProfile for business facts, preserving periods and history."
+      );
+    }
+
     return await appRuntime.runPromise(
       insertStoredAgentMemory(
         context.supabase,
@@ -120,6 +130,15 @@ export const updateAgentMemoryTool = tool({
           input.kind ??
           prefixed ??
           (yield* readStoredAgentMemoryKind(context.supabase, input.memoryId));
+
+        if (kind === "business_fact") {
+          return yield* Effect.fail(
+            new ProfileMemoryRequired({
+              message:
+                "AGENT_PROFILE_REQUIRED: Use readUserProfile/updateUserProfile for business facts.",
+            })
+          );
+        }
 
         yield* updateStoredAgentMemory(
           context.supabase,

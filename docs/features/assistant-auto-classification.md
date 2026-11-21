@@ -94,9 +94,11 @@ The banking offer is mounted only after the existing callback readiness flow
 refreshes the server-confirmed owner connection, and after its existing dialog
 closes. The query parameter alone does not grant anything. Dismissal is saved
 without enabling consent. Users can opt in later from Settings-new.
-Public authenticated `/agent/onboarding` and `/agent/chat` reuse the existing
-onboarding/chat components; the existing development routes remain available
-under their previous environment gate. Backend automation availability still
+`/agent/chat` remains authenticated. The updated `/agent/onboarding` surface
+uses the shared agent chat and requires Admin at both route and backend boundaries;
+launch it from the admin console's onboarding tab. Settings links preserve the
+owned business number. `/dev/agent/onboarding` redirects to that guarded route;
+the development chat retains its environment gate. Backend automation availability still
 requires explicit deployment flags and applied schema.
 
 ## Source provenance

@@ -508,6 +508,17 @@ export interface ReportReadinessResult {
 /** The domain one agent request may use, bound to its verified user. */
 export interface AgentDomain {
   startAutomaticClassification?: (query: Record<string, never>) => Promise<{queued:boolean;message:string}>;
+  authorizeOnboarding?: () => Promise<void>;
+  profile?: {
+    read: (businessNumber: string) => Promise<unknown>;
+    update: (input: {
+      businessNumber: string;
+      version: { person: number; business: number };
+      message: string;
+      extraction: unknown;
+      operationId: string;
+    }) => Promise<unknown>;
+  };
   readOnboardingContext?: (businessNumber: string | null) => Promise<string>;
   prepareTransactionClassification?: (query: { businessNumber?: string; externalTransactionId: string; subCategoryId: number }) => Promise<{ proposal: string }>;
   classifyTransaction?: (query: { proposal: string }) => Promise<{ status: 'classified' | 'already_applied'; expenseApproved: false; category: string; subCategory: string }>;

@@ -1,3 +1,4 @@
+import { ONBOARDING_PATH } from '../agent-onboarding/onboarding-navigation';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -28,6 +29,7 @@ import {
 
 // The tab that opens the AI agent's dev chat (its own route, not a panel).
 export const AI_CHAT_TAB = 'ai-chat';
+export const ONBOARDING_TAB = 'agent-onboarding';
 
 // Shown only while the chat's route exists (local development).
 export const aiChatTabs = (routeEnabled: boolean) =>
@@ -69,6 +71,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
     { label: 'תוכן', value: 'content', component: AdminContentComponent },
     { label: 'דוקומנטציה', value: 'documentation', component: AdminDocumentationComponent },
+    { label: 'היכרות עם הסוכן', value: ONBOARDING_TAB },
     ...aiChatTabs(devAgentRouteEnabled()),
   ];
 
@@ -95,6 +98,11 @@ export class AdminPanelPage implements OnInit {
   ngOnInit() {}
 
   onTabChange(newTabValue: string) {
+    if (newTabValue === ONBOARDING_TAB) {
+      const api = devAgentApiOverride(this.route.snapshot.queryParamMap.get('api'));
+      void this.router.navigate([ONBOARDING_PATH], { queryParams: { from: DEV_AGENT_FROM_ADMIN, ...(api ? { api } : {}) } });
+      return;
+    }
     if (newTabValue === AI_CHAT_TAB) {
       this.openAiChat();
       return;

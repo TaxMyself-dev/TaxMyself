@@ -151,11 +151,16 @@ export const createDevAgentChat = (options: {
   conversationId: string;
   agentUserId: string;
   locale: 'he' | 'en';
+  onboarding?: { businessNumber: string };
   auth: DevAgentRequestAuth;
   messages?: UIMessage[];
   // The question calls answered on this page, waiting to be sent.
   pendingAnswers?: Set<string>;
-  onFinish?: () => void;
+  onFinish?: (outcome: {
+    isError: boolean;
+    isAbort: boolean;
+    isDisconnect: boolean;
+  }) => void;
   onError?: (error: Error) => void;
   onData?: (part: { type: string }) => void;
 }) => {
@@ -167,7 +172,7 @@ export const createDevAgentChat = (options: {
     generateId: () => crypto.randomUUID(),
     sendAutomaticallyWhen: ({ messages }) =>
       devAgentShouldContinue(messages, pending, lastAssistantMessageIsCompleteWithApprovalResponses({ messages })),
-    onFinish: () => options.onFinish?.(),
+    onFinish: (outcome) => options.onFinish?.(outcome),
     onError: (error) => options.onError?.(error),
     onData: (part) => options.onData?.(part),
     transport: new DefaultChatTransport({
@@ -183,6 +188,7 @@ export const createDevAgentChat = (options: {
           message: messages.at(-1),
           conversation: { name: null, pinned: false },
           locale: options.locale,
+          ...(options.onboarding && { onboarding: options.onboarding }),
           ...(body?.['origin'] === 'follow-up' && { origin: 'follow-up' }),
         },
       }),

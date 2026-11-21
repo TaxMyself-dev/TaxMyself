@@ -1,6 +1,6 @@
 import { FormBuilder } from '@angular/forms';
 import { convertToParamMap } from '@angular/router';
-import { AdminPanelPage, AI_CHAT_TAB, aiChatTabs } from './admin-panel.page';
+import { AdminPanelPage, AI_CHAT_TAB, aiChatTabs, ONBOARDING_TAB } from './admin-panel.page';
 import { DEV_AGENT_PATH, devAgentRouteEnabled } from '../dev-agent/dev-agent.route';
 
 describe('AdminPanelPage', () => {
@@ -72,7 +72,7 @@ describe('AdminPanelPage', () => {
       component.onTabChange(AI_CHAT_TAB);
 
       expect(router.navigate).toHaveBeenCalledOnceWith(['/' + DEV_AGENT_PATH], {
-        queryParams: { from: 'admin-panel', api: 'http://localhost:3011/' },
+        queryParams: { from: 'admin-panel', api: 'http://127.0.0.1:3011/' },
       });
     });
 
@@ -90,5 +90,18 @@ describe('AdminPanelPage', () => {
       expect(component.selectedTab).toBe('documentation');
       expect(router.navigate).not.toHaveBeenCalled();
     });
+  });
+});
+
+
+describe('admin onboarding entry',()=>{
+  it('opens onboarding from the admin tab and preserves the local API override',()=>{
+    const navigate=jasmine.createSpy().and.resolveTo(true);
+    const route={snapshot:{queryParamMap:convertToParamMap({api:'http://localhost:3004/'})}};
+    const page=new AdminPanelPage(new FormBuilder(),{} as any,{navigate} as any,route as any);
+    expect(page.tabs.some(tab=>tab.value===ONBOARDING_TAB)).toBeTrue();
+    page.onTabChange(ONBOARDING_TAB);
+    expect(navigate).toHaveBeenCalledWith(['/agent/onboarding'],{queryParams:{from:'admin-panel',api:'http://127.0.0.1:3004/'}});
+    expect(page.selectedTab).toBe('clients-dashboard');
   });
 });

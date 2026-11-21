@@ -294,3 +294,59 @@ passed with size/CommonJS warnings; full output is ignored at
 repeated: no backend/schema/authorization/accounting contract changes. Actual
 account writes in the authenticated app remain manual user testing. No main
 integration, remote push or environment changes.
+
+## Approved onboarding feature integration (2026-11-21)
+
+Elazar requested merging the updated onboarding worktree into this feature so
+required profile information can be completed before classification testing.
+Source: codex/agent-onboarding at 072ee194cbe62691efff213fcb7dc508cd277b4f;
+target: codex/auto-classification at 1cb645d7. This is a local feature-to-feature
+merge, not main integration. The source's untracked backend/journey-timings.local
+was preserved and not copied or committed. No lockfile/dependency changes.
+
+Resolved conflicts preserve both profile read/update/authorization ports and the
+automatic-classification enqueue callback. The shared onboarding chat, recovery,
+thinking feedback and admin-console entry come from the source. The source's
+Admin guards are retained; /agent/chat remains authenticated and Settings links
+continue to select the explicitly owned business. The prompt snapshot includes
+both the profile namespace and automatic-classification tool, reviewed before tests.
+No schema, production, accounting, environment or consent changes.
+
+Merged-code verification (logs ignored under .local-ai-dev/auto-classification):
+- Backend: node node_modules/jest/bin/jest.js --runInBand --runTestsByPath
+  src/agent-onboarding/onboarding-admin.spec.ts
+  src/agent-onboarding/onboarding.domain.spec.ts
+  src/agent-onboarding/onboarding.service.spec.ts
+  src/auto-classification/auto-classification.policy.spec.ts
+  src/auto-classification/auto-classification.service.spec.ts
+  src/auto-classification/auto-classification.http.spec.ts: 67 passed, six suites.
+  npm run build: exit 0.
+- Agent npm run typecheck: exit 0 (advisory Effect suggestions). npm run build:
+  exit 0, agent-http 477.6 kB. Scoped npm run check on app-agent.ts,
+  agent-tool-search.ts, agent-tool-traits.ts, app-agent-tools.ts and GUIDE.md:
+  exit 0, including formatting and lint.
+- Agent Vitest supported --pool=threads --maxWorkers=1: profile, harness override,
+  conversation memory and answer-check suites: 40 passed. Prompt snapshots,
+  tool schemas and app-agent-step suites: another 13 passed. These are two focused
+  batches on the same functional merge (53 total), not a passing full-suite run.
+- Frontend combined ChromeHeadless test run: 59 passed. Included my-agent,
+  settings-navigation, onboarding, dev-agent-chat, admin-panel and admin-route
+  guard suites. Ignored combined tsconfig extends the feature test config and
+  explicitly points typeRoots at frontend/node_modules/@types. Production build
+  passed; existing bundle/style/CommonJS warnings remain.
+- node --test backend/scripts/local-onboarding-config.test.cjs: four passed.
+- git diff --cached --check: passed; no unresolved conflict markers.
+
+Initial verification limitations preserved: unbounded default Vitest parallelism
+exhausted memory. A subsequent system Node 24.13 Jest run crashed natively
+(-1073741819), and Vitest fork workers stalled/died. No timeout/assertion changes
+or security overrides. Successful reruns used installed Node 24.22.3 and supported
+single-thread Vitest plus serial Jest. One combined Angular harness attempt failed
+type lookup because its ignored config lived outside frontend; corrected only its
+typeRoots, then all 59 tests passed. Existing reactive-form/Chrome shutdown warnings
+remain. No paid model calls or database integration suites were repeated; source
+branch evidence is not presented as a full run on this merged tree.
+
+Safe launcher read-only check confirmed keepintax-dev, port 3000, synchronize off,
+and both feature flags already true in the existing ignored environment file.
+No main merge or GitHub push. Authenticated user testing remains Elazar's check.
