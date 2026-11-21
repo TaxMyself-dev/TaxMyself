@@ -1,3 +1,5 @@
+import { AgentVoice } from './agent-voice';
+import { Subscription } from 'rxjs';
 import { devAgentApprovalView } from './dev-agent-chat-parts';
 import { CommonModule } from '@angular/common';
 import { classificationCard, classificationApprovalDecision, ClassificationCard } from './classification-card';
@@ -122,6 +124,10 @@ export class DevAgentPage implements OnInit, OnDestroy {
   // The answer streaming now asked for follow-ups (data-followUpsPending).
   private followUpsPending = false;
   draft = '';
+  readonly voice = new AgentVoice();
+  private voiceContextSubscription?: Subscription;
+  private voiceAuthSubscription?: Subscription;
+
 
   private readonly auth: DevAgentRequestAuth = {
     token: async () => await firstValueFrom(this.afAuth.idToken.pipe(take(1))),
@@ -147,12 +153,15 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    this.voiceContextSubscription = this.clientPanelService.selectedClientId$.subscribe(() => this.voice.cancel());
+    this.voiceAuthSubscription = this.afAuth.authState.subscribe(() => this.voice.cancel());
     await this.startSession();
   }
 
   // Reads the agent's user for the app's current client, and starts a chat
   // for it.
   async startSession() {
+    this.voice?.cancel();
     const started = performance.now();
     const generation = ++this.loadGeneration;
     this.loading.set('session');
@@ -205,6 +214,9 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.voiceContextSubscription?.unsubscribe();
+    this.voiceAuthSubscription?.unsubscribe();
+    this.voice?.cancel();
     ++this.loadGeneration;
     void this.chat()?.stop();
   }
@@ -216,6 +228,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
   }
 
   newChat() {
+    this.voice?.cancel();
     const context = this.context();
 
     if (!context) {
@@ -235,6 +248,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
   // Reopens a stored conversation from its messages, and follows its answer
   // when one is still running (GET chats/:id/stream; 204 when none is).
   async openChat(conversationId: string) {
+    this.voice?.cancel();
     const context = this.context();
 
     if (!context) {
@@ -373,9 +387,31 @@ export class DevAgentPage implements OnInit, OnDestroy {
       return;
     }
 
+    this.voice?.cancel();
     this.draft = '';
     void chat.sendMessage({ text: message });
     this.scrollDown();
+  }
+
+  async startVoice() {
+    const chat = this.chat();
+    const context = this.context();
+    if (!chat || !context || this.isBusy(chat) || this.contextChanged || this.loading()) return;
+    await this.voice.start({
+      locale: this.locale(),
+      current: () => this.chat() === chat && this.context() === context && !this.contextChanged && !this.isBusy(chat),
+      key: async () => {
+        const key = await callDevAgentFunction(this.apiUrl, fixedContextAuth(this.auth, context),
+          'createAgentChatDictationKey', { userId: context.agentUserId }, 'POST');
+        if (typeof key !== 'string' || !key) throw new Error('Voice unavailable');
+        return key;
+      },
+      send: text => {
+        // Voice does not consume or overwrite an unrelated typed draft.
+        void chat.sendMessage({ text });
+        this.scrollDown();
+      },
+    });
   }
 
   // A pressed follow-up: its text, sent as a press (the server checks it
@@ -387,6 +423,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
       return;
     }
 
+    this.voice?.cancel();
     void chat.sendMessage({ text: question }, { body: { origin: 'follow-up' } });
     this.scrollDown();
   }
@@ -401,6 +438,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
       return;
     }
 
+    this.voice?.cancel();
     this.pendingAnswers.add(view.toolCallId);
     void chat.addToolOutput({
       tool: 'askUserQuestion',

@@ -305,3 +305,12 @@ pre {
   color: #78716c;
   p + p { font-size: 14px; }
 }
+
+// Voice uses the same composer space; a discarded recording never becomes a message.
+.voice-status { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.voice-time { direction: ltr; font-variant-numeric: tabular-nums; }
+.voice-icon { width: 44px; min-height: 44px; flex-shrink: 0; display: inline-flex; justify-content: center; align-items: center; }
+.voice-send { background: #1c1917; color: white; border-radius: 50%; }
+.voice-discard { color: #b91c1c; }
+.recording-dot { width: 9px; height: 9px; background: #dc2626; border-radius: 50%; }
+.voice-error { color: #991b1b; padding: 8px 0; font-size: 14px; }

@@ -211,7 +211,23 @@
     <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>
   }
 
+  @if (voice.error(); as error) {
+    <div class="voice-error" role="alert" dir="rtl">{{ error }}</div>
+  }
   <footer class="composer">
+    @if (voice.active) {
+      <div class="voice-status" role="status" aria-live="polite" dir="rtl">
+        @switch (voice.state()) {
+          @case ('connecting') { <span>מתחבר למיקרופון…</span> }
+          @case ('recording') { <span class="recording-dot" aria-hidden="true"></span><span>מקליט</span> }
+          @case ('processing') { <span>מעבד הקלטה…</span> }
+        }
+        <span class="voice-time" aria-live="off">{{ voice.minutes }}:{{ voice.seconds() % 60 | number:'2.0-0' }}</span>
+      </div>
+      <button type="button" class="voice-icon voice-discard" aria-label="ביטול ומחיקת ההקלטה" title="ביטול ומחיקת ההקלטה" (click)="voice.cancel()"><i class="pi pi-trash" aria-hidden="true"></i></button>
+      <button type="button" class="voice-icon voice-send" aria-label="סיום ושליחת ההקלטה" title="סיום ושליחת ההקלטה" [disabled]="voice.state() !== 'recording'" (click)="voice.finish()"><i class="pi pi-arrow-up" aria-hidden="true"></i></button>
+    } @else {
+
     <textarea
       [(ngModel)]="draft"
       (keydown)="onComposerKey($event)"
@@ -228,6 +244,10 @@
       }
     } @else {
       <button type="button" disabled>Send</button>
+    }
+    @if (chat(); as c) {
+      <button type="button" class="voice-icon voice-start" aria-label="הקלטת הודעה קולית" title="הקלטת הודעה קולית" [disabled]="isBusy(c) || contextChanged || !!loading()" (click)="startVoice()"><i class="pi pi-microphone" aria-hidden="true"></i></button>
+    }
     }
   </footer>
 </div>

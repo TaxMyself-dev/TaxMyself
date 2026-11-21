@@ -143,7 +143,7 @@ export const transcribeAudioUrl = Effect.fn("transcribeAudioUrl")(
 /**
  * A key for one dictation in the browser (Soniox's real-time WebSocket, see
  * useAgentChatDictation), so SONIOX_API_KEY never leaves the server: it
- * connects once, within a minute, and its session ends after 10 minutes.
+ * connects once, within a minute, and its session ends after 150 seconds.
  */
 export const createSonioxDictationKey = Effect.fn("createSonioxDictationKey")(
   function* createSonioxDictationKey() {
@@ -155,7 +155,7 @@ export const createSonioxDictationKey = Effect.fn("createSonioxDictationKey")(
           usage_type: "transcribe_websocket",
           expires_in_seconds: 60,
           single_use: true,
-          max_session_duration_seconds: 600,
+          max_session_duration_seconds: 150,
         },
       },
       Schema.Struct({ api_key: Schema.String })

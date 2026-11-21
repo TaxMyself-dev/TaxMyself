@@ -1,3 +1,4 @@
+import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
@@ -20,12 +21,12 @@ describe('chat startup', () => {
   }
   it('renders an editable composer before the session resolves and cannot send', async () => {
     TestBed.configureTestingModule({imports:[DevAgentPage],providers:[
-      {provide:AngularFireAuth,useValue:{}},
-      {provide:ClientPanelService,useValue:{getSelectedClientId:()=>null}},
+      {provide:AngularFireAuth,useValue:{authState:of(null)}},
+      {provide:ClientPanelService,useValue:{getSelectedClientId:()=>null,selectedClientId$:of(null)}},
       {provide:ActivatedRoute,useValue:{snapshot:{queryParamMap:convertToParamMap({})}}},
       {provide:Router,useValue:{navigate:()=>Promise.resolve(true)}}]});
-    TestBed.overrideComponent(DevAgentPage, {add:{providers:[{provide:AngularFireAuth,useValue:{}},{provide:ClientPanelService,useValue:{getSelectedClientId:()=>null}}]}});
-    TestBed.overrideProvider(ClientPanelService, {useValue:{getSelectedClientId:()=>null}});
+    TestBed.overrideComponent(DevAgentPage, {add:{providers:[{provide:AngularFireAuth,useValue:{authState:of(null)}},{provide:ClientPanelService,useValue:{getSelectedClientId:()=>null,selectedClientId$:of(null)}}]}});
+    TestBed.overrideProvider(ClientPanelService, {useValue:{getSelectedClientId:()=>null,selectedClientId$:of(null)}});
     const fixture=TestBed.createComponent(DevAgentPage);
     spyOn(fixture.componentInstance,'startSession').and.returnValue(new Promise<void>(()=>{}));
     fixture.detectChanges();
@@ -38,6 +39,15 @@ describe('chat startup', () => {
     fixture.componentInstance.send();
     expect(fixture.componentInstance.draft).toBe('draft');
     expect(fixture.nativeElement.querySelector('.composer button').disabled).toBeTrue();
+    const voice=fixture.componentInstance.voice;
+    voice.state.set('recording'); voice.seconds.set(65); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('textarea')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.voice-time').textContent).toBe('1:05');
+    expect(fixture.nativeElement.querySelector('.voice-send .pi-arrow-up')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('.voice-discard .pi-trash')).not.toBeNull();
+    fixture.nativeElement.querySelector('.voice-discard').click(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('textarea').value).toBe('draft');
     fixture.destroy();
   });
   it('waits for history, keeps the draft and resumes only after loading', async () => {

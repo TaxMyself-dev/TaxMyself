@@ -277,3 +277,11 @@ The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agen
 ### Admin onboarding entry (2026-11-21)
 
 The onboarding interface is launched only from the admin console. `authorizeOnboarding` is a host-bound callback that checks the actor's persisted ADMIN role before any profile read in that mode, including mode recovered from stored conversation history. Missing callback fails closed. Profile HTTP management has the same persisted-role guard; the normal app no longer mounts the invitation or menu link. Personal profile ownership/delegation checks and ordinary shared-agent memory behavior are unchanged.
+
+## Voice messages (KeepInTax extension)
+
+The Angular /dev/agent composer supports microphone input with @soniox/client 2.5.0. An arrow ends capture, waits for final tokens, and sends one ordinary text message; trash discards it. No editable transcript, audio attachment, or playback is stored in KeepInTax. Audio streams directly from the browser to Soniox using a single-use key. Configure SONIOX_API_KEY in the backend environment; never put it in Angular. Browser site permissions govern whether subsequent recordings prompt again.
+
+Capture is limited to 120 seconds; connection and finalization waits to 45 and 15 seconds. New/opened conversations, client/auth changes and component destruction cancel the session and ignore late results. Typed drafts survive voice sends. The voice controller is separate from the dev composer for reuse by the product UI.
+
+The existing authenticated createAgentChatDictationKey verifies ownership before the KeepInTax issuance guard: 10 requests per minute per agent user, with bounded process-local state (not a distributed quota). Rate-limit responses use HTTP 429. Temporary keys connect within 60 seconds and allow one session up to 150 seconds. These changes to dictation and HTTP error mapping are explicit KeepInTax extensions. No schema or domain-action approval rules change. Live Hebrew accuracy and physical iOS/Android microphone checks require configured credentials and manual verification.
