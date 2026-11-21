@@ -1,6 +1,6 @@
 # Shared document AI queue
 
-- Status: IMPLEMENTED / DEV SCHEMA APPLIED; WORKERS NOT STARTED
+- Status: IMPLEMENTED / CONTROLLED SYNTHETIC LIVE DEV VERIFIED; GENERAL WORKERS NOT STARTED
 - Worktree: TaxMyself-document-ai-queue
 - Branch: codex/document-ai-queue
 - Base: de8369bc (verified clean local main)
@@ -27,6 +27,12 @@
 No schema application, existing-work migration, live DB/provider/app bootstrap, real AI, document deletion, PROD, main integration, push or deploy. Only prepared schema/code and mocked/local tests. The separately approved cleanup removed only the primary checkout's Angular cache. DEV environment files were copied to this new worktree; no secrets are tracked. Main's 4200/3000 defaults stay unchanged; ignored feature backend configuration uses 3004 and return URL 4204. No app is started.
 
 ## Handoff
+
+### Controlled live verification authorization — 2026-11-22
+
+Elazar subsequently explicitly authorized real AI and Drive deletion for newly generated synthetic files only. The bounded real-service run passed on executable revision `2bfa9764`: all six types, actual uncertain retention, confirmed-negative deletion/tombstones, manual/form reuse, saved-result continuation, locked/open replacement, malformed-file isolation, reference-safe deletion/retry, and scoped status access. Four real jobs completed in 14.828 seconds with three provider calls overlapping at peak. Separate MySQL processes verified distributed admission; an actual 59-second UTC retry wait verified replenishment without provider calls.
+
+There were 16 real AI calls, 18 synthetic files audited (15 retained, three confirmed deleted), and zero automatically created expenses. All 24 selected jobs reached expected terminal states; one UNKNOWN and several BLOCKED rows are deliberate fault/admission controls, not actual ambiguous AI responses. No general worker, mailbox scan, live bank-transaction edit or full-application startup was performed. No persistent capacity env settings were enabled. Full details, limitations, measurements and diagnostic history: `docs/features/document-ai-live-verification-2026-11-22.md`.
 
 ### DEV schema authorization — 2026-11-22
 
