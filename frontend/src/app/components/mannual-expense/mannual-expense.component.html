@@ -160,7 +160,7 @@
   @if (isOcrLoading()) {
     <div class="ocr-loading" role="status" aria-live="polite">
       <p-progressSpinner strokeWidth="4" styleClass="ocr-loading__spinner"></p-progressSpinner>
-      <span class="ocr-loading__text">מחלצים נתונים מהקובץ, רגע אחד…</span>
+      <span class="ocr-loading__text">{{ocrState()==='IN_FLIGHT' ? 'מנתחים את המסמך…' : 'המסמך בתור לניתוח; אפשר להמשיך למלא ידנית'}}</span>
     </div>
   }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
+import { DocumentAnalysisService, AnalysisReceipt } from './document-analysis.service';
 import { environment } from 'src/environments/environment';
 
 /** Mirrors the backend's FilesInterceptor('files', 30, ...) cap on
@@ -16,6 +17,8 @@ export const MAX_UPLOAD_TO_INBOX_FILES = 30;
  *  fall out of the listing. */
 export interface ProcessInboxResult {
   processed: number;
+  /** Registered for asynchronous analysis, not yet completed. */
+  queued?: number;
   failed: number;
   skipped: number;
   /** Byte-identical re-uploads auto-rejected this pass (same file dropped
@@ -149,7 +152,8 @@ export class DriveDocsService {
   retryProtectedDelivery(documentId: number, businessNumber: string): Observable<any> {
     return this.http.post(`${environment.apiUrl}documents/me/protected/${documentId}/retry-delivery`, { businessNumber });
   }
-  constructor(private http: HttpClient) {}
+  private readonly analysis:DocumentAnalysisService;
+  constructor(private http: HttpClient,analysis?:DocumentAnalysisService) {this.analysis=analysis||new DocumentAnalysisService(http);}
 
   processInbox(businessNumber: string): Observable<ProcessInboxResult> {
     const url = `${environment.apiUrl}documents/me/process-inbox`;
@@ -214,19 +218,19 @@ export class DriveDocsService {
   /**
    * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
    * the extracted invoice fields for the manual-expense form to prefill.
-   * Does NOT persist anything on the backend.
+   * Uses a durable temporary analysis job; no archive or expense is created.
    */
-  ocrSingleFile(file: File, businessNumber: string): Observable<OcrSingleFileResponse> {
+  ocrSingleFile(file: File, businessNumber: string,onStatus?:(state:string)=>void): Observable<OcrSingleFileResponse> {
     const url = `${environment.apiUrl}documents/me/ocr-file`;
     const form = new FormData();
     form.append('file', file, file.name);
     form.append('businessNumber', businessNumber);
-    return this.http.post<OcrSingleFileResponse>(url, form);
+    return this.http.post<AnalysisReceipt>(url, form).pipe(switchMap(receipt=>this.analysis.waitFor<OcrSingleFileResponse>(receipt,businessNumber,onStatus)));
   }
 
   /**
    * Drops one or more files straight into the business's Drive inbox/
-   * folder — no OCR, just storage. Used by the settings-page "upload docs
+   * intake and shared analysis queue. Used by the settings-page "upload docs
    * to Drive" button.
    */
   uploadFilesToInbox(

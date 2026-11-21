@@ -12,6 +12,8 @@ supplier defaults, equipment, VAT periods, files and foreign currency.
   API records and form payloads.
 
 ## Main flows
+Autofill uses the shared durable analysis queue. Changing the selected file or destroying the component cancels polling only. Ignore results for an obsolete file/business and preserve controls edited after submission, including dependent supplier/category choices. Temporary analysis must not create an expense or archive document.
+
 
 - Edit hydration must preserve the original foreign currency and original
   amount. `sum`/ILS conversion and `originalSum` are not interchangeable.

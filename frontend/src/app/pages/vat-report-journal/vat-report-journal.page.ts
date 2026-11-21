@@ -512,7 +512,7 @@ export class VatReportJournalPage implements OnInit {
       .subscribe({
         next: result => {
           if (this.inboxProcessingBusinessNumber !== businessNumber) return;
-          if (result.alreadyProcessing) {
+          if (result.alreadyProcessing || (result.queued ?? 0) > 0) {
             this.pollInboxProcessing(businessNumber);
             return;
           }
