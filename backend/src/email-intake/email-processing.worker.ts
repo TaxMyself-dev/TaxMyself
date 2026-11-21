@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { randomUUID, createHash } from 'crypto';
+import { createHash } from 'crypto';
 import { Business } from '../business/business.entity';
 import { ExtractedDocument } from '../documents/extracted-document.entity';
 import { DocumentsService } from '../documents/documents.service';
@@ -146,40 +146,7 @@ export class EmailProcessingWorker {
           ].includes(scopedFile.parents[0])
         )
           throw new Error('AI file outside business inbox');
-        const context = await this.documents.prepareEmailWork(
-          work,
-          token,
-          scopedFile.parents[0] === business.driveInboxFolderId,
-        );
-        if (!context.alreadyHandled) {
-          await this.store.updateWork(work, token, {
-            email_work_state: 'AI_PREPARED',
-            email_ai_attempt_id: work.email_ai_attempt_id || randomUUID(),
-            email_policy_version: GMAIL_POLICY_VERSION,
-          });
-          // Persist the external-call boundary BEFORE sending. No transparent replay.
-          await this.store.updateWork(work, token, {
-            email_work_state: 'AI_IN_FLIGHT',
-            email_ai_state: 'SENT',
-          });
-          let outcome: any;
-          try {
-            outcome = await this.documents.extractEmailWork(work, context);
-          } catch {
-            outcome = {
-              intakeDecision: 'uncertain',
-              invoices: null,
-              rawResponse: null,
-              technicalCode: 'AI_UNKNOWN_OUTCOME',
-            };
-          }
-          await this.store.updateWork(work, token, {
-            email_work_state: 'RESULT_SAVED',
-            email_ai_state: 'RESULT_SAVED',
-            email_result_json: JSON.stringify(outcome),
-          });
-          await this.documents.persistEmailWork(work, token, outcome, context);
-        }
+        await this.documents.queueEmailWork(work,token);
       } else if (work.email_work_state === 'AI_IN_FLIGHT') {
         const outcome = {
           intakeDecision: 'uncertain',
@@ -308,7 +275,8 @@ export class EmailProcessingWorker {
     UNION ALL SELECT 'document' FROM extracted_document WHERE drive_file_id=? AND (id<>? OR confirmed_expense_id IS NOT NULL OR status='approved')
     UNION ALL SELECT 'expense' FROM expense WHERE source_document_id=? OR file LIKE ?
     UNION ALL SELECT 'protected' FROM protected_documents WHERE original_drive_id=?
-    UNION ALL SELECT 'replacement' FROM document_replacement_operations WHERE candidate_drive_id=?`,
+    UNION ALL SELECT 'replacement' FROM document_replacement_operations WHERE candidate_drive_id=?
+    UNION ALL SELECT 'analysis' FROM document_processing_jobs WHERE drive_file_id=? AND NOT (purpose='GMAIL' AND COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(context_json,'$.importId')) AS UNSIGNED),-1)=?)`,
       [
         work.drive_file_id,
         work.id,
@@ -318,6 +286,8 @@ export class EmailProcessingWorker {
         '%' + work.drive_file_id + '%',
         work.drive_file_id,
         work.drive_file_id,
+        work.drive_file_id,
+        work.id,
       ],
     );
     if (references.length) {

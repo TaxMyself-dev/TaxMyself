@@ -52,6 +52,9 @@ export interface DriveFileMeta {
 
 @Injectable()
 export class GoogleDriveService {
+  async ensureAnalysisTemporary(businessFolderId:string):Promise<string>{
+    return this.getOrCreateChildFolder(businessFolderId,'analysis-temporary');
+  }
   async ensureProtectedFolders(businessFolderId: string): Promise<{ blocked: string; staging: string }> {
     return {
       blocked: await this.getOrCreateChildFolder(businessFolderId, 'blocked'),

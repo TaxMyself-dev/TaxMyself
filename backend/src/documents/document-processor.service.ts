@@ -227,12 +227,17 @@ export class DocumentProcessorService {
     return mimeType === 'application/pdf' || SUPPORTED_IMAGE_TYPES.has(mimeType);
   }
 
+  estimatePromptTokens(catalog:CatalogEntry[],gmailPolicy:boolean):number {
+    const prompt=gmailPolicy?buildGmailExtractionPrompt(STATIC_EXTRACTION_PROMPT):STATIC_EXTRACTION_PROMPT;
+    // Conservative text estimate; document/image estimates are measured separately per provider/model.
+    return Math.ceil((prompt.length+buildCatalogBlock(catalog).length+USER_TRAILER.length)/2);
+  }
   async extract(
     fileBuffer: Buffer,
     mimeType: string,
     catalog: CatalogEntry[] = [],
     emailIntakeReview = false,
-    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;bounded?:boolean},
+    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;onHeaders?:(headers:{get(name:string):string|null})=>void;bounded?:boolean},
   ): Promise<ProcessOutcome> {
     if (mimeType === 'application/pdf') {
       if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
@@ -254,9 +259,9 @@ export class DocumentProcessorService {
             source: { type: 'base64' as const, media_type: mimeType as any, data: base64 },
           };
 
-    this.logger.log(`Calling Claude (${MODEL}) | mimeType=${mimeType} | size=${fileBuffer.length}B`);
+    this.logger.log(`Calling document AI (${options?.model || MODEL}) | mimeType=${mimeType} | size=${fileBuffer.length}B`);
 
-    const response = await client.messages.create({
+    const request = client.messages.create({
       model: options?.model || MODEL,
       // Bumped from 1024 — multi-invoice statements (e.g. monthly fuel with
       // 12+ rows) can exceed 1024 tokens of structured JSON and get truncated,
@@ -289,7 +294,10 @@ export class DocumentProcessorService {
         },
       ],
     }, emailIntakeReview || options?.bounded ? { timeout: 45_000, maxRetries: 0 } : undefined);
-    if(options?.onUsage&&response.usage){
+    const wrapped=options?.onHeaders&&typeof (request as any).withResponse==='function'?await (request as any).withResponse():null;
+    const response:Anthropic.Message=wrapped?wrapped.data:await request;
+    if(wrapped?.response?.headers)options.onHeaders(wrapped.response.headers);
+    if(options?.onUsage&&response.usage&&Number.isFinite(response.usage.input_tokens)&&Number.isFinite(response.usage.output_tokens)&&response.usage.input_tokens>=0&&response.usage.output_tokens>=0){
       const usage:any=response.usage;
       const count=(value:any)=>Number.isSafeInteger(value)&&value>=0?value:0;
       options.onUsage({input:count(usage.input_tokens),output:count(usage.output_tokens),cacheRead:count(usage.cache_read_input_tokens),cacheWrite:count(usage.cache_creation_input_tokens)});

@@ -45,10 +45,18 @@ import { IdentityImagesModule } from '../identity-images/identity-images.module'
 import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
 import { InboxOcrCronService } from './inbox-ocr-cron.service';
 import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
+import { DocumentAiModule } from '../document-ai/document-ai.module';
+import { DocumentAnalysisExecutor } from '../document-ai/document-ai.executor';
+import { DOCUMENT_AI_PROVIDERS, DocumentAiWorker } from '../document-ai/document-ai.worker';
+import { AnthropicDocumentProvider } from '../document-ai/anthropic-document.provider';
+import { MatchingService } from '../reports/matching.service';
+import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
 
 
 @Module({
   imports: [
+    DocumentAiModule,
+    TypeOrmModule.forFeature([FullTransactionCache]),
     ProtectedPdfModule,
     EmailIntakeModule,
     IdentityImagesModule,
@@ -60,6 +68,11 @@ import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
   ],
   controllers: [DocumentsController],
   providers: [
+    AnthropicDocumentProvider,
+    {provide:DOCUMENT_AI_PROVIDERS,useFactory:(provider:AnthropicDocumentProvider)=>[provider],inject:[AnthropicDocumentProvider]},
+    {provide:DocumentAnalysisExecutor,useExisting:DocumentsService},
+    DocumentAiWorker,
+    MatchingService,
     DocumentPdfClient,
     DocumentPdfRenderer,
     FillFasterSigner,
@@ -76,6 +89,6 @@ import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
     DocumentPairingService,
     InboxOcrCronService,
   ],
-  exports: [DocumentsService, DocumentProcessorService, DocumentPairingService], // Export for use in other modules
+  exports: [DocumentsService, DocumentPairingService], // The provider client is private to queued workers.
 })
 export class DocumentsModule {}

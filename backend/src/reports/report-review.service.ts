@@ -1237,81 +1237,13 @@ export class ReportReviewService {
     await this.documentPairingService.unpair(documentId);
     return { ok: true };
   }
-
-  // ====================================================================
-  // UPLOAD + LINK — "העלה מסמך" on a tx_only row
-  // ====================================================================
-
-  /**
-   * User picked a PDF/image off their machine and wants to OCR it as the
-   * source doc for a pending bank transaction. End-to-end:
-   *   1. Validate the slim transaction belongs to the caller's business
-   *      AND isn't already linked to a doc (defensive — prevents double-
-   *      linking when the user double-clicks the upload button).
-   *   2. Hand the file to DocumentsService.uploadAndOcrDoc, which uploads
-   *      to Drive inbox/, runs Claude, persists one extracted_document
-   *      row per invoice, and returns the FIRST row.
-   *   3. linkDocToTx that first row to the slim — symmetric pointers so
-   *      the next preview pass surfaces it as a `matched` row.
-   *
-   * Multi-invoice PDFs are common (monthly fuel statements, bundled
-   * receipts). We link only sub_index=0 here — the siblings appear as
-   * fresh doc_only rows on the next preview and the user can resolve
-   * each one separately (link / approve / archive / reject). If we tried
-   * to auto-match each sibling here, we'd be doing matcher-class work
-   * (date/amount tolerance over all unmatched slim rows for the user)
-   * inline behind a single user click, which doesn't pay off versus
-   * letting the regular matcher do it on the next refresh.
-   */
-  async uploadDocAndLinkToTx(
-    firebaseId: string,
-    businessNumber: string,
-    slimTransactionId: number,
-    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
-  ): Promise<{
-    ok: true;
-    documentId: number;
-    driveFileId: string;
-    driveFileName: string;
-    invoiceNumber: string | null;
-    allocationNumber: string | null;
-    documentType: string | null;
-  }> {
-    const { slim } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
-    if (slim.matchedDocumentId) {
-      throw new BadRequestException(
-        `Transaction ${slimTransactionId} is already linked to document ${slim.matchedDocumentId}`,
-      );
-    }
-
-    const newDoc = await this.documentsService.uploadAndOcrDoc(
-      firebaseId,
-      businessNumber,
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-    );
-
-    await this.matchingService.linkDocToTx(
-      firebaseId,
-      businessNumber,
-      newDoc.id,
-      slimTransactionId,
-    );
-
-    this.logger.log(
-      `uploadDocAndLinkToTx: doc=${newDoc.id} ↔ tx=${slimTransactionId} (biz=${businessNumber}, file="${file.originalname}", size=${file.size}B)`,
-    );
-    return {
-      ok: true,
-      documentId: newDoc.id,
-      driveFileId: newDoc.driveFileId,
-      driveFileName: newDoc.driveFileName,
-      invoiceNumber: newDoc.invoiceNumber,
-      allocationNumber: newDoc.allocationNumber,
-      documentType: newDoc.documentType,
-    };
+  /** Validate immediately; queued completion rechecks and links atomically after the AI wait. */
+  async uploadDocAndLinkToTx(firebaseId:string,businessNumber:string,slimTransactionId:number,file:{buffer:Buffer;originalname:string;mimetype:string;size:number},actor=firebaseId):Promise<any>{
+    const {slim}=await this.loadTxPair(firebaseId,businessNumber,slimTransactionId);
+    if(slim.matchedDocumentId)throw new BadRequestException('Transaction is already linked');
+    return this.documentsService.uploadAndOcrDoc(firebaseId,businessNumber,file.buffer,file.originalname,file.mimetype,slimTransactionId,actor);
   }
+
 
   // ====================================================================
   // DELETE — same shape as archive, different terminal status

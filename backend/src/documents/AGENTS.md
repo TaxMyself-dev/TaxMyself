@@ -44,6 +44,8 @@ allocation, retries perform local work only and never call SHAAM again.
   persisted header, allocation payload and journal flow.
 
 ## Key entities/files
+Shared analysis queue: inbound AI entry points register durable work in `document-ai/`; only its provider adapter calls `DocumentProcessorService.extract`. `processInboxForUser` performs discovery/dedup/restoration, not AI. Upload/OCR endpoints return job receipts; scoped polling returns completion. Preserve original source policies and do not reintroduce inline AI. See `docs/features/document-ai-shared-queue.md` for prepared schema, capacity measurement and activation boundaries.
+
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.
 - `doc-lines.entity.ts` — `DocLines`: line items of an issued document (quantity, unit price, discount, VAT per line).
 - `doc-payments.entity.ts` — `DocPayments`: payment details attached to an issued document (bank/check/credit-card info).

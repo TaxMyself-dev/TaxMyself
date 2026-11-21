@@ -1,4 +1,9 @@
 import { EmailIntakeStore, EmailWork } from '../email-intake/email-intake.store';
+import { DocumentAiStore } from '../document-ai/document-ai.store';
+import { AnalysisInput, AnalysisInputError, AnalysisJob, AnalysisOutcome, AnalysisPurpose, AnalysisReceipt, analysisContext } from '../document-ai/document-ai.types';
+import { CapacityProfile, capacityProfile } from '../document-ai/document-ai.capacity';
+import { GMAIL_POLICY_VERSION } from './gmail-document-policy';
+import { MatchingService } from '../reports/matching.service';
 import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import { createPdfTimings, measurePdfStage } from './pdf/pdf-diagnostics';
 import { forwardRef, Inject, Injectable, HttpException, HttpStatus, Logger, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Optional } from '@nestjs/common';
@@ -150,6 +155,7 @@ export const DEFAULT_INITIAL_DOC_INDEX: Record<DocumentType, number> = {
 
 export interface InboxProcessingResult {
   processed: number;
+  queued?: number;
   failed: number;
   skipped: number;
   duplicates: number;
@@ -217,6 +223,8 @@ export class DocumentsService {
     private readonly imageStorage: ImageStorageService,
     @Optional() private readonly protectedPdf?: ProtectedPdfService,
     @Optional() private readonly emailStore?: EmailIntakeStore,
+    @Optional() private readonly analysisQueue?: DocumentAiStore,
+    @Optional() private readonly queuedMatching?: MatchingService,
   ) { }
 
   isIncrement: boolean = false;
@@ -2902,28 +2910,13 @@ ${finalOwnerName}`;
       await lockRunner.release();
     }
   }
-
-  async getInboxProcessingStatus(
-    firebaseId: string,
-    businessNumber: string,
-  ): Promise<{ pendingDocuments: number; processing: boolean }> {
-    if (!businessNumber) {
-      throw new BadRequestException('businessNumber is required');
-    }
-    const user = await this.userRepo.findOne({ where: { firebaseId } });
-    if (!user) throw new NotFoundException(`User not found for firebaseId`);
-    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
-    const [files, lockRows] = await Promise.all([
-      this.googleDriveService.listFolderFiles(business.driveInboxFolderId!),
-      this.dataSource.query('SELECT IS_USED_LOCK(?) AS owner', [
-        this.inboxProcessingLockName(firebaseId, businessNumber),
-      ]),
-    ]);
-    return {
-      pendingDocuments: files.length,
-      processing: lockRows?.[0]?.owner != null,
-    };
+  async getInboxProcessingStatus(firebaseId:string,businessNumber:string):Promise<{pendingDocuments:number;processing:boolean}>{
+    await this.assertBusinessOwnership(firebaseId,businessNumber);
+    const jobs=await this.queueStore().pendingForBusiness(firebaseId,businessNumber);
+    const active=jobs.filter(j=>['UPLOADING','READY','PREPARING','IN_FLIGHT','RESULT_SAVED','COMPLETING'].includes(j.state));
+    return {pendingDocuments:active.length,processing:active.length>0};
   }
+
 
   private inboxProcessingLockName(
     firebaseId: string,
@@ -2952,12 +2945,13 @@ ${finalOwnerName}`;
     }
     this.activeInboxOcr = Math.max(0, this.activeInboxOcr - 1);
   }
-
+  /** Discover and register durable work only. No provider call is allowed in an INBOX sweep. */
   private async processInboxForUserUnlocked(
     firebaseId: string,
     businessNumber: string,
   ): Promise<{
     processed: number;
+    queued: number;
     failed: number;
     skipped: number;
     duplicates: number;
@@ -2984,14 +2978,14 @@ ${finalOwnerName}`;
       `inbox=${inboxFolderId} files=${files.length}`,
     );
 
-    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
+    // Extraction and catalog loading belong to the shared worker.
 
     // Dedup: if a row already exists for this driveFileId with any status
     // OTHER than `error`, the file's been seen — skip it. Error rows are
     // retried so transient OCR failures can recover on the next pass.
     const existingRows = files.length
       ? await this.extractedDocRepo.find({
-        where: { driveFileId: In(files.map(f => f.id)) },
+        where: { driveFileId: In(files.map(f => f.id)),userId:user.index,businessNumber },
       })
       : [];
     const existingByDriveId = new Map<string, ExtractedDocument[]>();
@@ -3070,6 +3064,7 @@ ${finalOwnerName}`;
     const seenMd5InBatch = new Map<string, string>();
 
     let processed = 0;
+    let queued = 0;
     let failed = 0;
     let skipped = 0;
     let duplicates = 0;
@@ -3164,100 +3159,23 @@ ${finalOwnerName}`;
         continue;
       }
 
-      let ocrClaim: ExtractedDocument | null = null;
       try {
-        const buffer = await this.googleDriveService.downloadFile(file.id);
-        if (this.protectedPdf?.enabled() && file.mimeType === 'application/pdf'
-          && (await this.protectedPdf.inspection.inspect(buffer)).kind === 'password_required') {
-          const prior = importRows.find(row => row.driveFileId === file.id);
-          const stored = await this.protectedPdf.storeLocked({ firebaseId, businessNumber, filename: file.name, content: buffer,
-            source: prior?.source || DocumentImportSource.MANUAL_UPLOAD,
-            metadata: prior ? { gmailMessageId: prior.gmailMessageId, gmailThreadId: prior.gmailThreadId, gmailAttachmentId: prior.gmailAttachmentId,
-              gmailSubject: prior.gmailSubject, gmailFrom: prior.gmailFrom, gmailDate: prior.gmailDate } : {} });
-          if (stored.driveFileId !== file.id) {
-            const selected = await this.protectedPdf.business(firebaseId, businessNumber);
-            const blocked = await this.googleDriveService.ensureProtectedFolders(selected.driveFolderId);
-            await this.googleDriveService.moveFile(file.id, inboxFolderId, blocked.blocked);
-          }
-          skipped++;
-          continue;
+        const prior=importRows.find(row=>row.driveFileId===file.id);
+        const buffer=await this.googleDriveService.downloadFile(file.id);
+        if(this.protectedPdf?.enabled()&&file.mimeType==='application/pdf'&&(await this.protectedPdf.inspection.inspect(buffer)).kind==='password_required'){
+          await this.protectedPdf.storeLocked({firebaseId,businessNumber,filename:file.name,content:buffer,source:prior?.source||DocumentImportSource.MANUAL_UPLOAD});
+          skipped++;continue;
         }
-        // Persist the unique (drive_file_id, sub_index=0) claim BEFORE the
-        // paid provider call. A crash or unknown provider outcome therefore
-        // leaves a row that every future sweep treats as already handled.
-        ocrClaim = await this.claimOcrAttempt(
-          user.index,
-          businessNumber,
-          file,
-          uploadDate,
-          recordSource,
-        );
-        if (file.md5Checksum) seenMd5InBatch.set(file.md5Checksum, file.id);
-        const { invoices, rawResponse, intakeDecision } = await this.documentProcessor.extract(
-          buffer,
-          file.mimeType,
-          catalog,
-          true
-            && importRows.some(row => row.driveFileId === file.id && row.source === DocumentImportSource.GMAIL),
-        );
+        const hash=createHash('sha256').update(buffer).digest('hex');
+        const job=await this.queueStore().enqueue({owner:firebaseId,business:businessNumber,purpose:'DOCUMENT',source:prior?.source||DocumentImportSource.MANUAL_UPLOAD,hash,filename:file.name,mimeType:file.mimeType,size:buffer.length,policy:'manual-extraction-v1',fileId:file.id,folderId:inboxFolderId},capacityProfile());
+        if(file.md5Checksum)seenMd5InBatch.set(file.md5Checksum,file.id);
+        if(job.state==='COMPLETED')duplicates++;else queued++;
+      }catch{failed++;}
 
-        if (intakeDecision === 'not_accounting') {
-          ocrClaim.status = ExtractedDocStatus.REJECTED;
-          ocrClaim.rejectionReason = 'זוהה אוטומטית כמסמך שאינו חשבונאי';
-          ocrClaim.rawResponse = rawResponse;
-          await this.extractedDocRepo.save(ocrClaim);
-          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-          skipped++;
-          continue;
-        }
-
-        if (!invoices) {
-          ocrClaim.rejectionReason = intakeDecision === 'uncertain' ? 'ai_uncertain' : 'invalid_ai_response';
-          await this.finalizeOcrClaimAsError(ocrClaim, rawResponse);
-          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-          failed++;
-          continue;
-        }
-        if (invoices.length === 0) {
-          ocrClaim.status = ExtractedDocStatus.NO_INVOICE_FOUND;
-          ocrClaim.rawResponse = rawResponse;
-          ocrClaim.rejectionReason = null;
-          await this.extractedDocRepo.save(ocrClaim);
-          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-          skipped++;
-          continue;
-        }
-
-        // One row per invoice. Raw Claude response saved only on the first
-        // row to avoid duplicating a potentially-large blob. The first row
-        // updates the durable claim in place; it is never removed/reinserted.
-        await this.persistExtractedRows(user,businessNumber,file,uploadDate,recordSource,ocrClaim,invoices,rawResponse,catalog);
-        // OCR succeeded → move the file out of inbox so a repeat pass
-        // doesn't re-pick-it-up. Best-effort: a move failure is logged but
-        // doesn't undo the saved rows (dedup catches it next run).
-        await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-
-        processed++;
-        this.logger.log(
-          `Extracted ${file.name} (id=${file.id}) → ${invoices.length} invoice row(s)`,
-        );
-      } catch (err: any) {
-        if (ocrClaim) {
-          await this.finalizeOcrClaimAsError(
-            ocrClaim,
-            err?.message ?? String(err),
-          );
-          await this.safelyMoveToProcessed(file.id, inboxFolderId, processedFolderId);
-        }
-        failed++;
-        this.logger.error(
-          `Failed to process ${file.name} (id=${file.id}): ${err?.message ?? err}`,
-          err?.stack,
-        );
-      }
     }
 
     return {
+      queued,
       processed,
       failed,
       skipped,
@@ -3268,6 +3186,7 @@ ${finalOwnerName}`;
       processedFolderId,
     };
   }
+
 
   /** Best-effort move so a Drive throttle / 5xx doesn't undo a successful
    *  OCR. If the move fails we'll catch the orphaned file on the next inbox
@@ -3341,6 +3260,219 @@ ${finalOwnerName}`;
         }
         await repository.save(extractedRows);
   }
+  private queueStore():DocumentAiStore {
+    if(!this.analysisQueue)throw new ConflictException('Shared document analysis queue unavailable');
+    return this.analysisQueue;
+  }
+  private analysisReceipt(job:AnalysisJob):AnalysisReceipt {
+    return {queued:true,jobId:job.id,state:job.state,driveFileId:job.drive_file_id,filename:job.filename};
+  }
+  private async analysisBusiness(owner:string,businessNumber:string){
+    await this.assertBusinessOwnership(owner,businessNumber);
+    const user=await this.userRepo.findOneBy({firebaseId:owner});
+    if(!user)throw new NotFoundException('User not found');
+    const business=await this.ensureBusinessAndSubFolders(user,businessNumber);
+    return {user,business};
+  }
+  async queueBufferAnalysis(owner:string,businessNumber:string,bytes:Buffer,filename:string,mimeType:string,purpose:AnalysisPurpose,context:Record<string,any>={},actor=owner):Promise<AnalysisReceipt>{
+    if(!this.documentProcessor.isSupportedMimeType(mimeType)||!bytes?.length||bytes.length>10*1024*1024)throw new BadRequestException('Unsupported document or size');
+    const {business}=await this.analysisBusiness(owner,businessNumber),store=this.queueStore(),profile=capacityProfile();
+    const hash=createHash('sha256').update(bytes).digest('hex');
+    const safeName=(filename||'document').replace(/[\\/\x00-\x1f]/g,'-').slice(0,500);
+    if(purpose!=='FORM_FILL'&&mimeType==='application/pdf'&&this.protectedPdf&&(await this.protectedPdf.inspection.inspect(bytes)).kind==='password_required'){
+      const locked=await this.protectedPdf.storeLocked({firebaseId:owner,businessNumber,filename:safeName,content:bytes,source:DocumentImportSource.MANUAL_UPLOAD});
+      const parents=await this.googleDriveService.getFolderParents(locked.driveFileId);
+      const job=await store.enqueue({owner,business:businessNumber,actor,purpose,source:DocumentImportSource.MANUAL_UPLOAD,hash,filename:safeName,mimeType,size:bytes.length,policy:'manual-extraction-v1',context:{...context,protectedOriginal:true},contextKey:context.transactionId?String(context.transactionId):'',fileId:locked.driveFileId,folderId:parents[0]},profile);
+      return this.analysisReceipt(await store.markPassword(job));
+    }
+    // Reuse only retained owned content; never resurrect a Gmail negative tombstone.
+    const existing=await this.importedDocumentRepo.findOne({where:{firebaseId:owner,businessNumber,contentHash:hash}})||await store.canonicalFile(owner,businessNumber,hash);
+    const reusable=!!existing?.driveFileId&&await this.isRetainedForQueue(existing.driveFileId);
+    if(reusable&&purpose!=='FORM_FILL'){
+      const {user}=await this.analysisBusiness(owner,businessNumber);
+      const deleted=await this.extractedDocRepo.find({where:{userId:user.index,businessNumber,driveFileId:existing.driveFileId,deletedAt:Not(IsNull())}});
+      if(deleted.length)await this.restoreDeletedDocumentRows(deleted);
+    }
+    const folder=reusable?existing.driveFolderId:purpose==='FORM_FILL'?await this.googleDriveService.ensureAnalysisTemporary(business.driveFolderId):await this.googleDriveService.ensureIntakeStaging(business.driveFolderId);
+    let job=await store.enqueue({owner,business:businessNumber,actor,purpose,source:DocumentImportSource.MANUAL_UPLOAD,hash,filename:safeName,mimeType,size:bytes.length,policy:'manual-extraction-v1',context:{...context,temporaryUpload:purpose==='FORM_FILL'&&!reusable},contextKey:context.transactionId?String(context.transactionId):purpose==='FORM_FILL'?String(Math.floor(Date.now()/(24*3600000))):'',expiresAt:purpose==='FORM_FILL'?new Date(Date.now()+24*3600000):undefined,fileId:reusable?existing.driveFileId:undefined,folderId:reusable?folder:undefined},profile);
+    if(job.state==='BLOCKED'&&job.error_code==='UPLOAD_NOT_FOUND_REUPLOAD_REQUIRED')job=await store.retryMissingUpload(job);
+    if(job.state==='COMPLETED'&&purpose==='TRANSACTION_LINK'&&reusable)job=await store.resumeCompletedLink(job);
+    if(job.state==='UPLOADING'){
+      const claimed=await store.claimUpload(job);
+      if(claimed){
+        const candidates=await this.googleDriveService.findProtectedUploads(folder,job.id);
+        let fileId:string|undefined;
+        for(const id of candidates){const actual=await this.googleDriveService.downloadFile(id);if(createHash('sha256').update(actual).digest('hex')===hash){fileId=id;break;}}
+        if(candidates.length&&!fileId)throw new ConflictException('Reserved upload content mismatch');
+        fileId=fileId||await this.googleDriveService.uploadProtectedFile(folder,safeName,bytes,job.id,mimeType);
+        job=await store.bindUpload(claimed,fileId,folder);
+      }
+    }
+    if(job.state==='COMPLETED'&&!reusable&&job.drive_file_id)throw new ConflictException('Previously imported document is unavailable; no analysis was repeated');
+    return this.analysisReceipt(job);
+  }
+  private async isRetainedForQueue(fileId:string):Promise<boolean>{
+    try{await this.emailStore?.assertRetained(fileId);const meta=await this.googleDriveService.getIntakeFileMetadata(fileId);return !meta.trashed;}catch{return false;}
+  }
+  async queueEmailWork(work:EmailWork,token:string):Promise<void>{
+    await this.assertBusinessOwnership(work.firebase_id,work.business_number);
+    await this.emailStore.transaction(async manager=>{
+      const current=await this.emailStore.work(work.id,work.firebase_id,work.business_number,manager);
+      if(!current||current.email_lease_token!==token)throw new Error('Email lease changed');
+      await this.queueStore().enqueue({owner:work.firebase_id,business:work.business_number,purpose:'GMAIL',source:'GMAIL',hash:work.content_hash,filename:work.filename,mimeType:work.mime_type,size:Number((current as any).size||0),policy:GMAIL_POLICY_VERSION,context:{importId:work.id},contextKey:String(work.id),fileId:work.drive_file_id,folderId:work.drive_folder_id},capacityProfile(),manager);
+      const result=await this.emailStore.query("UPDATE imported_documents SET email_work_state='AI_QUEUED',email_ai_state='NOT_SENT',email_policy_version=? WHERE id=? AND firebase_id=? AND business_number=? AND email_lease_token=?",[GMAIL_POLICY_VERSION,work.id,work.firebase_id,work.business_number,token],manager);
+      if(result.affectedRows!==1)throw new Error('Email handoff lease changed');
+    });
+    work.email_work_state='AI_QUEUED';
+  }
+  async prepareQueuedAnalysis(job:AnalysisJob,profile:CapacityProfile):Promise<AnalysisInput&{cached?:AnalysisOutcome}>{
+    const {user,business}=await this.analysisBusiness(job.owner,job.business);
+    if(!job.drive_file_id)throw new AnalysisInputError('UPLOAD_NOT_READY');
+    const meta=await this.googleDriveService.getIntakeFileMetadata(job.drive_file_id);
+    if(meta.trashed||meta.parents?.length!==1)throw new AnalysisInputError('DOCUMENT_NOT_RETAINED');
+    const parent=meta.parents[0];
+    if(![business.driveInboxFolderId,business.driveProcessedFolderId,business.driveFolderId].includes(parent)){
+      const folder=await this.googleDriveService.getIntakeFileMetadata(parent);
+      if(!folder.parents?.includes(business.driveFolderId))throw new AnalysisInputError('FOREIGN_DOCUMENT_FOLDER');
+    }
+    if(!this.documentProcessor.isSupportedMimeType(job.mime_type))throw new AnalysisInputError('UNSUPPORTED_DOCUMENT');
+    const bytes=await this.googleDriveService.downloadFile(job.drive_file_id);
+    if(bytes.length>10*1024*1024||createHash('sha256').update(bytes).digest('hex')!==job.content_hash)throw new AnalysisInputError('CONTENT_CHANGED_OR_TOO_LARGE');
+    let pages=1;
+    if(job.mime_type==='application/pdf'){
+      const inspection=await this.protectedPdf.inspection.inspect(bytes);
+      if(inspection.kind!=='readable')throw new AnalysisInputError(inspection.kind==='password_required'?'PASSWORD_REQUIRED':inspection.kind==='limit'?'PDF_LIMIT':'INVALID_PDF');
+      pages=inspection.pages;
+    }
+    let cached:AnalysisOutcome|undefined=(await this.queueStore().reusableResult(job))||undefined;
+    if(job.purpose!=='FORM_FILL')await this.dataSource.transaction(async manager=>{
+      const current=await this.queueStore().get(job.id,job.owner,job.business,manager);
+      if(current.lease_token!==job.lease_token)throw new Error('Analysis preparation lease changed');
+      const repository=manager.getRepository(ExtractedDocument);
+      let claim=await repository.findOne({where:{driveFileId:job.drive_file_id,subIndex:0},lock:{mode:'pessimistic_write'}});
+      if(claim&&(claim.userId!==user.index||claim.businessNumber!==job.business||claim.deletedAt))throw new AnalysisInputError('FOREIGN_OR_DELETED_CLAIM');
+      if(claim&&claim.status!==ExtractedDocStatus.PROCESSING){
+        if(!claim.driveFileMd5||claim.driveFileMd5!==meta.md5Checksum)throw new AnalysisInputError('PREVIOUS_CONTENT_CHANGED');
+        if(claim.status===ExtractedDocStatus.ERROR)throw new AnalysisInputError('EXISTING_OUTCOME_UNKNOWN');
+        cached={invoices:[],rawResponse:'',technicalCode:'EXISTING_RESULT'};
+      }else if(claim&&current.claim_id!==claim.id&&!cached)throw new AnalysisInputError('EXISTING_OUTCOME_UNKNOWN');
+      if(!claim)claim=await repository.save(repository.create({userId:user.index,businessNumber:job.business,driveFileId:job.drive_file_id,driveFileName:job.filename,driveFileMd5:meta.md5Checksum,subIndex:0,month:this.deriveMonthFromExtraction(null,meta.createdTime?new Date(meta.createdTime):null),uploadDate:meta.createdTime?new Date(meta.createdTime):new Date(),status:ExtractedDocStatus.PROCESSING,source:this.recordSourceForImport(job.source as DocumentImportSource)}));
+      await this.queueStore().patch(job,{claim_id:claim.id},manager);
+    });
+    const catalog=cached?[]:await this.buildExtractionCatalog(job.owner,job.business);
+    return {bytes,mimeType:job.mime_type,catalog,gmailPolicy:job.source==='GMAIL',cached,estimatedInput:Math.max(1,this.documentProcessor.estimatePromptTokens(catalog,job.source==='GMAIL')+(job.mime_type==='application/pdf'?pages*profile.pdfPageTokens:profile.imageTokens)),estimatedOutput:profile.outputEstimate};
+  }
+  async completeQueuedAnalysis(job:AnalysisJob,outcome:AnalysisOutcome):Promise<Record<string,any>>{
+    const {user,business}=await this.analysisBusiness(job.owner,job.business),context=analysisContext(job.context_json);
+    if(job.purpose!=='GMAIL'&&outcome.invoices===null)throw new AnalysisInputError('INVALID_AI_RESPONSE');
+    if(job.purpose==='FORM_FILL')return {invoice:outcome.invoices?.[0]||null,invoicesCount:outcome.invoices?.length||0};
+    if(job.purpose==='GMAIL'){
+      await this.dataSource.transaction(async manager=>{
+        const current=await this.queueStore().get(job.id,job.owner,job.business,manager);
+        if(current.lease_token!==job.lease_token)throw new Error('Analysis completion lease changed');
+        const [row]=await this.emailStore.query('SELECT * FROM imported_documents WHERE id=? AND firebase_id=? AND business_number=? FOR UPDATE',[context.importId,job.owner,job.business],manager);
+        if(!row||row.content_hash!==job.content_hash||(row.drive_file_id!==job.drive_file_id&&row.email_work_state!=='DELETED'))throw new AnalysisInputError('GMAIL_ORIGIN_CHANGED');
+        if(row.email_work_state==='AI_QUEUED'){
+          if(outcome.technicalCode==='EXISTING_RESULT')await this.emailStore.query("UPDATE imported_documents SET email_claim_id=?,email_work_state='MOVE_PROCESSED',email_ai_state='EXISTING_RESULT',email_decision='UNCERTAIN',email_error_code='EXISTING_RESULT_ADOPTED' WHERE id=? AND email_work_state='AI_QUEUED'",[job.claim_id,row.id],manager);
+          else await this.emailStore.query("UPDATE imported_documents SET email_claim_id=?,email_work_state='RESULT_SAVED',email_ai_state='RESULT_SAVED',email_result_json=?,email_policy_version=? WHERE id=? AND email_work_state='AI_QUEUED'",[job.claim_id,JSON.stringify(outcome),job.policy_version,row.id],manager);
+        }
+        else if(row.email_claim_id!==job.claim_id||!['RESULT_SAVED','MOVE_PROCESSED','AWAITING_APPROVAL','DELETE_PENDING','DELETE_RETRY','DELETED'].includes(row.email_work_state))throw new AnalysisInputError('GMAIL_COMPLETION_CONFLICT');
+      });
+      return {importedDocumentId:context.importId,analysisComplete:true};
+    }
+    const catalog=await this.buildExtractionCatalog(job.owner,job.business);
+    await this.dataSource.transaction(async manager=>{
+      const current=await this.queueStore().get(job.id,job.owner,job.business,manager);
+      if(current.lease_token!==job.lease_token)throw new Error('Analysis completion lease changed');
+      if(analysisContext(current.completion_json).persistenceComplete)return;
+      const repository=manager.getRepository(ExtractedDocument);
+      const claim=await repository.findOne({where:{id:job.claim_id,userId:user.index,businessNumber:job.business,driveFileId:job.drive_file_id},lock:{mode:'pessimistic_write'}});
+      if(!claim||claim.deletedAt)throw new AnalysisInputError('DOCUMENT_CLAIM_UNAVAILABLE');
+      if(outcome.technicalCode!=='EXISTING_RESULT'){
+        if(claim.status!==ExtractedDocStatus.PROCESSING&&claim.status!==ExtractedDocStatus.PENDING_REVIEW&&claim.status!==ExtractedDocStatus.NO_INVOICE_FOUND)throw new AnalysisInputError('DOCUMENT_REVIEW_CHANGED');
+        if(outcome.invoices?.length)await this.persistExtractedRows(user,job.business,{id:job.drive_file_id,name:job.filename,md5Checksum:claim.driveFileMd5},claim.uploadDate,claim.source,claim,outcome.invoices,outcome.rawResponse,catalog,repository,await repository.find({where:{driveFileId:job.drive_file_id,userId:user.index,businessNumber:job.business}}));
+        else {claim.status=Array.isArray(outcome.invoices)?ExtractedDocStatus.NO_INVOICE_FOUND:ExtractedDocStatus.PENDING_REVIEW;claim.documentKind=DocumentKind.UNIDENTIFIED;claim.documentType=ExtractedDocumentType.UNKNOWN;claim.rejectionReason=null;claim.rawResponse=outcome.rawResponse||null;await repository.save(claim);}
+      }
+      await this.queueStore().patch(job,{completion_json:JSON.stringify({persistenceComplete:true,documentId:claim.id})},manager);
+    });
+    const meta=await this.googleDriveService.getIntakeFileMetadata(job.drive_file_id);
+    if(meta.trashed||meta.parents?.length!==1||![job.drive_folder_id,business.driveInboxFolderId,business.driveProcessedFolderId].includes(meta.parents[0]))throw new AnalysisInputError('DOCUMENT_LOCATION_CHANGED');
+    if(meta.parents[0]!==business.driveProcessedFolderId){await this.googleDriveService.moveFile(job.drive_file_id,meta.parents[0],business.driveProcessedFolderId);}
+    const claim=await this.extractedDocRepo.findOneBy({id:job.claim_id,userId:user.index,businessNumber:job.business});
+    if(job.purpose==='TRANSACTION_LINK'){
+      if(claim.status===ExtractedDocStatus.NO_INVOICE_FOUND)return {ok:false,code:'NO_ACCOUNTING_DOCUMENT',documentId:claim.id};
+      try{await this.queuedMatching.linkQueuedDocToTx(job.owner,user.index,job.business,claim.id,Number(context.transactionId));}
+      catch{throw new AnalysisInputError('TRANSACTION_LINK_TARGET_CHANGED');}
+    }
+    return {ok:true,documentId:claim.id,driveFileId:claim.driveFileId,driveFileName:claim.driveFileName,invoiceNumber:claim.invoiceNumber,allocationNumber:claim.allocationNumber,documentType:claim.documentType};
+  }
+  async recoverQueuedUploads():Promise<void>{
+    const store=this.queueStore();
+    for(const pending of await store.unfinishedUploads()){
+      const job=await store.claimUpload(pending);if(!job)continue;
+      const {business}=await this.analysisBusiness(job.owner,job.business);
+      const context=analysisContext(job.context_json);
+      const folder=context.temporaryUpload?await this.googleDriveService.ensureAnalysisTemporary(business.driveFolderId):await this.googleDriveService.ensureIntakeStaging(business.driveFolderId);
+      const candidates=await this.googleDriveService.findProtectedUploads(folder,job.id);
+      let found:string|undefined;
+      for(const fileId of candidates){const bytes=await this.googleDriveService.downloadFile(fileId);if(createHash('sha256').update(bytes).digest('hex')===job.content_hash){found=fileId;break;}}
+      if(found)await store.bindUpload(job,found,folder);
+      else await store.patch(job,{state:'BLOCKED',error_code:'UPLOAD_NOT_FOUND_REUPLOAD_REQUIRED',lease_token:null,lease_expires_at:null});
+    }
+    for(const pending of await store.expiredPrefills()){
+      const job=await store.claimCleanup(pending);if(!job)continue;
+      try{await this.cleanupQueuedPrefill(job);}catch{await store.finishCleanup(job,'RETRY');}
+    }
+  }
+  private async cleanupQueuedPrefill(job:AnalysisJob){
+    const store=this.queueStore(),context=analysisContext(job.context_json);
+    if(!job.drive_file_id||!context.temporaryUpload){await store.finishCleanup(job,'DONE');return;}
+    const {business}=await this.analysisBusiness(job.owner,job.business);
+    const folder=await this.googleDriveService.ensureAnalysisTemporary(business.driveFolderId);
+    let meta;
+    try{meta=await this.googleDriveService.getIntakeFileMetadata(job.drive_file_id);}
+    catch(error:any){if(Number(error?.code||error?.response?.status)===404){await store.finishCleanup(job,'DONE');return;}throw error;}
+    if(meta.parents?.length!==1||meta.parents[0]!==folder||meta.appProperties?.keepintaxProtectedOperation!==job.id){await store.finishCleanup(job,'ATTENTION');return;}
+    const refs=await store.query(`SELECT 'import' AS reason FROM imported_documents WHERE drive_file_id=?
+      UNION ALL SELECT 'document' FROM extracted_document WHERE drive_file_id=?
+      UNION ALL SELECT 'expense' FROM expense WHERE file LIKE ?
+      UNION ALL SELECT 'original' FROM protected_documents WHERE original_drive_id=?
+      UNION ALL SELECT 'replacement' FROM document_replacement_operations WHERE candidate_drive_id=?
+      UNION ALL SELECT 'job' FROM document_processing_jobs WHERE drive_file_id=? AND id<>?`,[job.drive_file_id,job.drive_file_id,'%'+job.drive_file_id+'%',job.drive_file_id,job.drive_file_id,job.drive_file_id,job.id]);
+    if(refs.length){await store.finishCleanup(job,'SHARED');return;}
+    const bytes=await this.googleDriveService.downloadFile(job.drive_file_id);
+    if(createHash('sha256').update(bytes).digest('hex')!==job.content_hash){await store.finishCleanup(job,'ATTENTION');return;}
+    if(await this.googleDriveService.deleteIntakeFile(job.drive_file_id)!=='DELETED')throw new Error('Temporary deletion unconfirmed');
+    await store.finishCleanup(job,'DONE');
+  }
+  async getAnalysisStatus(owner:string,businessNumber:string,id:string){
+    await this.assertBusinessOwnership(owner,businessNumber);
+    const job=await this.queueStore().get(id,owner,businessNumber);
+    if(job.purpose==='FORM_FILL'&&job.expires_at&&new Date(job.expires_at).getTime()<Date.now())throw new NotFoundException('Analysis expired');
+    return {jobId:job.id,state:job.state,errorCode:job.error_code,completion:job.state==='COMPLETED'?analysisContext(job.completion_json):null};
+  }
+  async recordQueuedFailure(job:AnalysisJob,code:string):Promise<void>{
+    if(job.purpose!=='GMAIL'){
+      if(job.purpose!=='FORM_FILL'&&job.claim_id){
+        const {user}=await this.analysisBusiness(job.owner,job.business);
+        await this.extractedDocRepo.update({id:job.claim_id,userId:user.index,businessNumber:job.business,driveFileId:job.drive_file_id,status:ExtractedDocStatus.PROCESSING},{status:ExtractedDocStatus.ERROR,rejectionReason:code});
+      }
+      return;
+    }
+    const context=analysisContext(job.context_json);
+    await this.emailStore.query("UPDATE imported_documents SET email_work_state='WORK_BLOCKED',email_error_code=?,email_ai_state=? WHERE id=? AND firebase_id=? AND business_number=? AND email_work_state='AI_QUEUED'",[code,job.attempt_id?'UNKNOWN':'NOT_SENT',context.importId,job.owner,job.business]);
+    const rows=await this.emailStore.query('SELECT r.* FROM email_import_runs r JOIN imported_documents d ON d.email_run_id=r.id WHERE d.id=? AND r.firebase_id=? AND r.business_number=?',[context.importId,job.owner,job.business]);
+    if(rows[0])await this.emailStore.refreshRun(rows[0]);
+  }
+  private async decorateQueuedArchive(owner:string,business:string,items:any[],canManage:boolean):Promise<any[]>{
+    if(!this.analysisQueue)return items;
+    const result=[...items];
+    for(const job of await this.queueStore().pendingForBusiness(owner,business)){
+      if(!job.drive_file_id||result.some(item=>item.driveFileId===job.drive_file_id)||job.state==='PASSWORD_REQUIRED')continue;
+      result.push({id:-(2**41+Number(job.sequence)),itemType:'DOCUMENT',documentType:null,documentKind:null,name:job.filename,documentDate:null,uploadDate:job.created_at,source:job.source==='GMAIL'?'EMAIL':'DRIVE',status:['BLOCKED','UNKNOWN','FAILED'].includes(job.state)?'ERROR':'PENDING',canResolve:false,canReclassify:false,canManageExpenses:canManage,driveFileId:job.drive_file_id,rejectionReason:null,vatReportPeriod:null,annualReportingYear:null,analysisJobId:job.id});
+    }
+    return result;
+  }
   /** Existing claim/catalog/extraction/persistence, bounded to one managed file. */
   async prepareEmailWork(work: EmailWork, token: string, allowNewClaim = true) {
     if (!this.emailStore?.enabled()) throw new Error('Durable email disabled');
@@ -3375,11 +3507,8 @@ ${finalOwnerName}`;
     if (prepared.alreadyHandled) Object.assign(work, { email_work_state: 'MOVE_PROCESSED', email_decision: 'UNCERTAIN', email_ai_state: 'EXISTING_RESULT', email_error_code: 'EXISTING_RESULT_ADOPTED' });
     return { user, file, bytes, ...prepared, catalog: prepared.alreadyHandled ? [] : await this.buildExtractionCatalog(work.firebase_id, work.business_number) };
   }
-  async extractEmailWork(work:EmailWork,context:any) {
-    const bytes=context.bytes || await this.googleDriveService.downloadFile(work.drive_file_id);
-    if(createHash('sha256').update(bytes).digest('hex')!==work.content_hash)throw new Error('Email content changed');
-    return this.documentProcessor.extract(bytes,work.mime_type,context.catalog,true);
-  }
+
+
   async persistEmailWork(work:EmailWork,token:string,outcome:any,context?:any) {
     if(!this.emailStore?.enabled())throw new Error('Durable email disabled');
     const catalog=context?.catalog || await this.buildExtractionCatalog(work.firebase_id,work.business_number);
@@ -3705,230 +3834,22 @@ ${finalOwnerName}`;
     await this.extractedDocRepo.update({ id: documentId }, { documentKind });
     return { ok: true, documentId, documentKind };
   }
-
-  /**
-   * Upload a user-provided file directly into the business's Drive inbox,
-   * OCR it inline, persist the extracted rows, and return the FIRST
-   * extracted_document — the report-review flow uses that to auto-link
-   * the new doc to a pending tx_only row.
-   *
-   * Unlike `processInboxForUser` (which polls inbox/), this is invoked
-   * synchronously from a button click — so the user waits ~5-10s on the
-   * Claude call. Multi-invoice PDFs persist N rows; the linker only links
-   * sub_index=0 — siblings stay as doc_only rows the user can resolve
-   * separately. The file ends up in processed/ on success, same as the
-   * batch path.
-   */
-  async uploadAndOcrDoc(
-    firebaseId: string,
-    businessNumber: string,
-    fileBuffer: Buffer,
-    originalName: string,
-    mimeType: string,
-  ): Promise<ExtractedDocument> {
-    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
-      throw new BadRequestException(`Unsupported mime type: ${mimeType}`);
-    }
-    const user = await this.userRepo.findOne({ where: { firebaseId } });
-    if (!user) throw new NotFoundException(`User not found for firebaseId`);
-    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
-    const inboxFolderId = business.driveInboxFolderId!;
-    const processedFolderId = business.driveProcessedFolderId!;
-
-    // 1) Drop the file in inbox/ so it ends up in the same Drive layout
-    //    as files that arrive via the normal "drag-into-inbox" route.
-    const driveFileId = await this.googleDriveService.uploadFile(
-      inboxFolderId,
-      originalName,
-      fileBuffer,
-      mimeType,
-    );
-
-    const uploadDate = new Date();
-    const directFile = {
-      id: driveFileId,
-      name: originalName,
-      md5Checksum: createHash('md5').update(fileBuffer).digest('hex'),
-    };
-
-    // 2) Claim the Drive file before calling Claude. This closes the race
-    //    with the periodic inbox sweep and makes an ambiguous provider outcome
-    //    non-retryable just like the ordinary inbox path.
-    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
-    const ocrClaim = await this.claimOcrAttempt(
-      user.index,
-      businessNumber,
-      directFile,
-      uploadDate,
-      RecordSource.DRIVE,
-    );
-    let invoices: any[] | null = null;
-    let rawResponse = '';
-    try {
-      ({ invoices, rawResponse } = await this.documentProcessor.extract(
-        fileBuffer,
-        mimeType,
-        catalog,
-      ));
-    } catch (error: any) {
-      await this.finalizeOcrClaimAsError(
-        ocrClaim,
-        error?.message ?? String(error),
-      );
-      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-      throw error;
-    }
-    if (invoices && invoices.length === 0) {
-      ocrClaim.status = ExtractedDocStatus.NO_INVOICE_FOUND;
-      ocrClaim.rawResponse = rawResponse;
-      ocrClaim.rejectionReason = null;
-      await this.extractedDocRepo.save(ocrClaim);
-      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-      throw new BadRequestException('העיבוד הסתיים, אך לא זוהה מסמך חשבונאי בקובץ');
-    }
-    if (!invoices) {
-      ocrClaim.rejectionReason = 'invalid_ai_response';
-      // Persist an error row so admin diagnostics still see the file, but
-      // raise so the caller can surface "OCR didn't find an invoice".
-      await this.finalizeOcrClaimAsError(
-        ocrClaim,
-        rawResponse || 'Claude returned 0 invoices for this upload',
-      );
-      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-      throw new BadRequestException('לא נמצאה חשבונית במסמך שהועלה');
-    }
-
-    // 3) Persist a row per invoice — same shape as processInboxForUser
-    //    (kept inline rather than factored out so the read-path comments
-    //    in that loop stay self-contained). Multi-invoice files get N
-    //    sibling rows sharing the same driveFileId.
-    const rowsToSave: ExtractedDocument[] = [];
-    for (let i = 0; i < invoices.length; i++) {
-      const inv = invoices[i];
-      const normalizedCurrency = this.normalizeCurrency(inv.currency);
-      const fxResolved =
-        normalizedCurrency && normalizedCurrency !== 'ILS' && inv.amount != null && inv.date
-          ? await this.fxRateService.getRate(new Date(inv.date), normalizedCurrency)
-          : null;
-      const ilsAmount =
-        fxResolved != null && inv.amount != null
-          ? Number((Number(inv.amount) * fxResolved).toFixed(2))
-          : null;
-      const values = {
-          userId: user.index,
-          businessNumber,
-          driveFileId,
-          driveFileName: originalName,
-          driveFileMd5: directFile.md5Checksum,
-          month: this.deriveMonthFromExtraction(inv.date, uploadDate),
-          subIndex: i,
-          documentType: this.normalizeDocumentType(inv.document_type),
-          // D8 (Phase 4.3): routing kind + catalog FK at insert time — same
-          // rule as the batch inbox path.
-          documentKind: deriveDocumentKind(this.normalizeDocumentType(inv.document_type)),
-          subCategoryId: this.matchCatalogSubCategoryId(catalog, inv.category, inv.sub_category),
-          uploadDate,
-          supplier: inv.supplier ?? null,
-          supplierId: inv.supplier_id ?? null,
-          date: inv.date ?? null,
-          invoiceNumber: inv.invoice_number ?? null,
-          allocationNumber: this.normalizeAllocationNumber(inv.allocation_number),
-          amount: inv.amount != null ? String(inv.amount) : null,
-          vat: inv.vat != null ? String(inv.vat) : null,
-          amountBeforeVat:
-            inv.amount_before_vat != null ? String(inv.amount_before_vat) : null,
-          currency: normalizedCurrency,
-          ilsAmount: ilsAmount != null ? String(ilsAmount) : null,
-          fxRateToIls: fxResolved != null ? String(fxResolved) : null,
-          category: inv.category ?? null,
-          subCategory: inv.sub_category ?? null,
-          taxPercent: inv.tax_percent != null ? String(inv.tax_percent) : null,
-          vatPercent: inv.vat_percent != null ? String(inv.vat_percent) : null,
-          isEquipment: typeof inv.is_equipment === 'boolean' ? inv.is_equipment : null,
-          description: inv.description ?? null,
-          status: ExtractedDocStatus.PENDING_REVIEW,
-          source: RecordSource.DRIVE,
-          rawResponse: i === 0 ? rawResponse : null,
-      };
-      rowsToSave.push(
-        i === 0
-          ? Object.assign(ocrClaim, values)
-          : this.extractedDocRepo.create(values),
-      );
-    }
-    let savedRows: ExtractedDocument[];
-    try {
-      savedRows = await this.extractedDocRepo.save(rowsToSave);
-    } catch (error: any) {
-      await this.finalizeOcrClaimAsError(
-        ocrClaim,
-        error?.message ?? String(error),
-      );
-      await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-      throw error;
-    }
-
-    // 4) Move the file out of inbox/ now that OCR succeeded. Best-effort —
-    //    a failed move leaves the file in inbox/ where the next batch run
-    //    would re-OCR; the DB dedup (driveFileId + non-error status) then
-    //    short-circuits without creating duplicates.
-    await this.safelyMoveToProcessed(driveFileId, inboxFolderId, processedFolderId);
-
-    return savedRows[0];
+  /** Interactive transaction uploads return a durable job; linking happens after extraction. */
+  async uploadAndOcrDoc(firebaseId:string,businessNumber:string,fileBuffer:Buffer,originalName:string,mimeType:string,transactionId?:number,actor=firebaseId):Promise<AnalysisReceipt>{
+    if(!Number.isSafeInteger(transactionId)||transactionId<1)throw new BadRequestException('Transaction is required');
+    return this.queueBufferAnalysis(firebaseId,businessNumber,fileBuffer,originalName,mimeType,'TRANSACTION_LINK',{transactionId},actor);
   }
-
-  /**
-   * Drop one or more user-picked files straight into the business's Drive
-   * inbox/ folder — no OCR, no extracted_document row. Used by the
-   * settings-page "העלאת מסמכים ל-Drive" button and the Home Quick Upload
-   * dialog, where the user just wants files sitting in Drive (e.g. for an
-   * accountant to browse, or to be picked up later by `processInboxForUser`).
-   *
-   * Only PDF / JPEG / PNG are accepted — both MIME type and file extension
-   * must match (defense in depth vs. the frontend accept/filter).
-   */
-  async uploadFilesToInbox(
-    firebaseId: string,
-    businessNumber: string,
-    files: { buffer: Buffer; originalname: string; mimetype: string }[],
-  ): Promise<{ fileId: string; fileName: string; passwordRequired?: boolean }[]> {
-    const user = await this.userRepo.findOne({ where: { firebaseId } });
-    if (!user) throw new NotFoundException(`User not found for firebaseId`);
-    const business = await this.ensureBusinessAndSubFolders(user, businessNumber);
-    const inboxFolderId = business.driveInboxFolderId!;
-
-    const uploaded: { fileId: string; fileName: string; passwordRequired?: boolean }[] = [];
-    for (const file of files) {
+  /** Upload acknowledgment is separate from completed document analysis. */
+  async uploadFilesToInbox(firebaseId:string,businessNumber:string,files:{buffer:Buffer;originalname:string;mimetype:string}[],actor=firebaseId):Promise<any[]>{
+    const uploaded=[];
+    for(const file of files){
       this.assertAllowedInboxUploadFile(file);
-      if (this.protectedPdf?.enabled() && file.mimetype === 'application/pdf') {
-        const inspection = await this.protectedPdf.inspection.inspect(file.buffer);
-        if (inspection.kind === 'password_required') {
-          const stored = await this.protectedPdf.storeLocked({ firebaseId, businessNumber, filename: file.originalname,
-            content: file.buffer, source: DocumentImportSource.MANUAL_UPLOAD });
-          uploaded.push({ fileId: stored.driveFileId, fileName: stored.driveFileName, passwordRequired: true });
-          continue;
-        }
-        if (inspection.kind !== 'readable') throw new BadRequestException({ code: inspection.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF could not be validated' });
-      }
-      const fileId = await this.googleDriveService.uploadFile(
-        inboxFolderId,
-        file.originalname,
-        file.buffer,
-        file.mimetype,
-      );
-      uploaded.push({ fileId, fileName: file.originalname });
+      const receipt=await this.queueBufferAnalysis(firebaseId,businessNumber,file.buffer,file.originalname,file.mimetype,'DOCUMENT',{},actor);
+      uploaded.push({...receipt,fileId:receipt.driveFileId,fileName:receipt.filename,passwordRequired:receipt.state==='PASSWORD_REQUIRED'});
     }
-    // User-facing Drive uploads should become archive rows immediately,
-    // independently of report navigation. The distributed lock keeps this
-    // safe if the periodic inbox sweep or another request is already running.
-    if (uploaded.some(file => !file.passwordRequired)) void this.processInboxForUser(firebaseId, businessNumber).catch((error: any) => {
-      this.logger.warn(
-        `Immediate Drive upload OCR failed for biz=${businessNumber}: ${error?.message ?? error}`,
-      );
-      // The automatic inbox sweep will retry the durable Drive files.
-    });
     return uploaded;
   }
+
 
   /** Whitelist for direct inbox uploads (Home Quick Upload / Settings). */
   private static readonly INBOX_UPLOAD_MIME_BY_EXT: Record<string, readonly string[]> = {
@@ -3952,37 +3873,11 @@ ${finalOwnerName}`;
       );
     }
   }
-
-  /**
-   * One-shot OCR for a single file uploaded directly from the UI (manual
-   * expense dialog). Unlike `processInboxForUser` this does NOT persist
-   * anything — it just runs Claude on the buffer and returns the first
-   * invoice's extracted fields so the form can prefill. Returns null for
-   * `invoice` if Claude found nothing or returned unparseable output (caller
-   * surfaces a soft warning rather than treating it as a hard error).
-   */
-  async ocrSingleFile(
-    firebaseId: string,
-    businessNumber: string,
-    fileBuffer: Buffer,
-    mimeType: string,
-  ): Promise<{ invoice: any | null; invoicesCount: number }> {
-    if (!this.documentProcessor.isSupportedMimeType(mimeType)) {
-      throw new BadRequestException(
-        `Unsupported file type: ${mimeType}. Supported: PDF, JPEG, PNG, GIF, WEBP.`,
-      );
-    }
-    const catalog = await this.buildExtractionCatalog(firebaseId, businessNumber);
-    const { invoices } = await this.documentProcessor.extract(
-      fileBuffer,
-      mimeType,
-      catalog,
-    );
-    if (!invoices || invoices.length === 0) {
-      return { invoice: null, invoicesCount: 0 };
-    }
-    return { invoice: invoices[0], invoicesCount: invoices.length };
+  /** Form fill is queued and privately temporary, not an accounting/archive document. */
+  async ocrSingleFile(firebaseId:string,businessNumber:string,fileBuffer:Buffer,mimeType:string,filename='document',actor=firebaseId):Promise<AnalysisReceipt>{
+    return this.queueBufferAnalysis(firebaseId,businessNumber,fileBuffer,filename,mimeType,'FORM_FILL',{},actor);
   }
+
 
   /**
    * Build the sub-category catalog passed to Claude for classification AND
@@ -4373,7 +4268,8 @@ ${finalOwnerName}`;
       ? await this.protectedPdf.decorateArchive(firebaseId, businessNumber, archiveItems, canManageExpenses)
       : archiveItems;
     const scopedVisibleItems=this.emailStore?.enabled()?await this.emailStore.decorateArchive(firebaseId,businessNumber,visibleItems,canManageExpenses):visibleItems;
-    return scopedVisibleItems.sort((a, b) => {
+    const projected=this.analysisQueue?await this.decorateQueuedArchive(firebaseId,businessNumber,scopedVisibleItems,canManageExpenses):scopedVisibleItems;
+    return projected.sort((a, b) => {
       const at = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
       const bt = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
       return bt - at;

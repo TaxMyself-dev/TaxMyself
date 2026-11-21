@@ -12,11 +12,13 @@ CREATE TABLE IF NOT EXISTS document_processing_jobs (
   claim_id INT NULL, attempt_id CHAR(36) NULL, lease_token CHAR(36) NULL, lease_expires_at DATETIME(3) NULL,
   attempts INT NOT NULL DEFAULT 0, completion_attempts INT NOT NULL DEFAULT 0, reserved_input BIGINT NOT NULL DEFAULT 0, reserved_output BIGINT NOT NULL DEFAULT 0,
   usage_json JSON NULL, timings_json JSON NULL, error_code VARCHAR(100) NULL,
+  cleanup_state VARCHAR(16) NOT NULL DEFAULT 'PENDING', cleanup_attempts INT NOT NULL DEFAULT 0,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   started_at DATETIME(3) NULL, ai_started_at DATETIME(3) NULL, finished_at DATETIME(3) NULL, next_at DATETIME(3) NULL, expires_at DATETIME(3) NULL,
   UNIQUE KEY ux_document_job_sequence (sequence), UNIQUE KEY ux_document_job_identity (identity_key),
   KEY ix_document_job_dispatch (capacity_key,state,next_at,sequence),
-  KEY ix_document_job_tenant (owner,business,state,interactive,sequence), KEY ix_document_job_lease (state,lease_expires_at)
+  KEY ix_document_job_tenant (owner,business,state,interactive,sequence), KEY ix_document_job_lease (state,lease_expires_at),
+  KEY ix_document_job_cleanup (purpose,expires_at,cleanup_state)
 ) ENGINE=InnoDB;
 CREATE TABLE IF NOT EXISTS document_ai_capacity (
   capacity_key VARCHAR(120) NOT NULL PRIMARY KEY, state_json JSON NULL,

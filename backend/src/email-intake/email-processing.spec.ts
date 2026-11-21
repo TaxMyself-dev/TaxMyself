@@ -57,6 +57,7 @@ function subject(state = 'READY') {
     work: async () => ({ ...work, email_lease_token: 'token' }),
   };
   const documents: any = {
+    queueEmailWork:jest.fn(async()=>{work.email_work_state='AI_QUEUED';}),
     prepareEmailWork: jest.fn().mockResolvedValue({}),
     extractEmailWork: jest.fn().mockResolvedValue({
       intakeDecision: 'accounting',
@@ -104,18 +105,7 @@ function subject(state = 'READY') {
   };
 }
 describe('durable single-pass work and safe deletion (mocks only)', () => {
-  it('calls extraction once and completes only this file', async () => {
-    const t = subject();
-    await t.worker.runOne(t.work);
-    expect(t.documents.extractEmailWork).toHaveBeenCalledTimes(1);
-    expect(t.work.email_work_state).toBe('AWAITING_APPROVAL');
-    expect(t.drive.moveFile).toHaveBeenCalledWith(
-      'candidate',
-      'inbox',
-      'processed',
-    );
-    expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
-  });
+  it('hands this file to shared admission without executing AI or moving it prematurely',async()=>{const t=subject();await t.worker.runOne(t.work);expect(t.documents.queueEmailWork).toHaveBeenCalledWith(t.work,'token');expect(t.work.email_work_state).toBe('AI_QUEUED');expect(t.documents.extractEmailWork).not.toHaveBeenCalled();expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();expect(t.drive.moveFile).not.toHaveBeenCalled();});
   it('resumes a saved response without another AI call', async () => {
     const t = subject('RESULT_SAVED');
     t.work.email_result_json = {
@@ -141,14 +131,7 @@ describe('durable single-pass work and safe deletion (mocks only)', () => {
     expect(t.work.email_work_state).toBe('AWAITING_APPROVAL');
     expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
   });
-  it('retains a timeout without a second request', async () => {
-    const t = subject();
-    t.documents.extractEmailWork.mockRejectedValue(new Error('timeout'));
-    await t.worker.runOne(t.work);
-    expect(t.documents.extractEmailWork).toHaveBeenCalledTimes(1);
-    expect(t.work.email_decision).toBe('UNCERTAIN');
-    expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
-  });
+  it('retains a failed queue handoff without making a provider request',async()=>{const t=subject();t.documents.queueEmailWork.mockRejectedValue(new Error('storage unavailable'));await t.worker.runOne(t.work);expect(t.documents.extractEmailWork).not.toHaveBeenCalled();expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();expect(t.work.email_work_state).not.toBe('DELETED');});
   it.each([
     { intakeDecision: 'uncertain', invoices: [] },
     { invoices: [] },
@@ -241,22 +224,7 @@ describe('durable single-pass work and safe deletion (mocks only)', () => {
     expect(t.work.email_work_state).toBe('DELETE_RETRY');
     expect(t.drive.deleteIntakeFile).toHaveBeenCalledTimes(1);
   });
-  it('adopts an existing pending result without a second AI call', async () => {
-    const t = subject();
-    t.drive.getIntakeFileMetadata.mockResolvedValue({ parents: ['processed'] });
-    t.documents.prepareEmailWork.mockImplementation(async () => {
-      t.work.email_work_state = 'MOVE_PROCESSED';
-      return { alreadyHandled: true };
-    });
-    await t.worker.runOne(t.work);
-    expect(t.documents.prepareEmailWork).toHaveBeenCalledWith(
-      t.work,
-      'token',
-      false,
-    );
-    expect(t.documents.extractEmailWork).not.toHaveBeenCalled();
-    expect(t.work.email_work_state).toBe('AWAITING_APPROVAL');
-  });
+  it('queues an owned file already in processed for shared-result adoption',async()=>{const t=subject();t.drive.getIntakeFileMetadata.mockResolvedValue({parents:['processed']});await t.worker.runOne(t.work);expect(t.documents.queueEmailWork).toHaveBeenCalledWith(t.work,'token');expect(t.documents.extractEmailWork).not.toHaveBeenCalled();expect(t.work.email_work_state).toBe('AI_QUEUED');});
   it('blocks deletion if the file content changed after the negative AI decision', async () => {
     const t = subject('DELETE_PENDING');
     Object.assign(t.work, {

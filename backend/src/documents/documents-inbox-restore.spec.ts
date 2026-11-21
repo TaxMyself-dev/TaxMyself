@@ -3,6 +3,9 @@ import { RecordSource } from 'src/enum';
 import { DocumentImportSource } from 'src/document-import/enums/document-import.enums';
 import { ExtractedDocStatus } from './extracted-document.entity';
 
+const priorEnv={...process.env};
+beforeEach(()=>Object.assign(process.env,{DOCUMENT_AI_LIMIT_GROUP:'test',DOCUMENT_AI_MAX_CONCURRENCY:'8',DOCUMENT_AI_RPM:'60',DOCUMENT_AI_ITPM:'60000',DOCUMENT_AI_OTPM:'6000',DOCUMENT_AI_PDF_PAGE_TOKENS:'1000',DOCUMENT_AI_IMAGE_TOKENS:'1000',DOCUMENT_AI_OUTPUT_ESTIMATE:'100'}));
+afterEach(()=>{process.env={...priorEnv};});
 describe('DocumentsService.processInboxForUser deleted-document restoration', () => {
   function subject(findResults: any[][], file: any, importRows: any[] = []) {
     const files = Array.isArray(file) ? file : [file];
@@ -20,6 +23,8 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     for (const result of findResults) extractedDocRepo.find.mockResolvedValueOnce(result);
 
     const fakeThis = {
+      queueStore:()=>({enqueue:jest.fn().mockResolvedValue({id:'job',state:'READY'})}),
+      queuedInputs:[] as any[],
       userRepo: { findOne: jest.fn().mockResolvedValue({ index: 7 }) },
       ensureBusinessAndSubFolders: jest.fn().mockResolvedValue({
         driveInboxFolderId: 'inbox',
@@ -45,6 +50,7 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
     };
 
+    fakeThis.queueStore=()=>({enqueue:jest.fn(async input=>{fakeThis.queuedInputs.push(input);return {id:'job',state:'READY'};})});
     return {
       fakeThis,
       // Exercise the inbox body directly. The public wrapper owns the
@@ -129,22 +135,10 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       rawResponse: 'diagnostic OCR failure',
     });
 
-    await expect(test.run()).resolves.toMatchObject({ failed: 1 });
-    expect(test.fakeThis.extractedDocRepo.createdRows[0]).toEqual(expect.objectContaining({
-      driveFileId: file.id,
-      status: ExtractedDocStatus.PROCESSING,
-      source: RecordSource.EMAIL,
-    }));
-    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        status: ExtractedDocStatus.ERROR,
-        rawResponse: 'diagnostic OCR failure',
-      }),
-    );
-    expect(test.fakeThis.extractedDocRepo.save.mock.invocationCallOrder[0])
-      .toBeLessThan(test.fakeThis.documentProcessor.extract.mock.invocationCallOrder[0]);
-    expect(test.fakeThis.safelyMoveToProcessed)
-      .toHaveBeenCalledWith(file.id, 'inbox', 'processed');
+    await expect(test.run()).resolves.toMatchObject({queued:1,failed:0});
+    expect(test.fakeThis.queuedInputs[0]).toMatchObject({fileId:file.id,source:DocumentImportSource.EMAIL_FORWARDING});
+    expect(test.fakeThis.documentProcessor.extract).not.toHaveBeenCalled();
+    expect(test.fakeThis.extractedDocRepo.save).not.toHaveBeenCalled();
   });
 
   it('preserves WHATSAPP as the OCR/archive source for an API-imported file', async () => {
@@ -164,20 +158,10 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
       rawResponse: 'diagnostic OCR failure',
     });
 
-    await expect(test.run()).resolves.toMatchObject({ failed: 1 });
-    expect(test.fakeThis.extractedDocRepo.createdRows[0]).toEqual(expect.objectContaining({
-      driveFileId: file.id,
-      status: ExtractedDocStatus.PROCESSING,
-      source: RecordSource.WHATSAPP,
-    }));
-    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        status: ExtractedDocStatus.ERROR,
-        rawResponse: 'diagnostic OCR failure',
-      }),
-    );
-    expect(test.fakeThis.safelyMoveToProcessed)
-      .toHaveBeenCalledWith(file.id, 'inbox', 'processed');
+    await expect(test.run()).resolves.toMatchObject({queued:1,failed:0});
+    expect(test.fakeThis.queuedInputs[0]).toMatchObject({fileId:file.id,source:DocumentImportSource.API_IMPORT});
+    expect(test.fakeThis.documentProcessor.extract).not.toHaveBeenCalled();
+    expect(test.fakeThis.extractedDocRepo.save).not.toHaveBeenCalled();
   });
 
   it('moves an existing error row to processed without calling Claude again', async () => {
@@ -235,7 +219,7 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     );
   });
 
-  it('claims content before Claude so a failed first copy blocks its batch sibling', async () => {
+  it('reserves queued content before its batch sibling can be admitted again', async () => {
     const files = [
       {
         id: 'first-copy',
@@ -259,12 +243,13 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     });
 
     await expect(test.run()).resolves.toMatchObject({
-      failed: 1,
+      failed: 0,
+      queued: 1,
       duplicates: 1,
       total: 2,
     });
 
-    expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledTimes(1);
+    expect(test.fakeThis.documentProcessor.extract).not.toHaveBeenCalled();
     expect(test.fakeThis.saveDuplicateRow).toHaveBeenCalledWith(
       7,
       '123456789',
@@ -275,32 +260,12 @@ describe('DocumentsService.processInboxForUser deleted-document restoration', ()
     );
   });
 
-  it('retains a valid empty extraction without counting a processing failure or non-accounting verdict', async () => {
-    const file = { id: 'open-copy', name: 'open.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
-    const test = subject([[], [], []], file);
-    test.fakeThis.documentProcessor.extract.mockResolvedValue({ invoices: [], rawResponse: '{"invoices":[]}' });
-    await expect(test.run()).resolves.toMatchObject({ failed: 0, skipped: 1, processed: 0, total: 1 });
-    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.NO_INVOICE_FOUND, rawResponse: '{"invoices":[]}', rejectionReason: null }));
-    expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledTimes(1);
-    expect(test.fakeThis.safelyMoveToProcessed).toHaveBeenCalledWith('open-copy', 'inbox', 'processed');
-  });
-  it('retains an unresolved response as an error even if its partial raw JSON looks empty', async () => {
-    const file = { id: 'truncated-copy', name: 'open.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
-    const test = subject([[], [], []], file);
-    test.fakeThis.documentProcessor.extract.mockResolvedValue({ invoices: null, rawResponse: '{"invoices":[]}' });
-    await expect(test.run()).resolves.toMatchObject({ failed: 1, skipped: 0, total: 1 });
-    expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.ERROR, rejectionReason: 'invalid_ai_response' }));
-  });
-  it('persists an explicit not-accounting decision as rejected without a second AI call', async () => {
-    const file = { id: 'gmail-form', name: 'form.pdf', mimeType: 'application/pdf', md5Checksum: null, createdTime: '2026-11-18T00:00:00Z' };
-    const test = subject([[], [], []], file, [{ driveFileId: file.id, source: DocumentImportSource.GMAIL }]);
-    process.env.GMAIL_AI_REVIEW_ENABLED = 'true';
-    try {
-      test.fakeThis.documentProcessor.extract.mockResolvedValue({ intakeDecision: 'not_accounting', invoices: [], rawResponse: '{"decision":"not_accounting","invoices":[]}' });
-      await expect(test.run()).resolves.toMatchObject({ failed: 0, skipped: 1 });
-      expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledTimes(1);
-      expect(test.fakeThis.documentProcessor.extract).toHaveBeenCalledWith(expect.any(Buffer), 'application/pdf', [], true);
-      expect(test.fakeThis.extractedDocRepo.save).toHaveBeenLastCalledWith(expect.objectContaining({ status: ExtractedDocStatus.REJECTED, rejectionReason: 'זוהה אוטומטית כמסמך שאינו חשבונאי', source: RecordSource.EMAIL }));
-    } finally { delete process.env.GMAIL_AI_REVIEW_ENABLED; }
+  it('discovery never executes AI or decides deletion from a pending file',async()=>{
+    const file={id:'pending',name:'pending.pdf',mimeType:'application/pdf',md5Checksum:null};
+    const test=subject([[],[],[]],file);
+    await expect(test.run()).resolves.toMatchObject({queued:1,processed:0,failed:0});
+    expect(test.fakeThis.queuedInputs[0]).toMatchObject({fileId:'pending',hash:expect.stringMatching(/^[a-f0-9]{64}$/)});
+    expect(test.fakeThis.documentProcessor.extract).not.toHaveBeenCalled();
+    expect(test.fakeThis.extractedDocRepo.save).not.toHaveBeenCalled();
   });
 });

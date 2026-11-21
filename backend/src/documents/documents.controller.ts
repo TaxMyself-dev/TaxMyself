@@ -359,7 +359,7 @@ export class DocumentsController {
   @Post('me/ocr-file')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
   @AllowRepresentedClientOperation()
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', {limits:{fileSize:10*1024*1024,files:1}}))
   async ocrSingleFile(
     @Req() request: AuthenticatedRequest,
     @UploadedFile() file: Express.Multer.File,
@@ -375,6 +375,8 @@ export class DocumentsController {
       businessNumber,
       file.buffer,
       file.mimetype,
+      file.originalname,
+      request.user.actorFirebaseId || firebaseId,
     );
   }
 
@@ -405,7 +407,15 @@ export class DocumentsController {
     for (const file of files) {
       file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
     }
-    return this.documentsService.uploadFilesToInbox(firebaseId, businessNumber, files);
+    return this.documentsService.uploadFilesToInbox(firebaseId, businessNumber, files,request.user.actorFirebaseId||firebaseId);
+  }
+
+  @Get('me/analysis/:jobId')
+  @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)
+  @AllowRepresentedClientOperation()
+  async analysisStatus(@Req() request:AuthenticatedRequest,@Param('jobId') jobId:string,@Query('businessNumber') businessNumber:string){
+    if(!request.user?.firebaseId||!businessNumber?.trim()||!/^[a-f0-9-]{36}$/i.test(jobId))throw new BadRequestException('Invalid analysis request');
+    return this.documentsService.getAnalysisStatus(request.user.firebaseId,businessNumber.trim(),jobId);
   }
 
   @Get('me/catalog')
