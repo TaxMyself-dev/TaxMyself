@@ -114,7 +114,6 @@ describe('onboarding extraction boundaries', () => {
       field_states: {
         preferred_name: 'skipped',
         employment: 'unknown',
-        current_need: 'known',
       },
     } as any;
     const business = {
@@ -130,6 +129,24 @@ describe('onboarding extraction boundaries', () => {
     expect(missingFields(person, business).map((f) => f.key)).toEqual([
       'vehicle',
     ]);
+  });
+  it('stores voluntarily shared needs as flexible facts, including legacy inputs', () => {
+    const need = {
+      ...fact,
+      field: 'current_need',
+      scope: 'person',
+      statement: 'רוצה להרחיב את העסק',
+      value: 'הרחבת העסק',
+      evidence: 'להרחיב את העסק',
+    };
+    const result = validateExtraction(
+      { facts: [need], clarification: null },
+      'רוצה להרחיב את העסק',
+      new Set(),
+    );
+    expect(result.facts[0].field).toBeNull();
+    expect(storyFromFacts(result.facts)).toContain('רוצה להרחיב את העסק');
+    expect(FIELDS.map((field) => field.key)).not.toContain('current_need');
   });
   it('retains unrelated narrative when rebuilding the story', () =>
     expect(
