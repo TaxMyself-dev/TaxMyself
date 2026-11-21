@@ -32,3 +32,7 @@ document import/synchronization.
 - `backend/src/document-import/AGENTS.md`
 - `backend/src/inbound-email/AGENTS.md`
 - `frontend/src/app/pages/settings/AGENTS.md`
+
+## Manual Gmail pull date range
+
+The manual pull dialog requires from/to dates shared by selected accounts. Server validation and inclusive-end query construction reuse GmailSyncService initial-import rules (Jan 1 previous year through today in Israel). The API retains its no-date 90-day fallback for existing clients; partial date ranges or combining dates with q are rejected. Initial-import completion and nightly cursor are unchanged.

@@ -2,6 +2,7 @@ import { Optional } from '@nestjs/common';
 import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
 import {
   Body,
+  BadRequestException,
   ConflictException,
   Controller,
   Delete,
@@ -198,12 +199,19 @@ export class IntegrationsController {
     // Imports from the Gmail accounts the user selected in the manual import
     // dialog (ownership + ACTIVE status validated in the service); one failing
     // mailbox does not abort the others (aggregated per-account in the response).
-    if(this.durableRuns?.enabled())return this.durableRuns.startManual(firebaseId,body.integrationIds,{businessNumber:body.businessNumber?.trim(),query:body.q});
+    const hasDates = body.fromDate != null || body.toDate != null;
+    if (hasDates && (!body.fromDate || !body.toDate || body.q != null)) {
+      throw new BadRequestException('Provide both fromDate and toDate without a Gmail query override');
+    }
+    const query = hasDates
+      ? this.gmailSyncService.buildDateRangeQuery(body.fromDate, body.toDate)
+      : body.q;
+    if(this.durableRuns?.enabled())return this.durableRuns.startManual(firebaseId,body.integrationIds,{businessNumber:body.businessNumber?.trim(),query});
     return this.gmailDriveImportService.importAllForUser(firebaseId, body.integrationIds, {
       // Optional: when omitted, DocumentImportService resolves the target
       // business via BusinessResolverService.
       businessNumber: body.businessNumber?.trim() || undefined,
-      query: body.q,
+      query,
       // Default 10, DTO clamps to 25 — this endpoint stays a small manual scan.
       maxMessages: body.maxResults ?? 10,
     });

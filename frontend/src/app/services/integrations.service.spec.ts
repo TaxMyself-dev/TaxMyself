@@ -26,3 +26,16 @@ describe('Gmail connection requests', () => {
     request.flush({ url: 'https://connect.composio.dev/link/test' });
   });
 });
+
+
+describe('Manual Gmail range request', () => {
+  it('includes selected accounts and calendar dates', () => {
+    TestBed.configureTestingModule({providers:[provideHttpClient(),provideHttpClientTesting()]});
+    const service=TestBed.inject(IntegrationsService);
+    const http=TestBed.inject(HttpTestingController);
+    service.importGmail([1,2],'2025-01-01','2026-11-21').subscribe();
+    const request=http.expectOne(environment.apiUrl+'integrations/google/gmail/import');
+    expect(request.request.body).toEqual({integrationIds:[1,2],fromDate:'2025-01-01',toDate:'2026-11-21'});
+    request.flush({started:true});http.verify();
+  });
+});

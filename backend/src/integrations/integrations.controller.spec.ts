@@ -1,3 +1,4 @@
+import { GmailSyncService } from './services/gmail-sync.service';
 import { IntegrationsController } from './integrations.controller';
 
 describe('Mailbox owner-only controller', () => {
@@ -26,5 +27,48 @@ describe('Mailbox owner-only controller', () => {
     expect(url.searchParams.get('tab')).toBe('permissions');
     expect(url.searchParams.get('googleIntegration')).toBe('success');
     expect(url.searchParams.has('state')).toBe(false);
+  });
+});
+
+
+describe('Manual Gmail date range', () => {
+  const owner = { user: { firebaseId: 'owner' } } as any;
+  let controller: IntegrationsController;
+  let runs: any;
+  let fallback: any;
+  let sync: any;
+  beforeEach(() => {
+    runs = { enabled: () => true, startManual: jest.fn().mockResolvedValue({started:true}) };
+    fallback = { importAllForUser: jest.fn() };
+    sync = new GmailSyncService({} as any, {} as any);
+    jest.spyOn(sync, 'getMinFromDate').mockReturnValue('2025-01-01');
+    jest.spyOn(sync, 'getMaxToDate').mockReturnValue('2026-11-21');
+    controller = new IntegrationsController({} as any, {} as any, {} as any, fallback, sync, runs);
+  });
+  it('sends the inclusive date query to every selected account', async () => {
+    await controller.gmailImport(owner, {integrationIds:[1,2],fromDate:'2025-01-01',toDate:'2026-11-21'});
+    expect(runs.startManual).toHaveBeenCalledWith('owner',[1,2],{businessNumber:undefined,query:'has:attachment after:2025/01/01 before:2026/11/22'});
+  });
+  it.each([
+    {fromDate:'2025-01-01'}, {toDate:'2026-11-21'},
+    {fromDate:'2024-12-31',toDate:'2025-01-01'},
+    {fromDate:'2025-01-01',toDate:'2026-11-22'},
+    {fromDate:'2026-02-30',toDate:'2026-03-01'},
+    {fromDate:'2026-02-02',toDate:'2026-02-01'},
+    {fromDate:'2025-01-01',toDate:'2026-11-21',q:'in:anywhere'},
+    {fromDate:'',toDate:'2026-11-21'},
+  ])('rejects invalid/ambiguous range before scheduling: %j', async dates => {
+    await expect(controller.gmailImport(owner,{integrationIds:[1,2],...dates})).rejects.toThrow();
+    expect(runs.startManual).not.toHaveBeenCalled();
+    expect(fallback.importAllForUser).not.toHaveBeenCalled();
+  });
+  it('uses identical range validation and query on the legacy path', async () => {
+    runs.enabled = () => false;
+    await controller.gmailImport(owner,{integrationIds:[1],fromDate:'2025-12-31',toDate:'2025-12-31'});
+    expect(fallback.importAllForUser).toHaveBeenCalledWith('owner',[1],expect.objectContaining({query:'has:attachment after:2025/12/31 before:2026/01/01'}));
+  });
+  it('preserves the no-date API fallback for existing clients', async () => {
+    await controller.gmailImport(owner,{integrationIds:[1]});
+    expect(runs.startManual).toHaveBeenCalledWith('owner',[1],{businessNumber:undefined,query:undefined});
   });
 });

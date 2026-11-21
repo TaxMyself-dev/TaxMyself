@@ -65,6 +65,19 @@ export class GmailIntegrationComponent implements OnInit {
 
   /** דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני. */
   readonly importDialogVisible = signal(false);
+  readonly manualImportForm = this.fb.group({
+    fromDate: this.fb.control<Date | null>(null, Validators.required),
+    toDate: this.fb.control<Date | null>(null, Validators.required),
+  });
+
+  manualRangeValid(): boolean {
+    const { fromDate, toDate } = this.manualImportForm.getRawValue();
+    const min = this.minFromDate();
+    const max = this.maxToDate();
+    return this.manualImportForm.valid && !!fromDate && !!toDate && !!min && !!max
+      && Number.isFinite(fromDate.getTime()) && Number.isFinite(toDate.getTime())
+      && fromDate >= min && toDate <= max && fromDate <= toDate;
+  }
   /** מזהי החשבונות המסומנים בדיאלוג; מאותחל מחדש בכל פתיחה. */
   readonly selectedImportIds = signal<ReadonlySet<number>>(new Set());
 
@@ -142,6 +155,7 @@ export class GmailIntegrationComponent implements OnInit {
   openImportDialog(): void {
     if (this.importing()) return;
     this.selectedImportIds.set(new Set(this.selectableAccounts().map((a) => a.id)));
+    this.manualImportForm.reset();
     this.importDialogVisible.set(true);
   }
 
@@ -175,11 +189,19 @@ export class GmailIntegrationComponent implements OnInit {
 
   /** ייבוא מהחשבונות שנבחרו בדיאלוג (כפתור האישור). */
   importSelected(): void {
-    if (this.importing() || !this.hasImportSelection()) return;
+    if (this.importing() || !this.hasImportSelection() || !this.manualRangeValid()) {
+      this.manualImportForm.markAllAsTouched();
+      return;
+    }
+    const { fromDate, toDate } = this.manualImportForm.getRawValue();
     this.importing.set(true);
-    this.integrationsService.importGmail([...this.selectedImportIds()]).subscribe({
+    this.manualImportForm.disable();
+    this.integrationsService.importGmail(
+      [...this.selectedImportIds()], this.dateToApiString(fromDate), this.dateToApiString(toDate),
+    ).subscribe({
       next: (result) => {
         this.importing.set(false);
+        this.manualImportForm.enable();
         this.importDialogVisible.set(false);
         if(result.started){
           this.messageService.add({severity:'info',summary:'המשיכה התחילה',detail:'המשיכה והעיבוד ממשיכים בהדרגה. ההתקדמות תוצג במסך זה.',key:'br'});
@@ -210,6 +232,7 @@ export class GmailIntegrationComponent implements OnInit {
         // הדיאלוג נשאר פתוח לניסיון חוזר; רענון תופס רשימת חשבונות לא עדכנית
         // (למשל חשבון שנבחר והפך EXPIRED בינתיים — השרת מחזיר 404).
         this.importing.set(false);
+        this.manualImportForm.enable();
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
