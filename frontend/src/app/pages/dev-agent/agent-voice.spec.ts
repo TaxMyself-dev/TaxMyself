@@ -51,6 +51,20 @@ describe('voice message lifecycle', () => {
     const pending=voice.finish(); current=false; complete(); await pending;
     expect(options.send).not.toHaveBeenCalled(); expect(voice.active).toBeFalse();
   });
+  it('explains exhausted balance without sending or exposing provider details', async () => {
+    await voice.start(options); events.connected(); events.text('חלקי');
+    events.error(Object.assign(new Error('private provider details'), { name: 'QuotaError', code: 'quota_exceeded', statusCode: 402 }));
+    await voice.finish();
+    expect(voice.active).toBeFalse(); expect(session.cancel).toHaveBeenCalledTimes(1);
+    expect(options.send).not.toHaveBeenCalled(); expect(voice.error()).toContain('יתרת השימוש');
+    expect(voice.error()).not.toContain('private');
+  });
+  it('distinguishes request limits from exhausted balance', async () => {
+    await voice.start(options);
+    events.error(Object.assign(new Error('quota'), { name: 'QuotaError', statusCode: 429 }));
+    expect(voice.error()).toContain('מגבלת הבקשות'); expect(voice.active).toBeFalse();
+    expect(options.send).not.toHaveBeenCalled();
+  });
   it('handles denied permissions with a recoverable message', async () => {
     voice = new AgentVoice(async () => { throw new DOMException('denied','NotAllowedError'); });
     await voice.start(options);

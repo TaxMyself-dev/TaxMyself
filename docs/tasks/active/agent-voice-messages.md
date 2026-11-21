@@ -52,3 +52,19 @@ Earlier diagnostic runs: default Angular discovery tried unrelated files outside
 - Local main integration and GitHub push require Elazar's separate approvals. Neither performed.
 
 - Delivery: local feature commit only; worktree retained for manual voice checks. All automated acceptance checks above passed on the final executable sources.
+
+## Live setup and balance diagnostic (2026-11-22)
+
+- Development key configured in ignored backend/.env; credentials never printed or committed.
+- Temporary-key API returned 201; this verifies key issuance, not available transcription credit.
+- A bounded WebSocket probe using 0.1 seconds of synthetic silence returned 402 / organization_balance_exhausted. No microphone audio was captured. Actual Hebrew transcription remains blocked on Soniox organization funds.
+- SDK 2.5.0 maps 402 and 429 to QuotaError with statusCode; the UI now distinguishes exhausted credit from a request limit, and discards partial text in either case.
+- Frontend running on 4207. Backend running on 3017 from the existing compiled build, with development DB validated, synchronize disabled and boot seeding skipped. Watch mode was stopped after repeated restarts; only this feature's verified process tree was stopped.
+- No main integration or push.
+
+### Balance-message fix verification
+
+- frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include='src/app/pages/dev-agent/*.spec.ts' --karma-config=../.local-ai-dev/karma.voice.cjs — exit 0, 38/38 passed. Added provider 402/429 regression coverage and partial-transcript discard assertions.
+- frontend: npx ng build --configuration production — exit 0; existing size/CommonJS warnings, no errors. Dev server recompiled successfully on 4207.
+- git diff --check — exit 0. No backend executable changes for this correction; previous backend verification reused.
+- External blocker: user must add Soniox organization funds under Organization > Billing; no payment or autopay change performed. Successful temporary-key creation alone does not verify streaming entitlement.

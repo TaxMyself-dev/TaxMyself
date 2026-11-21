@@ -126,7 +126,16 @@ export class AgentVoice {
   private fail(run: Run, error: unknown) {
     if (!this.live(run)) return;
     const name = error instanceof Error ? error.name + ' ' + error.message : '';
+    const status = typeof error === 'object' && error !== null && 'statusCode' in error ? error.statusCode : undefined;
     this.cancel();
+    if (status === 402) {
+      this.error.set('יתרת השימוש בשירות התמלול אזלה. ההקלטה לא נשלחה.');
+      return;
+    }
+    if (status === 429) {
+      this.error.set('הגעת למגבלת הבקשות בשירות התמלול. אפשר לנסות שוב בעוד דקה.');
+      return;
+    }
     this.error.set(/NotAllowed|Permission|permission|denied/.test(name)
       ? 'אין הרשאה למיקרופון. אפשר לאפשר גישה בהגדרות האתר בדפדפן.'
       : /NotFound|NotReadable|AudioDevice/.test(name) ? 'המיקרופון אינו זמין. בדקו שהוא מחובר ואינו בשימוש.'
