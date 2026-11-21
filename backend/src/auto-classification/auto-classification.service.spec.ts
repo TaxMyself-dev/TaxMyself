@@ -8,10 +8,6 @@ import { ClassifiedTransactions } from '../transactions/classified-transactions.
 import { FIELDS } from '../agent-onboarding/onboarding.domain';
 describe('standing-consent classifier', () => {
   const old = { ...process.env };
-  beforeEach(() => {
-    process.env.AGENT_AUTO_CLASSIFICATION_ENABLED = 'true';
-    process.env.AGENT_ONBOARDING_ENABLED = 'true';
-  });
   afterEach(() => {
     process.env = { ...old };
     jest.restoreAllMocks();
@@ -259,13 +255,22 @@ describe('standing-consent classifier', () => {
       expect.arrayContaining(['failed', 3]),
     );
   });
-  it('does not touch tables when disabled and refuses delegate status', async () => {
+  it('is available without feature flags but still requires owner consent', async () => {
     const f = setup();
     process.env.AGENT_AUTO_CLASSIFICATION_ENABLED = 'false';
-    expect((await f.service.status(autoIdentity('owner'))).available).toBe(
-      false,
+    process.env.AGENT_ONBOARDING_ENABLED = 'false';
+    const original = f.db.query.getMockImplementation();
+    f.db.query.mockImplementation((sql: string) =>
+      sql.startsWith('SELECT * FROM agent_auto_preferences')
+        ? Promise.resolve([])
+        : original(sql),
     );
-    expect(f.db.query).not.toHaveBeenCalled();
+    const status = await f.service.status(autoIdentity('owner'));
+    expect(status.available).toBe(true);
+    expect(status.enabled).toBe(false);
+    expect(
+      f.db.query.mock.calls.every(([sql]) => sql.trim().startsWith('SELECT')),
+    ).toBe(true);
     await expect(
       f.service.status({ ...autoIdentity('owner'), actorFirebaseId: 'agent' }),
     ).rejects.toThrow();

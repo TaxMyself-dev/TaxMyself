@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager } from 'typeorm';
@@ -29,14 +28,7 @@ export class OnboardingService {
     private readonly db: DataSource,
     private readonly domain: AgentDomainService,
   ) {}
-  private enabled() {
-    if (process.env.AGENT_ONBOARDING_ENABLED !== 'true')
-      throw new ServiceUnavailableException(
-        'מערכת ההיכרות טרם הופעלה בסביבה הזאת',
-      );
-  }
   async scope(user: AgentHarnessUser, requested?: string) {
-    this.enabled();
     // Profile editing is self-service. Do not give a read-only delegate a new write permission.
     if (
       user.actorFirebaseId !== user.firebaseId ||
@@ -61,7 +53,6 @@ export class OnboardingService {
     };
   }
   async businesses(user: AgentHarnessUser) {
-    this.enabled();
     if (
       user.actorFirebaseId !== user.firebaseId ||
       user.isDelegatedAccess ||
@@ -701,11 +692,7 @@ export class OnboardingService {
   }
   async context(user: AgentHarnessUser, businessNumber: string | null) {
     // No delegated exposure: the personal profile is owned by the person, not their accountant.
-    if (
-      process.env.AGENT_ONBOARDING_ENABLED !== 'true' ||
-      user.actorFirebaseId !== user.firebaseId
-    )
-      return '';
+    if (user.actorFirebaseId !== user.firebaseId) return '';
     if (businessNumber) await this.scope(user, businessNumber);
     else {
       const directory = await this.domain.ownerBusinesses(user);

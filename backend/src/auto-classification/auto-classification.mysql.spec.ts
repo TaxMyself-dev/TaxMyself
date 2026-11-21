@@ -138,8 +138,6 @@ suite('automatic classifier on disposable real MySQL', () => {
     }
   }
   beforeAll(async () => {
-    process.env.AGENT_AUTO_CLASSIFICATION_ENABLED = 'true';
-    process.env.AGENT_ONBOARDING_ENABLED = 'true';
     db = new DataSource({
       type: 'mysql',
       url,

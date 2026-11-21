@@ -96,7 +96,7 @@ legacy memory is silently migrated or deleted.
 
 ## Checks and operation
 
-`AGENT_ONBOARDING_ENABLED=true` enables the owner-only feature. Existing Firebase,
+There is no environment activation switch; owner/Admin checks remain. Existing Firebase,
 OpenAI, MySQL and template Langfuse configuration is reused. No standalone
 `LANGFUSE_ONBOARDING_ENABLED` switch is used. Local application ports remain 4204
 and 3004; this migration does not start servers.

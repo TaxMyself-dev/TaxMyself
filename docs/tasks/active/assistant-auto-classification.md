@@ -514,3 +514,44 @@ the primary checkout stays clean and at the recorded base. Main integration is
 approved; GitHub push remains prohibited pending Elazar's personal current-main
 test and separate explicit approval. Feature test servers were stopped for install;
 no main server, deployment or background classification was started by integration.
+
+## Remove deployment activation flags (2026-11-22)
+
+Elazar explicitly rejected AGENT_ONBOARDING_ENABLED and
+AGENT_AUTO_CLASSIFICATION_ENABLED: activation must follow the user's saved consent.
+Removed both runtime gates, including personal-context suppression, disabled-status
+fallback, poll/write gates and the local launcher helper/flag precedence tests.
+Existing user-wide consent checks, version revalidation under transaction, owner/
+Admin/delegation restrictions, open-banking/module access, completed required
+onboarding fields and source-to-account ownership remain. No default consent is
+created, and merely reading status never grants consent. Old environment values
+are ignored; no environment file was changed. Schema remains a prerequisite, with
+no migration or production access performed. Preserved journey-timings.local.
+
+Updated fixtures to run without those flags and added regression assertions:
+even explicitly false legacy flags do not suppress owned onboarding context or
+feature availability; missing consent still returns enabled=false, and delegate
+reads are rejected before data access. Consent revocation/write checks remain.
+
+Verification in backend using direct installed Node 24.22.3:
+- Jest --runInBand --runTestsByPath onboarding-admin, onboarding.domain,
+  onboarding.service and auto-classification.policy/service/http specs: 74 passed,
+  six suites. Logs: ignored consent-only-tests.log. Removed an empty obsolete
+  test hook after this run; no functional product change after the passing tests.
+- Nest CLI build: exit 0, ignored consent-only-build.log.
+- Changed runtime/unit-file ESLint: exit 0 with two pre-existing non-null assertion
+  warnings in unchanged onboarding profile lookup expressions (no suppression).
+- node backend/scripts/start-watch.js --print-config: port 3000, synchronize false,
+  no activation field/helper. git diff --check passed.
+No frontend/agent executable changes; their builds/suites were not repeated.
+No MySQL integration or paid model diagnostic repeated. Docs describe the new
+consent-only activation and retain historical records as historical evidence.
+
+Model investigation: primary agent explicitly selects gpt-6-luna; classification
+independently defaults to gpt-4.1-mini. This follow-up leaves model selection,
+transport and certainty policy unchanged. No comparative eval establishes better
+classification quality. Official OpenAI model documentation lists Luna for focused
+high-volume workloads; matching the main agent's configuration is a separate
+decision, not evidence that the excessive clarification policy is fixed.
+Completed as a local feature commit after d1746660. No renewed main integration
+or push authorization was given for this executable follow-up; neither performed.

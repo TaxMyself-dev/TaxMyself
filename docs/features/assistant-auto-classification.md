@@ -99,7 +99,7 @@ uses the shared agent chat and requires Admin at both route and backend boundari
 launch it from the admin console's onboarding tab. Settings links preserve the
 owned business number. `/dev/agent/onboarding` redirects to that guarded route;
 the development chat retains its environment gate. Backend automation availability still
-requires explicit deployment flags and applied schema.
+requires applied schema and explicit owner consent.
 
 ## Source provenance
 
@@ -117,8 +117,7 @@ It adds two new tables and four nullable provenance columns across three
 existing tables. The cumulative cutover file also records this SQL; **do not
 run that historic cumulative file to activate this feature**.
 
-The schema must be applied BEFORE running this backend revision, even when the
-worker flag is off, because normal TypeORM reads now include provenance columns.
+The schema must be applied BEFORE running this backend revision, because normal TypeORM reads now include provenance columns.
 No production schema was applied. The shared-development schema was applied
 only after implementation and separate explicit approval on 19 November 2026;
 see the task evidence for the metadata checks.
@@ -133,9 +132,10 @@ node backend/scripts/auto-classification-schema.cjs --database=keepintax-dev --c
 node backend/scripts/auto-classification-schema.cjs --database=keepintax-dev --apply
 ```
 
-Only after schema verification, use ignored local environment settings:
-`AGENT_ONBOARDING_ENABLED=true`, `AGENT_AUTO_CLASSIFICATION_ENABLED=true`, and
-the existing `OPENAI_API_KEY`. The model defaults to `gpt-4.1-mini` and can be
+After schema verification, configure the existing `OPENAI_API_KEY`.
+There are no onboarding or automatic-classification deployment switches: standing
+owner consent controls processing, alongside the existing eligibility checks.
+Legacy AGENT_ONBOARDING_ENABLED and AGENT_AUTO_CLASSIFICATION_ENABLED values are ignored. The model defaults to `gpt-4.1-mini` and can be
 selected with `AGENT_AUTO_CLASSIFICATION_MODEL`. Never commit environment files.
 Use distinct feature ports (frontend 4316/backend 3016), preserve deployment PORT,
 and keep `DISABLE_SYNCHRONIZE=true` and `SKIP_BOOT_SEED=true` in local backend

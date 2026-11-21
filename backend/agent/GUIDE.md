@@ -266,7 +266,7 @@ KeepInTax's dev page assigns a conversation UUID before its first saved message.
 
 ## Onboarding profile
 
-The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agent/onboarding` uses the shared template chat runtime with an onboarding interface policy; ordinary chat uses the same canonical read/update tools without proactive profile questions. The optional readOnboardingContext callback supplies existing story and dated history. AGENT_ONBOARDING_ENABLED defaults off. See the one-agent section below and ../src/agent-onboarding/README.md for ownership, versioned writes, history and deletion limits.
+The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agent/onboarding` uses the shared template chat runtime with an onboarding interface policy; ordinary chat uses the same canonical read/update tools without proactive profile questions. The optional readOnboardingContext callback supplies existing story and dated history. There is no environment activation flag; existing surface/owner authorization remains. See the one-agent section below and ../src/agent-onboarding/README.md for ownership, versioned writes, history and deletion limits.
 
 ## One agent, onboarding interface (2026-11-20)
 

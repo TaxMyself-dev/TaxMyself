@@ -5,7 +5,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
@@ -38,8 +37,6 @@ export const autoIdentity = (owner: string): AgentHarnessUser => ({
   isAdminImpersonation: false,
 });
 const lockName = 'keepintax:auto-classification:v1';
-const unavailable = () =>
-  new ServiceUnavailableException('הסיווג האוטומטי טרם הופעל בסביבה הזאת');
 
 @Injectable()
 export class AutoClassificationService {
@@ -55,15 +52,8 @@ export class AutoClassificationService {
     private readonly billing: BillingService,
     private readonly model: AutoClassificationModel,
   ) {}
-  enabled() {
-    return (
-      process.env.AGENT_AUTO_CLASSIFICATION_ENABLED === 'true' &&
-      process.env.AGENT_ONBOARDING_ENABLED === 'true'
-    );
-  }
   private check(user: AgentHarnessUser) {
     assertSelf(user);
-    if (!this.enabled()) throw unavailable();
   }
   private async connected(owner: string) {
     const row = await this.db
@@ -104,18 +94,6 @@ export class AutoClassificationService {
   }
   async status(user: AgentHarnessUser) {
     assertSelf(user);
-    if (!this.enabled())
-      return {
-        available: false,
-        enabled: false,
-        connected: false,
-        businesses: [],
-        unlinked: [],
-        bills: [],
-        counts: [],
-        noticeSeen: true,
-        lastError: null,
-      };
     const owner = user.firebaseId;
     const prefs = await this.db.query(
       'SELECT * FROM agent_auto_preferences WHERE owner_uid=?',
@@ -344,7 +322,7 @@ export class AutoClassificationService {
   // One global MySQL advisory lock bounds model concurrency across all backend instances.
   @Interval(15000)
   async tick() {
-    if (!this.enabled() || this.busy) return;
+    if (this.busy) return;
     this.busy = true;
     const runner = this.db.createQueryRunner();
     let locked = false;
@@ -604,7 +582,6 @@ export class AutoClassificationService {
             .getRepository(User)
             .findOne({ where: { firebaseId: owner } });
           if (
-            !this.enabled() ||
             !pref?.enabled ||
             Number(pref.version) !== consentVersion ||
             !ownerRow?.hasOpenBanking ||
