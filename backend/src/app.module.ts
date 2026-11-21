@@ -21,6 +21,7 @@ import { ShaamModule } from './shaam/shaam.module';
 import { AccountantTasksModule } from './accountant-tasks/accountant-tasks.module';
 import { AnnualReportModule } from './annual-report/annual-report.module';
 import { ReportWorkflowModule } from './report-workflow/report-workflow.module';
+import { AgentHarnessModule } from './agent-harness/agent-harness.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DemoDataModule } from './demo-data/demo-data.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
@@ -229,7 +230,7 @@ new Logger('Bootstrap').log(
     ScheduleModule.forRoot(devCompletionScheduleOptions()),
     LycheeModule,
     ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule, AgentHarnessModule],
   controllers: [AppController],
   providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],
 })

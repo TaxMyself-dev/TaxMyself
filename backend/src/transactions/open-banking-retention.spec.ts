@@ -36,7 +36,7 @@ describe('disconnected open banking keeps durable classifications', () => {
     ]) };
     const expenseRepo: any = { delete: jest.fn(), save: jest.fn(), update: jest.fn() };
     const processor = new TransactionProcessingService(slimRepo, cache, { upsert: jest.fn() } as any,
-      rules, sourceRepo, {} as any, {} as any, expenseRepo, {} as any, {} as any, {} as any, {} as any, {} as any);
+      rules, sourceRepo, {} as any, {} as any, expenseRepo, {} as any, {} as any, {} as any, {} as any, { refreshPendingTransactionClassifications: jest.fn() } as any);
     const matchRule = jest.spyOn(processor as any, 'matchRule');
     const result = await processor.process(uid, [{ externalTransactionId: 'stable-provider-tx', paymentIdentifier: '1234', sourceRecordId: 7,
       merchantName: 'Merchant', amount: -100, currency: 'ILS', transactionDate: new Date('2026-10-01'),

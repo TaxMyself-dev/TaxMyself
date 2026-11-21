@@ -131,3 +131,38 @@ Home buttons respond promptly on the physical POCO F6 with many mobile transacti
   and polyfills hashes match the original captured DEV assets.
 - No new application changes, main integration, push, deployment or production
   mutations were performed for this comparison. USB server remains available.
+
+
+## Authorized local integration into AI Assistant
+
+- User explicitly approved merging into local main, then into new-ai-assistant;
+  neither approval authorizes push or deployment.
+- Local main was fast-forwarded from 24b3b56b to 97852fcc and verified tree-identical
+  to codex/mobile-interaction-performance. No executable changes followed phone testing.
+- AI worktree: C:/Users/user/Keepintax/TaxMyself-new-ai-assistant.
+- Merge parents: existing AI head f51aac7766f18b58e3e9488fbe15f65de52bc1f4 and
+  local main 97852fcce6ce6bb96ea561308a6c9fc8d6ec5479.
+- git merge --no-commit main completed without conflicts. Includes the main
+  login Enter fix as well as mobile performance changes; user was informed.
+- Untracked backend/journey-timings.local and docs/plans/ai-agent-conversation*.md
+  preserved. No dependency installs/changes, node_modules sharing or environment changes.
+- Final merged-source focused checks (from frontend):
+
+  npm.cmd test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.table-actions.spec.json --include=src/app/components/generic-table/generic-table.component.spec.ts --include=src/app/components/generic-table/table-actions.spec.ts --include=src/app/components/table-row-actions-menu/*.spec.ts --progress=false --karma-config=C:/Users/user/Keepintax/TaxMyself/.codex-remote-attachments/ai-merge-karma.cjs
+
+  PASS: 39/39. The temporary Karma wrapper selects this worktree's own config,
+  ChromeHeadless with its default sandbox, and port 9878.
+
+  npm.cmd test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.login-check.json --include=src/app/components/button/button.component.spec.ts --include=src/app/pages/login/login.page.spec.ts --progress=false --karma-config=C:/Users/user/Keepintax/TaxMyself/.codex-remote-attachments/ai-merge-karma.cjs
+
+  PASS: 9/9. Combined focused total 48/48 on merged executable source.
+- Full consumer set not repeated here: the unchanged allocation fixture failure
+  is documented above and was reproduced on the original base. Broad unrelated
+  suites/backend tests skipped; no backend executable changed in this merge.
+- npm.cmd run build -- --progress=false: PASS, exit 0, hash 84fcb64eb8ed7d1e,
+  109077 ms, initial bundle 3.20 MB (optimized Angular production build).
+  Nonfatal style/initial-size budget and CommonJS warnings remain.
+- git diff --cached --check and equality of merged table/menu/button/login source
+  to local main verified. Relevant topic docs were imported with their matching
+  source changes; no additional topic behavior changes were introduced here.
+- Local merge commit only. main remains 97852fcc. No push or deployment.

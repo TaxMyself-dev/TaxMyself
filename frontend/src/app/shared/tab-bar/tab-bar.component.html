@@ -5,7 +5,7 @@
   </ion-segment-button>
 </ion-segment> -->
 
-<ion-segment [value]="selectedTab" (ionChange)="onTabSelect($event)">
+<ion-segment [scrollable]="scrollable" [value]="selectedTab" (ionChange)="onTabSelect($event)">
   <ion-segment-button *ngFor="let tab of tabs" [value]="tab.value">
     <ion-label>{{ tab.label }}</ion-label>
   </ion-segment-button>

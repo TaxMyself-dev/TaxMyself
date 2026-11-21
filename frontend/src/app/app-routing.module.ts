@@ -12,6 +12,7 @@ import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
 import { AdminRouteGuard } from './shared/guard/admin-route.guard';
 import { AccountantRouteGuard } from './shared/guard/accountant-route.guard';
 import { AppRoute } from './shared/access-control';
+import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agent.route';
 
 /**
  * In-app routes that require connectivity for deliberate navigation while a
@@ -20,6 +21,18 @@ import { AppRoute } from './shared/access-control';
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
+  {path:'agent/onboarding',canActivate:[AuthGuard, AdminRouteGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
+  {path:'dev/agent/onboarding',redirectTo:'agent/onboarding',pathMatch:'full'},
+  // The AI agent's test page (backend/agent), only where the environment
+  // turns it on (local development and dev-cloud); never in production builds.
+  // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
+  ...(devAgentRouteEnabled()
+    ? [{
+        path: DEV_AGENT_PATH,
+        canActivate: [AuthGuard],
+        loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),
+      }]
+    : []),
   {
     path: 'billing/open-banking/manage',
     canActivate: [AuthGuard],

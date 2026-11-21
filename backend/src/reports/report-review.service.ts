@@ -334,11 +334,18 @@ export class ReportReviewService {
     firebaseId: string,
     businessNumber: string,
     range: { from: Date; to: Date },
-    options: { focusDocumentId?: number } = {},
+    // readOnly (the AI agent's readiness read): skip steps 1, 1.5 and 2 —
+    // the inbox processing, invoice/receipt pairing and matcher that write —
+    // and only load and classify the rows as they already stand. The review
+    // screen never passes it, so its behavior is unchanged.
+    options: { focusDocumentId?: number; readOnly?: boolean } = {},
   ): Promise<ReportPreviewResponse> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     await this.assertBusinessOwnership(firebaseId, businessNumber);
+    if (options.readOnly !== true)
+      await this.catalogService.refreshPendingClassifications({ userId: firebaseId, businessNumber });
+    const runsWritingSteps = options.focusDocumentId == null && options.readOnly !== true;
 
     // Step 1 — pull anything new from inbox/. Failures here don't sink the
     // preview; the inbox processor logs per-file errors and the user can
@@ -350,7 +357,7 @@ export class ReportReviewService {
     // enter the review table; they're skipped before OCR).
     let duplicatesSkipped = 0;
     let deletedDocumentsRestored = 0;
-    if (options.focusDocumentId == null) {
+    if (runsWritingSteps) {
       try {
         const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
         duplicatesSkipped = inboxResult?.duplicates ?? 0;
@@ -368,7 +375,7 @@ export class ReportReviewService {
     // as a single candidate, not as two siblings fighting each other.
     // Best-effort: a pairing failure shows up as extra unpaired doc_only
     // rows, which the user can still link manually.
-    if (options.focusDocumentId == null) {
+    if (runsWritingSteps) {
       try {
         if (user.index != null) {
           await this.documentPairingService
@@ -386,7 +393,7 @@ export class ReportReviewService {
       ? 'with_banking'
       : 'documents_only';
 
-    if (mode === 'with_banking' && options.focusDocumentId == null) {
+    if (mode === 'with_banking' && runsWritingSteps) {
       try {
         await this.matchingService.matchDocumentsForBusiness(
           firebaseId,
@@ -867,6 +874,13 @@ export class ReportReviewService {
         { id: slim.id },
         { confirmed: true, vatReportingDate: slimPeriod as any },
       );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
+        { confirmed: true, vatReportingDate: slimPeriod as any },
+      );
 
       this.logger.log(
         `approveMatched: doc=${doc.id} + tx=${slim.id} → expense=${expense.id} (biz=${businessNumber})`,
@@ -1106,6 +1120,13 @@ export class ReportReviewService {
       );
       await manager.getRepository(SlimTransaction).update(
         { id: slim.id },
+        { confirmed: true, vatReportingDate: reportPeriod as any },
+      );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
         { confirmed: true, vatReportingDate: reportPeriod as any },
       );
 
@@ -1722,6 +1743,7 @@ export class ReportReviewService {
       isEquipment: slim.isEquipment,
       originalAmount: isNonIls ? Math.abs(Number(cache.amount)) : null,
       originalCurrency: isNonIls ? cache.currency : null,
+      ilsConversionRecorded: !isNonIls || cache.ilsAmount != null,
       matchedSupplierKnown: knownSupplierByName
         ? knownSupplierByName.has(normalizeSupplierName(cache.merchantName))
         : false,

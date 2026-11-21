@@ -118,6 +118,7 @@ describe('DIRECT_CARD_DEMO_PROFILE legacyDuplicateScenario', () => {
 /** Optional Open-Banking fixture fields must stay explicit and isolated. */
 describe('demo profiles with source-state metadata', () => {
   const expectedFixtureProfileIds = [
+    'assistant-qa',
     DESIGNER_SANDBOX_PROFILE.id,
     DIRECT_CARD_DEMO_PROFILE.id,
     PARTNER_CANDIDATE_COUPLE_PROFILE.id,

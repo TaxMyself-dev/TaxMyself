@@ -114,7 +114,7 @@ describe('CatalogService', () => {
       [BookingAccount, accountRepo],
       [AccountingSection, sectionRepo],
     ]);
-    const mockManager = { getRepository: (entity: any) => reposByEntity.get(entity) };
+    const mockManager = { getRepository: (entity: any) => reposByEntity.get(entity) ?? { find: async () => [], metadata: { tableName: entity.name } }, connection: { driver: { escape: (v: string) => v } } };
     const dataSource = {
       transaction: jest.fn().mockImplementation((cb: (m: any) => Promise<any>) => cb(mockManager)),
     };
@@ -146,6 +146,22 @@ describe('CatalogService', () => {
       userRepo as any,
       businessRepo as any,
     );
+  });
+
+  it('resolves personal subcategory law across same-named parent ids and retains other defaults', async () => {
+    categoryRepo.rows.push({ id: 2, name: 'רכב ותחבורה', type: CategoryType.EXPENSE, chartOwnerKey: CLIENT, isActive: true });
+    const parent = categoryRepo.rows[0];
+    subCategoryRepo.rows.push(
+      { id: 10, name: 'דלק', categoryId: 1, category: parent, chartOwnerKey: SYS, isActive: true, account: { vatPercent: 66 } },
+      { id: 11, name: 'דלק', categoryId: 2, category: categoryRepo.rows[1], chartOwnerKey: CLIENT, isActive: true, account: { vatPercent: 100 } },
+      { id: 12, name: 'חניה', categoryId: 1, category: parent, chartOwnerKey: SYS, isActive: true, account: null },
+    );
+    const ctx = { businessNumber: '123456789' };
+    const resolved = await service.resolveByName('רכב ותחבורה', 'דלק', ctx);
+    expect(resolved.subCategory.id).toBe(11);
+    expect(resolved.vatPercent).toBe(100);
+    expect((await service.getMergedSubCategories(ctx, 2)).map(s => s.id).sort()).toEqual([11,12]);
+    expect((await service.getMergedSubCategories({ businessNumber: 'other' }, 1)).map(s => s.id).sort()).toEqual([10,12]);
   });
 
   describe('getEffectiveAccounts', () => {

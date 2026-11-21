@@ -92,6 +92,15 @@ and promotion, live compatibility smoke, and frontend rollback.
 - `smoke-tests/AGENTS.md` — candidate and post-deployment smoke entrypoints.
 - `docs/operations/production-smoke.md` — operator release and rollback policy.
 
+## Local AI development (not deployment)
+
+- Root start-ai.cmd calls start-ai-dev.cjs for local Docker Desktop/Langfuse only.
+- --check is read-only; --infrastructure-only is an alias for default startup.
+- Never start/build/check frontend or backend, read backend/.env, install
+  dependencies, generate keys, apply SQL, or stop an existing process.
+- Use existing local Langfuse compose configuration; refuse remote Docker.
+- Verify with node --test scripts/start-ai-dev.test.cjs, --help and --check.
+
 ## Shared test deployment
 
 - `deploy-test.cmd` / `deploy-test.ps1` deploy Full, Backend or Frontend from any

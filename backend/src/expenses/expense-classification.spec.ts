@@ -288,6 +288,20 @@ describe('ExpensesService — Phase 4.1 classification', () => {
     expect(catalogService.resolveByName).not.toHaveBeenCalled();
   });
 
+  it('bank approval resolves the personal subcategory again and ignores stale browser law', async () => {
+    const personal = makeResolved({ subCategory: { id: 77 }, vatPercent: 100, taxPercent: 80 });
+    catalogService.resolveByName.mockResolvedValue(personal);
+    catalogService.resolveSubCategory.mockImplementation(async (id: number) => id === 77 ? personal : makeResolved());
+    const dto: any = makeDto({ subCategoryId: 42, externalTransactionId: 'bank-tx',
+      vatPercent: 11, taxPercent: 12, reductionPercent: 99, isEquipment: true });
+    const result = await service.addExpense(dto, 'uid-1', '999999999', false);
+    expect(result.subCategoryId).toBe(77);
+    expect(result.vatPercentSnapshot).toBe(100);
+    expect(result.taxPercentSnapshot).toBe(80);
+    expect(result.reductionPercentSnapshot).toBe(0);
+    expect(result.isEquipmentSnapshot).toBe(false);
+  });
+
   it('addExpense uses the card law when the DTO omits percents', async () => {
     const dto = makeDto();
     delete dto.vatPercent;

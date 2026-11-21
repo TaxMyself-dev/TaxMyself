@@ -284,3 +284,7 @@ ion-item.selected {
     }
   }
 }
+/* The dialog renders in a portal; its empty host must not take chat space. */
+.app-content:has(> app-dev-agent) > app-upgrade-required-dialog {
+  flex: 0 0 auto;
+}

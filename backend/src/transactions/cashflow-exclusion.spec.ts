@@ -91,7 +91,7 @@ describe('Unchanged classification rule scope', () => {
     });
     await expect(service.classifyWithRule('owner', { externalTransactionId: 'tx' })).resolves.toMatchObject({ status: 'confirm_rule_override' });
     const scope = findRule.mock.calls[0][0].where;
-    expect(scope).toMatchObject({ userId: 'owner', billId: 5, transactionName: 'כרטיס', minAbsSum: null, commentPattern: null });
+    expect(scope).toMatchObject({ userId: 'owner', billId: 5, transactionName: 'כרטיס', minAbsSum: expect.objectContaining({_type: 'isNull'}), commentPattern: expect.objectContaining({_type: 'isNull'}) });
     expect(scope).not.toHaveProperty('sourceRecordId');
   });
 
@@ -202,7 +202,7 @@ describe('Exclusion at service boundaries', () => {
     const save = jest.fn();
     Object.assign(service, {
       subCategoryRepo: { find: async () => [], findOne: async () => special, save },
-      categoryRepo: { findOne: async () => ({ id: 99, name: 'בנק, אשראי ותנועות' }) },
+      categoryRepo: { find: async () => [{ id: 99 }], findOne: async () => ({ id: 99, chartOwnerKey: 'CLIENT_123', name: 'בנק, אשראי ותנועות' }) },
     });
     await expect(service.getMergedSubCategories({ userId: 'owner', businessNumber: '123' }, 99)).resolves.toEqual([special]);
     await expect(service.deleteSubCategory(special)).rejects.toThrow();

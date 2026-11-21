@@ -1,0 +1,198 @@
+<main dir="rtl" class="onboarding">
+  <div class="page-content">
+    <header>
+      <a routerLink="/admin-panel">חזרה לפאנל הניהול</a><span>Keepintax</span>
+    </header>
+    <section class="intro">
+      <h1>נעים להכיר</h1>
+      <p>הסיפור שלך ושל העסק, בקצב שלך.</p>
+    </section>
+    @if (businesses().length > 1) {
+    <label class="business"
+      >על איזה עסק נדבר?
+      <p-select
+        [options]="businesses()"
+        optionLabel="name"
+        optionValue="number"
+        [(ngModel)]="selected"
+        (onChange)="select()"
+        [disabled]="busy()"
+        placeholder="בחירת עסק"
+        ariaLabel="על איזה עסק נדבר?"
+      />
+    </label>
+    } @if (error()) {
+    <div class="error" role="alert">
+      {{error()}}
+      <app-p-button
+        buttonText="רענון המידע"
+        [buttonColor]="ButtonColor.WHITE_BORDER"
+        (onButtonClicked)="refresh()"
+        [disabled]="busy() || !selected"
+      />
+    </div>
+    } @if (busy() && !snapshot()) {
+    <p class="muted" role="status">טוען את ההיכרות…</p>
+    } @if (!busy() && businesses().length === 0 && !error()) {
+    <p>כדי להתחיל היכרות, צריך להוסיף עסק בחשבון.</p>
+    } @if (snapshot(); as s) { @if (!summary()) {
+    <section
+      class="conversation"
+      aria-label="שיחת ההיכרות"
+      [attr.aria-busy]="thinking()"
+    >
+      <div
+        #turns
+        class="turns"
+        role="log"
+        aria-label="הודעות השיחה"
+        aria-live="polite"
+      >
+        @if (!messages().length) {
+        <article class="turn assistant">
+          <span>Keepintax</span>
+          <p>{{s.opening}}</p>
+        </article>
+        } @for (message of messages(); track message.id) {
+        <article
+          class="turn"
+          [class.user]="message.role === 'user'"
+          [class.assistant]="message.role === 'assistant'"
+        >
+          <span>{{message.role === 'user' ? 'אתם' : 'Keepintax'}}</span>
+          <p>{{message.text}}</p>
+        </article>
+        } @if (thinking()) {
+        <article
+          class="turn assistant thinking"
+          role="status"
+          aria-live="polite"
+        >
+          <span>Keepintax</span>
+          <p>
+            <span class="thinking-dot" aria-hidden="true"></span>{{summarizing()
+            ? 'מכין את הסיכום…' : 'חושב…'}}
+          </p>
+        </article>
+        }
+      </div>
+      <form (ngSubmit)="send()" class="composer">
+        <label class="sr-only" for="story-input">הודעה לסוכן ההיכרות</label>
+        <textarea
+          pTextarea
+          id="story-input"
+          name="draft"
+          [(ngModel)]="draft"
+          maxlength="5000"
+          rows="3"
+          [disabled]="busy()"
+          (keydown)="onComposerKeydown($event)"
+        ></textarea>
+        <div class="composer-actions">
+          <small>Enter לשליחה · Shift + Enter לשורה חדשה</small>
+          <app-p-button
+            type="submit"
+            buttonText="שלח"
+            [buttonColor]="ButtonColor.BLACK"
+            [disabled]="busy() || !draft.trim()"
+          />
+        </div>
+      </form>
+      <div class="conversation-footer">
+        <p>
+          אפשר לבקש הכוונה בשיחה. לא חייבים לענות עכשיו על כל השאלות.<br />ההתקדמות
+          נשמרת, ואפשר לחזור ולעדכן בכל רגע.
+        </p>
+        <app-p-button
+          buttonText="סיום וסיכום ההיכרות"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          [disabled]="busy() || !!draft.trim()"
+          (onButtonClicked)="finish()"
+        />
+      </div>
+    </section>
+    } @else {
+    <section class="memory" aria-label="מה הסוכן יודע עליי">
+      <div class="summary-header">
+        <h2>הסיפור שלך</h2>
+        <app-p-button
+          buttonText="חזרה לשיחה"
+          [buttonColor]="ButtonColor.WHITE_BORDER"
+          (onButtonClicked)="summary.set(false)"
+          [disabled]="busy()"
+        />
+      </div>
+      <p class="story">{{summaryText()}}</p>
+      <p class="muted">משהו לא מדויק או השתנה? ספר לי בשיחה ואעדכן.</p>
+      <section class="basics" aria-labelledby="basics-title">
+        <h2 id="basics-title">פרטי הבסיס</h2>
+        <div class="basic-groups">
+          @for (group of
+          [{scope:'person',title:'עליך'},{scope:'business',title:'על העסק'}];
+          track group.scope) {
+          <section>
+            <h3>{{group.title}}</h3>
+            <dl>
+              @for (field of fieldsFor(group.scope); track field.key) {
+              <div [class.unanswered]="field.state !== 'known'">
+                <dt>{{field.label}}</dt>
+                <dd>{{displayField(field)}}</dd>
+              </div>
+              }
+            </dl>
+          </section>
+          }
+        </div>
+      </section>
+      <details class="memory-management">
+        <summary>ניהול הזיכרון</summary>
+        <p class="muted">
+          לתיקון פרטים אפשר לחזור לשיחה. מחיקה כאן מסירה את הפרט ואת גרסאותיו
+          מזיכרון ההיכרות; שיחות רגילות וגיבויים אינם נמחקים.
+        </p>
+        @for (fact of s.facts; track fact.id) { @if (fact.status === 'active') {
+        <div class="fact">
+          <p>{{fact.statement}}</p>
+          <app-p-button
+            buttonText="מחיקה מהזיכרון"
+            [buttonColor]="ButtonColor.WHITE_BORDER"
+            (onButtonClicked)="forgetting.set(fact.id)"
+            [disabled]="busy()"
+          />
+        </div>
+        } }
+      </details>
+    </section>
+    } }
+  </div>
+</main>
+<p-dialog
+  dir="rtl"
+  [visible]="!!forgetting()"
+  (visibleChange)="!$event && forgetting.set(null)"
+  header="מחיקה מהזיכרון"
+  [modal]="true"
+  [closable]="!busy()"
+  [closeOnEscape]="!busy()"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{width:'90vw',maxWidth:'480px'}"
+>
+  <div dir="rtl">
+    <p>למחוק את הפרט ואת ההיסטוריה שלו מזיכרון ההיכרות?</p>
+    <div class="buttons">
+      <app-p-button
+        buttonText="כן, למחוק"
+        [buttonColor]="ButtonColor.RED_OUTLINE"
+        [disabled]="busy()"
+        (onButtonClicked)="forget(forgetting()!)"
+      />
+      <app-p-button
+        buttonText="ביטול"
+        [buttonColor]="ButtonColor.WHITE_BORDER"
+        [disabled]="busy()"
+        (onButtonClicked)="forgetting.set(null)"
+      />
+    </div>
+  </div>
+</p-dialog>

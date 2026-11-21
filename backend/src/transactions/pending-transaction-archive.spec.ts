@@ -1,3 +1,4 @@
+import { FullTransactionCache } from './full-transaction-cache.entity';
 import { IsNull } from 'typeorm';
 import { ArchiveItemStatus, ExpenseReportScope, RecordSource } from '../enum';
 import { DocumentsService } from '../documents/documents.service';
@@ -26,6 +27,7 @@ describe('pending classified transaction archive', () => {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const fakeThis = {
+      expensesService: { effectiveTransactionClassification: jest.fn().mockResolvedValue({}) },
       cacheRepo,
       slimRepo: { findOne: jest.fn().mockResolvedValue(null) },
       resolveStampPeriod: jest.fn().mockResolvedValue('9-10/2026'),
@@ -188,10 +190,13 @@ describe('pending classified transaction archive', () => {
     const cache = { ...CACHE_ROW, currency: 'ILS', ilsAmount: null };
     const expenseUpdate = jest.fn().mockResolvedValue({ affected: 1 });
     const slimUpdate = jest.fn().mockResolvedValue({ affected: 1 });
+    // Archived payments may have no live cache row; approval must still work.
+    const cacheUpdate = jest.fn().mockResolvedValue({ affected: 0 });
     const manager = {
       getRepository: jest.fn((entity) => {
         if (entity === Expense) return { update: expenseUpdate };
         if (entity === SlimTransaction) return { update: slimUpdate };
+        if (entity === FullTransactionCache) return { update: cacheUpdate };
         throw new Error('Unexpected repository');
       }),
     };
@@ -218,6 +223,10 @@ describe('pending classified transaction archive', () => {
     );
     expect(slimUpdate).toHaveBeenCalledWith(
       { id: 71 },
+      { confirmed: true, vatReportingDate: '9-10/2026' },
+    );
+    expect(cacheUpdate).toHaveBeenCalledWith(
+      { userId: 'owner-1', externalTransactionId: 'tx-1' },
       { confirmed: true, vatReportingDate: '9-10/2026' },
     );
   });

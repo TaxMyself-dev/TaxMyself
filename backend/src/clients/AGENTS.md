@@ -8,6 +8,9 @@ Manages a business owner's own customer/vendor contact list (name, phone, email,
 - `clients.controller.ts` — `/clients` REST endpoints behind `FirebaseAuthGuard`.
 
 ## Main flows
+- `ClientsModule` exports `ClientsService` for the AI agent's read-only
+  `listClients`. `AgentBooksService` passes the verified data owner and an
+  owned business, and rechecks access before returning contact data.
 - `POST /clients/add-client` — create a contact for a business (409 if name already used by this user).
 - `GET /clients/get-clients/:businessNumber` — list a business's contacts (empty array if none).
 - `PATCH /clients/update-client/:id` — partial update by `clientRowId`.

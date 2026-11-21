@@ -99,6 +99,25 @@ export class ReportWorkflowService {
     return rows.map((w) => ({ ...w, canSelfMark }));
   }
 
+  /**
+   * The client's stored workflows (dismissed ones included, each with its
+   * dismissedAt), exactly as they are: no on-demand generation, no write.
+   * For the AI agent's read of upcoming reports, which must change nothing;
+   * the client's own list keeps listForClient and its generation.
+   */
+  async listStoredForClient(
+    clientFirebaseId: string,
+    businessNumber?: string,
+  ): Promise<ReportWorkflow[]> {
+    return this.workflowRepo.find({
+      where: {
+        clientFirebaseId,
+        ...(businessNumber ? { businessNumber } : {}),
+      },
+      order: { periodEnd: 'DESC', id: 'DESC' },
+    });
+  }
+
   async getById(
     requesterFirebaseId: string,
     id: number,

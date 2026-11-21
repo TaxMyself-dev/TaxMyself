@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, FindOptionsWhere, In, Like, Repository } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsWhere, In, Like, Repository } from 'typeorm';
+import { PendingCatalogFilter, reconcilePendingClassifications } from './pending-classification';
 import { Category } from './category.entity';
 import { SubCategory } from './sub-category.entity';
 import { BookingAccount } from './account.entity';
@@ -142,6 +143,30 @@ export class CatalogService {
     @InjectRepository(Business) private readonly businessRepo: Repository<Business>,
   ) {}
 
+  /** Reuse this resolver with transaction-scoped repositories. */
+  withManager(manager: EntityManager): CatalogService {
+    return new CatalogService(manager.getRepository(Category), manager.getRepository(SubCategory),
+      manager.getRepository(BookingAccount), manager.getRepository(AccountingSection),
+      this.accountCodeAllocator, this.dataSource, manager.getRepository(Expense),
+      manager.getRepository(User), manager.getRepository(Business));
+  }
+
+  async refreshPendingClassifications(filter: PendingCatalogFilter = {}): Promise<void> {
+    await this.dataSource.transaction(manager =>
+      reconcilePendingClassifications(manager, this.withManager(manager), filter));
+  }
+
+  private async persistSubCategory(sub: SubCategory): Promise<SubCategory> {
+    return this.dataSource.transaction(async manager => {
+      const saved = await manager.getRepository(SubCategory).save(sub);
+      await reconcilePendingClassifications(manager, this.withManager(manager), {
+        subCategoryName: saved.name,
+        ...(saved.businessNumber ? { businessNumber: saved.businessNumber } : {}),
+      });
+      return saved;
+    });
+  }
+
   /**
    * Phase 3 Step 2 — the single source of truth for a read-precedence
    * chartOwnerKey array (D4: CLIENT > ACCOUNTANT > SYSTEM). Every caller that
@@ -274,7 +299,7 @@ export class CatalogService {
     const categories = this.mergeByName(rows, chartOwnerKeys, (c) => c.name);
     if (!ctx.businessType || categories.length === 0) return categories;
 
-    const categoryIds = categories.map((c) => c.id);
+    const categoryIds = rows.map((c) => c.id);
     const subRows = await this.subCategoryRepo.find({
       where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(categoryIds), isActive: true },
       relations: ['account'],
@@ -282,14 +307,20 @@ export class CatalogService {
     const categoryIdsWithVisibleChild = new Set(
       subRows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType)).map((s) => s.categoryId),
     );
-    return categories.filter((c) => categoryIdsWithVisibleChild.has(c.id));
+    const namesWithVisibleChild = new Set(rows.filter(c => categoryIdsWithVisibleChild.has(c.id)).map(c => c.name));
+    return categories.filter(c => namesWithVisibleChild.has(c.name));
   }
 
   async getMergedSubCategories(ctx: CatalogContext, categoryId: number): Promise<SubCategory[]> {
     const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
+    const parent = await this.categoryRepo.findOne({ where: { id: categoryId } });
+    if (!parent || !chartOwnerKeys.includes(parent.chartOwnerKey)) return [];
+    const parents = await this.categoryRepo.find({ where: {
+      chartOwnerKey: In(chartOwnerKeys), name: parent.name, type: parent.type, isActive: true,
+    } });
     const rows = await this.subCategoryRepo.find({
-      where: { chartOwnerKey: In(chartOwnerKeys), categoryId, isActive: true },
-      relations: ['account', 'category'],
+      where: { chartOwnerKey: In(chartOwnerKeys), categoryId: In(parents.map(p => p.id)), isActive: true },
+      relations: ['account', 'account.section', 'category'],
     });
     if (!rows.some(row => row.systemKey === 'DIRECT_CARD_BANK_PAYMENT')) {
       const protectedSub = await this.subCategoryRepo.findOne({
@@ -332,7 +363,7 @@ export class CatalogService {
     const visible = rows.filter((s) => this.isVisibleToBusinessType(s.account, ctx.businessType));
     const protectedRows = visible.filter(s => s.systemKey === 'DIRECT_CARD_BANK_PAYMENT');
     const protectedNames = new Set(protectedRows.map(s => s.name));
-    return [...this.mergeByName(visible, chartOwnerKeys, s => s.name).filter(s => !protectedNames.has(s.name)), ...protectedRows];
+    return [...this.mergeByName(visible, chartOwnerKeys, s => JSON.stringify([s.category?.name, s.name])).filter(s => !protectedNames.has(s.name)), ...protectedRows];
   }
 
   /** All active rows for one chartOwnerKey (admin/user "list everything I own"
@@ -395,12 +426,7 @@ export class CatalogService {
   async findSubCategoryByNameInScope(ctx: CatalogContext, categoryId: number, name: string): Promise<SubCategory | null> {
     const trimmed = name?.trim();
     if (!trimmed) return null;
-    const chartOwnerKeys = this.chartOwnerKeysFor(ctx);
-    const rows = await this.subCategoryRepo.find({
-      where: { chartOwnerKey: In(chartOwnerKeys), categoryId, name: trimmed, isActive: true },
-      relations: ['account', 'category'],
-    });
-    return this.pickByPrecedence(rows, chartOwnerKeys);
+    return (await this.getMergedSubCategories(ctx, categoryId)).find(s => s.name === trimmed) ?? null;
   }
 
   /** The SYSTEM sub_category of this name, if any — the "canonical same-named
@@ -501,11 +527,7 @@ export class CatalogService {
     const categoryRow = this.pickByPrecedence(categoryRows, chartOwnerKeys);
     if (!categoryRow) return null;
 
-    const subCategoryRows = await this.subCategoryRepo.find({
-      where: { chartOwnerKey: In(chartOwnerKeys), categoryId: categoryRow.id, name: subCategory, isActive: true },
-      relations: ['account', 'account.section', 'category'],
-    });
-    const subCategoryRow = this.pickByPrecedence(subCategoryRows, chartOwnerKeys);
+    const subCategoryRow = await this.findSubCategoryByNameInScope(ctx, categoryRow.id, subCategory);
     if (!subCategoryRow) return null;
     return this.toResolved(subCategoryRow);
   }
@@ -684,7 +706,7 @@ export class CatalogService {
       approvalStatus = ApprovalStatus.MISSING_ACCOUNTING_MAPPING;
     }
 
-    return this.subCategoryRepo.save(
+    return this.persistSubCategory(
       this.subCategoryRepo.create({
         categoryId: category.id,
         systemKey: input.systemKey ?? null,
@@ -716,8 +738,9 @@ export class CatalogService {
     const category = sub.category ?? (await this.categoryRepo.findOne({ where: { id: sub.categoryId } }));
     const account = await this.findOrCreateVariantAccount(scope, law, sub.name, baseAccount, category?.name ?? null);
     sub.accountId = account?.id ?? null;
+    sub.account = account;
     sub.approvalStatus = account ? ApprovalStatus.APPROVED : ApprovalStatus.MISSING_ACCOUNTING_MAPPING;
-    return this.subCategoryRepo.save(sub);
+    return this.persistSubCategory(sub);
   }
 
   /** Soft delete — a hard delete of a SYSTEM category could orphan CLIENT
@@ -855,7 +878,7 @@ export class CatalogService {
    *  card-repointing skip this and call that instead. */
   async saveSubCategory(sub: SubCategory): Promise<SubCategory> {
     if (sub.systemKey) throw new BadRequestException('לא ניתן לשנות תת־קטגוריית מערכת קבועה');
-    return this.subCategoryRepo.save(sub);
+    return this.persistSubCategory(sub);
   }
 
   async saveCategory(category: Category): Promise<Category> {
@@ -1025,6 +1048,10 @@ export class CatalogService {
         }),
       );
 
+      await reconcilePendingClassifications(m, this.withManager(m), {
+        subCategoryName: subCategory.name,
+        ...(scope.businessNumber ? { businessNumber: scope.businessNumber } : {}),
+      });
       return { account, subCategory };
     });
   }
@@ -1106,7 +1133,7 @@ export class CatalogService {
       if (existing) {
         existing.accountId = account.id;
         existing.approvalStatus = ApprovalStatus.APPROVED;
-        return this.subCategoryRepo.save(existing);
+        return this.persistSubCategory(existing);
       }
       return this.createSubCategory(scope, category, sub.name, {
         accountId: account.id,
@@ -1117,7 +1144,7 @@ export class CatalogService {
 
     sub.accountId = account.id;
     sub.approvalStatus = ApprovalStatus.APPROVED;
-    return this.subCategoryRepo.save(sub);
+    return this.persistSubCategory(sub);
   }
 
   // ==========================================================================
@@ -1493,7 +1520,12 @@ export class CatalogService {
     for (const field of fields) {
       if (dto[field] !== undefined) (account as any)[field] = dto[field];
     }
-    return this.accountRepo.save(account);
+    return this.dataSource.transaction(async manager => {
+      const saved = await manager.getRepository(BookingAccount).save(account);
+      await reconcilePendingClassifications(manager, this.withManager(manager),
+        account.businessNumber ? { businessNumber: account.businessNumber } : {});
+      return saved;
+    });
   }
 
   // ==========================================================================

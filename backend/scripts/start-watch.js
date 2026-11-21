@@ -30,11 +30,35 @@
 //   $env:DISABLE_SYNCHRONIZE = 'false'; $env:DB_DATABASE = '<scratch-db-name>'; npx nest start
 // — a deliberate, named one-off, not an ambient default.
 const { spawn } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const portConfigPath = path.resolve(__dirname, '../../.local-ai-dev/ports.json');
+const localPorts = fs.existsSync(portConfigPath) ? JSON.parse(fs.readFileSync(portConfigPath, 'utf8')) : null;
+if (localPorts && (!Number.isInteger(localPorts.backendPort) || localPorts.backendPort < 1024 || localPorts.backendPort > 65535)) {
+  throw new Error('Invalid backendPort in .local-ai-dev/ports.json');
+}
+const envPath = path.resolve(__dirname, '../.env');
+const fileEnv = fs.existsSync(envPath) ? require('dotenv').parse(fs.readFileSync(envPath)) : {};
+if (localPorts && (!Number.isInteger(localPorts.frontendPort) || localPorts.frontendPort < 1024 || localPorts.frontendPort > 65535)) {
+  throw new Error('Invalid frontendPort in .local-ai-dev/ports.json');
+}
+const origins = localPorts ? [...new Set([
+  ...(process.env.AGENT_APP_ORIGINS || fileEnv.AGENT_APP_ORIGINS || '').split(',').filter(Boolean),
+  'http://localhost:' + localPorts.frontendPort, 'http://127.0.0.1:' + localPorts.frontendPort,
+])].join(',') : undefined;
+const {localOnboardingValue}=require('./local-onboarding-config.cjs');
+const onboardingValue=localOnboardingValue(localPorts,process.env,fileEnv);
+const childEnv = { ...(onboardingValue!==undefined && {AGENT_ONBOARDING_ENABLED:onboardingValue}), ...process.env, DISABLE_SYNCHRONIZE: 'true', ...(localPorts && { PORT: String(localPorts.backendPort), AGENT_APP_ORIGINS: origins }) };
+if (process.argv.includes('--print-config')) {
+  console.log(JSON.stringify({ backendPort: Number(childEnv.PORT || fileEnv.PORT || 8080), source: localPorts ? 'ignored worktree config' : 'process/environment', synchronize: false, onboardingEnabled: childEnv.AGENT_ONBOARDING_ENABLED === 'true' }));
+  process.exit(0);
+}
+
 
 const child = spawn('npx', ['nest', 'start', '--watch'], {
   stdio: 'inherit',
   shell: true,
-  env: { ...process.env, DISABLE_SYNCHRONIZE: 'true' },
+  env: childEnv,
 });
 
 child.on('exit', (code) => process.exit(code ?? 0));

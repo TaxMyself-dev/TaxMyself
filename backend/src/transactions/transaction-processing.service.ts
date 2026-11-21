@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
+import { DataSource, EntityManager, IsNull, In, Repository, Between, MoreThanOrEqual, LessThanOrEqual, Brackets } from 'typeorm';
 import { subYears } from 'date-fns';
 
 import { SlimTransaction } from './slim-transaction.entity';
@@ -21,7 +21,7 @@ import { Business } from 'src/business/business.entity';
 import { Expense } from 'src/expenses/expenses.entity';
 import { SharedService } from 'src/shared/shared.service';
 import { FxRateService } from 'src/shared/fx-rate.service';
-import { BusinessType, VATReportingType, ExpenseReportScope } from 'src/enum';
+import { BusinessType, VATReportingType, ExpenseReportScope, ExpenseApprovalStatus } from 'src/enum';
 
 import { NormalizedTransaction } from './interfaces/normalized-transaction.interface';
 import { dedupeProviderTransactions } from './utils/provider-transaction-dedup.util';
@@ -328,6 +328,7 @@ export class TransactionProcessingService {
     userId: string,
     transactions: NormalizedTransaction[],
   ): Promise<ProcessingResult> {
+    await this.expensesService.refreshPendingTransactionClassifications(userId);
     const providerDedup = dedupeProviderTransactions(transactions);
     const transactionsToProcess = providerDedup.transactions;
     const result: ProcessingResult = {
@@ -385,6 +386,15 @@ export class TransactionProcessingService {
       billIds.length > 0
         ? await this.rulesRepo.find({ where: { userId, billId: In(billIds) } })
         : [];
+
+    // Resolve once per business and label, rather than once per imported row.
+    const effectiveLaws = new Map<string, ReturnType<ExpensesService['effectiveTransactionClassification']>>();
+    const effectiveLaw = (businessNumber: string | null, input: { category: string; subCategory: string }) => {
+      const key = JSON.stringify([businessNumber, input.category, input.subCategory]);
+      if (!effectiveLaws.has(key)) effectiveLaws.set(key, this.expensesService.effectiveTransactionClassification(
+        userId, businessNumber, { category: input.category, subCategory: input.subCategory }));
+      return effectiveLaws.get(key)!;
+    };
 
     // Prefetch FX stamps for every non-ILS transaction in the batch.
     // FxRateService's in-memory cache makes repeat (date, currency) pairs
@@ -495,8 +505,9 @@ export class TransactionProcessingService {
       }
 
       // STEP 2 – no slim → deterministic rule matching.
-      const matchedRule = this.matchRule(tx, userRules);
+      let matchedRule = this.matchRule(tx, userRules);
       if (matchedRule) {
+        matchedRule = { ...matchedRule, ...await effectiveLaw(matchedRule.businessNumber ?? tx.businessNumber ?? null, matchedRule) };
         slimInserts.push({
           userId,
           externalTransactionId: tx.externalTransactionId,
@@ -614,6 +625,46 @@ export class TransactionProcessingService {
     return result;
   }
 
+  /** Agent-only transaction boundary. No expense approval. Mode is chosen on its card.
+   * Row locks serialize repeated approvals across requests and instances.
+   * preflight runs after locks; failure rolls the entire classification back. */
+  async classifyPendingForAgent<T>(
+    userId: string,
+    externalTransactionId: string,
+    preflight: (cache: FullTransactionCache, slim: SlimTransaction | null, manager: EntityManager) => Promise<{ result: T; dto?: ClassifyManuallyDto }>,
+    isSingleUpdate = true,
+  ): Promise<T> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
+      const cache = await manager.getRepository(FullTransactionCache).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
+      if (!cache) throw new NotFoundException('CLASSIFICATION_STALE: transaction no longer available');
+      const slim = await manager.getRepository(SlimTransaction).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
+      if (slim?.confirmed || cache.confirmed)
+        throw new ConflictException('CLASSIFICATION_BLOCKED: agent cannot edit an approved transaction');
+      const expense = await manager.getRepository(Expense).findOne({ where: { userId, externalTransactionId } });
+      if (expense?.approvalStatus === ExpenseApprovalStatus.APPROVED || expense?.approvedAt || expense?.isReported)
+        throw new ConflictException('CLASSIFICATION_BLOCKED: agent cannot edit an approved expense');
+      const { result, dto } = await preflight(cache, slim, manager);
+      if (dto) {
+        const scoped = new TransactionProcessingService(
+          manager.getRepository(SlimTransaction), manager.getRepository(FullTransactionCache),
+          manager.getRepository(UserTransactionCacheState), manager.getRepository(ClassifiedTransactions),
+          manager.getRepository(Source), manager.getRepository(Bill), manager.getRepository(Business),
+          manager.getRepository(Expense), this.userSyncStateService, this.sharedService,
+          this.fxRateService, this.dataSource, this.expensesService,
+        );
+        if (isSingleUpdate) await scoped.classifyManually(userId, dto, true);
+        else {
+          const applied = await scoped.classifyWithRule(userId, { ...dto, confirmOverride: true }, true, cache.businessNumber);
+          if (applied.status !== 'applied') throw new ConflictException('CLASSIFICATION_BLOCKED: ' + applied.message);
+          if (result !== null && typeof result === 'object')
+            Object.assign(result, { ruleId: applied.ruleId, backfillCount: applied.backfillCount });
+        }
+      }
+      return result;
+    });
+  }
+
   /**
    * Manually classifies a transaction (ONE_TIME).
    *
@@ -671,6 +722,9 @@ export class TransactionProcessingService {
         423, // HTTP 423 Locked — NestJS HttpStatus enum doesn't include this constant.
       );
     }
+
+    if (!slim?.confirmed) dto = { ...dto, ...await this.expensesService.effectiveTransactionClassification(
+      userId, dto.businessNumber ?? slim?.businessNumber ?? cacheRow.businessNumber, dto) };
 
     // 3b. Resolve the report period to stamp. May throw 423 if the
     //     natural period is locked and the caller didn't pre-select one.
@@ -778,6 +832,7 @@ export class TransactionProcessingService {
     userId: string,
     dto: ClassifyWithRuleDto,
     classificationOnly = false,
+    agentBusinessNumber?: string,
   ): Promise<ClassifyWithRuleResult> {
     // 1. Locate in cache.
     const cacheRow = await this.cacheRepo.findOne({
@@ -847,7 +902,7 @@ export class TransactionProcessingService {
       commentMatchType: dto.commentMatchType ?? 'equals',
     };
 
-    let rule = await this.rulesRepo.findOne({ where: constraintWhere });
+    let rule = await this.rulesRepo.findOne({ where: Object.fromEntries(Object.entries(constraintWhere).map(([key, value]) => [key, value === null ? IsNull() : value])) });
 
     // Guard: existing rule with same signature → require explicit confirmation before override.
     if (rule && !dto.confirmOverride) {
@@ -856,6 +911,9 @@ export class TransactionProcessingService {
         message: 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?',
       };
     }
+
+    dto = { ...dto, ...await this.expensesService.effectiveTransactionClassification(
+      userId, dto.businessNumber ?? slim?.businessNumber ?? cacheRow.businessNumber, dto) };
 
     const classificationFields = {
       category: dto.category,
@@ -963,6 +1021,7 @@ export class TransactionProcessingService {
       savedRule,
       dto,
       classificationOnly,
+      agentBusinessNumber,
     );
 
     return {
@@ -1116,6 +1175,7 @@ export class TransactionProcessingService {
     amountSign: 'positive' | 'negative',
     includeExcluded = false,
   ): Promise<Record<string, unknown>[]> {
+    await this.expensesService.refreshPendingTransactionClassifications(userId);
     const qb = this.cacheRepo
       .createQueryBuilder('c')
       .where('c.userId = :userId', { userId })
@@ -1405,6 +1465,7 @@ export class TransactionProcessingService {
     savedRule: ClassifiedTransactions,
     dto: ClassifyWithRuleDto,
     classificationOnly = false,
+    agentBusinessNumber?: string,
   ): Promise<number> {
     // טווח תאריכים ל־SQL: transactionDate >= effectiveStart (וגם <= endDate אם הוגדר).
     const effectiveStart = this.getEffectiveBackfillStartDate(dto, cacheRow);
@@ -1431,6 +1492,10 @@ export class TransactionProcessingService {
       });
     }
 
+    if (agentBusinessNumber !== undefined) {
+      qb.andWhere('c.businessNumber = :agentBusinessNumber', { agentBusinessNumber });
+      qb.andWhere('c.confirmed = :agentConfirmed AND c.isLocked = :agentLocked', { agentConfirmed: false, agentLocked: false });
+    }
     const candidates = await qb.getMany();
     if (candidates.length === 0) return 0;
 
@@ -1465,27 +1530,14 @@ export class TransactionProcessingService {
     // 4. Exclude protected rows (ONE_TIME or report already submitted).
     const eligible = filtered.filter((row) => {
       const slim = slimByExternalId.get(row.externalTransactionId);
-      if (!slim) return true;
+      if (!slim) return !row.confirmed && !row.isLocked;
       if (slim.classificationType === ClassificationType.ONE_TIME) return false;
       if (slim.isLocked) return false;
-      if (classificationOnly && slim.confirmed) return false;
+      if (slim.confirmed || row.confirmed) return false;
       return true;
     });
 
     if (eligible.length === 0) return 0;
-
-    // 5. Upsert slim rows.
-    const classificationPayload = {
-      category: dto.category,
-      subCategory: dto.subCategory,
-        subCategoryId: dto.subCategoryId ?? null,
-      vatPercent: dto.vatPercent,
-      taxPercent: dto.taxPercent,
-      reductionPercent: dto.reductionPercent,
-      isEquipment: dto.isEquipment,
-      isRecognized: dto.isRecognized,
-      reportScope: savedRule.reportScope ?? ExpenseReportScope.PNL,
-    };
 
     // Resolve each backfilled row's report period. Stamp the existing one
     // (re-classification preserves it), then the row's natural period — if
@@ -1539,6 +1591,16 @@ export class TransactionProcessingService {
     );
     if (writable.length === 0) return 0;
 
+    type Law = Awaited<ReturnType<ExpensesService['effectiveTransactionClassification']>>;
+    const payloadById = new Map<string, Law>();
+    const payloadByBusiness = new Map<string | null, Law>();
+    for (const row of writable) {
+      const bn = savedRule.businessNumber ?? slimByExternalId.get(row.externalTransactionId)?.businessNumber ?? row.businessNumber;
+      if (!payloadByBusiness.has(bn)) payloadByBusiness.set(bn,
+        await this.expensesService.effectiveTransactionClassification(userId, bn,
+          { category: dto.category, subCategory: dto.subCategory }));
+      payloadById.set(row.externalTransactionId, payloadByBusiness.get(bn)!);
+    }
     const slimUpserts: Partial<SlimTransaction>[] = writable.map((row) => {
       const existingSlim = slimByExternalId.get(row.externalTransactionId);
       return {
@@ -1547,7 +1609,7 @@ export class TransactionProcessingService {
         billId: row.billId!,
         classificationType: ClassificationType.RULE,
         classificationRuleId: savedRule.id,
-        ...classificationPayload,
+        ...payloadById.get(row.externalTransactionId)!,
         confirmed: existingSlim?.confirmed ?? false,
         vatReportingDate: periodLabelByRow.get(row.externalTransactionId) ?? null,
         // Rule-level businessNumber wins; otherwise preserve whatever the slim
@@ -1557,52 +1619,33 @@ export class TransactionProcessingService {
       };
     });
 
-    await this.upsertSlimTransactions(slimUpserts);
-
-    // 6. Bulk-update cache overlay — group by period label to keep the
-    //    update count small.
-    const periodLabelToIds = new Map<string | null, string[]>();
-    for (const row of writable) {
-      const label = periodLabelByRow.get(row.externalTransactionId) ?? null;
-      if (!periodLabelToIds.has(label)) periodLabelToIds.set(label, []);
-      periodLabelToIds.get(label)!.push(row.externalTransactionId);
+    // INSERT IGNORE cannot overwrite an approval/manual pick that raced the
+    // candidate read. Existing rows are updated below with write-time guards.
+    await this.slimRepo.createQueryBuilder().insert().into(SlimTransaction)
+      .values(slimUpserts as SlimTransaction[]).orIgnore().updateEntity(false).execute();
+    const groups = new Map<string, { ids: string[]; patch: Partial<SlimTransaction> }>();
+    for (const row of slimUpserts) {
+      const patch = { ...payloadById.get(row.externalTransactionId!)!,
+        classificationType: ClassificationType.RULE, classificationRuleId: savedRule.id,
+        businessNumber: row.businessNumber, vatReportingDate: row.vatReportingDate };
+      const key = JSON.stringify(patch);
+      if (!groups.has(key)) groups.set(key, { ids: [], patch });
+      groups.get(key)!.ids.push(row.externalTransactionId!);
     }
-    for (const [label, ids] of periodLabelToIds.entries()) {
-      await this.cacheRepo
-        .createQueryBuilder()
-        .update(FullTransactionCache)
-        .set({
-          ...classificationPayload,
-          classificationType: ClassificationType.RULE,
-          vatReportingDate: label,
-          // Only override the bill's default attribution when the rule carries
-          // an explicit businessNumber. When null, leave each row's column alone.
-          ...(savedRule.businessNumber !== null && { businessNumber: savedRule.businessNumber }),
-        })
-        .where('userId = :userId', { userId })
-        .andWhere('externalTransactionId IN (:...ids)', { ids })
+    for (const { ids, patch } of groups.values()) {
+      await this.slimRepo.createQueryBuilder().update(SlimTransaction).set(patch)
+        .where('userId = :userId AND externalTransactionId IN (:...ids)', { userId, ids })
+        .andWhere('confirmed = false AND isLocked = false')
+        .andWhere('classificationType != :oneTime', { oneTime: ClassificationType.ONE_TIME })
+        .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = slim_transactions.userId AND e.externalTransactionId = slim_transactions.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })
         .execute();
-    }
-
-    // 7. Sync Expense rows for any of the backfilled transactions that were
-    //    already confirmed. Skipped (locked-natural-period) rows are not
-    //    touched — their classifications stay as-is.
-    const confirmedConfirmedIds = writable
-      .map((r) => r.externalTransactionId)
-      .filter((id) => slimByExternalId.get(id)?.confirmed);
-    for (const id of confirmedConfirmedIds) {
-      const row = writable.find((r) => r.externalTransactionId === id)!;
-      await this.syncExpenseFromSlim(userId, row, {
-        ...classificationPayload,
-        businessNumber: savedRule.businessNumber ?? row.businessNumber ?? null,
-        vatReportingDate: periodLabelByRow.get(id) ?? null,
-      });
-    }
-
-    if (rowsSkippedDueToLockedPeriod.length > 0) {
-      this.logger.log(
-        `applyRuleToExistingTransactions: skipped ${rowsSkippedDueToLockedPeriod.length} backfill row(s) whose natural period was locked.`,
-      );
+      const { classificationRuleId, ...cachePatch } = patch;
+      await this.cacheRepo.createQueryBuilder().update(FullTransactionCache).set(cachePatch)
+        .where('userId = :userId AND externalTransactionId IN (:...ids)', { userId, ids })
+        .andWhere('confirmed = false AND isLocked = false')
+        .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = full_transactions_cache.userId AND e.externalTransactionId = full_transactions_cache.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })
+        .andWhere('EXISTS (SELECT 1 FROM slim_transactions s WHERE s.userId = full_transactions_cache.userId AND s.externalTransactionId = full_transactions_cache.externalTransactionId AND s.confirmed = false AND s.isLocked = false AND s.classificationType = :ruleType AND s.classificationRuleId = :ruleId)', { ruleType: ClassificationType.RULE, ruleId: savedRule.id })
+        .execute();
     }
 
     return writable.length;
@@ -2181,6 +2224,10 @@ export class TransactionProcessingService {
 
     if ((dto.category !== undefined && dto.category !== rule.category) || (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory)) rule.subCategoryId = dto.subCategoryId ?? null;
     Object.assign(rule, dto);
+    const bill = await this.billRepo.findOne({ where: { id: rule.billId, userId } });
+    Object.assign(rule, await this.expensesService.effectiveTransactionClassification(userId,
+      rule.businessNumber ?? bill?.businessNumber ?? null,
+      { category: rule.category, subCategory: rule.subCategory }));
     const saved = await this.rulesRepo.save(rule);
 
     if (classificationChanged) {
@@ -2216,23 +2263,32 @@ export class TransactionProcessingService {
     },
   ): Promise<void> {
     const slimRows = await this.slimRepo.find({
-      where: { userId, classificationRuleId: ruleId, isLocked: false },
+      where: { userId, classificationRuleId: ruleId, isLocked: false, confirmed: false },
     });
     if (slimRows.length === 0) return;
 
-    const externalIds = slimRows.map(s => s.externalTransactionId);
-
-    await this.dataSource.transaction(async (manager) => {
-      await manager.update(
-        SlimTransaction,
-        { userId, classificationRuleId: ruleId, isLocked: false },
-        fields,
-      );
-      await manager.update(
-        FullTransactionCache,
-        { userId, externalTransactionId: In(externalIds) },
-        fields,
-      );
+    const groups = new Map<string | null, { ids: string[]; law: Awaited<ReturnType<ExpensesService['effectiveTransactionClassification']>> }>();
+    for (const row of slimRows) {
+      if (!groups.has(row.businessNumber)) groups.set(row.businessNumber, {
+        ids: [], law: await this.expensesService.effectiveTransactionClassification(userId, row.businessNumber,
+          { category: fields.category, subCategory: fields.subCategory }),
+      });
+      groups.get(row.businessNumber)!.ids.push(row.externalTransactionId);
+    }
+    await this.dataSource.transaction(async manager => {
+      for (const { ids, law } of groups.values()) {
+        await manager.getRepository(SlimTransaction).createQueryBuilder().update(SlimTransaction).set(law)
+          .where('userId = :userId AND classificationRuleId = :ruleId AND externalTransactionId IN (:...ids)', { userId, ruleId, ids })
+          .andWhere('confirmed = false AND isLocked = false')
+          .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = slim_transactions.userId AND e.externalTransactionId = slim_transactions.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })
+          .execute();
+        await manager.getRepository(FullTransactionCache).createQueryBuilder().update(FullTransactionCache).set(law)
+          .where('userId = :userId AND externalTransactionId IN (:...ids)', { userId, ids })
+          .andWhere('confirmed = false AND isLocked = false')
+          .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = full_transactions_cache.userId AND e.externalTransactionId = full_transactions_cache.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })
+          .andWhere('EXISTS (SELECT 1 FROM slim_transactions s WHERE s.userId = full_transactions_cache.userId AND s.externalTransactionId = full_transactions_cache.externalTransactionId AND s.confirmed = false AND s.isLocked = false AND s.classificationRuleId = :ruleId)', { ruleId })
+          .execute();
+      }
     });
   }
 }
