@@ -77,6 +77,9 @@ describe('PdfPreviewDialogComponent', () => {
     const canvases = fixture.nativeElement.querySelectorAll('canvas.pdf-preview__page');
     expect(canvases.length).toBe(1);
     expect((canvases[0] as HTMLCanvasElement).width).toBeGreaterThan(0);
+    // The dialog remains RTL, but PDF glyph coordinates require an LTR canvas.
+    expect(getComputedStyle(fixture.nativeElement.querySelector('.pdf-preview')).direction).toBe('rtl');
+    expect(getComputedStyle(canvases[0]).direction).toBe('ltr');
   });
 
   it('emits closed from the close button and from Escape', async () => {
