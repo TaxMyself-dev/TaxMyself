@@ -31,7 +31,7 @@
       @if(n.state==='waiting'){
        <label [for]="'reply-'+n.id">התשובה שלך</label><textarea [id]="'reply-'+n.id" [(ngModel)]="answers[n.id]" maxlength="2000" rows="2"></textarea>
        @if(!s.enabled){<p class="reply-help" [id]="'reply-help-'+n.id">הסיווג האוטומטי כבוי. שליחה תפעיל אותו לכל התנועות הזכאיות ותעביר את תשובתך לבדיקה. @if(!ready()){יש להשלים תחילה את תנאי ההיכרות והחיבור לבנקאות פתוחה.}</p>}
-       <button type="button" class="reply-button" [attr.aria-describedby]="!s.enabled?'reply-help-'+n.id:null" [disabled]="busy() || (!s.enabled && !ready()) || !answers[n.id]?.trim()" (click)="reply(n)">{{s.enabled?'שלח והמשך בדיקה':'הפעל סיווג אוטומטי ושלח לבדיקה'}}</button>
+       <app-p-button class="reply-button" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO" [attr.aria-describedby]="!s.enabled?'reply-help-'+n.id:null" [disabled]="busy() || (!s.enabled && !ready()) || !answers[n.id]?.trim()" [isLoading]="busy()" (onButtonClicked)="reply(n)" [buttonText]="s.enabled?'שלח והמשך בדיקה':'הפעל סיווג אוטומטי ושלח לבדיקה'" />
       }
       @if(n.state!=='classified'){<a routerLink="/agent/chat" [queryParams]="{classificationNotice:n.id}">לבדיקה וסיווג בצ׳אט</a>}
       @if(!n.read_at){<button type="button" class="text" [disabled]="busy()" (click)="mark(n)">סמן כנקרא</button>}

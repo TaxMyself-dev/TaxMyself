@@ -426,3 +426,32 @@ the prior valid tab binding. Supported troubleshooting was read; no session/prof
 or authentication data accessed and no unrelated processes stopped. Therefore no
 claim of manual visual verification. No real consent/reply was submitted during
 verification. No main integration or GitHub push.
+
+## Toolbar and reply button polish (2026-11-21)
+
+Completed the five visual corrections: neutral settings icon color on hover/focus;
+physical right-side unread badge in RTL; toolbar gap reduced from 12px to 4px
+without space-between/min-width expansion; bell/settings glyphs at 24px while
+retaining 44px click targets; reply now uses the shared ButtonComponent with
+ButtonColor.BLACK, AUTO size and normal loading/disabled states. Removed the
+custom reply background/foreground rules rather than changing application-wide
+button styles. Existing focused reply test now targets the shared component's
+actual native button. No authorization, backend, schema, environment, classification
+or accounting changes. Preserved backend/journey-timings.local.
+
+Verification from frontend, installed Node 24.22.3, CI=true,
+NG_BUILD_MAX_WORKERS=2:
+
+```powershell
+node --max-old-space-size=4096 node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --karma-config=karma.auto-classification.conf.cjs --progress=false --source-map=false --include=src/app/components/my-agent/*.spec.ts --include=src/app/pages/settings-new/settings-navigation.spec.ts --include=src/app/components/topNav/topNav.component.spec.ts --ts-config=tsconfig.auto-classification-spec.json
+node --max-old-space-size=6144 node_modules/@angular/cli/bin/ng.js build --configuration=production --progress=false
+```
+
+26 tests passed, exit 0. Production build passed with existing size/CommonJS
+warnings. Logs: ignored .local-ai-dev/auto-classification/toolbar-polish-tests.log
+and toolbar-polish-build.log. Reviewed scoped CSS and actual shared black-button
+contract. No new tests for these reversible styling changes; reused focused
+behavioral regressions. git diff --check passed. Backend/agent checks not repeated
+because neither changed. Prior manual Chrome connection failure remains a visual
+verification limitation; no unsupported browser fallback used. Local feature commit
+only, no main integration or GitHub push.

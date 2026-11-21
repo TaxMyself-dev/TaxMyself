@@ -12,5 +12,5 @@
 .notice-body{padding:0 18px 20px;border-top:1px solid #dedede}
 .new-badge{display:inline-flex;align-items:center;border-radius:20px;background:#1c655f;color:#fff;padding:4px 10px;font-size:13px;font-weight:700}
 .message-heading time{margin-inline-start:auto}.reply-help{padding:12px;border-radius:8px;background:#f3f3f3;font-size:14px}
-.reply-button{background:#363636;color:#fff;border-color:#363636}.reply-button:hover:not(:disabled){background:#202020}
-@media(max-width:600px){.notice-card summary{padding:14px;gap:10px}.notice-body{padding:0 14px 16px}.message-heading time{margin-inline-start:0}.reply-button{width:100%;margin-bottom:10px}}
+.reply-button{display:inline-block}
+@media(max-width:600px){.notice-card summary{padding:14px;gap:10px}.notice-body{padding:0 14px 16px}.message-heading time{margin-inline-start:0}.reply-button{max-width:100%;margin-bottom:10px}}

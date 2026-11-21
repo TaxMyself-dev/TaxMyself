@@ -79,7 +79,7 @@ describe('My Agent settings',()=>{
  it('explicitly activates automation before sending a reply when it is off',fakeAsync(()=>{
   const f=setup();const n:any={id:'n',state:'waiting',business_number:'biz',reason:'חסר מידע',question:'מה נרכש?',read_at:null,updated_at:'2026-11-19',display:{merchant:'חנות',amount:-10,currency:'ILS',date:'2026-11-19',account:'חשבון'}};
   f.api.inbox.and.resolveTo({items:[n],hasMore:false,nextCursor:null});tick();f.fixture.componentInstance.answers['n']='הלוואה עסקית';f.fixture.detectChanges();
-  const button=f.fixture.nativeElement.querySelector('.reply-button') as HTMLButtonElement;
+  const button=f.fixture.nativeElement.querySelector('.reply-button button') as HTMLButtonElement;
   expect(button.disabled).toBeFalse();expect(button.textContent).toContain('הפעל סיווג אוטומטי');f.api.inbox.and.resolveTo({items:[],hasMore:false,nextCursor:null});button.click();tick();
   expect(f.api.consent).toHaveBeenCalledOnceWith(true);expect(f.api.reply).toHaveBeenCalledOnceWith('n','הלוואה עסקית');expect(f.fixture.componentInstance.answers['n']).toBeUndefined();expect(f.fixture.componentInstance.notices()[0].state).toBe('pending');f.fixture.destroy();
  }));
