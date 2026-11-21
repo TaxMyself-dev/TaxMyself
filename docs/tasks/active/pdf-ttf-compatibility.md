@@ -1,6 +1,6 @@
 # PDF TrueType compatibility
 
-- Status: `READY_FOR_REVIEW`
+- Status: `INTEGRATED_LOCAL_MAIN`
 - Worktree: isolated feature checkout
 - Branch: `codex/pdf-ttf-compatibility`
 - Base commit: `82446400227ee6e5ed8751eafc2eab1656c4161c`
@@ -41,3 +41,7 @@ Executed against this feature implementation, before the documentation-only comp
 ## Reproduction
 
 From backend, run `node -r ts-node/register scripts/verify-document-pdf-compatibility.ts <new-output-directory>` for local/standalone unsigned fixtures. Add `--sign` only when four live FillFaster requests are intended; this reads the existing backend `.env` token without logging it. Signed paths cannot already exist. Output defaults to the ignored root `.test-tmp/pdf-ttf` folder. No full application bootstrap is needed.
+
+## Local main follow-up
+
+The user confirmed the fixes work in test and explicitly approved local main integration. Fonts were integrated as `724d3b2f`; combined verification and the mandatory local port check are recorded in `docs/tasks/active/pdf-local-main-integration.md`. The earlier no-main-integration statements above refer to the original feature-stage verification. No push or production deployment was authorized for this integration.

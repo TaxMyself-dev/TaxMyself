@@ -1,6 +1,6 @@
 # PDF preview canvas direction
 
-- Status: `IN_PROGRESS`
+- Status: `INTEGRATED_LOCAL_MAIN`
 - Branch: `codex/pdf-ttf-compatibility` (continuation of PDF compatibility work)
 - Base: `cba5efb51bcd8c1e802866d99965980c9a5a1c20`
 - Test integration target: `cccde9291207311f7df9050fb8ca5eebeff8ffaa`
@@ -20,4 +20,4 @@ integration, push and deployment to test for this correction.
 
 ## Evidence
 
-Pending.
+The user validated the test deployment, then explicitly approved local main integration only. The canvas fix was integrated as `c21a5eac`. Combined main verification is recorded in `docs/tasks/active/pdf-local-main-integration.md`; no main push or production deployment was authorized.
