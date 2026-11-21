@@ -350,3 +350,30 @@ branch evidence is not presented as a full run on this merged tree.
 Safe launcher read-only check confirmed keepintax-dev, port 3000, synchronize off,
 and both feature flags already true in the existing ignored environment file.
 No main merge or GitHub push. Authenticated user testing remains Elazar's check.
+
+## Local onboarding origin configuration (2026-11-21)
+
+Reported onboarding send failure after integration. Compared environment key
+presence against onboarding without exposing values: OPENAI_API_KEY is populated
+and identical; optional local Langfuse settings differ. The onboarding launcher
+injects permitted origins from its ignored port config; this checkout had neither
+that config nor AGENT_APP_ORIGINS. Added only the missing local origin setting in
+ignored backend/.env, for localhost:4200 and 127.0.0.1:4200; no existing value,
+port, key, flag, database credential or consent overwritten. Did not copy source
+worktree ports or optional telemetry keys.
+
+Bounded diagnostic against the built agent HTTP handler: without permitted origin,
+the app-origin request returns 403 AGENT_INVALID_ORIGIN. With the local setting,
+both permitted origins reach the deliberately invalid-content-type check (415),
+while an unrelated origin still returns 403. No model call, new chat, profile
+mutation or schema write. This reproduces the configuration defect; the old
+browser console retained only a generic failed-chat object, not the historical
+HTTP response body. Existing owner's relevant persisted stream had no newer
+error chunk, consistent with rejection before message storage, not proof of
+a historical model error.
+
+Restarted only the identity-verified feature backend watcher to load the change,
+with DB_DATABASE=keepintax-dev, DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true.
+The .env remains ignored. No executable source change or application build/test
+repetition needed for this local environment correction; existing compiled handler
+provided focused verification. User should retry the actual chat after startup.
