@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { gmail_v1, google } from 'googleapis';
-import * as fs from 'fs';
-import * as path from 'path';
+import { EmailAccountContext, EmailPart, EmailProvider } from '../providers/email-provider';
+import { EmailProviderError } from '../providers/email-provider.error';
 import { UserIntegration } from '../entities/user-integration.entity';
 import { IntegrationStatus } from '../enums/integrations.enums';
 import { matchesAccountingDocumentKeyword } from '../utils/accounting-document-keywords.util';
@@ -14,10 +13,9 @@ import {
   tagGmailSyncError,
 } from '../utils/gmail-sync-logging.util';
 import { extractPdfText, PdfTextExtractionOutcome } from '../utils/pdf-text-extraction.util';
-import { GoogleOauthService } from './google-oauth.service';
-import { UserIntegrationsService } from './user-integrations.service';
 
-const GMAIL_READONLY_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+import { UserIntegrationsService } from './user-integrations.service';
+import { decideEmailIntake } from '../utils/email-intake-decision';
 
 /**
  * Default Gmail search when the caller does not pass one. Deliberately broad:
@@ -31,15 +29,10 @@ export const DEFAULT_GMAIL_QUERY = 'has:attachment newer_than:90d';
 const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
 
 /** Filename fragments that mark email assets rather than documents. */
-const ASSET_NAME_PATTERN = /(logo|icon|banner|signature|templogo|temp)/i;
+const ASSET_NAME_PATTERN = /(?:^|[\/_. -])(logo|icon|banner|signature|templogo)(?:[\d_. -]|$)/i;
 
-/** PDFs below this are unlikely to be real documents (empty/broken). */
-const MIN_PDF_BYTES = 20 * 1024;
-/**
- * Images need to be substantial to be a scanned/photographed receipt —
- * this also drops tiny logos, tracking pixels and signature images.
- */
-const MIN_IMAGE_BYTES = 80 * 1024;
+/** Tiny technical image payloads with no accounting signal are not documents. */
+const MIN_TECHNICAL_IMAGE_BYTES = 256;
 
 /** contentBase64 responses get large fast — keep the page size modest. */
 const DEFAULT_MAX_RESULTS = 10;
@@ -47,9 +40,6 @@ const MAX_MAX_RESULTS = 25;
 
 /** messages.list page size — 500 is the Gmail API maximum. */
 const LIST_PAGE_SIZE = 500;
-
-/** Backoff schedule for rate-limited/transient Gmail API failures. */
-const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 /** Guard against pathological/malicious MIME nesting. */
 const MAX_MIME_DEPTH = 20;
@@ -60,6 +50,7 @@ const PDF_OUTCOME_TO_SCAN_OUTCOME: Record<
   GmailPdfScanOutcome
 > = {
   NO_TEXT: GmailPdfScanOutcome.NO_TEXT,
+  PASSWORD_REQUIRED: GmailPdfScanOutcome.PASSWORD_REQUIRED,
   TOO_LARGE: GmailPdfScanOutcome.TOO_LARGE,
   FAILED: GmailPdfScanOutcome.FAILED,
   UNAVAILABLE: GmailPdfScanOutcome.UNAVAILABLE,
@@ -141,6 +132,8 @@ export interface GmailMessageScanResult {
   matchedByPdfContent: number;
   /** True when the message could not be fetched/parsed — logged, attachments empty. */
   failed: boolean;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
 }
 
 /**
@@ -155,7 +148,7 @@ export class GmailReaderService {
 
   constructor(
     private readonly userIntegrationsService: UserIntegrationsService,
-    private readonly googleOauthService: GoogleOauthService,
+    private readonly emailProvider: EmailProvider,
   ) {}
 
   /**
@@ -175,6 +168,40 @@ export class GmailReaderService {
    * DEBUG lines. Bulk callers (initial import, nightly sync) supply one.
    * `pdfStats` (optional) does the same for the PDF-content fallback.
    */
+  /** Durable scanner: metadata and MIME paths, never a buffered mailbox scan. */
+  async durablePage(integration: UserIntegration, query: string, cursor?: string) {
+    this.assertUsableIntegration(integration);
+    return this.emailProvider.listMessages(this.accountContext(integration), query, 50, cursor);
+  }
+  async durableParts(integration: UserIntegration, messageId: string) {
+    this.assertUsableIntegration(integration);
+    const message = await this.emailProvider.getMessage(this.accountContext(integration), messageId);
+    const parts: Array<{path:string;filename:string;mimeType:string;skip?:string;metadata?:Record<string,any>}> = [];
+    const walk = (part: EmailPart, path: string, depth: number) => {
+      if (depth > MAX_MIME_DEPTH) throw new EmailProviderError('CONTRACT');
+      if (part.parts?.length) { part.parts.forEach((child,index)=>walk(child,path+'.'+index,depth+1)); return; }
+      if (!part.body?.attachmentId && !part.body?.data) return;
+      const mime = part.mimeType?.toLowerCase() || '';
+      const ext = this.getExtension(part.filename || '');
+      const format = mime==='application/pdf'||ext==='pdf'?'pdf':mime==='image/png'||ext==='png'?'png':mime==='image/jpeg'||['jpg','jpeg'].includes(ext)?'jpg':null;
+      if (!format) { if(part.filename) parts.push({path,filename:part.filename.slice(0,500),mimeType:mime,skip:'UNSUPPORTED_TYPE'}); return; }
+      // A generic image001 name or missing filename is not evidence of irrelevance.
+      const header=(key:string)=>message.payload.headers?.find(h=>h.name?.toLowerCase()===key)?.value;
+      parts.push({metadata:{gmailThreadId:message.threadId,gmailSubject:header('subject'),gmailFrom:header('from'),gmailDate:header('date')},path,filename:(part.filename||('attachment-'+path+'.'+format)).replace(/[\\/\x00-\x1f]/g,'-').slice(0,500),mimeType:format==='pdf'?'application/pdf':format==='png'?'image/png':'image/jpeg'});
+    };
+    walk(message.payload,'root',0); return parts;
+  }
+  async durableDownload(integration: UserIntegration, messageId: string, path: string): Promise<Buffer> {
+    this.assertUsableIntegration(integration);
+    const account=this.accountContext(integration);
+    const message=await this.emailProvider.getMessage(account,messageId);
+    if(!/^root(?:\.\d+)*$/.test(path))throw new EmailProviderError('CONTRACT');
+    let part=message.payload;
+    for(const index of path.split('.').slice(1)) { if(!/^\d+$/.test(index)||!part.parts?.[Number(index)])throw new EmailProviderError('CONTRACT'); part=part.parts[Number(index)]; }
+    part={...part,filename:part.filename||('attachment-'+path)};
+    const content=await this.downloadPartContent(account,messageId,part);
+    if(!content)throw new EmailProviderError('CONTRACT'); return content;
+  }
   async *scanMessages(
     integration: UserIntegration,
     options: {
@@ -182,10 +209,11 @@ export class GmailReaderService {
       maxMessages?: number;
       skipStats?: SkippedAttachmentsAccumulator;
       pdfStats?: PdfContentScanAccumulator;
+      isAlreadyImported?: (content: Buffer) => Promise<boolean>;
     } = {},
   ): AsyncGenerator<GmailMessageScanResult> {
     this.assertUsableIntegration(integration);
-    const gmail = await this.createGmailClient(integration);
+    const account = this.accountContext(integration);
 
     const query = options.query?.trim() || DEFAULT_GMAIL_QUERY;
     const maxMessages = options.maxMessages;
@@ -197,27 +225,36 @@ export class GmailReaderService {
 
     let pageToken: string | undefined;
     let scanned = 0;
+    const aiBudget = { remaining: 10 };
+    const seenPageTokens = new Set<string>();
     do {
       const remaining = maxMessages ? maxMessages - scanned : LIST_PAGE_SIZE;
       const page = await this.listMessagesPage(
-        gmail,
+        account,
         query,
         Math.min(LIST_PAGE_SIZE, remaining),
         pageToken,
       );
       pageToken = page.nextPageToken;
+      if (pageToken && seenPageTokens.has(pageToken)) throw new EmailProviderError('CONTRACT');
+      if (pageToken) seenPageTokens.add(pageToken);
 
       for (const messageId of page.ids) {
         scanned += 1;
         try {
           const collected = await this.collectMessageAttachments(
-            gmail,
+            account,
             messageId,
             options.skipStats,
             options.pdfStats,
+            aiBudget,
+            options.isAlreadyImported,
           );
           yield { messageId, failed: false, ...collected };
         } catch (error: any) {
+          if (error instanceof EmailProviderError && error.category === 'AUTH') {
+            throw error;
+          }
           // One broken message must not fail the whole scan — contained,
           // counted (messagesFailed) and surfaced in the run's FINISH log.
           this.logger.warn(
@@ -278,10 +315,6 @@ export class GmailReaderService {
       result.attachmentsFound += scan.attachments.length;
       result.attachments.push(...scan.attachments);
 
-      // DEBUG ONLY — remove together with debugSaveToDisk() below.
-      for (const attachment of scan.attachments) {
-        await this.debugSaveToDisk(attachment.filename, attachment.content);
-      }
     }
 
     this.logger.debug(
@@ -299,128 +332,18 @@ export class GmailReaderService {
     return result;
   }
 
-  /** Rejects unusable integration states clearly before any Gmail call. */
   private assertUsableIntegration(integration: UserIntegration): void {
-    // All these states need the user to (re-)connect — retrying won't help.
-    if (integration.status !== IntegrationStatus.ACTIVE || !integration.refreshToken) {
-      throw tagGmailSyncError(
-        new BadRequestException(
-          `Google integration is ${integration.status} — reconnect the Google account.`,
-        ),
-        'LOAD_INTEGRATION',
-        false,
-      );
-    }
-    if (!integration.scopes?.includes(GMAIL_READONLY_SCOPE)) {
-      throw tagGmailSyncError(
-        new BadRequestException(
-          'The connected Google account did not grant Gmail read access. ' +
-            'Disconnect and reconnect the account, approving Gmail access.',
-        ),
-        'LOAD_INTEGRATION',
-        false,
-      );
+    if (integration.status !== IntegrationStatus.ACTIVE || integration.connectionBackend !== 'COMPOSIO' || !integration.connectedAccountId) {
+      throw tagGmailSyncError(new BadRequestException('Reconnect the Gmail account.'), 'LOAD_INTEGRATION', false);
     }
   }
 
-  /**
-   * Builds an authorized Gmail client. Forces a token refresh up front so an
-   * expired grant is detected here (integration marked EXPIRED) instead of
-   * surfacing as an opaque mid-scan failure. Refreshed access tokens are
-   * persisted back onto the integration as a cache.
-   */
-  private async createGmailClient(integration: UserIntegration): Promise<gmail_v1.Gmail> {
-    const refreshToken = this.userIntegrationsService.getDecryptedRefreshToken(integration);
-    const client = this.googleOauthService.createClientWithTokens(refreshToken);
-
-    try {
-      const { token } = await client.getAccessToken();
-      if (token) {
-        const expiryDate = (client.credentials.expiry_date as number | undefined) ?? null;
-        await this.userIntegrationsService.updateTokens(integration.id, {
-          accessToken: token,
-          expiresAt: expiryDate ? new Date(expiryDate) : null,
-        });
-      }
-    } catch (error: any) {
-      const reason = error?.response?.data?.error ?? error?.message ?? String(error);
-      this.logger.error(
-        `Google token refresh failed for integration ${integration.id}: ${reason}`,
-      );
-      if (String(reason).includes('invalid_grant')) {
-        // The refresh token is dead (revoked at Google / expired) — record it.
-        await this.userIntegrationsService.updateStatus(
-          integration.id,
-          IntegrationStatus.EXPIRED,
-        );
-        throw tagGmailSyncError(
-          new BadRequestException(
-            'Google authorization has expired or was revoked — reconnect the Google account.',
-          ),
-          'TOKEN_REFRESH',
-          false, // dead grant — only a user reconnect fixes it
-        );
-      }
-      throw tagGmailSyncError(
-        new BadRequestException(`Google token refresh failed: ${reason}`),
-        'TOKEN_REFRESH',
-      );
-    }
-
-    return google.gmail({ version: 'v1', auth: client });
+  private accountContext(integration: UserIntegration): EmailAccountContext {
+    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
   }
 
-  /** One messages.list page. nextPageToken is undefined on the last page. */
-  private async listMessagesPage(
-    gmail: gmail_v1.Gmail,
-    query: string,
-    maxResults: number,
-    pageToken: string | undefined,
-  ): Promise<{ ids: string[]; nextPageToken?: string }> {
-    try {
-      const response = await this.withRetry(
-        () => gmail.users.messages.list({ userId: 'me', q: query, maxResults, pageToken }),
-        'messages.list',
-      );
-      return {
-        ids: (response.data.messages ?? [])
-          .map((m) => m.id)
-          .filter((id): id is string => !!id),
-        nextPageToken: response.data.nextPageToken ?? undefined,
-      };
-    } catch (error: any) {
-      const status = Number(error?.response?.status ?? error?.code);
-      const reason = error?.response?.data?.error?.message ?? error?.message ?? String(error);
-      this.logger.error(`Gmail messages.list failed: ${reason}`);
-      throw tagGmailSyncError(
-        new BadRequestException(`Gmail search failed: ${reason}`),
-        'SEARCH_MESSAGES',
-        // Rate limits / transient 5xx exhausted the backoff — a later run succeeds.
-        status === 429 || (status >= 500 && status < 600) ? true : undefined,
-      );
-    }
-  }
-
-  /**
-   * Retries rate-limited (429) and transient (5xx) Gmail API failures with
-   * exponential backoff. Long scans make hundreds of calls, so a burst limit
-   * hit must slow the scan down, not lose the message.
-   */
-  private async withRetry<T>(call: () => Promise<T>, label: string): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await call();
-      } catch (error: any) {
-        const status = Number(error?.response?.status ?? error?.code);
-        const retryable = status === 429 || (status >= 500 && status < 600);
-        if (!retryable || attempt >= RETRY_DELAYS_MS.length) throw error;
-        this.logger.warn(
-          `Gmail ${label} returned ${status} — retry ${attempt + 1}/${RETRY_DELAYS_MS.length} ` +
-            `in ${RETRY_DELAYS_MS[attempt]}ms`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]));
-      }
-    }
+  private async listMessagesPage(account: EmailAccountContext, query: string, maxResults: number, pageToken?: string): Promise<{ ids: string[]; nextPageToken?: string }> {
+    return this.emailProvider.listMessages(account, query, maxResults, pageToken);
   }
 
   /**
@@ -428,27 +351,28 @@ export class GmailReaderService {
    * that look like receipt/invoice documents (see isLikelyReceiptAttachment).
    */
   private async collectMessageAttachments(
-    gmail: gmail_v1.Gmail,
+    account: EmailAccountContext,
     messageId: string,
     skipStats?: SkippedAttachmentsAccumulator,
     pdfStats?: PdfContentScanAccumulator,
+    aiBudget = { remaining: 10 },
+    isAlreadyImported?: (content: Buffer) => Promise<boolean>,
   ): Promise<{
     attachments: GmailAttachmentFile[];
     skippedWithoutFilename: number;
     skippedIrrelevant: number;
     matchedByPdfContent: number;
+    reviewRequired: number;
+    aiReviewQueued: number;
   }> {
-    const { data: message } = await this.withRetry(
-      () => gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' }),
-      'messages.get',
-    );
+    const message = await this.emailProvider.getMessage(account, messageId);
 
     const header = (name: string): string | null =>
       message.payload?.headers?.find((h) => h.name?.toLowerCase() === name)?.value ?? null;
 
-    const parts: gmail_v1.Schema$MessagePart[] = [];
+    const parts: EmailPart[] = [];
     let skippedWithoutFilename = 0;
-    const walk = (part: gmail_v1.Schema$MessagePart | undefined, depth: number): void => {
+    const walk = (part: EmailPart | undefined, depth: number): void => {
       if (!part || depth > MAX_MIME_DEPTH) return;
       const hasBody = !!part.body?.attachmentId || !!part.body?.data;
       if (hasBody && part.filename) {
@@ -472,6 +396,8 @@ export class GmailReaderService {
     const attachments: GmailAttachmentFile[] = [];
     let skippedIrrelevant = 0;
     let matchedByPdfContent = 0;
+    let reviewRequired = 0;
+    let aiReviewQueued = 0;
     // Expected skips are aggregated into the run's single SKIPPED SUMMARY
     // (see SkippedAttachmentsAccumulator) — never one log line per attachment,
     // which would flood production during a multi-year import.
@@ -484,59 +410,46 @@ export class GmailReaderService {
       const filename = part.filename as string;
 
       // Stage 1 — metadata gate, before spending a download on it.
-      const verdict = this.isLikelyReceiptAttachment(part);
+      const verdict = this.isLikelyReceiptAttachment(part, !!findKeywordMatchSource(filename, subject, snippet));
       if (!verdict.ok) {
         skip(filename, verdict.reason as GmailSkipReason);
         continue;
       }
 
-      // Stage 1b — accounting-document keyword in the filename, subject or
-      // body snippet. Still decided before any download, so a non-PDF that
-      // nothing points at never reaches the network or the Drive upload.
       const ext = this.getExtension(filename);
       const metadataMatch = findKeywordMatchSource(filename, subject, snippet);
-      if (!metadataMatch && ext !== 'pdf') {
-        skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
-        continue;
-      }
-
-      // A PDF with no metadata signal is downloaded ONCE here and gets a
-      // second chance from its own text further down — the bytes are needed
-      // for the import anyway, so nothing is fetched twice.
-      const content = await this.downloadPartContent(gmail, messageId, part);
+      const content = await this.downloadPartContent(account, messageId, part);
       if (!content) continue;
-
-      // Stage 2 — deterministic technical checks that need the actual bytes.
-      // These run BEFORE any text extraction: a too-small or non-PDF payload
-      // is skipped on its technical merits, exactly as before.
-      if (ext === 'pdf') {
-        if (content.length < MIN_PDF_BYTES) {
-          skip(filename, GmailSkipReason.PDF_TOO_SMALL);
-          continue;
-        }
-        if (!this.looksLikePdf(content)) {
-          skip(filename, GmailSkipReason.PDF_INVALID);
-          continue;
-        }
-      } else if (content.length < MIN_IMAGE_BYTES) {
-        skip(filename, GmailSkipReason.IMAGE_TOO_SMALL);
-        continue;
-      }
-
-      // Stage 3 — last resort for a technically valid PDF nothing else
-      // pointed at: look for the same keywords inside its own text. Any
-      // failure here (scanned, encrypted, malformed, too large) falls back to
-      // the pre-existing skip, never to an exception.
+      if (ext === 'pdf' && !this.looksLikePdf(content)) { skip(filename, GmailSkipReason.PDF_INVALID); continue; }
+      // Tiny images without any accounting signal remain obvious technical noise.
+      if (ext !== 'pdf' && content.length < MIN_TECHNICAL_IMAGE_BYTES && !metadataMatch) { skip(filename, GmailSkipReason.IMAGE_TOO_SMALL); continue; }
+      const extraction = ext === 'pdf' ? await extractPdfText(content, this.logger) : undefined;
       let matchedBy = metadataMatch;
-      if (!matchedBy) {
-        matchedBy = await this.matchPdfContent(filename, content, pdfStats);
-        if (!matchedBy) {
-          skip(filename, GmailSkipReason.NOT_INVOICE_OR_RECEIPT);
-          continue;
-        }
-        matchedByPdfContent += 1;
+      if (extraction && !metadataMatch) {
+        if (extraction.outcome === 'EXTRACTED') {
+          const matches = matchesAccountingDocumentKeyword(extraction.text);
+          pdfStats?.record(matches ? GmailPdfScanOutcome.MATCHED : GmailPdfScanOutcome.NO_KEYWORD, filename);
+          if (matches) { matchedBy = GmailKeywordMatchSource.PDF_CONTENT; matchedByPdfContent++; }
+        } else pdfStats?.record(PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome], filename, extraction.error);
       }
-
+      const alreadyImported = !matchedBy
+        && !!isAlreadyImported && await isAlreadyImported(content);
+      const decision = decideEmailIntake({ keyword: !!matchedBy, pdf: extraction, bytes: content.length,
+        aiEnabled: true, remaining: alreadyImported ? 1 : aiBudget.remaining });
+      if (decision.kind === 'review_required') {
+        if (extraction?.outcome === 'PASSWORD_REQUIRED') {
+          matchedBy = GmailKeywordMatchSource.PASSWORD_REQUIRED;
+        } else {
+        reviewRequired++;
+        // Kept in the source mailbox; importer persists an incomplete run and does not advance its cursor.
+        skip(filename, GmailSkipReason.REVIEW_REQUIRED);
+        continue;
+        }
+      }
+      if (decision.kind === 'ai_review') {
+        matchedBy = GmailKeywordMatchSource.AI_REVIEW;
+        if (!alreadyImported) { aiBudget.remaining--; aiReviewQueued++; }
+      }
       attachments.push({
         messageId,
         threadId: message.threadId ?? null,
@@ -545,47 +458,14 @@ export class GmailReaderService {
         date: header('date'),
         attachmentId: part.body?.attachmentId ?? null,
         filename,
-        mimeType: part.mimeType ?? null,
+        mimeType: ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg',
         size: content.length,
         matchedBy,
         content,
       });
     }
 
-    return { attachments, skippedWithoutFilename, skippedIrrelevant, matchedByPdfContent };
-  }
-
-  /**
-   * Extracts text from an already-downloaded, already-validated PDF and looks
-   * for an accounting-document keyword in it. Returns 'pdf-content' on a hit
-   * and null for every other outcome (no keyword, no text layer, oversized,
-   * unreadable, extractor unavailable) — the caller then applies the existing
-   * skip. Outcomes are tallied for the run's PDF CONTENT SCAN summary; the
-   * extracted text itself is never logged or persisted.
-   */
-  private async matchPdfContent(
-    filename: string,
-    content: Buffer,
-    pdfStats?: PdfContentScanAccumulator,
-  ): Promise<GmailKeywordMatchSource | null> {
-    const extraction = await extractPdfText(content, this.logger);
-
-    if (extraction.outcome !== 'EXTRACTED') {
-      pdfStats?.record(
-        PDF_OUTCOME_TO_SCAN_OUTCOME[extraction.outcome],
-        filename,
-        extraction.error,
-      );
-      return null;
-    }
-
-    if (!matchesAccountingDocumentKeyword(extraction.text)) {
-      pdfStats?.record(GmailPdfScanOutcome.NO_KEYWORD, filename);
-      return null;
-    }
-
-    pdfStats?.record(GmailPdfScanOutcome.MATCHED, filename);
-    return GmailKeywordMatchSource.PDF_CONTENT;
+    return { attachments, skippedWithoutFilename, skippedIrrelevant, matchedByPdfContent, reviewRequired, aiReviewQueued };
   }
 
   /**
@@ -598,7 +478,8 @@ export class GmailReaderService {
    * substantial enough to be a scan/photo.
    */
   private isLikelyReceiptAttachment(
-    part: gmail_v1.Schema$MessagePart,
+    part: EmailPart,
+    metadataSignal = false,
   ): { ok: boolean; reason?: GmailSkipReason } {
     const filename = part.filename ?? '';
     const ext = this.getExtension(filename);
@@ -606,7 +487,7 @@ export class GmailReaderService {
     if (!DOCUMENT_EXTENSIONS.includes(ext)) {
       return { ok: false, reason: GmailSkipReason.UNSUPPORTED_EXTENSION };
     }
-    if (ASSET_NAME_PATTERN.test(filename)) {
+    if (ASSET_NAME_PATTERN.test(filename) && !findKeywordMatchSource(filename, null, null)) {
       return { ok: false, reason: GmailSkipReason.ASSET_FILENAME };
     }
 
@@ -615,7 +496,7 @@ export class GmailReaderService {
     const declaredSize = part.body?.size ?? 0;
 
     if (ext === 'pdf') {
-      if (declaredSize > 0 && declaredSize < MIN_PDF_BYTES) {
+      if (declaredSize > 0 && declaredSize < 32) {
         return { ok: false, reason: GmailSkipReason.PDF_TOO_SMALL };
       }
       return { ok: true };
@@ -624,7 +505,7 @@ export class GmailReaderService {
     if (this.isInlineAsset(part)) {
       return { ok: false, reason: GmailSkipReason.INLINE_ASSET };
     }
-    if (declaredSize > 0 && declaredSize < MIN_IMAGE_BYTES) {
+    if (declaredSize > 0 && declaredSize < MIN_TECHNICAL_IMAGE_BYTES && !metadataSignal) {
       return { ok: false, reason: GmailSkipReason.IMAGE_TOO_SMALL };
     }
     return { ok: true };
@@ -635,7 +516,7 @@ export class GmailReaderService {
    * (Content-Disposition: inline) or with mailer-generated names like
    * image001.png.
    */
-  private isInlineAsset(part: gmail_v1.Schema$MessagePart): boolean {
+  private isInlineAsset(part: EmailPart): boolean {
     const filename = (part.filename ?? '').toLowerCase();
     if (/^(image|inline|oleobject)\d+\.(png|jpe?g|gif|bmp)$/.test(filename)) {
       return true;
@@ -655,79 +536,13 @@ export class GmailReaderService {
     return content.subarray(0, 1024).includes('%PDF-');
   }
 
-  /**
-   * DEBUG ONLY — writes a downloaded attachment to backend/debug-imports/ so
-   * the files can be inspected manually. Preserves the original filename;
-   * name collisions get an " (1)", " (2)", ... suffix instead of overwriting.
-   * Never throws — a disk problem must not affect the Gmail scan. Delete this
-   * method and its single call site in fetchAttachments() to remove the feature.
-   */
-  private async debugSaveToDisk(filename: string, content: Buffer): Promise<void> {
-    try {
-      const dir = path.join(process.cwd(), 'debug-imports');
-      await fs.promises.mkdir(dir, { recursive: true });
-
-      // Keep only the basename and strip characters Windows rejects.
-      const safeName =
-        path.basename(filename).replace(/[\\/:*?"<>|]/g, '_').trim() || 'attachment';
-      const ext = path.extname(safeName);
-      const stem = safeName.slice(0, safeName.length - ext.length);
-
-      let target = path.join(dir, safeName);
-      for (let i = 1; fs.existsSync(target); i++) {
-        target = path.join(dir, `${stem} (${i})${ext}`);
-      }
-
-      await fs.promises.writeFile(target, content);
-      this.logger.debug(`Saved Gmail attachment: ${target}`);
-    } catch (error: any) {
-      this.logger.warn(
-        `DEBUG save of Gmail attachment "${filename}" failed: ${error?.message ?? error}`,
-      );
+  /** Inline bytes and provider downloads share the existing filtering pipeline. */
+  private async downloadPartContent(account: EmailAccountContext, messageId: string, part: EmailPart): Promise<Buffer> {
+    if (part.body?.data) return Buffer.from(part.body.data, 'base64url');
+    if (part.body?.attachmentId) {
+      return this.emailProvider.downloadAttachment(account, messageId, part.body.attachmentId, part.filename || 'attachment');
     }
-  }
-
-  /**
-   * Downloads a single attachment part. Small attachments arrive inline in
-   * body.data; larger ones require attachments.get. Gmail returns base64url
-   * either way. Returns null (and logs) on failure instead of throwing so one
-   * bad attachment doesn't sink the message.
-   */
-  private async downloadPartContent(
-    gmail: gmail_v1.Gmail,
-    messageId: string,
-    part: gmail_v1.Schema$MessagePart,
-  ): Promise<Buffer | null> {
-    try {
-      if (part.body?.data) {
-        return Buffer.from(part.body.data, 'base64url');
-      }
-      if (part.body?.attachmentId) {
-        const attachmentId = part.body.attachmentId;
-        const { data } = await this.withRetry(
-          () =>
-            gmail.users.messages.attachments.get({
-              userId: 'me',
-              messageId,
-              id: attachmentId,
-            }),
-          'attachments.get',
-        );
-        if (!data.data) {
-          this.logger.warn(`Attachment ${part.filename} on message ${messageId} returned no data`);
-          return null;
-        }
-        return Buffer.from(data.data, 'base64url');
-      }
-      return null;
-    } catch (error: any) {
-      // Contained per-attachment failure — the message's other files continue.
-      this.logger.warn(
-        `Gmail sync stage=DOWNLOAD_ATTACHMENT failed for "${part.filename}" ` +
-          `(message ${messageId}, attachmentId=${part.body?.attachmentId ?? 'inline'}): ` +
-          `${error?.response?.data?.error?.message ?? error?.message ?? error}`,
-      );
-      return null;
-    }
+    // A declared attachment without retrievable content is a failed message, not a skip.
+    throw new EmailProviderError('CONTRACT');
   }
 }

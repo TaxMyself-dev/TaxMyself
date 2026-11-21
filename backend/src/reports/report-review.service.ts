@@ -1,3 +1,5 @@
+import { Optional } from '@nestjs/common';
+import { EmailIntakeStore } from '../email-intake/email-intake.store';
 import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import {
   Injectable,
@@ -177,6 +179,7 @@ export class ReportReviewService {
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly emailStore?: EmailIntakeStore,
   ) {}
 
   // ====================================================================
@@ -750,6 +753,7 @@ export class ReportReviewService {
     const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date(cache.transactionDate as any));
 
     return this.dataSource.transaction(async manager => {
+      await this.emailStore?.assertRetained(doc.driveFileId,manager);
       // Phase 4.1: addExpense JOINS this transaction via `manager` (it used
       // to open its own nested one) — expense + journal + doc/slim flips are
       // now genuinely atomic. subCategoryId (override > slim-side backfill,
@@ -925,12 +929,15 @@ export class ReportReviewService {
     // override here has always been unambiguously safe — nothing for it
     // to diverge from. FX docs keep their derived sum (see
     // buildExpenseAmountFromDoc + the ReviewOverrides.amount doc comment).
-    const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date());
+    const dateInput=overrides.date||doc.date;
+    if(!dateInput||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateInput).slice(0,10))||(!Number.isFinite(new Date(dateInput).getTime()) || new Date(dateInput).toISOString().slice(0,10)!==String(dateInput).slice(0,10)))throw new BadRequestException('יש להשלים תאריך תקין לפני האישור');
+    const finalDate = new Date(dateInput);
 
     const amounts = this.buildExpenseAmountFromDoc(doc, overrides);
     const finalSum = amounts.sum;
 
     return this.dataSource.transaction(async manager => {
+      await this.emailStore?.assertRetained(doc.driveFileId,manager);
       // Phase 4.1: joins this transaction (see approveMatched).
       const expense = await this.expensesService.addExpense(
         {
@@ -1766,7 +1773,9 @@ export class ReportReviewService {
     originalCurrency: string | null;
     originalSum: number | null;
   } {
-    const rawAmount = Number(overrides.amount ?? doc.amount ?? 0);
+    const candidate=overrides.amount ?? doc.amount;
+    if(candidate==null||String(candidate).trim()===''||!Number.isFinite(Number(candidate)))throw new BadRequestException('יש להשלים סכום לפני האישור');
+    const rawAmount = Number(candidate);
     const currency = this.normalizeReviewCurrency(overrides.currency ?? doc.currency ?? 'ILS');
     if (currency !== 'ILS') {
       return {

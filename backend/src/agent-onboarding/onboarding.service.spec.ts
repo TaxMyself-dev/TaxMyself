@@ -101,6 +101,92 @@ describe('shared profile store', () => {
     expect(payload.askedField).toBeNull();
     expect(db.query.mock.calls[1][1][6]).toBe('אני שכיר');
   });
+  it('reads legacy needs as flexible history without blocking onboarding', async () => {
+    jest.mocked(service.read).mockRestore();
+    const person = {
+      id: 'person',
+      scope_key: '',
+      version: 1,
+      story: 'רוצה לגדול',
+      field_states: { preferred_name: 'known', employment: 'known' },
+    };
+    const business = {
+      id: 'business',
+      scope_key: '111',
+      version: 1,
+      story: '',
+      field_states: {},
+    };
+    jest
+      .spyOn(service as any, 'profiles')
+      .mockResolvedValue({ person, business });
+    db.query
+      .mockResolvedValueOnce([
+        {
+          id: 'legacy',
+          field_key: 'current_need',
+          statement: 'רוצה לגדול',
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const snapshot = await service.read(user, '111');
+    expect(snapshot.facts[0]).toMatchObject({
+      id: 'legacy',
+      field_key: null,
+      statement: 'רוצה לגדול',
+    });
+    expect(snapshot.fields.map((field) => field.key)).not.toContain(
+      'current_need',
+    );
+    expect(snapshot.missing).not.toContain('current_need');
+    expect(snapshot.story.person).toBe('רוצה לגדול');
+  });
+  it('erases the retired need column when forgetting all personal memory', async () => {
+    const manager = { query: jest.fn().mockResolvedValue([]) };
+    await (service as any).eraseAll(manager, 'owner', 'keep');
+    expect(manager.query).toHaveBeenCalledWith(
+      expect.stringContaining('`current_need`=NULL'),
+      ['owner'],
+    );
+  });
+  it.each(['legacy', 'replacement'])(
+    'forgets %s need and clears its retired projection',
+    async (factId) => {
+      const target = {
+        id: 'legacy',
+        profile_id: 'person',
+        field_key: 'current_need',
+        change_id: 'change',
+      };
+      const manager = {
+        query: jest
+          .fn()
+          .mockResolvedValue([])
+          .mockResolvedValueOnce([
+            target,
+            {
+              id: 'replacement',
+              profile_id: 'person',
+              field_key: null,
+              replaces_id: 'legacy',
+              change_id: 'next',
+            },
+          ]),
+      };
+      await (service as any).eraseFact(
+        manager,
+        { owner: 'owner', business: '111' },
+        { id: 'person', field_states: {} },
+        { id: 'business', field_states: {} },
+        factId,
+      );
+      expect(manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('SET `current_need`=NULL,'),
+        expect.any(Array),
+      );
+    },
+  );
   it('returns an existing operation before a stale-version retry', async () => {
     const input = body();
     db.query.mockResolvedValueOnce([{ id: input.operationId }]);

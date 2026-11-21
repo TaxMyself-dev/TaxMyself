@@ -1,6 +1,15 @@
 ## Purpose
 Account/profile settings hub: tabbed page for editing personal details, spouse details, children, businesses, category customization, permissions, and connected-account management.
 
+## Gmail connection boundary
+
+- Gmail uses Composio Managed OAuth; retain the shared component in both settings pages.
+- Pass the local integration ID for reconnect, never a provider connection ID from UI.
+- Callback query parameters only indicate a return; connection success comes from saved
+  server-verified account state. Represented-client mode cannot manage/read mailboxes.
+- Pending remote disconnect remains visible and retryable after local access stops.
+- Focused specs use `tsconfig.email-spec.json`; see `docs/features/composio-email.md`.
+
 ## Key entities/files
 - `settings.page.ts` — `SettingsPage` (standalone component, no module.ts — routed directly via `loadComponent` in `app-routing.module.ts`). Owns per-tab reactive forms (`personalFormGroup`, `spouseFormGroup`, `childrenFormArray`, `businessesFormArray`, `addBusinessFormGroup`, `addPermissionFormGroup`). Categories and permission management are available to every authenticated user; only the open-banking account-source subsection is entitlement-gated.
 - `settings-access.policy.ts` — testable settings-tab policy and the narrow predicate that prevents users without `OPEN_BANKING` from loading bank account sources.
@@ -146,3 +155,7 @@ rewritten. No card number or CVV is collected here. Once the profile is loaded,
 the secondary action is labeled "עריכת פרטי תשלום" and sits on the visual left
 of the RTL card; it updates the saved profile rather than creating another
 payment method.
+
+## Manual Gmail pull date range
+
+The manual pull dialog requires from/to dates shared by selected accounts. Server validation and inclusive-end query construction reuse GmailSyncService initial-import rules (Jan 1 previous year through today in Israel). The API retains its no-date 90-day fallback for existing clients; partial date ranges or combining dates with q are rejected. Initial-import completion and nightly cursor are unchanged.

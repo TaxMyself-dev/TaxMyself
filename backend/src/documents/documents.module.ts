@@ -1,3 +1,5 @@
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
+import { EmailProcessingWorker } from '../email-intake/email-processing.worker';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
@@ -42,10 +44,13 @@ import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
 import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
 import { InboxOcrCronService } from './inbox-ocr-cron.service';
+import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
 
 
 @Module({
   imports: [
+    ProtectedPdfModule,
+    EmailIntakeModule,
     IdentityImagesModule,
     TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument, ShaamInvoiceAllocationAttempt]),
     MailModule,
@@ -67,6 +72,7 @@ import { InboxOcrCronService } from './inbox-ocr-cron.service';
     AccountCodeAllocatorService,
     BusinessService,
     DocumentProcessorService,
+    EmailProcessingWorker,
     DocumentPairingService,
     InboxOcrCronService,
   ],

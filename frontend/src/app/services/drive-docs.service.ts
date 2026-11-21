@@ -56,6 +56,8 @@ export type RecordSource = 'DRIVE' | 'EMAIL' | 'MANUAL' | 'OPEN_BANKING' | 'WHAT
 
 /** User-facing lifecycle status for the ארכיון שלי page. */
 export type ArchiveItemStatus =
+  | 'PASSWORD_REQUIRED'
+  | 'NO_INVOICE_FOUND'
   | 'PENDING'
   | 'APPROVED'
   | 'FILED_ANNUAL'
@@ -76,6 +78,12 @@ export type ArchiveDocumentClassification =
  *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
  *  Expense/SlimTransaction ids can collide) — key rows by `${itemType}-${id}`. */
 export interface ArchivedItem {
+  protectedDocumentId?: number;
+  originalDriveFileId?: string;
+  canUploadOpenCopy?: boolean;
+  canRetryDelivery?: boolean;
+  replacementUploadStatus?: string;
+  replacementProcessingStatus?: string;
   id: number;
   itemType: 'DOCUMENT' | 'EXPENSE' | 'TRANSACTION';
   documentType: string | null;
@@ -126,6 +134,21 @@ export interface OcrSingleFileResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DriveDocsService {
+  replaceProtectedPdf(documentId: number, businessNumber: string, file: File, key: string, confirmed: boolean): Observable<any> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('businessNumber', businessNumber);
+    form.append('idempotencyKey', key);
+    form.append('confirmed', String(confirmed));
+    return this.http.post(`${environment.apiUrl}documents/me/protected/${documentId}/replacement`, form,
+      { headers: new HttpHeaders({ businessnumber: businessNumber }) });
+  }
+  protectedPdfHistory(documentId: number, businessNumber: string): Observable<any> {
+    return this.http.get(`${environment.apiUrl}documents/me/protected/${documentId}/history`, { params: { businessNumber } });
+  }
+  retryProtectedDelivery(documentId: number, businessNumber: string): Observable<any> {
+    return this.http.post(`${environment.apiUrl}documents/me/protected/${documentId}/retry-delivery`, { businessNumber });
+  }
   constructor(private http: HttpClient) {}
 
   processInbox(businessNumber: string): Observable<ProcessInboxResult> {
@@ -210,7 +233,7 @@ export class DriveDocsService {
     files: File[],
     businessNumber: string,
     clientUserId?: string,
-  ): Observable<{ fileId: string; fileName: string }[]> {
+  ): Observable<{ fileId: string; fileName: string; passwordRequired?: boolean }[]> {
     const url = `${environment.apiUrl}documents/me/upload-to-inbox`;
     const form = new FormData();
     files.forEach(file => form.append('files', file, file.name));
@@ -219,6 +242,6 @@ export class DriveDocsService {
     if (clientUserId) {
       headers = headers.set('x-client-user-id', clientUserId);
     }
-    return this.http.post<{ fileId: string; fileName: string }[]>(url, form, { headers });
+    return this.http.post<{ fileId: string; fileName: string; passwordRequired?: boolean }[]>(url, form, { headers });
   }
 }

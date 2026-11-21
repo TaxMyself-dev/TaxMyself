@@ -1,5 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { buildGmailExtractionPrompt } from './gmail-document-policy';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { PdfInspectionService } from '../protected-pdf/pdf-inspection.service';
 import Anthropic from '@anthropic-ai/sdk';
+import { EmailAiDecision, parseEmailAiOutcome } from './email-ai-outcome';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -196,6 +199,7 @@ export interface ExtractedFields {
 }
 
 export interface ProcessOutcome {
+  intakeDecision?: EmailAiDecision;
   // Null when Claude's output couldn't be parsed as the expected shape.
   // Empty array when Claude ran but found no invoices in the file.
   invoices: ExtractedFields[] | null;
@@ -204,6 +208,7 @@ export interface ProcessOutcome {
 
 @Injectable()
 export class DocumentProcessorService {
+  constructor(@Optional() private readonly pdfInspection?: PdfInspectionService) {}
   private readonly logger = new Logger(DocumentProcessorService.name);
   private client: Anthropic | null = null;
 
@@ -225,7 +230,13 @@ export class DocumentProcessorService {
     fileBuffer: Buffer,
     mimeType: string,
     catalog: CatalogEntry[] = [],
+    emailIntakeReview = false,
   ): Promise<ProcessOutcome> {
+    if (mimeType === 'application/pdf') {
+      if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
+      const result = await this.pdfInspection.inspect(fileBuffer);
+      if (result.kind !== 'readable') throw new BadRequestException({ code: result.kind === 'password_required' ? 'PASSWORD_REQUIRED' : result.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF cannot be sent for processing' });
+    }
     const client = this.getClient();
     const base64 = fileBuffer.toString('base64');
     const catalogBlock = buildCatalogBlock(catalog);
@@ -262,7 +273,7 @@ export class DocumentProcessorService {
       //       Across batches: read hits while the catalog stays unchanged for
       //       this business and the 5-min TTL hasn't elapsed.
       system: [
-        { type: 'text', text: STATIC_EXTRACTION_PROMPT },
+        { type: 'text', text: (emailIntakeReview ? buildGmailExtractionPrompt(STATIC_EXTRACTION_PROMPT) : STATIC_EXTRACTION_PROMPT) },
         {
           type: 'text',
           text: catalogBlock,
@@ -272,10 +283,10 @@ export class DocumentProcessorService {
       messages: [
         {
           role: 'user',
-          content: [fileBlock as any, { type: 'text', text: USER_TRAILER }],
+          content: [fileBlock as any, { type: 'text', text: emailIntakeReview ? 'Classify and extract every relevant document from the attached file in the same JSON response.' : USER_TRAILER }],
         },
       ],
-    });
+    }, emailIntakeReview ? { timeout: 45_000, maxRetries: 0 } : undefined);
 
     // Cache telemetry — surfaces whether the rewrite is actually paying off.
     // If `cache_read_input_tokens` stays at 0 across repeated calls in the
@@ -301,6 +312,16 @@ export class DocumentProcessorService {
 
     let invoices: ExtractedFields[] | null = null;
     const stripped = this.stripJsonFence(rawResponse);
+    if (emailIntakeReview) {
+      if (response.stop_reason !== 'end_turn') {
+        return { invoices: null, rawResponse, intakeDecision: 'uncertain' };
+      }
+      const decision = parseEmailAiOutcome(rawResponse, true);
+      return { invoices: decision.invoices, rawResponse, intakeDecision: decision.decision };
+    }
+    if (response.stop_reason && response.stop_reason !== 'end_turn') {
+      return { invoices: null, rawResponse };
+    }
     try {
       const parsed = JSON.parse(stripped);
       // Expected shape: { invoices: [...] }. Be defensive about Claude

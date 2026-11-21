@@ -26,8 +26,8 @@ export const escapeHtml = (value: unknown): string =>
     .replace(/'/g, '&#39;');
 
 export function fontCss(regular: string, bold: string): string {
-  return `@font-face{font-family:Receipt;src:url(data:font/otf;base64,${regular}) format('opentype');font-weight:400}
-    @font-face{font-family:Receipt;src:url(data:font/otf;base64,${bold}) format('opentype');font-weight:700}`;
+  return `@font-face{font-family:Receipt;src:url(data:font/ttf;base64,${regular}) format('truetype');font-weight:400}
+    @font-face{font-family:Receipt;src:url(data:font/ttf;base64,${bold}) format('truetype');font-weight:700}`;
 }
 
 function totals(rows: Record<string, string>[]): string {

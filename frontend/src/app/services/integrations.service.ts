@@ -10,20 +10,28 @@ export type GmailIntegrationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
 
 /** מצב סנכרון של חשבון Gmail בודד (שורה אחת מתוך user_integrations). */
 export interface GmailAccountSyncStatus {
+  passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
   /** ACTIVE או EXPIRED בלבד — חשבונות שנותקו (REVOKED) לא מוחזרים. */
   status: GmailIntegrationStatus;
   connected: boolean;
+  remoteDisconnectPending: boolean;
   initialImportCompleted: boolean;
   initialImportCompletedAt: string | null;
   lastSuccessfulSyncAt: string | null;
   lastSyncStatus: GmailSyncRunStatus | null;
   lastSyncError: string | null;
+  syncErrorPredatesConnection?: boolean;
 }
 
 /** Response of GET integrations/google/gmail/sync-status. */
+export interface GmailDurableRun {
+ id:string;integrationId:number;businessNumber:string;scan_state:string;pull_state:string;processing_state:string;error_code:string|null;
+ messages:Record<string,number>;attachments:Record<string,number>;documents:Record<string,number>;
+}
 export interface GmailSyncStatus {
+  runs?: GmailDurableRun[];
   /** תאריך מוקדם ביותר מותר לייבוא (YYYY-MM-DD) — מחושב בשרת, לא בפרונט. */
   minFromDate: string;
   /** תאריך מאוחר ביותר מותר (YYYY-MM-DD) — היום. */
@@ -34,6 +42,10 @@ export interface GmailSyncStatus {
 
 /** תוצאת ייבוא מהחשבונות שנבחרו (POST integrations/google/gmail/import). */
 export interface GmailAccountImportResult {
+  passwordRequired?: number;
+  filteredAttachments?: number;
+  reviewRequired?: number;
+  aiReviewQueued?: number;
   integrationId: number;
   accountEmail: string | null;
   imported: number;
@@ -46,6 +58,8 @@ export interface GmailAccountImportResult {
 }
 
 export interface GmailImportAllResult {
+  started?:boolean;
+  runIds?:string[];
   totalImported: number;
   totalAlreadyImported: number;
   totalSkipped: number;
@@ -61,8 +75,10 @@ export class IntegrationsService {
   constructor(private http: HttpClient) {}
 
   /** כתובת מסך ההסכמה של Google — הפרונט מנווט אליה כדי לחבר חשבון. */
-  getGoogleConnectUrl(): Observable<{ url: string }> {
-    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`);
+  getGoogleConnectUrl(integrationId?: number): Observable<{ url: string }> {
+    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`, {
+      params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
+    });
   }
 
   /** מצב הסנכרון של Gmail עבור המשתמש הנוכחי (משמש גם ל-polling בזמן ריצה). */
@@ -85,10 +101,10 @@ export class IntegrationsService {
   }
 
   /** ייבוא ידני מחשבונות Gmail נבחרים (הבחירה נעשית בדיאלוג "משוך מסמכים עכשיו"). */
-  importGmail(integrationIds: number[]): Observable<GmailImportAllResult> {
+  importGmail(integrationIds: number[], fromDate: string, toDate: string): Observable<GmailImportAllResult> {
     return this.http.post<GmailImportAllResult>(
       `${environment.apiUrl}integrations/google/gmail/import`,
-      { integrationIds },
+      { integrationIds, fromDate, toDate },
     );
   }
 

@@ -191,6 +191,10 @@ export class OnboardingService {
       `SELECT * FROM agent_onboarding_facts WHERE profile_id IN (?,?) ORDER BY recorded_at,id`,
       [person.id, business.id],
     );
+    // Retain legacy need facts/history as flexible memories, not basic fields.
+    for (const fact of facts) {
+      if (fact.field_key === 'current_need') fact.field_key = null;
+    }
     const turns = await this.db.query(
       `SELECT c.source_text,c.assistant_text,c.created_at,JSON_UNQUOTE(JSON_EXTRACT(p.payload,'$.askedField')) AS asked_field FROM agent_onboarding_changes c LEFT JOIN agent_onboarding_proposals p ON p.id=c.proposal_id AND p.owner_uid=c.owner_uid AND p.business_number=c.business_number WHERE c.owner_uid=? AND c.business_number=? ORDER BY c.created_at,c.id`,
       [scope.owner, scope.business],
@@ -643,8 +647,13 @@ export class OnboardingService {
       'DELETE FROM agent_onboarding_story_versions WHERE profile_id=?',
       [profile.id],
     );
-    const key = target.field_key;
-    if (key && !FIELDS.some((f) => f.key === key))
+    // A flexible replacement may still have an ancestor in the retired column.
+    const key =
+      target.field_key ??
+      (erased.some((f) => f.field_key === 'current_need')
+        ? 'current_need'
+        : null);
+    if (key && key !== 'current_need' && !FIELDS.some((f) => f.key === key))
       throw new BadRequestException();
     await manager.query(
       `UPDATE agent_onboarding_profiles SET ${
@@ -680,7 +689,11 @@ export class OnboardingService {
       'DELETE FROM agent_onboarding_proposals WHERE owner_uid=? AND id<>?',
       [owner, keepProposal],
     );
-    const fields = FIELDS.map((f) => '`' + f.key + '`=NULL').join(',');
+    // The retired column can still contain old personal data; erase it too.
+    const fields = [
+      ...FIELDS.map((f) => '`' + f.key + '`=NULL'),
+      '`current_need`=NULL',
+    ].join(',');
     await manager.query(
       `UPDATE agent_onboarding_profiles SET ${fields},field_states=JSON_OBJECT(),story='',version=version+1,invitation='deferred' WHERE owner_uid=?`,
       [owner],

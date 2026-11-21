@@ -2,7 +2,7 @@
 # BUILD FOR LOCAL DEVELOPMENT
 ###################
 
-FROM node:18-alpine As development
+FROM node:22.22.3-alpine As development
 
 RUN apk add --no-cache chromium
 
@@ -27,7 +27,7 @@ USER node
 # BUILD FOR PRODUCTION
 ###################
 
-FROM node:18-alpine As build
+FROM node:22.22.3-alpine As build
 
 WORKDIR /usr/src/app
 
@@ -53,7 +53,7 @@ USER node
 # PRODUCTION
 ###################
 
-FROM node:18-alpine As production
+FROM node:22.22.3-alpine As production
 
 RUN apk add --no-cache chromium
 

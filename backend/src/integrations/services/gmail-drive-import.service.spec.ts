@@ -12,7 +12,7 @@ import { UserIntegrationsService } from './user-integrations.service';
 
 describe('GmailDriveImportService — importAllForUser', () => {
   let service: GmailDriveImportService;
-  let userIntegrationsService: jest.Mocked<Pick<UserIntegrationsService, 'findAllActiveByUserAndProvider'>>;
+  let userIntegrationsService: jest.Mocked<Pick<UserIntegrationsService, 'findAllActiveByUserAndProvider' | 'markSyncRunning' | 'finishManualSync'>>;
 
   // Initial import completed by default — manual import requires it.
   const integration = (
@@ -46,6 +46,8 @@ describe('GmailDriveImportService — importAllForUser', () => {
   beforeEach(async () => {
     userIntegrationsService = {
       findAllActiveByUserAndProvider: jest.fn(),
+      markSyncRunning: jest.fn(),
+      finishManualSync: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

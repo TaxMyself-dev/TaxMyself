@@ -15,7 +15,12 @@ and delivery. Existing signed files are unchanged.
   Puppeteer 24.17.1 image digest used in the successful diagnostic builds.
 - The **backend Dockerfile and its Node 18 runtime are unchanged**.
 - One source of truth for layout: the service compiles
-  `backend/src/documents/pdf/document-pdf.template.ts` and bundles the same fonts.
+  `backend/src/documents/pdf/document-pdf.template.ts` and bundles the same converted Simpler TrueType fonts (`Simpler-Regular.ttf` and
+  `Simpler-Bold.ttf`). Keep both renderers and the shared footer on these assets;
+  CFF/OTF produced Type3 fonts that failed in Mi Reader after signing.
+  Synthetic local/standalone original, copy and multipage fixtures can be generated
+  with `backend/scripts/verify-document-pdf-compatibility.ts`; `--sign` explicitly
+  enables four live FillFaster calls using the backend signer.
   Build the image with the repository root as context.
 - `POST /v1/render` takes `{ version: 1, requestId, document }` and returns
   `application/pdf`. `document` is the existing `DocumentPdfModel`, including

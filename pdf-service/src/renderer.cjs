@@ -68,10 +68,10 @@ function createRenderer({
     validateJob(job);
     fonts ||= template.fontCss(
       fs
-        .readFileSync(path.join(fontDirectory, "Simpler-Regular.otf"))
+        .readFileSync(path.join(fontDirectory, "Simpler-Regular.ttf"))
         .toString("base64"),
       fs
-        .readFileSync(path.join(fontDirectory, "Simpler-Bold.otf"))
+        .readFileSync(path.join(fontDirectory, "Simpler-Bold.ttf"))
         .toString("base64")
     );
     const html = template.buildDocumentHtml(job.document, fonts);

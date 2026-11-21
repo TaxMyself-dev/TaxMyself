@@ -87,3 +87,34 @@
       </div>
     }
 </p-dialog>
+
+<p-dialog header="העלה עותק ללא הגנה" [visible]="!!protectedReplacement()" [modal]="true"
+  [closable]="!replacementBusy()" [closeOnEscape]="false" [style]="{ width: 'min(520px, 95vw)' }"
+  (visibleChange)="!$event && !replacementBusy() && protectedReplacement.set(null)">
+  <p>המסמך שנבחר: <strong>{{ protectedReplacement()?.name }}</strong></p>
+  <p>העלה עותק PDF שניתן לפתוח ללא סיסמה. אין להזין או לשלוח סיסמה. המקור יישמר.</p>
+  <input type="file" accept="application/pdf,.pdf" aria-label="בחר עותק PDF ללא הגנה" [disabled]="replacementBusy()" (change)="selectOpenCopy($event)" />
+  @if (replacementFile) { <p>{{ replacementFile.name }}</p> }
+  <label class="protected-pdf-confirmation">
+    <input type="checkbox" [(ngModel)]="replacementConfirmed" [disabled]="replacementBusy()" />
+    אני מאשר שזהו עותק פתוח של המסמך שבחרתי, ושיש לשייכו לאותו עסק.
+  </label>
+  @if (replacementError) { <p role="alert" class="protected-pdf-error">{{ replacementError }}</p> }
+  <ng-template pTemplate="footer">
+    <button type="button" [disabled]="replacementBusy()" (click)="protectedReplacement.set(null)">ביטול</button>
+    <button type="button" [disabled]="replacementBusy() || !replacementFile || !replacementConfirmed" (click)="submitOpenCopy()">
+      {{ replacementBusy() ? 'שומר את העותק...' : 'שמור עותק פתוח' }}
+    </button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="היסטוריית גרסאות המסמך" [visible]="!!protectedHistory()" [modal]="true" [style]="{ width: 'min(560px, 95vw)' }"
+  (visibleChange)="!$event && protectedHistory.set(null)">
+  @if (protectedHistory(); as history) {
+    <p>המקור המוגן נשמר: <strong>{{ history.originalFilename }}</strong></p>
+    <a [href]="'https://drive.google.com/file/d/' + history.originalDriveFileId + '/view'" target="_blank" rel="noopener noreferrer">צפייה במקור ב־Drive</a>
+    @for (operation of history.operations; track operation.id) {
+      <p>{{ operation.filename }} — {{ protectedOperationLabel(operation.status, operation.processing_status) }}</p>
+    }
+  }
+</p-dialog>

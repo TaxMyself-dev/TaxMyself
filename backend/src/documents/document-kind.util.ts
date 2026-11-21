@@ -14,6 +14,8 @@ import { ExtractedDocumentType } from './extracted-document.entity';
 const EXPENSE_SHAPED = new Set<ExtractedDocumentType>([
   ExtractedDocumentType.INVOICE,
   ExtractedDocumentType.RECEIPT,
+  ExtractedDocumentType.INSURANCE_POLICY,
+  ExtractedDocumentType.LICENSE_FEE,
   ExtractedDocumentType.TAX_INVOICE_RECEIPT,
   ExtractedDocumentType.CREDIT_INVOICE,
   ExtractedDocumentType.INVOICE_RECEIPT_PAIR,

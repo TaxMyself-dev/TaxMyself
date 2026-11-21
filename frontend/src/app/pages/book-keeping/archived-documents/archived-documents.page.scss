@@ -144,3 +144,6 @@
   background: #dc2626;
   color: #fff;
 }
+
+.protected-pdf-confirmation { display: flex; gap: .5rem; align-items: flex-start; margin-top: 1rem; }
+.protected-pdf-error { color: #b91c1c; margin-top: .75rem; }

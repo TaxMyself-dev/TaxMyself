@@ -129,3 +129,12 @@ describe('accounting-document keyword matching', () => {
     });
   });
 });
+
+describe('Whole-word accounting term regressions', () => {
+  it.each(['חשבון מסחר', 'מספר חשבון מסחרי', 'credit notebook', 'taxinvoiced'])('does not accept a partial multiword term: %s', text => {
+    expect(matchesAccountingDocumentKeyword(text)).toBe(false);
+  });
+  it.each(['חשבוןמס', 'חשבון מס', 'taxinvoice.pdf', 'creditnote.pdf'])('still accepts a complete glued/normal term: %s', text => {
+    expect(matchesAccountingDocumentKeyword(text)).toBe(true);
+  });
+});

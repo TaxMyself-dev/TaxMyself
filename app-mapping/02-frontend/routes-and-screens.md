@@ -81,4 +81,3 @@
 בהגדרות קיימים פרטים אישיים/משפחתיים, עסקים, תמונה/לוגו, קטגוריות, הרשאות צפייה, כתובת דוא״ל נכנס, Gmail ומנוי. הבנקאות הפתוחה עוברת enrollment ומסך ספק; דגל connected וסטטוס תשלום נקבעים לאחר אימות שרת. ביטול מנוי/משיכת ביטול, שינוי תוכנית, היסטוריית חיובים והחלפת אמצעי תשלום קיימים בקוד, בכפוף לסטטוס ולזהות הבעלים.
 
 מקורות: `frontend/src/app/pages/clients-panel/clients-panel.page.ts`, `frontend/src/app/pages/settings/settings.page.html`, `frontend/src/app/services/clients-panel.service.ts`, `frontend/src/app/services/billing-state.service.ts`, `frontend/src/app/services/open-banking-enrollment.service.ts`.
-

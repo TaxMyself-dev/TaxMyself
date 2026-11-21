@@ -455,3 +455,62 @@ behavioral regressions. git diff --check passed. Backend/agent checks not repeat
 because neither changed. Prior manual Chrome connection failure remains a visual
 verification limitation; no unsupported browser fallback used. Local feature commit
 only, no main integration or GitHub push.
+
+## Explicitly approved local main integration (2026-11-22)
+
+Elazar explicitly requested merging to main. Candidate combines feature e5f31383
+with existing local main de8369bc437a0bf87fca6681488d80902ad685b1. Preserved all
+existing Gmail/PDF/onboarding changes, including retiring current_need as a required
+onboarding field. The only merge conflict was additive docs/redesign/cutover.sql:
+retained both existing sections verbatim. No SQL executed, no schema or production
+access. Proposed clarification grouping/certainty redesign from the discussion is
+not implemented in this integration. Feature tracked files were clean initially;
+untracked backend/journey-timings.local remains untouched.
+
+Main-port gate, verified before integration in the primary checkout:
+- node frontend/scripts/start-local.js --print-config: frontendPort 4200,
+  backendPort 3000, apiUrl http://localhost:3000/, source main defaults.
+- node backend/scripts/start-watch.js --print-config: backendPort 3000,
+  synchronize false, onboardingEnabled false; backend/.env PORT=3000.
+- No ignored ports.json or serve port/host override in main. Existing main local
+  environment is preserved: onboarding/automatic classification flags were not
+  enabled or copied, nor were any keys. Starting main does not activate automation.
+- git fetch origin refreshed metadata only. The pre-existing local/remote main
+  divergence (105 local/19 remote commits) was not resolved by importing unrelated
+  remote work. No remote push is authorized or attempted.
+
+Merged candidate verification, using installed Node 24.22.3 for direct Node checks:
+- npm ci --no-audit --no-fund independently in backend/frontend: exit 0. First
+  backend attempt hit EPERM on its loaded Sharp DLL; stopped only identity-verified
+  feature backend/frontend, then retried successfully. No other servers stopped;
+  no security bypass or shared node_modules. Legacy dependency/engine warnings
+  retained. No lockfile/source changes from installation.
+- Backend Jest --runInBand --runTestsByPath: onboarding admin/domain/service,
+  all four automatic classification policy/service/model/http suites, agent
+  classification transaction/service, retention, effective classification and
+  classification permissions: 121 passed, 12 suites. Node Nest CLI build: exit 0.
+- Agent npm run typecheck: exit 0 (existing advisory Effect suggestions).
+  Vitest run --project unit --pool=threads --maxWorkers=1 with profile, prompt
+  snapshots, tool schemas, harness override and answer-check suites: 47 passed,
+  five files. npm run build: exit 0. No paid evals or live model calls.
+- Angular combined ChromeHeadless --watch=false --progress=false --source-map=false
+  with karma.auto-classification.conf.cjs and the ignored combined tsconfig:
+  my-agent, settings-navigation, topNav, onboarding, dev-agent-chat, admin-panel
+  and admin-route guard suites: 67 passed. Production build with
+  --max-old-space-size=6144 --configuration=production --progress=false: exit 0.
+  CI=true, NG_BUILD_MAX_WORKERS=2. Existing size/CommonJS warnings retained.
+- node --test backend/scripts/auto-classification-schema.test.cjs
+  backend/scripts/local-onboarding-config.test.cjs: 12 passed; pure guards, no SQL.
+- git diff --cached --check: passed. Reviewed the feature delta against main:
+  no real .env, generated output or node_modules included. Native source/compiled
+  checks ran on the combined candidate; no executable edit after passing checks.
+  The merge commit adds only this verification prose after the tested tree.
+
+Full evidence is ignored under .local-ai-dev/auto-classification/main-integration-*
+(install logs, backend tests/build, frontend tests/build, agent typecheck/tests/build).
+No claim of a new full-repository suite, MySQL integration run or authenticated
+manual main test. Local main may fast-forward only to this tested descendant while
+the primary checkout stays clean and at the recorded base. Main integration is
+approved; GitHub push remains prohibited pending Elazar's personal current-main
+test and separate explicit approval. Feature test servers were stopped for install;
+no main server, deployment or background classification was started by integration.

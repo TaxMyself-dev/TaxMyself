@@ -203,3 +203,13 @@
     padding: 8px 0;
   }
 }
+
+.gmail-import-dialog .gmail-date-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+
+  .gmail-date-field {
+    min-width: 0;
+  }
+}
