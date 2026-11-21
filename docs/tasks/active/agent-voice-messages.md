@@ -1,6 +1,6 @@
 # Agent voice messages
 
-- Status: LOCAL_MAIN_READY
+- Status: LOCAL_MAIN_INTEGRATED
 - Worktree: C:/Users/user/Keepintax/TaxMyself-agent-voice-messages
 - Branch: codex/agent-voice-messages
 - Base: c94b2c578cfd27f763bca1a68fb2c506b6a22078 (verified local main, clean).
@@ -103,3 +103,13 @@ Earlier diagnostic runs: default Angular discovery tried unrelated files outside
 - Main ENV: only missing SONIOX_API_KEY copied from voice backend/.env; existing main OPENAI_API_KEY retained. Both keys remain ignored. No PORT/API/region/production settings copied.
 - Independent main agent dependencies installed with npm ci --no-audit --no-fund (exit 0); no shared node_modules. Main frontend dependency refresh and local agent bundle build follow the authorized fast-forward.
 - Executable sources fully verified before local main fast-forward. Main integration approval is explicit; remote push still requires Elazar to personally test the resulting current main revision and approve pushing.
+
+### Local main integration completed
+
+- Main fast-forwarded from 9d2b4c2c849a0c0f8e5f187d1fb91d8705ef2efb to de15e66a after all combined gates passed. Main remained clean and unchanged at the pre-integration check.
+- On integrated main de15e66a: frontend npm ci --no-audit --no-fund exited 0; @soniox/client 2.5.0 installed independently. Frontend focused chat command above repeated without the worktree-only Karma override: exit 0, 40/40 passed on main.
+- On integrated main de15e66a: backend npm run build passed; backend/agent npm run build exited 0; the same targeted agent command passed 7/7 tests. These checks actually ran in the main checkout. The Nest build was repeated solely to capture its final exit status after the earlier completed session status became unavailable. Passing combined production frontend build and static/type checks reused because their executable inputs were unchanged by fast-forward/dependency installation.
+- Final main diagnostics: frontend=4200, backend=3000, API=http://localhost:3000/, synchronize=false; localhost:4200 origin configured. SONIOX_API_KEY and OPENAI_API_KEY present in ignored main backend/.env; existing OpenAI value preserved. No feature port overrides copied and no secrets committed.
+- No app servers started or stopped in main for integration; local build outputs are ready for the usual startup commands. Existing isolated voice worktree retained.
+- This closing record changes documentation only; no executable changes after the recorded verification.
+- No GitHub push or deployment performed. Await Elazar's personal test of current local main and explicit push approval.
