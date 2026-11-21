@@ -16,8 +16,26 @@ describe('voice message lifecycle', () => {
   });
   afterEach(() => voice.cancel());
 
+  it('shows recording and starts the timer before the network connects', fakeAsync(() => {
+    void voice.start(options); flushMicrotasks();
+    events.captureStarted(); tick(1500);
+    expect(voice.state()).toBe('recording'); expect(voice.seconds()).toBe(1);
+    const finishing=voice.finish();
+    expect(voice.state()).toBe('processing');
+    events.connected();
+    expect(voice.state()).toBe('processing');
+    events.text('בדיקה קצרה'); complete(); flushMicrotasks();
+    expect(options.send).toHaveBeenCalledOnceWith('בדיקה קצרה');
+    void finishing;
+  }));
+  it('still bounds connection time when microphone capture has already started', fakeAsync(() => {
+    void voice.start(options); flushMicrotasks(); events.captureStarted();
+    tick(45_000);
+    expect(voice.active).toBeFalse(); expect(session.cancel).toHaveBeenCalledTimes(1);
+    expect(options.send).not.toHaveBeenCalled();
+  }));
   it('waits for the last words and sends a single message after repeated arrow clicks', async () => {
-    await voice.start(options); events.connected(); events.text('כמה ');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('כמה ');
     const finishing = voice.finish(); void voice.finish();
     expect(options.send).not.toHaveBeenCalled(); expect(voice.state()).toBe('processing');
     events.text('הוצאתי השנה?'); complete(); await finishing;
@@ -25,9 +43,9 @@ describe('voice message lifecycle', () => {
     expect(session.stop).toHaveBeenCalledTimes(1); expect(voice.active).toBeFalse();
   });
   it('discards finalization results after trash and permits a fresh recording', async () => {
-    await voice.start(options); events.connected(); events.text('ישן');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('ישן');
     const finishing = voice.finish(); const oldEvents=events;
-    voice.cancel(); await voice.start(options); events.connected(); events.text('חדש');
+    voice.cancel(); await voice.start(options); events.captureStarted(); events.connected(); events.text('חדש');
     oldEvents.text('מאוחר'); complete(); await finishing;
     expect(options.send).not.toHaveBeenCalled(); expect(voice.state()).toBe('recording');
   });
@@ -38,21 +56,21 @@ describe('voice message lifecycle', () => {
     expect(session.cancel).toHaveBeenCalledTimes(1); expect(options.send).not.toHaveBeenCalled();
   });
   it('does not send silence or failed partial transcripts', async () => {
-    await voice.start(options); events.connected(); events.text('  ');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('  ');
     let pending=voice.finish(); complete(); await pending;
     expect(options.send).not.toHaveBeenCalled(); expect(voice.error()).toContain('לא זוהה');
-    await voice.start(options); events.connected(); events.text('חלקי');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('חלקי');
     events.error(new Error('network')); await voice.finish();
     expect(options.send).not.toHaveBeenCalled(); expect(voice.error()).toContain('לא נשלחה');
   });
   it('cancels when the chat/client context changes, including during processing', async () => {
     let current=true; options.current=()=>current;
-    await voice.start(options); events.connected(); events.text('פרטי');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('פרטי');
     const pending=voice.finish(); current=false; complete(); await pending;
     expect(options.send).not.toHaveBeenCalled(); expect(voice.active).toBeFalse();
   });
   it('explains exhausted balance without sending or exposing provider details', async () => {
-    await voice.start(options); events.connected(); events.text('חלקי');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('חלקי');
     events.error(Object.assign(new Error('private provider details'), { name: 'QuotaError', code: 'quota_exceeded', statusCode: 402 }));
     await voice.finish();
     expect(voice.active).toBeFalse(); expect(session.cancel).toHaveBeenCalledTimes(1);
@@ -71,19 +89,19 @@ describe('voice message lifecycle', () => {
     expect(voice.error()).toContain('הרשאה'); expect(voice.active).toBeFalse();
   });
   it('ends capture at two minutes and waits for finalization', fakeAsync(() => {
-    void voice.start(options); flushMicrotasks(); events.connected(); events.text('בדיקה');
+    void voice.start(options); flushMicrotasks(); events.captureStarted(); events.connected(); events.text('בדיקה');
     tick(120_000); expect(session.stop).toHaveBeenCalledTimes(1); expect(voice.state()).toBe('processing');
     complete(); flushMicrotasks(); expect(options.send).toHaveBeenCalledOnceWith('בדיקה');
   }));
   it('times out connection and finalization without sending partial text', fakeAsync(() => {
     void voice.start(options); flushMicrotasks(); tick(45_000);
     expect(voice.active).toBeFalse(); expect(session.cancel).toHaveBeenCalledTimes(1);
-    void voice.start(options); flushMicrotasks(); events.connected(); events.text('חלקי');
+    void voice.start(options); flushMicrotasks(); events.captureStarted(); events.connected(); events.text('חלקי');
     void voice.finish(); tick(15_000); complete(); flushMicrotasks();
     expect(options.send).not.toHaveBeenCalled(); expect(voice.active).toBeFalse();
   }));
   it('refuses a second start while a recording is active', async () => {
-    await voice.start(options); events.connected(); events.text('אחד');
+    await voice.start(options); events.captureStarted(); events.connected(); events.text('אחד');
     await voice.start(options); const pending=voice.finish(); complete(); await pending;
     expect(options.send).toHaveBeenCalledOnceWith('אחד');
   });
@@ -98,7 +116,7 @@ describe('voice chat integration', () => {
     const voice=new AgentVoice(async (_o,e)=> { events=e; return {stop:async()=>{e.text('כמה הוצאתי?');},cancel:()=>{}}; });
     Object.assign(p,{voice,chat:signal(chat),context:signal({agentUserId:'user',clientId:null}),
       auth:{token:async()=>null,clientId:()=>null},locale:signal('he'),loading:signal(null),draft:'טיוטה',scrollDown:()=>{}});
-    return {p,chat,connect:()=>events.connected()};
+    return {p,chat,connect:()=>{events.captureStarted(); events.connected();}};
   }
   it('sends text through the existing chat without clearing a typed draft', async () => {
     const {p,chat,connect}=page(); await p.startVoice(); connect(); await p.voice.finish();

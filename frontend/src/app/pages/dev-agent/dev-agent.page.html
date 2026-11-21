@@ -218,7 +218,7 @@
     @if (voice.active) {
       <div class="voice-status" role="status" aria-live="polite" dir="rtl">
         @switch (voice.state()) {
-          @case ('connecting') { <span>מתחבר למיקרופון…</span> }
+          @case ('connecting') { <span>מכין הקלטה…</span> }
           @case ('recording') { <span class="recording-dot" aria-hidden="true"></span><span>מקליט</span> }
           @case ('processing') { <span>מעבד הקלטה…</span> }
         }

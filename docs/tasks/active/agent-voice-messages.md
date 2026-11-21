@@ -68,3 +68,16 @@ Earlier diagnostic runs: default Angular discovery tried unrelated files outside
 - frontend: npx ng build --configuration production — exit 0; existing size/CommonJS warnings, no errors. Dev server recompiled successfully on 4207.
 - git diff --check — exit 0. No backend executable changes for this correction; previous backend verification reused.
 - External blocker: user must add Soniox organization funds under Organization > Billing; no payment or autopay change performed. Successful temporary-key creation alone does not verify streaming entitlement.
+
+## Immediate capture feedback (2026-11-22)
+
+- SDK microphone starts and buffers before temporary-key issuance and WebSocket connection. Previous UI incorrectly waited for connected before showing recording and starting its timer.
+- Capture readiness now comes from the SDK microphone source after getUserMedia/MediaRecorder start. Connection runs in the background and cannot reset an early send's processing state.
+- An early send immediately releases the microphone and waits for the connection before SDK finalization, avoiding the SDK starting/connecting early-stop state overwrite. Cancellation rejects this wait and closes the session; existing bounded deadlines remain in force.
+- Browser permission remains managed by the browser; no microphone remains active between recordings. First-use permission and device initialization can still take time.
+
+### Immediate feedback verification
+
+- frontend: npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.agent-chat.spec.json --include='src/app/pages/dev-agent/*.spec.ts' --karma-config=../.local-ai-dev/karma.voice.cjs — exit 0, 40/40 passed. New cases cover capture/timer before connection, send before connection, preservation of processing state on late connection, and connection timeout after capture begins.
+- frontend: npx ng build --configuration production — exit 0, existing budget/CommonJS warnings. Development frontend recompiled successfully on 4207.
+- git diff --check — exit 0. Backend executable sources unchanged; no backend tests repeated. Actual Hebrew transcription remains dependent on available Soniox balance and user microphone verification.

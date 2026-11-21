@@ -1,3 +1,4 @@
+import type { AudioSourceHandlers } from '@soniox/client';
 import { signal } from '@angular/core';
 
 export interface VoiceSession {
@@ -11,6 +12,7 @@ export interface VoiceOptions {
   send(text: string): void;
 }
 export interface VoiceEvents {
+  captureStarted(): void;
   connected(): void;
   text(text: string): void;
   error(error: Error): void;
@@ -20,7 +22,7 @@ export type VoiceFactory = (options: VoiceOptions, events: VoiceEvents) => Promi
 // Loaded only when voice is used. The browser owns permission persistence;
 // never store a fake permission flag or keep the microphone alive between uses.
 export const createVoiceSession: VoiceFactory = async (options, events) => {
-  const { SonioxClient } = await import('@soniox/client');
+  const { SonioxClient, MicrophoneSource } = await import('@soniox/client');
   if (!options.current()) throw new Error('Canceled');
   const client = new SonioxClient({ config: async () => {
     if (!options.current()) throw new Error('Canceled');
@@ -28,15 +30,36 @@ export const createVoiceSession: VoiceFactory = async (options, events) => {
     if (!options.current()) throw new Error('Canceled');
     return { api_key };
   } });
-  const recording = client.realtime.record({ model: 'stt-rt-v6', language_hints: [options.locale] });
-  recording.on('connected', events.connected);
-  recording.on('error', events.error);
+  class VoiceMicrophone extends MicrophoneSource {
+    override async start(handlers: AudioSourceHandlers) {
+      await super.start(handlers);
+      if (options.current()) events.captureStarted();
+    }
+  }
+  const source = new VoiceMicrophone();
+  let resolveReady!: () => void;
+  let rejectReady!: (error: Error) => void;
+  const ready = new Promise<void>((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+  // A provider error can arrive before the user presses send.
+  void ready.catch(() => {});
+  const recording = client.realtime.record({ model: 'stt-rt-v6', language_hints: [options.locale], source });
+  recording.on('connected', () => { resolveReady(); events.connected(); });
+  recording.on('error', error => { rejectReady(error); events.error(error); });
   recording.on('result', result => {
     // Results contain new final tokens and revisable partials. Only commit final
     // tokens, once; the graceful stop delivers the last words before resolving.
     events.text(result.tokens.filter(t => t.is_final && !/^<[^>]+>$/.test(t.text)).map(t => t.text).join(''));
   });
-  return { stop: () => recording.stop(), cancel: () => recording.cancel() };
+  return {
+    stop: async () => {
+      // End microphone capture immediately, even while the SDK buffers audio
+      // during key issuance/connection. Finalize only once that buffer can drain.
+      source.stop();
+      await ready;
+      await recording.stop();
+    },
+    cancel: () => { rejectReady(new Error('Canceled')); recording.cancel(); },
+  };
 };
 
 interface Run {
@@ -69,9 +92,8 @@ export class AgentVoice {
     run.deadline = setTimeout(() => this.fail(run, new Error('timeout')), 45_000);
     try {
       const session = await this.factory({ ...options, current: () => this.run === run && options.current() }, {
-        connected: () => {
-          if (!this.live(run)) return;
-          clearTimeout(run.deadline);
+        captureStarted: () => {
+          if (!this.live(run) || this.state() !== 'connecting') return;
           this.state.set('recording');
           const started = Date.now();
           run.timer = setInterval(() => {
@@ -79,6 +101,9 @@ export class AgentVoice {
             this.seconds.set(Math.floor((Date.now() - started) / 1000));
             if (this.seconds() >= 120) void this.finish();
           }, 250);
+        },
+        connected: () => {
+          if (this.live(run) && this.state() !== 'processing') clearTimeout(run.deadline);
         },
         text: text => { if (this.live(run)) run.text += text; },
         error: error => this.fail(run, error),
