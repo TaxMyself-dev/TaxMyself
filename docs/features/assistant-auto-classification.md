@@ -135,8 +135,10 @@ node backend/scripts/auto-classification-schema.cjs --database=keepintax-dev --a
 After schema verification, configure the existing `OPENAI_API_KEY`.
 There are no onboarding or automatic-classification deployment switches: standing
 owner consent controls processing, alongside the existing eligibility checks.
-Legacy AGENT_ONBOARDING_ENABLED and AGENT_AUTO_CLASSIFICATION_ENABLED values are ignored. The model defaults to `gpt-4.1-mini` and can be
-selected with `AGENT_AUTO_CLASSIFICATION_MODEL`. Never commit environment files.
+Legacy AGENT_ONBOARDING_ENABLED and AGENT_AUTO_CLASSIFICATION_ENABLED values are ignored. The classifier and primary agent share `KEEPINTAX_AGENT_MODEL_ID` from
+`backend/src/agent-harness/agent-model.config.ts`, currently `gpt-6-luna`.
+Classification uses bounded structured Responses API output with low reasoning.
+The old independent `AGENT_AUTO_CLASSIFICATION_MODEL` override is ignored. Never commit environment files.
 Use distinct feature ports (frontend 4316/backend 3016), preserve deployment PORT,
 and keep `DISABLE_SYNCHRONIZE=true` and `SKIP_BOOT_SEED=true` in local backend
 launch settings. Do not boot against the primary checkout's DB with synchronize.

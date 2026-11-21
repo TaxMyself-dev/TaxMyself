@@ -281,3 +281,7 @@ The onboarding interface is launched only from the admin console. `authorizeOnbo
 ## Automatic classification enqueue (2026-11-19)
 
 The deferred books tool startAutomaticClassification takes scope=all and only enqueues the owner-authorized backend worker. It is a serialized write, cannot run from a suggested follow-up and is not safely rerunnable as a read. The backend requires standing consent; this tool never grants it. Queued is not completed. Progress and questions appear in Settings-new → הסוכן שלי. Individual chat classification still requires its original approval card and alone can select one-time mode. See ../../docs/features/assistant-auto-classification.md.
+
+### Shared model configuration (2026-11-22)
+
+The primary agent and automatic classifier both import KEEPINTAX_AGENT_MODEL_ID from ../src/agent-harness/agent-model.config.ts (gpt-6-luna). This pure shared module has no Nest imports and is bundled into the ESM agent, avoiding any new runtime cross-package dependency. The classifier uses the Responses API with strict JSON output, low reasoning and store:false. Its consent/evidence guards remain separate from model selection. No independent classifier model override.

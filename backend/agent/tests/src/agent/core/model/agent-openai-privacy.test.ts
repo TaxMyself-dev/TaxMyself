@@ -3,6 +3,7 @@ import { assert, it, describe } from "@effect/vitest";
 import { Effect, Schema } from "effect";
 
 import { createAppAgent } from "../../../../../src/agent/core/agent/app-agent";
+import { agentModelId } from "../../../../../src/agent/core/model/agent-model";
 import { fakeFetchBodyText } from "../../../../backend/shared/fixtures/fake-fetch-request";
 import { makeUnusedSupabaseClient } from "../../../../backend/shared/fixtures/fake-supabase-client";
 import { unusedEvalBooks } from "../../../../evals/agent/harness/agent-eval-books";
@@ -21,6 +22,7 @@ const userId = "6f1c2a1e-1111-4a1a-8a1a-111111111111";
 const requestBody = Schema.decodeUnknownSync(
   Schema.fromJsonString(
     Schema.Struct({
+      model: Schema.String,
       store: Schema.Boolean,
       safety_identifier: Schema.String,
       include: Schema.optional(Schema.Array(Schema.String)),
@@ -39,7 +41,7 @@ describe("agent openai privacy", () => {
 
         return await Promise.reject(new Error("AGENT_TEST_REQUEST_CAUGHT"));
       },
-    })("gpt-6-luna");
+    })(agentModelId);
 
     const agent = createAppAgent({
       conversationId: "c1",
@@ -62,6 +64,8 @@ describe("agent openai privacy", () => {
     }
 
     const body = requestBody(bodies[0]);
+    assert.strictEqual(body.model, agentModelId);
+    assert.strictEqual(agentModelId, "gpt-6-luna");
     assert.isFalse(body.store);
     assert.match(body.safety_identifier, /^gh_[\da-f]{32}$/u);
     assert.notInclude(bodies[0], userId);

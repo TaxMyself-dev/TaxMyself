@@ -555,3 +555,49 @@ high-volume workloads; matching the main agent's configuration is a separate
 decision, not evidence that the excessive clarification policy is fixed.
 Completed as a local feature commit after d1746660. No renewed main integration
 or push authorization was given for this executable follow-up; neither performed.
+
+## Shared Luna configuration and approved main merge (2026-11-22)
+
+Elazar explicitly requested one Luna configuration for primary agent/classifier,
+merging this together with flag removal into local main, and no GitHub push. He
+then limited verification to focused breakage checks rather than broad suites.
+Base main remains d1746660; feature contains consent-only commit 65d06d6d.
+
+Added pure KEEPINTAX_AGENT_MODEL_ID in backend/src/agent-harness/agent-model.config.ts,
+currently gpt-6-luna. Both Nest classifier and ESM primary agent import that one
+constant. Removed the classifier's independent AGENT_AUTO_CLASSIFICATION_MODEL
+override. The classifier now calls Responses with strict JSON text.format,
+store:false, low reasoning, 2400 max output tokens and existing 30-second timeout.
+Rejects failed/incomplete/empty/refusal output before existing groundedDecision
+checks; no relaxation of certainty, permanent-rule, consent or tenant policy.
+The shared pure file is bundled into the agent, not a runtime Nest dependency;
+added its explicit COPY to the isolated agent Docker build stage. Docker image
+build/deployment not run; reviewed COPY against existing build context.
+
+Bounded verification on final functional source:
+- Backend Jest --runInBand --runTestsByPath auto-classification.model.spec.ts,
+  auto-classification.policy.spec.ts and auto-classification.http.spec.ts: 34 passed,
+  three files; includes shared ID, request shape/privacy, allowed categories,
+  refusal/incomplete/empty output and owner authorization. Nest build exit 0.
+- Agent typecheck exit 0 (existing advisory Effect suggestions), one existing
+  agent-openai-privacy.test.ts with --pool=threads --maxWorkers=1: one passed;
+  uses the actual shared ID and intercepts request before network. Agent build
+  exit 0, model config bundled successfully. Scoped configured formatting passed.
+- Backend changed-file ESLint: exit 0. git diff --check passed.
+- Exactly ONE live synthetic classifier call through the built Nest model class:
+  HTTP 200, model gpt-6-luna, response status completed, kind rule, expected
+  subCategoryId=1 and explicit exact purpose quote. No retry/batch, real user data,
+  profile change, rule write or database connection. Ignored shared-luna-smoke.log.
+  This is API/format compatibility evidence, not comparative accuracy evaluation.
+- Previous 74 passing consent-only regression tests from 65d06d6d are reused;
+  consent/onboarding runtime inputs did not change after that run. No broad
+  frontend/unit/eval suite repeated. Frontend untouched; no Angular rebuild.
+  Ignored logs: shared-luna-tests/build, shared-luna-agent-typecheck/test/build.
+
+Main clean and unchanged at d1746660 before integration. Required effective ports
+verified using main's frontend start-local.js --print-config and backend
+start-watch.js --print-config: 4200/3000 and API http://localhost:3000/.
+Local environment keys/origins remain untouched. No schema/production operation
+or application server start. Authorized local main may fast-forward to this
+verified descendant, including 65d06d6d. No new dependency or lockfile change.
+Preserved backend/journey-timings.local; no GitHub push under any circumstances.

@@ -6,6 +6,8 @@ RUN npm install --global npm@11.6.2 --no-audit --no-fund
 FROM base AS agent-build
 WORKDIR /usr/src/app/agent
 COPY agent/ ./
+# Shared compile-time model config used by both backend packages.
+COPY src/agent-harness/agent-model.config.ts /usr/src/app/src/agent-harness/agent-model.config.ts
 RUN npm ci --no-audit --no-fund && npm run build
 
 FROM base AS agent-runtime-deps
