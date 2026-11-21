@@ -45,9 +45,13 @@ The Nest service is a deterministic, owner-scoped store exposed through a typed
 `UserProfileMemory` port. `readUserProfile` returns story, facts/history, basic
 fields, missing fields and versions. `updateUserProfile` supplies structured
 focused mutations. Free narrative facts use `field=null`; no new DB column is
-needed. The profile's original eleven basic fields remain configurable product
-choices: preferred name, employment, business activity/stage/registration,
-workplace, vehicle, employees, partners, international work and current need.
+needed. The ten basic fields are preferred name, employment, business
+activity/stage/registration, workplace, vehicle, employees, partners and
+international work. Needs and goals are optional narrative/flexible facts
+(field=null), never a missing basic field or a required onboarding question.
+The retired current_need column and historical tool key remain for compatibility;
+old facts are exposed as flexible memories, and erasure still clears the column.
+No schema or data migration is needed.
 
 Personal facts use the owner's empty scope key; business facts use its business
 number. Existing five InnoDB tables are retained:

@@ -21,6 +21,7 @@ const fact = Schema.Struct({
       "employees",
       "partners",
       "international",
+      // Historical stored tool calls; normalized to field=null.
       "current_need",
     ])
   ),
@@ -76,7 +77,7 @@ export const readUserProfileTool = tool({
 
 export const updateUserProfileTool = tool({
   description:
-    "Apply focused changes to the shared profile using the version and fact IDs just read. Facts are grounded ONLY in exact evidence from the current user message (server supplied). A short yes/no answers the last assistant question, never an older question. field=null stores any other relevant narrative detail. Transition preserves the past; correction marks the old fact erroneous. Registration/workplace transitions require the actual effective date (YYYY-MM allowed); never invent a day. WorkplaceModes describes all continuing locations. For unknown/skipped use the user's explicit uncertainty/deferral. forget_facts deletes IDs without asserting their opposite; forget_all clears profile memory across owned businesses, not chat/accounting records/backups. Return success before claiming anything saved/deleted. A version conflict requires rereading and reevaluating the same current message.",
+    "Apply focused changes to the shared profile using the version and fact IDs just read. Facts are grounded ONLY in exact evidence from the current user message (server supplied). A short yes/no answers the last assistant question, never an older question. field=null stores any other relevant narrative detail, including voluntarily shared needs and goals. current_need is a retired key accepted only for historical tool compatibility; use field=null for new needs and goals. Transition preserves the past; correction marks the old fact erroneous. Registration/workplace transitions require the actual effective date (YYYY-MM allowed); never invent a day. WorkplaceModes describes all continuing locations. For unknown/skipped use the user's explicit uncertainty/deferral. forget_facts deletes IDs without asserting their opposite; forget_all clears profile memory across owned businesses, not chat/accounting records/backups. Return success before claiming anything saved/deleted. A version conflict requires rereading and reevaluating the same current message.",
   inputSchema: toStandardSchema(
     Schema.Struct({
       businessNumber: Schema.String,
@@ -116,6 +117,7 @@ export const updateUserProfileTool = tool({
         intent: input.intent,
         facts: input.facts.map((entry) => ({
           ...entry,
+          field: entry.field === "current_need" ? null : entry.field,
           replaces: entry.replaces ?? null,
           effectiveDate: entry.effectiveDate ?? null,
           invalidates: entry.invalidates ?? [],

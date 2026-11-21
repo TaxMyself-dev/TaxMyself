@@ -137,6 +137,37 @@ describe("one agent, shared profile", () => {
     );
   });
 
+  it("routes a legacy need key to flexible memory without making goals required", async () => {
+    await updateUserProfileTool.execute?.(
+      {
+        ...update,
+        facts: [
+          {
+            field: "current_need",
+            scope: "person",
+            statement: "רוצה להרחיב את העסק",
+            value: "הרחבת העסק",
+            state: "known",
+            change: "add",
+            precision: "unknown",
+            evidence: "להרחיב את העסק",
+          },
+        ],
+      },
+      {
+        context: context("רוצה להרחיב את העסק"),
+        toolCallId: "need",
+        messages: [],
+      }
+    );
+    expect(port.update.mock.lastCall?.[0].extraction).toMatchObject({
+      facts: [{ field: null, statement: "רוצה להרחיב את העסק" }],
+    });
+    expect(agentInstructions("he", "111")).toContain(
+      "Needs and goals are optional"
+    );
+  });
+
   it("rejects writes without a new source message and writes for another business", async () => {
     await expect(
       updateUserProfileTool.execute?.(update, {

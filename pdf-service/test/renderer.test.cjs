@@ -21,7 +21,7 @@ const job = {
 function fixture(t, { hang = false, fail = false, diagnostics = false, logger, launchDelay = 0, failLoad = false, failAssets = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-render-test-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  for (const name of ["Simpler-Regular.otf", "Simpler-Bold.otf"])
+  for (const name of ["Simpler-Regular.ttf", "Simpler-Bold.ttf"])
     fs.writeFileSync(path.join(dir, name), "font");
   let handler,
     killed = 0,

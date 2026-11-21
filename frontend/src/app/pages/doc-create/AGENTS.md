@@ -39,6 +39,9 @@ UI states, not retry prompts.
   Preview rendering is platform-split: desktop browsers open a normal browser tab
   (`FilesService.previewFile3`), while mobile viewports and installed PWAs render
   the same Blob in-app via `components/pdf-preview-dialog` (pdf.js → canvas),
+  with explicit `dir="ltr"` on each PDF canvas while the surrounding dialog stays
+  RTL. Inherited RTL canvas direction corrupts glyph placement, including Hebrew,
+  Latin, dates and amounts; PDF coordinates already define the text positions.
   because Chrome on Android never displays an embedded PDF inline.
   Desktop preview does not request a fixed-size popup. It uses the available
   browser window area; browser full-screen/F11 remains user-controlled.

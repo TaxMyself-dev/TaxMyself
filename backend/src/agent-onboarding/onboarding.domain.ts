@@ -61,12 +61,6 @@ export const FIELDS = [
     label: 'פעילות בחו״ל',
     question: 'האם יש לעסק לקוחות, ספקים או פעילות אחרת בחו״ל?',
   },
-  {
-    key: 'current_need',
-    scope: 'person',
-    label: 'מה חשוב כרגע',
-    question: 'במה הכי יעזור לך שאתמקד כרגע?',
-  },
 ] as const;
 export type FieldKey = (typeof FIELDS)[number]['key'];
 export type AnswerState = 'known' | 'unknown' | 'skipped' | 'not_applicable';
@@ -158,6 +152,11 @@ export function validateExtraction(
   for (const f of x.facts) {
     if (!f || typeof f !== 'object')
       throw new BadRequestException('עובדה לא תקינה');
+    // Accept historical tool inputs, but store needs as flexible memories now.
+    if ((f.field as string) === 'current_need') {
+      if (f.scope !== 'person') throw new BadRequestException('עובדה לא תקינה');
+      f.field = null;
+    }
     const field = FIELDS.find((v) => v.key === f.field);
     if (
       !f ||

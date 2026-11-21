@@ -611,3 +611,47 @@ Final follow-up checkpoint:
 - `git diff --check` passed after removing trailing blank lines in two test/config
   files. Final local feature commit only; no schema or real-user mutation, no
   application-server start, no main integration and no push.
+
+## Follow-up: optional needs and goals (2026-11-21)
+
+User requested that "מה חשוב כרגע" must not be a required/basic onboarding
+field. Acceptance: complete the ten basic fields without a goal; retain voluntarily
+shared needs in narrative/flexible memory; preserve existing history and erasure.
+
+Implemented in the existing codex/agent-onboarding worktree, based on 072ee194.
+- Removed current_need from FIELDS, so missing/completion/invitation checks and
+  basic-field UI responses no longer include it. No frontend hardcoding changed.
+- The same shared agent policy and updateUserProfile tool save volunteered goals
+  with field=null. The historical tool key is still accepted for stored-message
+  compatibility and normalized to flexible memory; it is not offered as a new
+  basic question. Backend input validation normalizes legacy callers too.
+- Legacy fact IDs, statements, periods and history remain readable as flexible
+  facts, so replacements use the same history chain. The old physical column is
+  retained without a schema/data migration. Forgetting a legacy need or its new
+  flexible replacement clears that retired projection; forget-all clears it too.
+- Updated README and intentionally reviewed the description-only tools.json
+  snapshot mismatch before updating it. No snapshot assertion was weakened.
+
+Verification on the final functional source:
+- Nest: node node_modules/jest/bin/jest.js --runInBand --runTestsByPath
+  src/agent-onboarding/onboarding.domain.spec.ts
+  src/agent-onboarding/onboarding.service.spec.ts
+  src/agent-onboarding/onboarding-admin.spec.ts: 31 passed (3 suites).
+- Nest: npm run build passed.
+- Agent: npx vitest run --project unit
+  tests/src/agent/tools/profile/agent-profile.test.ts
+  tests/src/agent/core/agent/agent-prompt-snapshots.test.ts
+  tests/src/agent/core/agent/agent-tool-schemas.test.ts --maxWorkers=1 -u:
+  20 passed, one intentional tool-description snapshot updated and diff reviewed.
+- Agent: npm run typecheck passed (existing Effect suggestions only).
+- Agent check initially found two issues in a new inline comment and nested test
+  matcher. Corrected both without changing behavior. npm run check then passed;
+  affected profile test rerun: 10 passed. Existing broad-suite evidence above is
+  not claimed as a new full-suite run for this follow-up.
+- Agent build and final git whitespace/commit checks recorded at delivery.
+- Frontend files unchanged; no redundant Angular build/test rerun. Basic field
+  display comes from the tested backend response. No paid AI or live-DB tests.
+
+No server startup, DB/schema mutation, main integration or push. Local main stays
+c94b2c57; user-owned backend/journey-timings.local remains untouched.
+`npm run build` for the agent passed; final `git diff --check` passed.
