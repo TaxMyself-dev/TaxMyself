@@ -1,6 +1,6 @@
 # Gmail manual import date range
 
-- Status: VERIFIED_AWAITING_MAIN_APPROVAL
+- Status: LOCAL_MAIN_INTEGRATION_AUTHORIZED
 - Branch: codex/gmail-manual-date-range
 - Base: c94b2c578cfd27f763bca1a68fb2c506b6a22078 (verified local main; origin/main differs)
 - Worktree: C:/Users/user/Keepintax/TaxMyself-gmail-manual-date-range
@@ -33,3 +33,17 @@ No live Gmail pull, production access, schema update, deployment, manual browser
 
 - Final frontend build: process-local CI=true; npm run build — exit 0, production build hash 639b3c75806e8e8d, 95438ms. Includes assets, index and service worker. Warnings: initial bundle 3.20 MB vs 2 MB warning budget (below 5 MB error budget), unrelated stylesheet budgets and CommonJS dependencies. No changed Gmail stylesheet warning. No code changed between passing checks and final commit.
 - Final diff reviewed; git diff --check passed. Temporary baseline archive/source/config removed. Generated output/dependencies and ignored environment remain untracked/ignored as appropriate. Main integration and push remain pending explicit approval per personal instructions.
+## Authorized local main integration (2026-11-21)
+
+Elazar explicitly authorized local main integration for manual testing and explicitly prohibited GitHub push. Primary main was clean at c21a5eac92597beb95acf42501c2fb3c8a83d726. Merged it into the feature without conflicts; verified executable candidate 953ee9b30b2f3a3732c3065f3ef269c0a95fca7f. Main then advanced only by documentation commit 3f835ad0; preserved that via merge db3845bf. No executable changes followed verification, so passing evidence is reused for the final documentation-only revision.
+
+Pre-integration effective local configuration verified in primary checkout: node frontend/scripts/start-local.js --print-config reports frontendPort 4200, backendPort 3000, apiUrl http://localhost:3000/, main defaults. node backend/scripts/start-watch.js --print-config reports backendPort 3000 and synchronize false. backend/.env PORT=3000; no ambient PORT/API_URL overrides; frontend npm start uses start-local.js, Angular serve development has no port override, environment.ts uses http://localhost:3000/. No local worktree port configuration was copied into main.
+
+Checks on 953ee9b3 (exact commands as above):
+- Backend focused Jest command: exit 0, 4 suites, 39/39 tests, 80.435 seconds.
+- Backend npm run build: exit 0.
+- Frontend isolated Gmail command with temporary .tmp-gmail-spec.json and process-local CI=true: exit 0, 12/12 Chrome Headless tests.
+- Frontend process-local CI=true; npm run build: exit 0, build hash 20f5606ef0eada5b, 184317ms. Same nonblocking style/bundle/CommonJS warnings; no limits changed.
+- Previously reproduced baseline broad-test compilation failures unchanged; no full-suite pass claimed. Temporary test config removed; complete main-to-candidate diff reviewed and whitespace check performed.
+
+Delivery uses fast-forward only after a final clean-state and ancestry check. Manual acceptance and push approval remain pending; no remote push or production change is authorized.
