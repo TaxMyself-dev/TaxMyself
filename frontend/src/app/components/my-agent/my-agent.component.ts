@@ -46,7 +46,17 @@ export class MyAgentComponent implements OnInit,OnDestroy {
  start(){void this.act(()=>this.api.start());}
  toggle(event:Event) {const input=event.target as HTMLInputElement;const value=input.checked;input.checked=!!this.status()?.enabled;void this.act(()=>this.api.consent(value));}
  async mark(n:AgentNotice){await this.act(()=>this.api.read(n.id));}
- reply(n:AgentNotice){void this.act(()=>this.api.reply(n.id,this.answers[n.id] || ''));}
+ reply(n:AgentNotice){
+  const answer=this.answers[n.id]?.trim();if(!answer || (!this.status()?.enabled && !this.ready()))return;
+  const owner=this.api.context();if(!owner)return;
+  void this.act(async()=>{
+   if(!this.status()?.enabled){await this.api.consent(true);if(owner!==this.api.context())throw new Error('IDENTITY_CHANGED');this.status.update(s=>s?{...s,enabled:true}:s);}
+   if(owner!==this.api.context())throw new Error('IDENTITY_CHANGED');
+   await this.api.reply(n.id,answer);delete this.answers[n.id];
+   this.notices.update(rows=>rows.map(row=>row.id===n.id?{...row,state:'pending',question:null,reason:'התשובה נשלחה לבדיקה נוספת.',read_at:new Date().toISOString()}:row));
+  });
+ }
+ paymentLabel(n:AgentNotice){const d=n.display;return d.paymentIdentifier?`${d.paymentType==='BANK_ACCOUNT'?'חשבון בנק':d.paymentType==='CREDIT_CARD'?'כרטיס אשראי':'אמצעי תשלום'} ${d.paymentIdentifier}${d.paymentRole==='spouse'?' · בן/בת הזוג':''}`:'אמצעי התשלום אינו זמין';}
  associate(s:AgentStatus['unlinked'][number]) {
   if(this.busy() || !this.api.context() || !this.status()?.unlinked.some(source=>source.id===s.id))return;
   this.transactions.accountsList.set([]);this.transactions.getAllBills();

@@ -152,3 +152,23 @@ case was retained and caused the separate purpose/evidence/uncertainty contract.
 
 Real Firebase browser login, a real bank redirect and shared-dev activation are
 manual deployment checks; synthetic tests do not claim to have performed them.
+
+## Notice cards and toolbar (2026-11-21)
+
+Notices use collapsed native details cards, with transaction title, amount, date,
+account and payment source in the summary. A selected bell deep link opens its
+card. Unread notices show a dark "new/unread" badge as well as a tinted card.
+New item display snapshots retain payment identifier/type/primary-or-spouse role;
+historical notices resolve these fields through a bounded owner-scoped cache/source
+read, without a migration or backfill. Missing historical data is labelled unavailable.
+
+When automation is off, the reply action explicitly says it will enable automatic
+classification and submit the answer. The adjacent disclosure states this enables
+processing of all eligible transactions. It requires readiness and an actual answer;
+only a successful standing-consent save precedes reply submission. Failed saves
+retain the draft. Successful replies show queued feedback. Backend permission and
+classification uncertainty checks are unchanged; answers stay local to the notice.
+
+The bell highlights hovered/focused rows and closes on outside click/focus or
+Escape. Toolbar visual order from the left is document creation, borderless settings,
+then the bell; the existing optional PWA refresh action remains available.

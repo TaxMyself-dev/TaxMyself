@@ -4,16 +4,17 @@
     </ng-template>
     <ng-template pTemplate="end" >
         <div class="top-nav-buttons"><app-agent-bell />
-            @if (!isOnDocCreate() && access.createDocument().visible) {
-                <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
-            }
             @if (isInstalledPwa() && !isAdmin()) {
                 <app-p-button icon="pi pi-refresh" buttonText="רענון" [iconOnly]="true" variant="text"
                     [buttonSize]="ButtonSize.SMALL" [disabled]="isRefreshing()" (onButtonClicked)="refreshApp()" />
             }
             <app-menu-button icon="pi pi-cog" ariaLabel="תפריט הגדרות"
-                [items]="settingsMenuItems()" [menuEnabled]="isAdmin()"
+                [buttonColor]="ButtonColor.TRANSPARET" variant="text" [items]="settingsMenuItems()" [menuEnabled]="isAdmin()"
                 (triggered)="onSettingsTrigger()" />
+            @if (!isOnDocCreate() && access.createDocument().visible) {
+                <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
+            }
+
         </div>
       </ng-template>
   </p-menubar>

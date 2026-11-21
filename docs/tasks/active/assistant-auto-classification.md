@@ -377,3 +377,52 @@ with DB_DATABASE=keepintax-dev, DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true
 The .env remains ignored. No executable source change or application build/test
 repetition needed for this local environment correction; existing compiled handler
 provided focused verification. User should retry the actual chat after startup.
+
+## Notice UI and reply usability (2026-11-21)
+
+Completed the eight requested changes: payment source in question cards; bell
+row hover/focus; outside-click/focus/Escape dismissal; leftmost document creation,
+then settings, then bell; borderless settings trigger; collapsed expandable cards;
+explicit unread badge/background; usable reply action when automation is off.
+Consent activation is explicit in both CTA and nearby disclosure, never automatic
+on typing/expansion. It affects all eligible transactions and still uses owner-only
+consent validation. A failed consent request does not send a reply or erase its
+draft. Successful replies show pending feedback rather than retaining unanswered UI.
+
+Payment metadata is persisted for future notices and hydrated for existing notices
+using one bounded owner-scoped cache/source read. Primary/spouse source identity
+is preserved by sourceRecordId. No schema/backfill, accounting change, environment
+change or delegated permission expansion. Preserved untracked
+backend/journey-timings.local. No agent-package executable files changed.
+
+Verification (Node 24.22.3; frontend CI=true, NG_BUILD_MAX_WORKERS=2):
+- node node_modules/jest/bin/jest.js --runInBand --runTestsByPath
+  src/auto-classification/auto-classification.service.spec.ts
+  src/auto-classification/auto-classification.http.spec.ts: 21 passed, 2 suites.
+  Includes owner-scoped historic payment hydration and durable display snapshots.
+- npm run build from backend: exit 0. Backend changed-file ESLint: exit 0.
+- node --max-old-space-size=4096 node_modules/@angular/cli/bin/ng.js test
+  --watch=false --browsers=ChromeHeadless
+  --karma-config=karma.auto-classification.conf.cjs --progress=false --source-map=false
+  --include=src/app/components/my-agent/*.spec.ts
+  --include=src/app/pages/settings-new/settings-navigation.spec.ts
+  --include=src/app/components/topNav/topNav.component.spec.ts
+  --ts-config=tsconfig.auto-classification-spec.json: 26 passed on final UI.
+  Covers collapsed cards/payment/new badge, explicit off-to-on reply, failed consent
+  preserving drafts, queued feedback, bell outside/focus/Escape and exact notice
+  navigation, borderless settings and existing drawer/navigation regressions.
+- node --max-old-space-size=6144 node_modules/@angular/cli/bin/ng.js build
+  --configuration=production --progress=false: exit 0, existing size/CommonJS
+  warnings retained. No thresholds changed.
+- git diff --check: passed. Exact ignored logs: notice-ui-backend-tests.log,
+  notice-ui-backend-build.log, notice-ui-frontend-final-tests.log and
+  notice-ui-frontend-build.log under .local-ai-dev/auto-classification.
+
+One earlier 26-test frontend run passed before the final queued-feedback addition;
+the focused suite was repeated because of that executable change. No broad agent
+tests or paid evals repeated. Manual authenticated Chrome inspection was attempted
+but blocked by repeated Emulation.setFocusEmulationEnabled CDP timeouts, including
+the prior valid tab binding. Supported troubleshooting was read; no session/profile
+or authentication data accessed and no unrelated processes stopped. Therefore no
+claim of manual visual verification. No real consent/reply was submitted during
+verification. No main integration or GitHub push.

@@ -230,7 +230,7 @@ export class AutoClassificationService {
         throw new BadRequestException();
     }
     const rows = await this.db.query(
-      `SELECT id,business_number,state,reason,question,display_json,category,sub_category,read_at,updated_at FROM agent_auto_items WHERE owner_uid=? AND state IN ('waiting','classified','failed','blocked','resolved') ${
+      `SELECT id,external_id,business_number,state,reason,question,display_json,category,sub_category,read_at,updated_at FROM agent_auto_items WHERE owner_uid=? AND state IN ('waiting','classified','failed','blocked','resolved') ${
         cursor ? 'AND (updated_at < ? OR (updated_at = ? AND id < ?))' : ''
       } ORDER BY updated_at DESC,id DESC LIMIT 51`,
       cursor
@@ -247,11 +247,7 @@ export class AutoClassificationService {
       [user.firebaseId],
     );
     return {
-      items: rows.slice(0, 50).map((r) => ({
-        ...r,
-        display: decode(r.display_json),
-        display_json: undefined,
-      })),
+      items: await this.hydrateNotices(user.firebaseId, rows.slice(0, 50)),
       unread: Number(unread[0].count),
       hasMore: rows.length > 50,
       nextCursor:
@@ -269,12 +265,44 @@ export class AutoClassificationService {
       [id, user.firebaseId],
     );
     if (!row) throw new NotFoundException();
-    return {
-      ...row,
-      display: decode(row.display_json),
-      display_json: undefined,
-      answer: undefined,
-    };
+    const [notice] = await this.hydrateNotices(user.firebaseId, [row]);
+    return { ...notice, answer: undefined };
+  }
+  private async hydrateNotices(owner: string, rows: any[]) {
+    const missing = rows.filter(
+      (r) => !decode(r.display_json)?.paymentIdentifier,
+    );
+    const sources = missing.length
+      ? await this.db.query(
+          `SELECT c.externalTransactionId,c.paymentIdentifier,s.sourceName,s.sourceType,s.connectionRole
+       FROM full_transactions_cache c LEFT JOIN source s ON s.id=c.sourceRecordId AND s.userId=c.userId
+       WHERE c.userId=? AND c.externalTransactionId IN (${missing
+         .map(() => '?')
+         .join(',')})`,
+          [owner, ...missing.map((r) => r.external_id)],
+        )
+      : [];
+    return rows.map((row) => {
+      const display = decode(row.display_json);
+      const source = sources.find(
+        (s) => s.externalTransactionId === row.external_id,
+      );
+      return {
+        ...row,
+        external_id: undefined,
+        display_json: undefined,
+        display: {
+          ...display,
+          paymentIdentifier:
+            display.paymentIdentifier ||
+            source?.sourceName ||
+            source?.paymentIdentifier ||
+            null,
+          paymentType: display.paymentType || source?.sourceType || null,
+          paymentRole: display.paymentRole || source?.connectionRole || null,
+        },
+      };
+    });
   }
   async read(user: AgentHarnessUser, id: string) {
     this.check(user);
@@ -449,7 +477,7 @@ export class AutoClassificationService {
     const profile = await this.profile(owner, business);
     if (profile.missing.length) return 'skip';
     const source = await this.db.query(
-      'SELECT s.id FROM source s JOIN user_source_sync_state us ON us.sourceRecordId=s.id AND us.userId=s.userId AND us.consentId IS NOT NULL JOIN bill b ON b.id=s.billId AND b.userId=s.userId WHERE s.id=? AND s.userId=? AND b.id=? AND b.businessNumber=?',
+      'SELECT s.id,s.sourceName,s.sourceType,s.connectionRole FROM source s JOIN user_source_sync_state us ON us.sourceRecordId=s.id AND us.userId=s.userId AND us.consentId IS NOT NULL JOIN bill b ON b.id=s.billId AND b.userId=s.userId WHERE s.id=? AND s.userId=? AND b.id=? AND b.businessNumber=?',
       [cache.sourceRecordId, owner, cache.billId, business],
     );
     if (!source.length) return 'skip';
@@ -466,6 +494,9 @@ export class AutoClassificationService {
           amount: cache.amount,
           currency: cache.currency,
           account: cache.billName,
+          paymentIdentifier: source[0].sourceName || cache.paymentIdentifier,
+          paymentType: source[0].sourceType,
+          paymentRole: source[0].connectionRole,
         }),
       ],
     );

@@ -15,7 +15,7 @@ export interface AgentStatus {
 export interface AgentNotice {
  id:string;business_number:string;state:string;reason:string;question:string|null;read_at:string|null;updated_at:string;
  category:string|null;sub_category:string|null;
- display:{merchant:string;date:string;amount:number;currency:string;account:string};
+ display:{merchant:string;date:string;amount:number;currency:string;account:string;paymentIdentifier?:string;paymentType?:string;paymentRole?:string};
 }
 @Injectable({providedIn:'root'})
 export class MyAgentService {

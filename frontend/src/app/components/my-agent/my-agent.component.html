@@ -18,15 +18,26 @@
    @if(s.lastError){<p role="status">הסיווג ממתין לחיבור או לניסיון נוסף. ההחלטות שכבר נשמרו נשארות בתוקף.</p>}
    <section class="messages"><h3>הודעות מהסוכן</h3>
     @if(!notices().length){<p>אין הודעות כרגע. כאן יופיעו עדכוני הסיווג ושאלות להשלמה.</p>}
-    @for(n of notices();track n.id){<article [id]="'agent-notice-'+n.id" [class.unread]="!n.read_at" [class.selected]="selected()===n.id">
-     <div class="message-heading"><strong>{{label(n.state)}}</strong><time>{{n.updated_at | date:'dd/MM/yyyy HH:mm'}}</time></div>
-     <p><strong>{{n.display.merchant}}</strong> · {{n.display.amount | number:'1.2-2'}} {{n.display.currency}} · {{n.display.date | date:'dd/MM/yyyy'}} · {{n.display.account}}</p><small>עסק {{n.business_number}}</small>
-     @if(n.category){<p>{{n.category}} / {{n.sub_category}}</p>}<p>{{n.reason}}</p>
-     @if(n.question && n.state==='waiting'){<p class="question">{{n.question}}</p>}
-     @if(n.state==='waiting'){<label [for]="'reply-'+n.id">התשובה שלך</label><textarea [id]="'reply-'+n.id" [(ngModel)]="answers[n.id]" maxlength="2000" rows="2"></textarea><button type="button" [disabled]="busy() || !s.enabled || !answers[n.id]?.trim()" (click)="reply(n)">שלח והמשך בדיקה</button>}
-     @if(n.state!=='classified'){<a routerLink="/agent/chat" [queryParams]="{classificationNotice:n.id}">לבדיקה וסיווג בצ׳אט</a>}
-     @if(!n.read_at){<button type="button" class="text" [disabled]="busy()" (click)="mark(n)">סמן כנקרא</button>}
-    </article>}
+    @for(n of notices();track n.id){<details class="notice-card" [id]="'agent-notice-'+n.id" [class.unread]="!n.read_at" [class.selected]="selected()===n.id" [open]="selected()===n.id">
+     <summary>
+      <div class="notice-preview"><div class="message-heading"><strong>{{label(n.state)}}</strong>@if(!n.read_at){<span class="new-badge">חדש · לא נקרא</span>}<time>{{n.updated_at | date:'dd/MM/yyyy HH:mm'}}</time></div>
+       <p><strong>{{n.display.merchant}}</strong> · {{n.display.amount | number:'1.2-2'}} {{n.display.currency}} · {{n.display.date | date:'dd/MM/yyyy'}}</p>
+       <small>{{n.display.account}} · {{paymentLabel(n)}}</small>
+      </div><i class="pi pi-chevron-down" aria-hidden="true"></i>
+     </summary>
+     <div class="notice-body"><small>עסק {{n.business_number}}</small>
+      @if(n.category){<p>{{n.category}} / {{n.sub_category}}</p>}<p>{{n.reason}}</p>
+      @if(n.question && n.state==='waiting'){<p class="question">{{n.question}}</p>}
+      @if(n.state==='waiting'){
+       <label [for]="'reply-'+n.id">התשובה שלך</label><textarea [id]="'reply-'+n.id" [(ngModel)]="answers[n.id]" maxlength="2000" rows="2"></textarea>
+       @if(!s.enabled){<p class="reply-help" [id]="'reply-help-'+n.id">הסיווג האוטומטי כבוי. שליחה תפעיל אותו לכל התנועות הזכאיות ותעביר את תשובתך לבדיקה. @if(!ready()){יש להשלים תחילה את תנאי ההיכרות והחיבור לבנקאות פתוחה.}</p>}
+       <button type="button" class="reply-button" [attr.aria-describedby]="!s.enabled?'reply-help-'+n.id:null" [disabled]="busy() || (!s.enabled && !ready()) || !answers[n.id]?.trim()" (click)="reply(n)">{{s.enabled?'שלח והמשך בדיקה':'הפעל סיווג אוטומטי ושלח לבדיקה'}}</button>
+      }
+      @if(n.state!=='classified'){<a routerLink="/agent/chat" [queryParams]="{classificationNotice:n.id}">לבדיקה וסיווג בצ׳אט</a>}
+      @if(!n.read_at){<button type="button" class="text" [disabled]="busy()" (click)="mark(n)">סמן כנקרא</button>}
+     </div>
+    </details>}
+
     @if(more()){<button type="button" [disabled]="busy()" (click)="loadMore()">הודעות קודמות</button>}
    </section>
   }

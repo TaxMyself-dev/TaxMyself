@@ -297,4 +297,42 @@ describe('standing-consent classifier', () => {
     await first;
     expect((f.service as any).busy).toBe(false);
   });
+  it('hydrates historical notices from only the same owner cache and source', async () => {
+    const f = setup();
+    f.db.query.mockResolvedValue([
+      {
+        externalTransactionId: 'tx',
+        paymentIdentifier: '0001',
+        sourceName: '9081',
+        sourceType: 'CREDIT_CARD',
+        connectionRole: 'spouse',
+      },
+    ]);
+    const rows = await (f.service as any).hydrateNotices('owner', [
+      { id: 'n', external_id: 'tx', display_json: { merchant: 'חנות' } },
+    ]);
+    expect(f.db.query).toHaveBeenCalledWith(
+      expect.stringContaining('c.userId=?'),
+      ['owner', 'tx'],
+    );
+    expect(f.db.query.mock.calls[0][0]).toContain('s.userId=c.userId');
+    expect(rows[0].display).toMatchObject({
+      merchant: 'חנות',
+      paymentIdentifier: '9081',
+      paymentType: 'CREDIT_CARD',
+      paymentRole: 'spouse',
+    });
+  });
+  it('retains saved payment details when the source no longer exists', async () => {
+    const f = setup();
+    const rows = await (f.service as any).hydrateNotices('owner', [
+      {
+        id: 'n',
+        external_id: 'tx',
+        display_json: { paymentIdentifier: '9081', paymentType: 'CREDIT_CARD' },
+      },
+    ]);
+    expect(f.db.query).not.toHaveBeenCalled();
+    expect(rows[0].display.paymentIdentifier).toBe('9081');
+  });
 });
