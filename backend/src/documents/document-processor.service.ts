@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/commo
 import { PdfInspectionService } from '../protected-pdf/pdf-inspection.service';
 import Anthropic from '@anthropic-ai/sdk';
 import { EmailAiDecision, parseEmailAiOutcome } from './email-ai-outcome';
+import { AnalysisUsage } from '../document-ai/document-ai.types';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -231,6 +232,7 @@ export class DocumentProcessorService {
     mimeType: string,
     catalog: CatalogEntry[] = [],
     emailIntakeReview = false,
+    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;bounded?:boolean},
   ): Promise<ProcessOutcome> {
     if (mimeType === 'application/pdf') {
       if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
@@ -255,7 +257,7 @@ export class DocumentProcessorService {
     this.logger.log(`Calling Claude (${MODEL}) | mimeType=${mimeType} | size=${fileBuffer.length}B`);
 
     const response = await client.messages.create({
-      model: MODEL,
+      model: options?.model || MODEL,
       // Bumped from 1024 — multi-invoice statements (e.g. monthly fuel with
       // 12+ rows) can exceed 1024 tokens of structured JSON and get truncated,
       // which leaves the closing ``` missing and the JSON unparseable.
@@ -286,7 +288,12 @@ export class DocumentProcessorService {
           content: [fileBlock as any, { type: 'text', text: emailIntakeReview ? 'Classify and extract every relevant document from the attached file in the same JSON response.' : USER_TRAILER }],
         },
       ],
-    }, emailIntakeReview ? { timeout: 45_000, maxRetries: 0 } : undefined);
+    }, emailIntakeReview || options?.bounded ? { timeout: 45_000, maxRetries: 0 } : undefined);
+    if(options?.onUsage&&response.usage){
+      const usage:any=response.usage;
+      const count=(value:any)=>Number.isSafeInteger(value)&&value>=0?value:0;
+      options.onUsage({input:count(usage.input_tokens),output:count(usage.output_tokens),cacheRead:count(usage.cache_read_input_tokens),cacheWrite:count(usage.cache_creation_input_tokens)});
+    }
 
     // Cache telemetry — surfaces whether the rewrite is actually paying off.
     // If `cache_read_input_tokens` stays at 0 across repeated calls in the
