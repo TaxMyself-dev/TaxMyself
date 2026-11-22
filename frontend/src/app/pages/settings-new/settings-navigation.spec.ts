@@ -88,6 +88,7 @@ describe('restore settings section', () => {
 describe('agent section scroll activation', () => {
   it('activates the lazy agent while scrolling between businesses and subscription', () => {
     const page: any = Object.create(SettingsNewPage.prototype);
+    page.agentAccess={isAdmin:()=>true};
     page.activeSection = signal('businesses');
     page.agentActivated = signal(false);
     page.navigationSession = { remember: jasmine.createSpy('remember') };
@@ -112,4 +113,12 @@ describe('agent section scroll activation', () => {
     expect(page.activeSection()).toBe('subscription');
     expect(page.agentActivated()).toBeTrue();
   });
+});
+
+describe('admin-only agent settings',()=>{
+ it('hides the personal navigation link and prevents agent activation for regular users',()=>{
+  const page:any=Object.create(SettingsNewPage.prototype);page.agentAccess={isAdmin:()=>false};page.agentActivated=signal(false);
+  expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeFalse();page.activateSection('agent');expect(page.agentActivated()).toBeFalse();
+  page.agentAccess={isAdmin:()=>true};expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeTrue();page.activateSection('agent');expect(page.agentActivated()).toBeTrue();
+ });
 });

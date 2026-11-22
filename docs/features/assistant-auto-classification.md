@@ -7,6 +7,13 @@ and verified on `keepintax-dev` only; worker flags and user consent remain uncha
 
 ## Behavior
 
+Current access: assistant chat, onboarding chat, automatic classification and
+Settings-new My Agent are ADMIN-only. UI links, routes, APIs and background
+processing enforce this boundary. The persisted real actor role is authoritative.
+Existing user consent and onboarding/banking prerequisites still apply; ADMIN
+does not permit automatic classification on behalf of another owner. Demotion
+blocks processing and final rule writes without deleting historical data/consent.
+
 The owner gives one user-wide consent in Settings-new → הסוכן שלי or the
 verified post-banking connection dialog. A delegate or admin impersonating
 the owner cannot read or change automation settings or start automation.

@@ -51,7 +51,7 @@ describe('AgentHarnessController', () => {
                 businessesOf[owner] ?? [],
             } as never,
             {} as never,
-            {} as never,
+            {findOne:async()=>({role:['ADMIN']})} as never,
           ),
         },
         {

@@ -2,7 +2,7 @@ import {
   AutoClassificationService,
   autoIdentity,
 } from './auto-classification.service';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
 import { FIELDS } from '../agent-onboarding/onboarding.domain';
@@ -60,10 +60,16 @@ describe('standing-consent classifier', () => {
           ? { findOne: jest.fn(async () => ({ ...cache })) }
           : entity === ClassifiedTransactions
           ? { find: jest.fn(async () => []) }
-          : { findOne: jest.fn(async () => ({ hasOpenBanking: true })) },
+          : {
+              findOne: jest.fn(async () => ({
+                hasOpenBanking: true,
+                role: ['ADMIN'],
+              })),
+            },
       ),
     };
     const domain: any = {
+      assertAiAdmin: jest.fn(async () => undefined),
       resolveBusiness: jest.fn(async () => ({})),
       ownerBusinesses: jest.fn(async () => [{ businessNumber: 'biz' }]),
     };
@@ -339,5 +345,54 @@ describe('standing-consent classifier', () => {
     ]);
     expect(f.db.query).not.toHaveBeenCalled();
     expect(rows[0].display.paymentIdentifier).toBe('9081');
+  });
+  it('refuses regular owners before model calls or transaction reads', async () => {
+    const f = setup();
+    f.domain.assertAiAdmin.mockRejectedValue(
+      new ForbiddenException('Admin access required'),
+    );
+    await expect(f.service.status(autoIdentity('owner'))).rejects.toThrow(
+      'Admin access',
+    );
+    await expect(f.service.process('owner', 1, 1)).rejects.toThrow(
+      'Admin access',
+    );
+    expect(f.db.query).not.toHaveBeenCalled();
+    expect(f.model.decide).not.toHaveBeenCalled();
+    expect(f.write).not.toHaveBeenCalled();
+  });
+  it('does not run background classification for a non-admin with old consent', async () => {
+    const f = setup();
+    f.domain.assertAiAdmin.mockRejectedValue(
+      new ForbiddenException('Admin access required'),
+    );
+    f.db.createQueryRunner = () => ({
+      connect: async () => undefined,
+      query: async () => [{ acquired: 1 }],
+      release: async () => undefined,
+    });
+    f.db.query.mockImplementation(async (sql: string) =>
+      sql.startsWith('SELECT * FROM agent_auto_preferences')
+        ? [{ owner_uid: 'owner', enabled: true, version: 1, scan_cursor: 0 }]
+        : [],
+    );
+    await f.service.tick();
+    expect(f.model.decide).not.toHaveBeenCalled();
+    expect(f.db.query).toHaveBeenCalledWith(
+      expect.stringContaining('last_error=?'),
+      ['ADMIN_REQUIRED', 'owner'],
+    );
+  });
+  it('rechecks the persisted admin role before committing a model result', async () => {
+    const f = setup();
+    const original = f.db.getRepository.getMockImplementation();
+    f.db.getRepository.mockImplementation((entity: any) => {
+      const repo = original(entity);
+      if (entity !== FullTransactionCache && entity !== ClassifiedTransactions)
+        return { findOne: async () => ({ hasOpenBanking: true, role: [] }) };
+      return repo;
+    });
+    await f.service.process('owner', 1, 1);
+    expect(f.write).not.toHaveBeenCalled();
   });
 });

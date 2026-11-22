@@ -252,6 +252,9 @@ export class AgentDomainService {
   ) {}
 
   async assertOnboardingAdmin(user: AgentHarnessUser): Promise<void> {
+    return this.assertAiAdmin(user);
+  }
+  async assertAiAdmin(user: Pick<AgentHarnessUser, 'actorFirebaseId'>): Promise<void> {
     if (!user.actorFirebaseId) throw new ForbiddenException('Admin access required');
     const actor = await this.userRepository.findOne({ where: { firebaseId: user.actorFirebaseId } });
     if (!actor?.role?.includes(UserRole.ADMIN)) throw new ForbiddenException('Admin access required');

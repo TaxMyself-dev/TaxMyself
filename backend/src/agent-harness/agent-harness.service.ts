@@ -102,6 +102,7 @@ export class AgentHarnessService implements OnModuleDestroy {
   }
 
   async handle(request: Request, user: AgentHarnessUser): Promise<Response> {
+    await this.agentDomain.assertAiAdmin(user);
     return await withAgentBackgroundContext(async () => {
       const bundle = await this.load();
       // Includes promises scheduled by the SDK after this response ends.

@@ -1,3 +1,4 @@
+import { AgentAdminGuard } from './agent-admin.guard';
 import {
   All,
   Controller,
@@ -41,7 +42,7 @@ const agentBodyLimitBytes = 1024 * 1024;
  * write permissions and module access before changing application data.
  */
 @Controller('api/agent')
-@UseGuards(FirebaseAuthGuard)
+@UseGuards(FirebaseAuthGuard, AgentAdminGuard)
 export class AgentHarnessController {
   private readonly logger = new Logger(AgentHarnessController.name);
 

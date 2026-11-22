@@ -159,6 +159,7 @@
         </div>
       </section>
 
+      @if (agentAccess.isAdmin()) {
       <section class="panel agent-panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
         @if (agentActivated()) { <app-my-agent /> }
         @else {
@@ -166,6 +167,7 @@
           <p class="empty-state">סיווג התנועות שלך והודעות מהסוכן יופיעו כאן בעת מעבר לאזור זה.</p>
         }
       </section>
+      }
 
       <div class="subscription-section"><app-settings-new-subscription (navigateSection)="goTo($event)" /></div>
 

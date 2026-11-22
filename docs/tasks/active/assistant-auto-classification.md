@@ -601,3 +601,38 @@ Local environment keys/origins remain untouched. No schema/production operation
 or application server start. Authorized local main may fast-forward to this
 verified descendant, including 65d06d6d. No new dependency or lockfile change.
 Preserved backend/journey-timings.local; no GitHub push under any circumstances.
+
+
+## ADMIN-only assistant follow-up (2026-11-22)
+
+Feature branch fast-forwarded from 9d2b4c2c to verified main f8aac42b before
+this work. Restricted ordinary/onboarding chat, automation and My Agent UI/API
+to the persisted real actor ADMIN role. Existing owner-only automation policy,
+consent, onboarding and banking requirements remain. Worker checks before model
+work and rechecks the locked owner row before permanent-rule writes. No schema,
+role, user data, environment or main checkout change.
+
+Bounded verification (bundled Node 24.22.3):
+- Backend Jest --runInBand --runTestsByPath: agent-admin.guard.spec.ts,
+  agent-harness.controller.spec.ts, auto-classification.service.spec.ts,
+  auto-classification.http.spec.ts, onboarding-admin.spec.ts: 36 passed/5 suites.
+- After the worker error-handling refinement: auto-classification.service.spec.ts
+  and agent-harness.access.spec.ts: 32 passed/2 suites. Earlier unaffected guard/
+  controller/profile evidence reused; counts are separate batches, not unique.
+  A duplicate import caused one intermediate compile failure; corrected before
+  the final passing batch. Nest build passed on final functional source.
+- Angular test --watch=false --browsers=ChromeHeadless with the focused ignored
+  tsconfig.admin-only.json and includes my-agent/*.spec.ts, settings-navigation,
+  topNav and admin-route.guard: 31 passed. Production build exit 0; existing
+  CommonJS and initial bundle budget warnings (3.21 MB vs 2 MB warning) retained.
+- Main had introduced Soniox; installed missing local dependency with
+  npm install --ignore-scripts --no-save --package-lock=false --no-audit
+  --no-fund @soniox/client@2.5.0. No manifest/lockfile edits; existing engine/
+  deprecation warnings retained. This was not an exact-lock npm ci.
+- Scoped ESLint found a new empty mock connect method; changed to return
+  undefined with identical behavior, then reran lint. git diff --check run.
+- MySQL fixture updated for ADMIN, but no live database, paid model, broad suite
+  or isolated MySQL suite run. No agent ESM runtime source changed.
+Logs: ignored .local-ai-dev/auto-classification/admin-only-*.log.
+No application server restarted. Preserve backend/journey-timings.local.
+This follow-up is not approved for integration into main or GitHub push.

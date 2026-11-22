@@ -1,3 +1,4 @@
+import { MyAgentService } from '../../components/my-agent/my-agent.service';
 import { MyAgentComponent } from '../../components/my-agent/my-agent.component';
 import { ActivatedRoute } from '@angular/router';
 import { SettingsNavigationSessionService } from './settings-navigation-session.service';
@@ -56,7 +57,8 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   private readonly navigationSession = inject(SettingsNavigationSessionService);
   private navigationContext: string | null = null;
   private restoringSection: SettingsSection | null = null;
-  readonly personalLinks = PERSONAL_SETTINGS_LINKS;
+  readonly agentAccess=inject(MyAgentService);
+  get personalLinks(){return PERSONAL_SETTINGS_LINKS.filter(link=>link.key!=='agent' || this.agentAccess.isAdmin());}
   readonly subscriptionLinks = SUBSCRIPTION_SETTINGS_LINKS;
   readonly subscriptionExpanded = signal(true);
   readonly connectionsActivated = signal(false);
@@ -130,7 +132,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   ngOnDestroy(): void { this.agentRouteSubscription?.unsubscribe();this.resizeObserver?.disconnect(); }
 
   private activateSection(section: SettingsSection): void {
-    if(section==='agent')this.agentActivated.set(true);
+    if(section==='agent' && this.agentAccess.isAdmin())this.agentActivated.set(true);
     if (section === 'categories') this.categoriesActivated.set(true);
     if ((section === 'permissions' || section === 'banking') && !this.connectionsActivated()) {
       this.connectionsActivated.set(true);
@@ -152,6 +154,7 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     this.navigationSession?.remember(active, this.navigationContext);
   }
   goTo(section: SettingsSection, restoring = false): void {
+    if(section==='agent' && !this.agentAccess.isAdmin())section='account';
     this.restoringSection = restoring ? section : null;
     this.navigationSession?.remember(section, this.navigationContext);
     this.activeSection.set(section);

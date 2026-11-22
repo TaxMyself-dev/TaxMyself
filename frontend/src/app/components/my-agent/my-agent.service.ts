@@ -1,8 +1,8 @@
 import { Injectable, inject, signal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ClientPanelService } from '../../services/clients-panel.service';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { AuthService } from '../../services/auth.service';
 export interface AgentStatus {
@@ -20,12 +20,14 @@ export interface AgentNotice {
 @Injectable({providedIn:'root'})
 export class MyAgentService {
  private readonly http=inject(HttpClient);private readonly auth=inject(AuthService);
+ private readonly profileUpdates=toSignal(this.auth.ownerProfileUpdates$ ?? of(null),{initialValue:null});
  private readonly base=environment.apiUrl.replace(/\/?$/,'/')+'api/agent-automation';
  readonly unread=signal(0);
  private identity:string|null=null;
  private readonly client=signal<string|null>(null);
  constructor(){inject(ClientPanelService).selectedClientId$.pipe(takeUntilDestroyed()).subscribe(id=>this.client.set(id));effect(()=>{const owner=this.context();if(owner!==this.identity){this.identity=owner;this.unread.set(0);}});}
- context() { return !this.client() && !this.auth.isViewingAsClient() ? this.auth.currentUser()?.uid ?? null : null; }
+ isAdmin(){this.profileUpdates();return !!this.auth.currentUser()?.uid && !!this.auth.getRealUserDataFromLocalStorage()?.role?.includes('ADMIN');}
+ context() { return this.isAdmin() && !this.client() && !this.auth.isViewingAsClient() ? this.auth.currentUser()?.uid ?? null : null; }
  private capture() { const next=this.context();if(next!==this.identity){this.unread.set(0);this.identity=next;}return next; }
  async status() { const owner=this.capture();if(!owner)throw new Error('OWNER_REQUIRED');const result=await firstValueFrom(this.http.get<AgentStatus>(this.base));if(owner!==this.context())throw new Error('IDENTITY_CHANGED');return result; }
  consent(enabled:boolean) {return firstValueFrom(this.http.post<AgentStatus>(this.base+'/consent',{enabled}));}

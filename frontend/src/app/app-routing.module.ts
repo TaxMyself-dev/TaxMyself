@@ -21,7 +21,7 @@ import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agen
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
-  {path:'agent/chat',canActivate:[AuthGuard,BillingGuard],loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
+  {path:'agent/chat',canActivate:[AuthGuard,AdminRouteGuard,BillingGuard],loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
   {path:'agent/onboarding',canActivate:[AuthGuard, AdminRouteGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
   {path:'dev/agent/onboarding',redirectTo:'agent/onboarding',pathMatch:'full'},
   // The AI agent's test page (backend/agent), only where the environment
@@ -30,7 +30,7 @@ const appRoutes: Routes = [
   ...(devAgentRouteEnabled()
     ? [{
         path: DEV_AGENT_PATH,
-        canActivate: [AuthGuard],
+        canActivate: [AuthGuard, AdminRouteGuard],
         loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),
       }]
     : []),

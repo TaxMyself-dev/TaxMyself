@@ -88,7 +88,7 @@ state is checked before replacement. Legacy signed cards authorize one-time only
 
 ## Owner onboarding profile
 
-OnboardingController serves /api/agent-profile through FirebaseAuthGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. The onboarding feature is off unless AGENT_ONBOARDING_ENABLED=true and uses its own manual SQL migration, never synchronize. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.
+OnboardingController serves /api/agent-profile through FirebaseAuthGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. Onboarding uses its own manual SQL migration, never synchronize; availability is controlled by persisted ADMIN access rather than environment flags. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.
 
 ## Automatic classification
 
@@ -97,3 +97,12 @@ bounded scheduled service. AgentHarnessService exposes only an enqueue callback
 to chat; it cannot enable standing consent. Delegate/admin impersonation is
 denied by the automation service independently of normal chat classification.
 See ../auto-classification/AGENTS.md and the feature document.
+
+## ADMIN-only assistant access (2026-11-22)
+
+All /api/agent/* endpoints require FirebaseAuthGuard then AgentAdminGuard.
+The guard reads the real actor ADMIN role from the database; represented-owner
+roles and client claims do not grant access. AgentHarnessService also checks
+this boundary. Profile and automation retain their independent owner checks.
+Automation checks ADMIN before reads/model work and locks/rechecks the owner role
+in the final write transaction. Saved consent alone cannot authorize non-admins.

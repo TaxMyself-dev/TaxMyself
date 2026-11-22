@@ -15,7 +15,7 @@ import { AgentClassificationService } from '../agent-harness/agent-classificatio
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { BillingService } from '../billing/services/billing.service';
-import { ApprovalStatus, ModuleName } from '../enum';
+import { ApprovalStatus, ModuleName, UserRole } from '../enum';
 import { User } from '../users/user.entity';
 import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
@@ -52,8 +52,9 @@ export class AutoClassificationService {
     private readonly billing: BillingService,
     private readonly model: AutoClassificationModel,
   ) {}
-  private check(user: AgentHarnessUser) {
+  private async check(user: AgentHarnessUser) {
     assertSelf(user);
+    await this.domain.assertAiAdmin(user);
   }
   private async connected(owner: string) {
     const row = await this.db
@@ -93,7 +94,7 @@ export class AutoClassificationService {
     };
   }
   async status(user: AgentHarnessUser) {
-    assertSelf(user);
+    await this.check(user);
     const owner = user.firebaseId;
     const prefs = await this.db.query(
       'SELECT * FROM agent_auto_preferences WHERE owner_uid=?',
@@ -138,7 +139,7 @@ export class AutoClassificationService {
     };
   }
   async consent(user: AgentHarnessUser, enabled: boolean) {
-    this.check(user);
+    await this.check(user);
     if (typeof enabled !== 'boolean') throw new BadRequestException();
     if (enabled) {
       if (!(await this.connected(user.firebaseId)))
@@ -170,7 +171,7 @@ export class AutoClassificationService {
     return this.status(user);
   }
   async dismiss(user: AgentHarnessUser) {
-    this.check(user);
+    await this.check(user);
     await this.db.query(
       'INSERT INTO agent_auto_preferences(owner_uid,notice_seen) VALUES (?,true) ON DUPLICATE KEY UPDATE notice_seen=true',
       [user.firebaseId],
@@ -178,7 +179,7 @@ export class AutoClassificationService {
     return { ok: true };
   }
   async start(user: AgentHarnessUser) {
-    this.check(user);
+    await this.check(user);
     const result = await this.db.query(
       'UPDATE agent_auto_preferences SET scan_cursor=0,next_scan_at=NOW(3) WHERE owner_uid=? AND enabled=true',
       [user.firebaseId],
@@ -191,7 +192,7 @@ export class AutoClassificationService {
     };
   }
   async inbox(user: AgentHarnessUser, before?: string) {
-    this.check(user);
+    await this.check(user);
     let cursor: { time: string; id: string } | null = null;
     if (before) {
       try {
@@ -237,7 +238,7 @@ export class AutoClassificationService {
     };
   }
   async notice(user: AgentHarnessUser, id: string) {
-    this.check(user);
+    await this.check(user);
     const [row] = await this.db.query(
       'SELECT * FROM agent_auto_items WHERE id=? AND owner_uid=?',
       [id, user.firebaseId],
@@ -283,7 +284,7 @@ export class AutoClassificationService {
     });
   }
   async read(user: AgentHarnessUser, id: string) {
-    this.check(user);
+    await this.check(user);
     await this.db.query(
       'UPDATE agent_auto_items SET read_at=NOW(3) WHERE id=? AND owner_uid=?',
       [id, user.firebaseId],
@@ -291,7 +292,7 @@ export class AutoClassificationService {
     return { ok: true };
   }
   async reply(user: AgentHarnessUser, id: string, answer: string) {
-    this.check(user);
+    await this.check(user);
     if (typeof answer !== 'string' || !answer.trim() || answer.length > 2000)
       throw new BadRequestException('יש לכתוב תשובה עד 2000 תווים');
     await this.db.transaction(async (manager) => {
@@ -347,6 +348,13 @@ export class AutoClassificationService {
         [owner],
       );
       try {
+        try {
+          await this.domain.assertAiAdmin(autoIdentity(owner));
+        } catch (error) {
+          if (!(error instanceof ForbiddenException)) throw error;
+          await this.pause(owner, 'ADMIN_REQUIRED');
+          return;
+        }
         if (!(await this.connected(owner))) {
           await this.pause(owner, 'BANKING_REQUIRED');
           return;
@@ -446,6 +454,7 @@ export class AutoClassificationService {
     consentVersion: number,
   ): Promise<'model' | 'skip'> {
     const user = autoIdentity(owner);
+    await this.check(user);
     const cache = await this.db
       .getRepository(FullTransactionCache)
       .findOne({ where: { id, userId: owner } });
@@ -578,12 +587,14 @@ export class AutoClassificationService {
             'SELECT * FROM agent_auto_preferences WHERE owner_uid=? FOR UPDATE',
             [owner],
           );
-          const ownerRow = await manager
-            .getRepository(User)
-            .findOne({ where: { firebaseId: owner } });
+          const ownerRow = await manager.getRepository(User).findOne({
+            where: { firebaseId: owner },
+            lock: { mode: 'pessimistic_write' },
+          });
           if (
             !pref?.enabled ||
             Number(pref.version) !== consentVersion ||
+            !ownerRow?.role?.includes(UserRole.ADMIN) ||
             !ownerRow?.hasOpenBanking ||
             !(await this.billing.hasModuleAccess(
               owner,

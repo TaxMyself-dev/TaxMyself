@@ -212,6 +212,7 @@ suite('automatic classifier on disposable real MySQL', () => {
       expenses,
     );
     const domain: any = {
+      assertAiAdmin: async () => undefined,
       assertAccessStillHolds: async () => undefined,
       ownerBusinesses: async () => [{ businessNumber: business }],
       resolveBusiness: async (user: any, bn: string) => {
@@ -269,7 +270,11 @@ suite('automatic classifier on disposable real MySQL', () => {
       'user',
     ])
       await db.query('DELETE FROM `' + table + '`');
-    await seed(User, { firebaseId: owner, hasOpenBanking: true });
+    await seed(User, {
+      firebaseId: owner,
+      hasOpenBanking: true,
+      role: ['ADMIN'],
+    });
     await seed(Business, {
       firebaseId: owner,
       businessNumber: business,

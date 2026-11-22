@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -67,7 +68,17 @@ describe('agent access through FirebaseAuthGuard', () => {
         },
         {
           provide: AgentDomainService,
-          useValue: { requestBusiness: async () => null },
+          useValue: {
+            requestBusiness: async () => null,
+            assertAiAdmin: async (user: any) => {
+              if (
+                !users
+                  .find((row) => row.firebaseId === user.actorFirebaseId)
+                  ?.role?.includes(UserRole.ADMIN)
+              )
+                throw new ForbiddenException('Admin access required');
+            },
+          },
         },
         {
           provide: AgentHarnessService,
@@ -94,7 +105,10 @@ describe('agent access through FirebaseAuthGuard', () => {
     delegations.length = 0;
   });
 
-  const asAccountantForClient = (path: string, method: 'get' | 'post' = 'get') =>
+  const asAccountantForClient = (
+    path: string,
+    method: 'get' | 'post' = 'get',
+  ) =>
     request(app.getHttpServer())
       [method](path)
       .set('authorization', 'Bearer uid:accountant-uid')
@@ -111,7 +125,7 @@ describe('agent access through FirebaseAuthGuard', () => {
     ['/api/agent/chat', 'post'],
   ];
 
-  it('acts for the client only through an ACTIVE delegation, as (accountant, client)', async () => {
+  it('denies non-admin accountants even with an ACTIVE delegation', async () => {
     delegations.push({
       userId: 'client-uid',
       agentId: 'accountant-uid',
@@ -123,14 +137,8 @@ describe('agent access through FirebaseAuthGuard', () => {
       '/api/agent/fn/readAgentSession',
     );
 
-    expect(response.status).toBe(204);
-    expect(calls).toEqual([
-      expect.objectContaining({
-        actorFirebaseId: 'accountant-uid',
-        firebaseId: 'client-uid',
-        isDelegatedAccess: true,
-      }),
-    ]);
+    expect(response.status).toBe(403);
+    expect(calls).toHaveLength(0);
   });
 
   it.each(routes)(
@@ -175,7 +183,10 @@ describe('agent access through FirebaseAuthGuard', () => {
               type: 'tool-askUserQuestion',
               toolCallId: 'ask-1',
               state: 'output-available',
-              input: { question: '?', options: [{ label: 'a', value: '514789632' }] },
+              input: {
+                question: '?',
+                options: [{ label: 'a', value: '514789632' }],
+              },
               output: { value: '514789632', label: 'a' },
             },
           ],

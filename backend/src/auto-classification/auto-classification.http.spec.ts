@@ -1,3 +1,5 @@
+import { AgentDomainService } from '../agent-harness/agent-domain.service';
+import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -32,6 +34,15 @@ describe('automatic classification HTTP authorization', () => {
       controllers: [AutoClassificationController],
       providers: [
         FirebaseAuthGuard,
+        {
+          provide: AgentDomainService,
+          useValue: {
+            assertAiAdmin: async (user: any) => {
+              if (user.actorFirebaseId === 'regular')
+                throw new ForbiddenException('Admin access required');
+            },
+          },
+        },
         { provide: AutoClassificationService, useValue: service },
         {
           provide: getRepositoryToken(Delegation),
@@ -52,7 +63,12 @@ describe('automatic classification HTTP authorization', () => {
     jest
       .spyOn(guard as any, 'validateToken')
       .mockImplementation(async (token: string) => ({
-        uid: token === 'admin' ? 'admin' : 'owner',
+        uid:
+          token === 'admin'
+            ? 'admin'
+            : token === 'regular'
+            ? 'regular'
+            : 'owner',
       }));
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -106,6 +122,23 @@ describe('automatic classification HTTP authorization', () => {
       .set('Authorization', 'Bearer owner')
       .set('x-client-user-id', 'client')
       .send({})
+      .expect(403);
+    expect(write).not.toHaveBeenCalled();
+  });
+  it('denies regular users all automation surfaces even with a valid token', async () => {
+    for (const path of [
+      '/api/agent-automation',
+      '/api/agent-automation/notifications',
+      '/api/agent-automation/notifications/id',
+    ])
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', 'Bearer regular')
+        .expect(403);
+    await request(app.getHttpServer())
+      .post('/api/agent-automation/consent')
+      .set('Authorization', 'Bearer regular')
+      .send({ enabled: true })
       .expect(403);
     expect(write).not.toHaveBeenCalled();
   });
