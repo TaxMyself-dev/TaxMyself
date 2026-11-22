@@ -70,3 +70,11 @@ See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
 Referral signup locks the selected active plan for reading inside the signup
 transaction, so concurrent administrative soft deletion cannot leave a new user
 assigned to a deleted plan. Existing missing/inactive referral fallback is unchanged.
+
+## Banking login activity attribution
+
+The signin handler uses FeezbackUserActivityInterceptor after authentication.
+Only the verified owner's session can carry an IP into its immediate async
+banking sync; admin/delegated sessions and independent background work cannot.
+No IP is persisted on User. See
+[Feezback activity](../../../docs/features/feezback-user-activity.md).

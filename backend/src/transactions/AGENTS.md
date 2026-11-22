@@ -146,3 +146,10 @@ decision source, with NULL for unknown history. Cache rebuilds propagate it.
 When automation is enabled, nightly cleanup preserves opted-in users' pending
 outgoing cache so an unfinished history scan is not erased. Disconnect cleanup
 is unchanged. Apply the standalone auto-classification schema before this revision.
+
+## Banking manual activity attribution
+
+Manual trigger-sync and retry-source use FeezbackUserActivityInterceptor to
+retain the initiating owner's IP for Feezback data GETs. Independent jobs and
+admin sync-if-empty do not create this context. See
+[Feezback activity](../../../docs/features/feezback-user-activity.md).
