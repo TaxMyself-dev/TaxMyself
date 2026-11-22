@@ -266,7 +266,7 @@ KeepInTax's dev page assigns a conversation UUID before its first saved message.
 
 ## Onboarding profile
 
-The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agent/onboarding` uses the shared template chat runtime with an onboarding interface policy; ordinary chat uses the same canonical read/update tools without proactive profile questions. The optional readOnboardingContext callback supplies existing story and dated history. AGENT_ONBOARDING_ENABLED defaults off. See the one-agent section below and ../src/agent-onboarding/README.md for ownership, versioned writes, history and deletion limits.
+The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agent/onboarding` uses the shared template chat runtime with an onboarding interface policy; ordinary chat uses the same canonical read/update tools without proactive profile questions. The optional readOnboardingContext callback supplies existing story and dated history. There is no environment activation flag; existing surface/owner authorization remains. See the one-agent section below and ../src/agent-onboarding/README.md for ownership, versioned writes, history and deletion limits.
 
 ## One agent, onboarding interface (2026-11-20)
 
@@ -277,3 +277,19 @@ The owner-only MySQL profile store lives in backend/src/agent-onboarding. `/agen
 ### Admin onboarding entry (2026-11-21)
 
 The onboarding interface is launched only from the admin console. `authorizeOnboarding` is a host-bound callback that checks the actor's persisted ADMIN role before any profile read in that mode, including mode recovered from stored conversation history. Missing callback fails closed. Profile HTTP management has the same persisted-role guard; the normal app no longer mounts the invitation or menu link. Personal profile ownership/delegation checks and ordinary shared-agent memory behavior are unchanged.
+
+## Voice messages (KeepInTax extension)
+
+The Angular /dev/agent composer supports microphone input with @soniox/client 2.5.0. An arrow ends capture, waits for final tokens, and sends one ordinary text message; trash discards it. No editable transcript, audio attachment, or playback is stored in KeepInTax. Audio streams directly from the browser to Soniox using a single-use key. Configure SONIOX_API_KEY in the backend environment; never put it in Angular. Browser site permissions govern whether subsequent recordings prompt again.
+
+Capture is limited to 120 seconds; connection and finalization waits to 45 and 15 seconds. New/opened conversations, client/auth changes and component destruction cancel the session and ignore late results. Typed drafts survive voice sends. The voice controller is separate from the dev composer for reuse by the product UI.
+
+The existing authenticated createAgentChatDictationKey verifies ownership before the KeepInTax issuance guard: 10 requests per minute per agent user, with bounded process-local state (not a distributed quota). Rate-limit responses use HTTP 429. Temporary keys connect within 60 seconds and allow one session up to 150 seconds. These changes to dictation and HTTP error mapping are explicit KeepInTax extensions. No schema or domain-action approval rules change. Live Hebrew accuracy and physical iOS/Android microphone checks require configured credentials and manual verification.
+
+## Automatic classification enqueue (2026-11-19)
+
+The deferred books tool startAutomaticClassification takes scope=all and only enqueues the owner-authorized backend worker. It is a serialized write, cannot run from a suggested follow-up and is not safely rerunnable as a read. The backend requires standing consent; this tool never grants it. Queued is not completed. Progress and questions appear in Settings-new → הסוכן שלי. Individual chat classification still requires its original approval card and alone can select one-time mode. See ../../docs/features/assistant-auto-classification.md.
+
+### Shared model configuration (2026-11-22)
+
+The primary agent and automatic classifier both import KEEPINTAX_AGENT_MODEL_ID from ../src/agent-harness/agent-model.config.ts (gpt-6-luna). This pure shared module has no Nest imports and is bundled into the ESM agent, avoiding any new runtime cross-package dependency. The classifier uses the Responses API with strict JSON output, low reasoning and store:false. Its consent/evidence guards remain separate from model selection. No independent classifier model override.

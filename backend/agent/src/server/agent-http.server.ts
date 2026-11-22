@@ -124,6 +124,10 @@ const serverFunctionFailure = (error: Error) => {
     return jsonError(400, code ?? "SERVER_FUNCTION_INVALID_INPUT", message);
   }
 
+  if (code === "DICTATION_RATE_LIMITED") {
+    return jsonError(429, code, "Too many recordings; try again in a minute.");
+  }
+
   return jsonError(
     code === "USER_STATE_OWNER_CHANGED" ? 401 : 500,
     code ?? "SERVER_FUNCTION_FAILED",

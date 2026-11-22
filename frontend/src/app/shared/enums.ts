@@ -116,6 +116,7 @@ export enum ClientsTableHebrewColumns {
 }
 
 export enum TransactionsOutcomesColumns {
+  CLASSIFICATION_SOURCE = 'classificationSourceLabel',
   BUSINESS_NAME = 'businessName',
   BUSINESS_NUMBER = 'businessNumber',
   TAX_PERCENT = 'taxPercent',
@@ -147,6 +148,7 @@ export enum BusinessStatus {
 }
 
 export enum TransactionsOutcomesHebrewColumns {
+  classificationSource = 'סווג על ידי',
   id = 'מספר עסקה',
   businessNumber = 'שייך לעסק',
   paymentIdentifier = 'אמצעי תשלום',

@@ -96,7 +96,7 @@ legacy memory is silently migrated or deleted.
 
 ## Checks and operation
 
-`AGENT_ONBOARDING_ENABLED=true` enables the owner-only feature. Existing Firebase,
+There is no environment activation switch; owner/Admin checks remain. Existing Firebase,
 OpenAI, MySQL and template Langfuse configuration is reused. No standalone
 `LANGFUSE_ONBOARDING_ENABLED` switch is used. Local application ports remain 4204
 and 3004; this migration does not start servers.
@@ -130,3 +130,12 @@ Admin entry does not grant access to another owner's personal profile: the exist
 self-service/delegation/impersonation restrictions remain. Ordinary agent profile
 memory stays shared; this access restriction applies to the dedicated onboarding
 surface and its HTTP management endpoints.
+
+## Automation integration
+
+Automatic classification keeps the authenticated /agent/chat entry. The dedicated
+/agent/onboarding surface and its profile HTTP endpoints retain the onboarding
+branch's Admin authorization. Settings links include the owned business number.
+Completion requires known nonempty FIELDS values or explicit not_applicable;
+unknown/skipped remain valid memory but block unattended classification. The
+worker reads current versions and locks them again before classification writes.

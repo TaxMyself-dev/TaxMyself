@@ -507,6 +507,7 @@ export interface ReportReadinessResult {
 
 /** The domain one agent request may use, bound to its verified user. */
 export interface AgentDomain {
+  startAutomaticClassification?: (query: Record<string, never>) => Promise<{queued:boolean;message:string}>;
   authorizeOnboarding?: () => Promise<void>;
   profile?: {
     read: (businessNumber: string) => Promise<unknown>;

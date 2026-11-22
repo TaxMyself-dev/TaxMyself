@@ -514,6 +514,7 @@ export class TransactionProcessingService {
           billId: tx.billId,
           classificationType: ClassificationType.RULE,
           classificationRuleId: matchedRule.id,
+          classificationSource: matchedRule.updatedBySource ?? matchedRule.createdBySource ?? null,
           category: matchedRule.category,
           subCategory: matchedRule.subCategory,
           subCategoryId: matchedRule.subCategoryId ?? null,
@@ -633,7 +634,9 @@ export class TransactionProcessingService {
     externalTransactionId: string,
     preflight: (cache: FullTransactionCache, slim: SlimTransaction | null, manager: EntityManager) => Promise<{ result: T; dto?: ClassifyManuallyDto }>,
     isSingleUpdate = true,
+    automatic?: { existingRuleId?: number },
   ): Promise<T> {
+    if(automatic && isSingleUpdate)throw new BadRequestException('Automatic classification only creates permanent rules');
     return this.dataSource.transaction(async (manager) => {
       await manager.getRepository(User).findOne({ where: { firebaseId: userId }, lock: { mode: 'pessimistic_write' } });
       const cache = await manager.getRepository(FullTransactionCache).findOne({ where: { userId, externalTransactionId }, lock: { mode: 'pessimistic_write' } });
@@ -655,7 +658,9 @@ export class TransactionProcessingService {
         );
         if (isSingleUpdate) await scoped.classifyManually(userId, dto, true);
         else {
-          const applied = await scoped.classifyWithRule(userId, { ...dto, confirmOverride: true }, true, cache.businessNumber);
+          const applied = automatic
+            ? await scoped.classifyWithRule(userId,{...dto,confirmOverride:false},true,cache.businessNumber,automatic)
+            : await scoped.classifyWithRule(userId,{...dto,confirmOverride:true},true,cache.businessNumber);
           if (applied.status !== 'applied') throw new ConflictException('CLASSIFICATION_BLOCKED: ' + applied.message);
           if (result !== null && typeof result === 'object')
             Object.assign(result, { ruleId: applied.ruleId, backfillCount: applied.backfillCount });
@@ -746,6 +751,7 @@ export class TransactionProcessingService {
         billId: cacheRow.billId,
         classificationType: ClassificationType.ONE_TIME,
         classificationRuleId: null,
+        classificationSource: 'USER',
         category: dto.category,
         subCategory: dto.subCategory,
         subCategoryId: dto.subCategoryId ?? null,
@@ -776,6 +782,7 @@ export class TransactionProcessingService {
         isRecognized: dto.isRecognized,
         reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.ONE_TIME,
+        classificationSource: 'USER',
         vatReportingDate: periodLabel,
         // Only override the bill's default attribution when the caller
         // explicitly sent a businessNumber. Undefined leaves the column alone.
@@ -833,6 +840,7 @@ export class TransactionProcessingService {
     dto: ClassifyWithRuleDto,
     classificationOnly = false,
     agentBusinessNumber?: string,
+    automatic?: { existingRuleId?: number },
   ): Promise<ClassifyWithRuleResult> {
     // 1. Locate in cache.
     const cacheRow = await this.cacheRepo.findOne({
@@ -905,7 +913,12 @@ export class TransactionProcessingService {
     let rule = await this.rulesRepo.findOne({ where: Object.fromEntries(Object.entries(constraintWhere).map(([key, value]) => [key, value === null ? IsNull() : value])) });
 
     // Guard: existing rule with same signature → require explicit confirmation before override.
-    if (rule && !dto.confirmOverride) {
+    if (automatic?.existingRuleId) {
+      rule = await this.rulesRepo.findOne({where:{id:automatic.existingRuleId,userId,billId:cacheRow.billId}});
+      if (!rule || this.matchRule({ ...cacheRow, transactionDate:new Date(cacheRow.transactionDate), amount:Number(cacheRow.amount) } as NormalizedTransaction, [rule])?.id !== rule.id)
+        throw new ConflictException('CLASSIFICATION_STALE: rule no longer matches');
+    }
+    if (rule && !dto.confirmOverride && !automatic?.existingRuleId) {
       return {
         status: 'confirm_rule_override' as const,
         message: 'קיים כלל סיווג למוסד זה. האם ברצונך לדרוס אותו?',
@@ -929,16 +942,15 @@ export class TransactionProcessingService {
       businessNumber: dto.businessNumber ?? null,
     };
 
-    if (rule) {
-      Object.assign(rule, classificationFields);
-    } else {
+    if (rule && !automatic?.existingRuleId) {
+      Object.assign(rule, classificationFields, {updatedBySource:'USER'});
+    } else if (!rule) {
       rule = this.rulesRepo.create({
-        ...constraintWhere,
-        ...classificationFields,
+        ...constraintWhere, ...classificationFields,
+        createdBySource: automatic ? 'SYSTEM' : 'USER', updatedBySource: automatic ? 'SYSTEM' : 'USER',
       });
     }
-
-    const savedRule = await this.rulesRepo.save(rule);
+    const savedRule = automatic?.existingRuleId ? rule : await this.rulesRepo.save(rule);
 
     // 4b. Resolve the period for the FOCUS transaction. May throw 423.
     //     Use the EFFECTIVE business number so the cadence comes from the
@@ -959,6 +971,7 @@ export class TransactionProcessingService {
         billId: cacheRow.billId,
         classificationType: ClassificationType.RULE,
         classificationRuleId: savedRule.id,
+        classificationSource: savedRule.updatedBySource ?? savedRule.createdBySource ?? null,
         category: dto.category,
         subCategory: dto.subCategory,
         subCategoryId: dto.subCategoryId ?? null,
@@ -989,6 +1002,7 @@ export class TransactionProcessingService {
         isRecognized: dto.isRecognized,
         reportScope: dto.reportScope ?? ExpenseReportScope.PNL,
         classificationType: ClassificationType.RULE,
+        classificationSource: savedRule.updatedBySource ?? savedRule.createdBySource ?? null,
         vatReportingDate: focusPeriodLabel,
         // Only override the bill's default attribution when the caller
         // explicitly sent a businessNumber. Undefined leaves the column alone.
@@ -1015,7 +1029,7 @@ export class TransactionProcessingService {
     }
 
     // 7. Backfill: apply rule to all other existing matching transactions.
-    const backfillCount = await this.applyRuleToExistingTransactions(
+    const backfillCount = automatic ? 0 : await this.applyRuleToExistingTransactions(
       userId,
       cacheRow,
       savedRule,
@@ -1609,6 +1623,7 @@ export class TransactionProcessingService {
         billId: row.billId!,
         classificationType: ClassificationType.RULE,
         classificationRuleId: savedRule.id,
+        classificationSource: savedRule.updatedBySource ?? savedRule.createdBySource ?? null,
         ...payloadById.get(row.externalTransactionId)!,
         confirmed: existingSlim?.confirmed ?? false,
         vatReportingDate: periodLabelByRow.get(row.externalTransactionId) ?? null,
@@ -1627,6 +1642,7 @@ export class TransactionProcessingService {
     for (const row of slimUpserts) {
       const patch = { ...payloadById.get(row.externalTransactionId!)!,
         classificationType: ClassificationType.RULE, classificationRuleId: savedRule.id,
+        classificationSource: savedRule.updatedBySource ?? savedRule.createdBySource ?? null,
         businessNumber: row.businessNumber, vatReportingDate: row.vatReportingDate };
       const key = JSON.stringify(patch);
       if (!groups.has(key)) groups.set(key, { ids: [], patch });
@@ -1707,6 +1723,9 @@ export class TransactionProcessingService {
    * SQL NOT IN is never used here.  Rules are pre-loaded for the batch,
    * and filtering is done in-process.
    */
+  automaticRule(cache: FullTransactionCache, rules: ClassifiedTransactions[]) {
+    return this.matchRule({...cache, amount:Number(cache.amount), transactionDate:new Date(cache.transactionDate)} as NormalizedTransaction, rules);
+  }
   private matchRule(
     tx: NormalizedTransaction,
     rules: ClassifiedTransactions[],
@@ -1806,6 +1825,7 @@ export class TransactionProcessingService {
       confirmed: false,
       vatReportingDate: null,
       classificationType: null,
+      classificationSource: null,
     };
   }
 
@@ -1829,6 +1849,7 @@ export class TransactionProcessingService {
       confirmed: slim.confirmed,
       vatReportingDate: slim.vatReportingDate,
       classificationType: slim.classificationType,
+      classificationSource: slim.classificationSource ?? null,
       // Preserve the user's per-row override if one is set; otherwise fall
       // back to the bill default already present on the base cache row.
       ...(slim.businessNumber != null && { businessNumber: slim.businessNumber }),
@@ -1853,6 +1874,7 @@ export class TransactionProcessingService {
       isRecognized: rule.isRecognized,
       reportScope: rule.reportScope,
       classificationType: ClassificationType.RULE,
+      classificationSource: rule.updatedBySource ?? rule.createdBySource ?? null,
       // Rule-level override wins over the bill default on the base cache row.
       ...(rule.businessNumber != null && { businessNumber: rule.businessNumber }),
     };
@@ -1866,6 +1888,7 @@ export class TransactionProcessingService {
     return {
       id: row.id,
       externalTransactionId: row.externalTransactionId,
+      classificationSource: row.classificationSource ?? null,
       userId: row.userId,
       paymentIdentifier: row.paymentIdentifier,
       sourceRecordId: row.sourceRecordId,
@@ -2054,7 +2077,12 @@ export class TransactionProcessingService {
         if (eligibleUserIds.length === 0) return;
 
         // Step 2 — delete cache rows for eligible users only.
-        const cacheResult = await manager.delete(FullTransactionCache, { userId: In(eligibleUserIds) });
+        const cacheResult = process.env.AGENT_AUTO_CLASSIFICATION_ENABLED === 'true'
+          ? await manager.createQueryBuilder().delete().from(FullTransactionCache)
+            .where('userId IN (:...userIds)',{userIds:eligibleUserIds})
+            .andWhere(`NOT (amount < 0 AND (category IS NULL OR category = '') AND EXISTS (SELECT 1 FROM agent_auto_preferences p WHERE p.owner_uid=full_transactions_cache.userId AND p.enabled=true))`)
+            .execute()
+          : await manager.delete(FullTransactionCache, { userId: In(eligibleUserIds) });
         cacheDeleted = cacheResult.affected ?? 0;
 
         // Step 3 — delete cache-state rows for eligible users only.
@@ -2223,7 +2251,7 @@ export class TransactionProcessingService {
       (dto.reportScope !== undefined && dto.reportScope !== rule.reportScope);
 
     if ((dto.category !== undefined && dto.category !== rule.category) || (dto.subCategory !== undefined && dto.subCategory !== rule.subCategory)) rule.subCategoryId = dto.subCategoryId ?? null;
-    Object.assign(rule, dto);
+    Object.assign(rule, dto, {updatedBySource:'USER'});
     const bill = await this.billRepo.findOne({ where: { id: rule.billId, userId } });
     Object.assign(rule, await this.expensesService.effectiveTransactionClassification(userId,
       rule.businessNumber ?? bill?.businessNumber ?? null,
@@ -2277,12 +2305,12 @@ export class TransactionProcessingService {
     }
     await this.dataSource.transaction(async manager => {
       for (const { ids, law } of groups.values()) {
-        await manager.getRepository(SlimTransaction).createQueryBuilder().update(SlimTransaction).set(law)
+        await manager.getRepository(SlimTransaction).createQueryBuilder().update(SlimTransaction).set({...law,classificationSource:'USER'})
           .where('userId = :userId AND classificationRuleId = :ruleId AND externalTransactionId IN (:...ids)', { userId, ruleId, ids })
           .andWhere('confirmed = false AND isLocked = false')
           .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = slim_transactions.userId AND e.externalTransactionId = slim_transactions.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })
           .execute();
-        await manager.getRepository(FullTransactionCache).createQueryBuilder().update(FullTransactionCache).set(law)
+        await manager.getRepository(FullTransactionCache).createQueryBuilder().update(FullTransactionCache).set({...law,classificationSource:'USER'})
           .where('userId = :userId AND externalTransactionId IN (:...ids)', { userId, ids })
           .andWhere('confirmed = false AND isLocked = false')
           .andWhere('NOT EXISTS (SELECT 1 FROM expense e WHERE e.userId = full_transactions_cache.userId AND e.externalTransactionId = full_transactions_cache.externalTransactionId AND (e.approvalStatus = :approved OR e.isReported = true))', { approved: ExpenseApprovalStatus.APPROVED })

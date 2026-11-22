@@ -59,8 +59,10 @@ export class AccountAssociationDialogComponent implements OnInit {
 
     // Heuristic: CREDIT_CARD ids are shorter; BANK_ACCOUNT ids are longer.
     // Previously we required exact lengths (4/6) which breaks when ids come without leading zeros.
-    const paymentMethodType =
-      paymentIdentifierDigits.length === 0
+    const sourceType = this.rowData()?.['sourceType'];
+    const paymentMethodType = sourceType === 'BANK_ACCOUNT' || sourceType === 'CREDIT_CARD'
+      ? sourceType
+      : paymentIdentifierDigits.length === 0
         ? undefined
         : paymentIdentifierDigits.length >= 5
           ? 'BANK_ACCOUNT'

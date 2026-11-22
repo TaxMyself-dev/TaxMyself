@@ -133,3 +133,16 @@ Only this agent path adds business/unconfirmed/unlocked cache predicates; normal
 manual rule scope is unchanged. Rule lookup uses SQL IS NULL for absent conditions,
 so a default rule cannot accidentally replace a more constrained rule. Failure
 rolls rule/slim/cache writes back together; no expense confirmation is performed.
+
+## Automatic classification and provenance (2026-11-19)
+
+The optional automation argument on classifyPendingForAgent/classifyWithRule
+permits permanent mode only, never overrides an existing rule, skips the legacy
+bulk backfill, and may reuse a verified matching rule without updating its
+timestamp. The bounded automation worker handles every remaining history row.
+Normal manual/chat mode and its backfill scope remain unchanged.
+Rules retain original/latest USER/SYSTEM provenance; slim/cache retain the
+decision source, with NULL for unknown history. Cache rebuilds propagate it.
+When automation is enabled, nightly cleanup preserves opted-in users' pending
+outgoing cache so an unfinished history scan is not erased. Disconnect cleanup
+is unchanged. Apply the standalone auto-classification schema before this revision.

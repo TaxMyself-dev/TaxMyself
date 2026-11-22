@@ -19,6 +19,8 @@ import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 
 export interface UserRuleRow {
+  createdBySource?: 'USER'|'SYSTEM'|null;
+  updatedBySource?: 'USER'|'SYSTEM'|null;
   id: number;
   userId: string;
   transactionName: string;
@@ -545,6 +547,8 @@ export class MyCategoriesTabComponent {
         dateRange: this.formatDateRange(rule.startDate, rule.endDate),
         comment: rule.commentPattern || '—',
         updatedDate: rule.updatedAt,
+        createdBySourceLabel: rule.createdBySource==='SYSTEM'?'המערכת':rule.createdBySource==='USER'?'המשתמש':'מקור לא ידוע',
+        updatedBySourceLabel: rule.updatedBySource==='SYSTEM'?'המערכת':rule.updatedBySource==='USER'?'המשתמש':'מקור לא ידוע',
       };
     }));
   }

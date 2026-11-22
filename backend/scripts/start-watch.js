@@ -46,11 +46,9 @@ const origins = localPorts ? [...new Set([
   ...(process.env.AGENT_APP_ORIGINS || fileEnv.AGENT_APP_ORIGINS || '').split(',').filter(Boolean),
   'http://localhost:' + localPorts.frontendPort, 'http://127.0.0.1:' + localPorts.frontendPort,
 ])].join(',') : undefined;
-const {localOnboardingValue}=require('./local-onboarding-config.cjs');
-const onboardingValue=localOnboardingValue(localPorts,process.env,fileEnv);
-const childEnv = { ...(onboardingValue!==undefined && {AGENT_ONBOARDING_ENABLED:onboardingValue}), ...process.env, DISABLE_SYNCHRONIZE: 'true', ...(localPorts && { PORT: String(localPorts.backendPort), AGENT_APP_ORIGINS: origins }) };
+const childEnv = { ...process.env, DISABLE_SYNCHRONIZE: 'true', ...(localPorts && { PORT: String(localPorts.backendPort), AGENT_APP_ORIGINS: origins }) };
 if (process.argv.includes('--print-config')) {
-  console.log(JSON.stringify({ backendPort: Number(childEnv.PORT || fileEnv.PORT || 8080), source: localPorts ? 'ignored worktree config' : 'process/environment', synchronize: false, onboardingEnabled: childEnv.AGENT_ONBOARDING_ENABLED === 'true' }));
+  console.log(JSON.stringify({ backendPort: Number(childEnv.PORT || fileEnv.PORT || 8080), source: localPorts ? 'ignored worktree config' : 'process/environment', synchronize: false }));
   process.exit(0);
 }
 

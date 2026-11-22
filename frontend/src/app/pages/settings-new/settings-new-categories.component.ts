@@ -20,4 +20,6 @@ import { GenericTableComponent } from 'src/app/components/generic-table/generic-
   templateUrl: './settings-new-categories.component.html',
   styleUrls: ['./settings-new-categories.component.scss'],
 })
-export class SettingsNewCategoriesComponent extends MyCategoriesTabComponent {}
+export class SettingsNewCategoriesComponent extends MyCategoriesTabComponent {
+  constructor(){super();this.rulesColumns=[...this.rulesColumns,{name:'createdBySourceLabel',value:'נוצר על ידי'},{name:'updatedBySourceLabel',value:'עודכן על ידי'}];}
+}

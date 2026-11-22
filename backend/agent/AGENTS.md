@@ -52,3 +52,7 @@ Approval lifecycle: only the latest assistant answer may receive decisions. A ne
 ## Onboarding extension
 
 The profile context callback in src/server/runtime/agent-domain.ts and agent-chat-response.server.ts, and the onboarding instructions, are intentional KeepInTax extensions. The profile store itself is owner-scoped Nest code; its tables are not exposed through the generic gateway. Ordinary chat remains free of onboarding questions. See GUIDE.md and ../src/agent-onboarding/README.md.
+
+## Voice input
+
+The existing dictation-key server function validates user ownership before applying the bounded process-local issuance limit (10/minute per agent user). Soniox keys are single-use, valid for connecting within 60 seconds, with sessions capped at 150 seconds. The Angular voice controller sends final text through the ordinary chat path. See GUIDE.md.

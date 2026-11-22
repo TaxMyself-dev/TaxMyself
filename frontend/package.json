@@ -32,6 +32,7 @@
     "@ionic/angular": "^7.7.3",
     "@ionic/core": "^7.7.3",
     "@primeng/themes": "^19.0.10",
+    "@soniox/client": "2.5.0",
     "axios": "^1.4.0",
     "bootstrap": "^5.3.1",
     "date-fns": "^2.30.0",

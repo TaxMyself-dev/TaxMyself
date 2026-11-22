@@ -2,12 +2,14 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { OpenAIProvider } from "@ai-sdk/openai";
 import { Config, Context, Effect, Layer, Option, Redacted } from "effect";
 
+import { KEEPINTAX_AGENT_MODEL_ID } from "../../../../../src/agent-harness/agent-model.config";
+
 // The model behind the agent: gpt-6-luna, the model the rest of the app's AI
 // uses (join answers, monitor scoring), through the Responses API.
 // Not a pinned snapshot: OpenAI lists no dated gpt-6-luna version, and its
 // answers name only "gpt-6-luna" (checked 2026-10-15), so when OpenAI
 // announces a change to it, run the evals again before trusting it.
-export const agentModelId = "gpt-6-luna";
+export const agentModelId = KEEPINTAX_AGENT_MODEL_ID;
 
 /**
  * The agent's model as the AI SDK calls it (the chat's agent loop, chat

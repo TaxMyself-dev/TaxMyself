@@ -284,8 +284,9 @@ export class OnboardingPage implements OnInit, OnDestroy {
           ),
         ),
       );
-      if (this.businesses().length === 1) {
-        this.selected = this.businesses()[0].number;
+      const requested=this.route.snapshot.queryParamMap.get('businessNumber');
+      if (this.businesses().length === 1 || this.businesses().some(b=>b.number===requested)) {
+        this.selected = requested && this.businesses().some(b=>b.number===requested) ? requested : this.businesses()[0].number;
         await this.load();
         await this.openChat();
       }

@@ -601,3 +601,5 @@
 </ion-content> -->
 <input #expenseCameraInput type="file" accept="image/*" capture="environment" hidden
   (change)="onExpensePhotoCaptured($event)">
+
+@if(agentConsentReturn() && !feezbackDialogVisible()){<app-agent-consent />}

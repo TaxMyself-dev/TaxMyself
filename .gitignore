@@ -34,3 +34,6 @@ _prod_dump/
 
 # Local-only assistant demo PDFs, identity manifest and DB verification
 .local/assistant-qa/
+
+# Isolated automatic-classification diagnostics and test compiler cache.
+/backend/.test-tmp/

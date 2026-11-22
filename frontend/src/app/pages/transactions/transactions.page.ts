@@ -730,6 +730,7 @@ export class TransactionsPage implements OnInit {
 
       data.forEach((row: ITransactionData) => {
         const { userId, ...data } = row;
+        data.classificationSourceLabel=row.classificationSource==='SYSTEM'?'המערכת':row.classificationSource==='USER'?'המשתמש':row.category?'מקור לא ידוע':'—';
         if ((row as any).excludedFromCashflow) data.name = String(data.name ?? '') + ' · מוחרג מהתזרים';
         data.billName ? null : (data.billName = "לא שוייך", this.checkClassifyBill = false);
         data.category ? null : data.category = "טרם סווג";

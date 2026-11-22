@@ -53,3 +53,11 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
   restored anchor aligned while async content resizes; stop repositioning on
   wheel/touch/pointer/keyboard interaction or explicit sidebar navigation.
 - Reloading/reopening starts at account. Do not persist unsaved forms or pixels.
+
+## My Agent (2026-11-19)
+
+The agent section loads the shared MyAgentComponent on first visit, preserves
+the existing scrolling/session navigation, and supports section=agent plus an
+owned notice ID. The shared bell and verified banking-return offer use the same
+owner-only API. Never keep a prior owner's data after owner/view-as changes.
+Rule source labels are additive; original creator and latest editor differ.
