@@ -8,15 +8,31 @@ No integration between those histories is part of this change.
 
 ## Behavior and limits
 
-`POST /internal/document-ai/round` verifies a Google-signed OIDC token and runs
-one wave of **at most two** jobs. It waits for preparation, AI, persistence,
-completion and outstanding lease heartbeats before returning. It never fills
-freed slots repeatedly. Empty/not-yet-due queues do no AI or Drive work.
-Recovery still performs bounded DB statements on an empty queue.
+`POST /internal/document-ai/round` verifies a Google-signed OIDC token and
+keeps refilling up to two concurrent document slots for a 60-second admission
+window. A freed slot can take another job immediately, without waiting for its
+slower companion. There is no two-jobs-per-invocation cap. After the window closes,
+the handler drains all already-started work and its lease heartbeats before
+returning. Empty/not-yet-due queues return immediately without AI or Drive work;
+they are not polled for the rest of the minute. Recovery still performs bounded
+DB statements on an empty queue.
+
+`POST /internal/document-ai/maintenance` uses the same OIDC guard in a separate
+request. It restores abandoned uploads and cleans expired temporary form files
+using the existing store claims and private cleanup method. Each invocation
+examines at most ten uploads and ten cleanup candidates, alternating the two
+lanes. It stops starting items after 60 seconds and awaits an item already in
+progress. Deadline/disconnect/SIGTERM cancellation reaches folder lookup/create,
+tagged upload search, file download and exact-file deletion. No paid AI is called.
+An incomplete upload candidate scan never marks the upload missing; the existing
+lease expiry makes it recoverable later. A recoverable upload failure does not
+prevent the next cleanup item. Deletion still requires the existing expiry/state
+claim, owned folder, operation tag, matching hash and absence of references;
+unconfirmed deletion and the existing five-attempt attention limit are unchanged.
 
 Set `DOCUMENT_AI_DISPATCH_MODE=scheduler` on every serving revision. This turns
-off only the document dispatch and document recovery cron wrappers. The endpoint
-is closed in legacy/default `cron` mode. Invalid scheduler configuration fails
+off only the document dispatch and document recovery cron wrappers. Both endpoints
+are closed in legacy/default `cron` mode. Invalid scheduler configuration fails
 startup. Other cron/interval registrations are unchanged.
 
 Both new-job and saved-completion claims acquire the same short global admission
@@ -46,8 +62,9 @@ compete using the DB leases, never a process-local lock alone.
 | Boundary | Setting / behavior |
 | --- | --- |
 | Anthropic request | Existing 45-second transport timeout, maxRetries=0; round AbortSignal also supplied |
-| Queue-related Drive metadata/download/move | 30-second transport timeout, retry=false, same signal; aborted fallback cannot make another request |
-| Application work budget | 120 seconds from controller entry, aborting transports and preventing a new AI call after preparation |
+| Queue/maintenance Drive operations | 30-second transport timeout, retry=false, same signal; aborted fallback cannot make another request |
+| Admission / maintenance item start window | 60 seconds from worker entry; no new claims/items afterwards |
+| Application work budget (both endpoints) | 120 seconds from controller entry, aborting transports and preventing a new AI call after preparation |
 | Suggested Cloud Run request timeout | 180 seconds |
 | Suggested Scheduler attempt deadline | 210 seconds, including cold-start/network margin |
 | Lease | Existing 3 minutes, heartbeat every 30 seconds; in-progress heartbeat is awaited on exit |
@@ -57,7 +74,7 @@ The handler never uses Promise.race to return while processing continues.
 Cancellation during a paid request is ambiguous and becomes UNKNOWN, with no
 automatic AI retry or provider fallback. A result already durably saved remains
 retryable as completion only. Preparation cancelled before AI can return READY.
-The Scheduler retry policy is zero retries; the next scheduled invocation still
+Both Scheduler jobs use zero automatic retries; the next scheduled invocation still
 runs normally. At-least-once delivery/manual duplicate calls remain safe at the
 job/lease boundary; a duplicate invocation may take a different eligible job.
 
@@ -75,14 +92,14 @@ a substitute for fixing a hung dependency.
 
 ## Background coverage audit
 
-| Existing path | Existing trigger | Covered by this round? |
+| Existing path | Existing trigger | Covered by these endpoints? |
 | --- | --- | --- |
 | Shared DOCUMENT / FORM_FILL / TRANSACTION_LINK / already-enqueued GMAIL AI | documentAiDispatch, every 2s | Yes, including cached result reuse |
 | Saved shared results and completion retries | documentAiDispatch | Yes; no AI replay |
 | Expired shared preparation/AI/completion leases and form expiry | documentAiRecovery, every 30s | Yes, bounded DB recovery |
 | Previously unreported shared failures | documentAiRecovery | Yes, up to ten existing source updates |
-| Orphan shared upload recovery | DocumentsService.recoverQueuedUploads | **No**; needs a separate request-bound maintenance path or reliable worker CPU |
-| 24-hour form temporary-file cleanup/result purge | same method via documentAiRecovery | **No**; scheduler mode suppresses that cron wrapper, so this maintenance needs an explicit replacement before full production activation |
+| Orphan shared upload recovery | DocumentsService.recoverQueuedUploads | **Yes**, authenticated maintenance endpoint; existing upload tag/hash/lease rules |
+| 24-hour form temporary-file cleanup/result purge | same method via documentAiRecovery | **Yes**, authenticated maintenance endpoint; existing ownership/reference/deletion restrictions |
 | Durable Gmail message/attachment scan/download | durableGmailScan, every 10s | **No** |
 | Gmail handoff into shared queue; saved Gmail persistence, moves and explicit-negative deletion | durableGmailProcessing, every 5s | **No**; shared AI completion only hands results back into this lifecycle |
 | Creating nightly Gmail scans | gmailNightlySyncCron, 02:00 Israel | **No** |
@@ -105,8 +122,8 @@ request-billed Cloud Run with min=0. Occasional CPU while another request runs
 is not a background execution guarantee. Conversely, disabling all schedules
 pauses the uncovered rows above; this endpoint does not replace them. **This is
 the document execution slice, not approval to declare all Keepintax background
-work production-ready.** Orphan upload recovery and temporary cleanup need a
-separate bounded authenticated invocation design. Preserve their existing
+work production-ready.** Orphan upload recovery and temporary cleanup are now request-bound through the
+maintenance endpoint and its second once-per-minute Scheduler job. Preserve their existing
 tag/folder/hash/reference checks and deletion retry limits; do not broaden them
 or call the unbounded legacy inbox/nightly loops from this endpoint.
 
@@ -117,23 +134,25 @@ upload request does not wait for Scheduler or AI. Existing UI polling continues.
 With no backlog, pickup usually adds 0–60 seconds, plus cold start, provider and
 completion time. A poll may therefore wait substantially longer than with the
 old 2-second dispatcher. Form edits/obsolete-result protections are unchanged.
-With short jobs the proposed once-per-minute schedule admits at most **two jobs
-per minute**, not 60 despite RPM=60. Backlog, shared quotas and saved completions
-can add minutes; interactive 3:1 lane priority does not bypass occupied slots or
-this admission cap. Longer rounds can delay the next scheduled execution.
-Do not promise real-time form autofill or a production throughput benchmark.
+The round now processes as many due jobs as fit within the minute-long admission
+window while keeping at most two concurrent document tasks. Actual throughput is
+limited by preparation/provider/completion latency and the shared request/token
+budgets, not a two-jobs-per-minute cap. Backlog and saved completions still compete
+for those slots. Interactive 3:1 lane priority remains in force. Jobs started near
+the cutoff are drained afterwards, so a long round can delay the next scheduled
+execution. Do not promise real-time autofill or a production throughput benchmark.
 
 Holding the HTTP request open gives Cloud Run CPU while actual processing runs.
 The proposed setup retains request-based CPU allocation and min=0; it does not
 require always-on instances. Idle invocations still incur authentication,
 startup/DB and Scheduler costs, and a minute cadence does not guarantee a warm
-instance. A later larger bounded batch would need separate latency/load review,
-while keeping document concurrency at two.
+instance. The per-minute refilling policy still needs representative production latency/load
+verification; keep document concurrency at two.
 
 ## Operator runbook — commands prepared, NOT executed
 
 Requires separate main-integration, manual-main-test/push, deployment and cloud
-configuration approvals. Creating the Scheduler job activates future processing;
+configuration approvals. Creating either Scheduler job activates future processing or scoped maintenance;
 do it only after approved deployment and a pending-work review. Do not execute
 migrations, document-ai-queue.sql, historical cutover.sql or schema boot sync.
 Elazar reported the production schema already applied and verified; this task
@@ -247,17 +266,20 @@ After service/account/configuration verification and explicit activation approva
 ```powershell
 $schedulerLocation = 'me-west1' # substitute a supported location if required
 gcloud scheduler jobs create http keepintax-document-ai-minute --project=$schedulerProject --location=$schedulerLocation --schedule='* * * * *' --time-zone='Asia/Jerusalem' --uri="$schedulerUrl/internal/document-ai/round" --http-method=POST --oidc-service-account-email=$schedulerAccount --oidc-token-audience=$schedulerUrl --headers='Content-Type=application/json' --message-body='{}' --attempt-deadline=210s --max-retry-attempts=0 --max-retry-duration=0s
+gcloud scheduler jobs create http keepintax-document-maintenance-minute --project=$schedulerProject --location=$schedulerLocation --schedule='* * * * *' --time-zone='Asia/Jerusalem' --uri="$schedulerUrl/internal/document-ai/maintenance" --http-method=POST --oidc-service-account-email=$schedulerAccount --oidc-token-audience=$schedulerUrl --headers='Content-Type=application/json' --message-body='{}' --attempt-deadline=210s --max-retry-attempts=0 --max-retry-duration=0s
 gcloud scheduler jobs describe keepintax-document-ai-minute --project=$schedulerProject --location=$schedulerLocation --format='yaml(name,schedule,timeZone,httpTarget.uri,httpTarget.oidcToken,attemptDeadline,retryConfig,state)'
+gcloud scheduler jobs describe keepintax-document-maintenance-minute --project=$schedulerProject --location=$schedulerLocation --format='yaml(name,schedule,timeZone,httpTarget.uri,httpTarget.oidcToken,attemptDeadline,retryConfig,state)'
 ```
 
-Creation is once only; use jobs update http with the same flags when an approved
+Create each named job once only; use jobs update http with the same flags when an approved
 job already exists. A future authorized emergency pause is:
 
 ```powershell
 gcloud scheduler jobs pause keepintax-document-ai-minute --project=$schedulerProject --location=$schedulerLocation
+gcloud scheduler jobs pause keepintax-document-maintenance-minute --project=$schedulerProject --location=$schedulerLocation
 ```
 
-Pausing stops future dispatch, not an already-running HTTP round. Do not reset
+Pause both jobs to stop future document dispatch and maintenance. Pausing stops future dispatch, not an already-running HTTP round. Do not reset
 UNKNOWN jobs to READY, delete retained files, or migrate old quota groups to
 clear an alert. Review terminal/blocked outcomes using existing ownership scopes.
 
@@ -266,7 +288,8 @@ clear an alert. Review terminal/blocked outcomes using existing ownership scopes
 - Review pending jobs/quota groups without executing them, ensure old dispatching
   revisions have zero traffic, verify OIDC denial and exact allowed identity.
 - Separately authorize a small synthetic fixture test for two simultaneous
-  documents, overlapping invocations across replicas, shared quotas, empty/due
+  documents with slot refill throughout the 60-second window, overlapping invocations
+  across replicas, maintenance lease overlap and existing deletion refusal rules, shared quotas, empty/due
   distinction, result persistence before completion, disconnect/SIGTERM and
   UNKNOWN recovery. This local change uses mocks, not a real MySQL race test.
 - Observe request duration/5xx/401/403, cold starts, ready-job age, UNKNOWN and

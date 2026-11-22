@@ -38,12 +38,10 @@ describe('request-scoped transport cancellation (offline)', () => {
     });
   });
   it('forwards cancellation and zero retries to the actual SDK request boundary', async () => {
-    const create = jest
-      .fn()
-      .mockResolvedValue({
-        stop_reason: 'end_turn',
-        content: [{ type: 'text', text: '{"invoices":[]}' }],
-      });
+    const create = jest.fn().mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: '{"invoices":[]}' }],
+    });
     const processor = new DocumentProcessorService({
       inspect: async () => ({ kind: 'readable', pages: 1 }),
     } as any);
@@ -97,5 +95,34 @@ describe('request-scoped transport cancellation (offline)', () => {
       ),
     ).rejects.toThrow();
     expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('propagates cancellation to maintenance folder lookup, tagged upload search and exact-file delete', async () => {
+    const controller = new AbortController(),
+      list = jest.fn().mockResolvedValue({ data: { files: [{ id: 'temp' }] } }),
+      remove = jest.fn().mockResolvedValue({});
+    const drive = new GoogleDriveService();
+    (drive as any).getDrive = () => ({ drive: { files: { list } } });
+    (drive as any).getSystemDrive = () => ({ files: { list, delete: remove } });
+    await documentExecution.run(controller.signal, async () => {
+      await drive.ensureAnalysisTemporary('business');
+      await drive.findProtectedUploads(
+        'temp',
+        '00000000-0000-0000-0000-000000000000',
+      );
+      await drive.deleteIntakeFile('fixture');
+    });
+    for (const call of [...list.mock.calls, ...remove.mock.calls])
+      expect(call[1]).toMatchObject({
+        signal: controller.signal,
+        retry: false,
+      });
+    controller.abort();
+    await expect(
+      documentExecution.run(controller.signal, () =>
+        drive.deleteIntakeFile('fixture'),
+      ),
+    ).rejects.toThrow();
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });

@@ -607,7 +607,7 @@ export class DocumentAiStore {
   async claimCleanup(job: AnalysisJob): Promise<AnalysisJob | null> {
     const token = randomUUID();
     const result = await this.query(
-      "UPDATE document_processing_jobs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE),cleanup_state='DELETING',cleanup_attempts=cleanup_attempts+1 WHERE id=? AND owner=? AND business=? AND purpose='FORM_FILL' AND expires_at<UTC_TIMESTAMP(3) AND state IN ('COMPLETED','BLOCKED','PASSWORD_REQUIRED','UNKNOWN','FAILED') AND cleanup_state NOT IN ('DONE','SHARED','ATTENTION') AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))",
+      "UPDATE document_processing_jobs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE),cleanup_state='DELETING',cleanup_attempts=cleanup_attempts+1 WHERE id=? AND owner=? AND business=? AND purpose='FORM_FILL' AND expires_at<UTC_TIMESTAMP(3) AND state IN ('COMPLETED','BLOCKED','PASSWORD_REQUIRED','UNKNOWN','FAILED') AND cleanup_state NOT IN ('DONE','SHARED','ATTENTION') AND (next_at IS NULL OR next_at<=UTC_TIMESTAMP(3)) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))",
       [token, job.id, job.owner, job.business],
     );
     return result.affectedRows === 1 ? { ...job, lease_token: token } : null;

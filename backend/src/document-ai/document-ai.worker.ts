@@ -23,6 +23,7 @@ export const DOCUMENT_AI_PROVIDERS = Symbol('DOCUMENT_AI_PROVIDERS');
 @Injectable()
 export class DocumentAiWorker implements BeforeApplicationShutdown {
   private stopping = false;
+  private maintaining = false;
   private readonly rounds = new Map<AbortController, Promise<void>>();
   private readonly logger = new Logger(DocumentAiWorker.name);
   private readonly active = new Set<Promise<void>>();
@@ -67,7 +68,7 @@ export class DocumentAiWorker implements BeforeApplicationShutdown {
       this.dispatching = false;
     }
   }
-  /** One wave only: no replenishing slots, no detached processing after response. */
+  /** Refill up to two slots for 60 seconds; always drain before returning. */
   async round(signal: AbortSignal) {
     if (this.stopping)
       throw new ServiceUnavailableException('Document worker stopping');
@@ -84,7 +85,9 @@ export class DocumentAiWorker implements BeforeApplicationShutdown {
         finishRound = resolve;
       }),
     );
-    const tasks: Promise<void>[] = [];
+    const tasks = new Set<Promise<void>>();
+    const admissionUntil = Date.now() + 60000;
+    let admitted = 0;
     let failed = false;
     try {
       await documentExecution.run(cancellation.signal, async () => {
@@ -97,18 +100,31 @@ export class DocumentAiWorker implements BeforeApplicationShutdown {
           if (cancellation.signal.aborted) break;
           await this.executor.recordQueuedFailure?.(job, job.error_code);
         }
-        for (let i = 0; i < Math.min(2, profile.concurrency); i++) {
-          if (cancellation.signal.aborted) break;
+        while (!cancellation.signal.aborted && Date.now() < admissionUntil) {
+          if (tasks.size >= Math.min(2, profile.concurrency)) {
+            // Race waits for a free slot only; finalization below always awaits every task.
+            await Promise.race(tasks);
+            continue;
+          }
           const job =
             (await this.store.claimCompletion(profile)) ||
             (await this.store.claimNext(profile));
-          if (!job) break;
-          const task = this.run(job, profile).catch(() => {
-            failed = true;
-          });
-          tasks.push(task);
+          if (!job) {
+            if (!tasks.size) break;
+            await Promise.race(tasks);
+            continue;
+          }
+          const task = this.run(job, profile)
+            .catch(() => {
+              failed = true;
+            })
+            .finally(() => {
+              tasks.delete(task);
+              this.active.delete(task);
+            });
+          admitted++;
+          tasks.add(task);
           this.active.add(task);
-          void task.then(() => this.active.delete(task));
         }
         // Always drain even if a later claim/storage operation fails.
       });
@@ -127,8 +143,47 @@ export class DocumentAiWorker implements BeforeApplicationShutdown {
       );
     return {
       status: cancellation.signal.aborted ? 'cancelled' : 'completed',
-      admitted: tasks.length,
+      admitted,
     };
+  }
+  /** Separate authenticated Scheduler invocation; never performs paid analysis. */
+  async maintenance(signal: AbortSignal) {
+    if (this.stopping)
+      throw new ServiceUnavailableException('Document worker stopping');
+    if (this.maintaining) return { status: 'busy' };
+    this.maintaining = true;
+    const cancellation = new AbortController();
+    const abort = () => cancellation.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+    let finish: () => void;
+    this.rounds.set(
+      cancellation,
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const until = Date.now() + 60000;
+    try {
+      await documentExecution.run(cancellation.signal, async () => {
+        assertDocumentExecution();
+        await this.executor.recoverQueuedUploads(
+          () => !cancellation.signal.aborted && Date.now() < until,
+        );
+      });
+      return {
+        status: cancellation.signal.aborted ? 'cancelled' : 'completed',
+      };
+    } catch {
+      throw new ServiceUnavailableException(
+        'Document maintenance retained for recovery',
+      );
+    } finally {
+      this.rounds.delete(cancellation);
+      finish();
+      signal.removeEventListener('abort', abort);
+      this.maintaining = false;
+    }
   }
   async beforeApplicationShutdown() {
     this.stopping = true;

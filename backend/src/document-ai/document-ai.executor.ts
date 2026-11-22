@@ -14,5 +14,5 @@ export abstract class DocumentAnalysisExecutor {
     job: AnalysisJob,
     outcome: AnalysisOutcome,
   ): Promise<Record<string, any>>;
-  abstract recoverQueuedUploads(): Promise<void>;
+  abstract recoverQueuedUploads(shouldContinue?: () => boolean): Promise<void>;
 }

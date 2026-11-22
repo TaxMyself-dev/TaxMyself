@@ -106,4 +106,22 @@ describe('distributed Scheduler claims (mock DB)', () => {
     expect(sql[1]).toContain('attempt_id IS NULL');
     expect(sql[2]).toContain("SET state='RESULT_SAVED'");
   });
+
+  it('revalidates cleanup due time and ownership after a stale overlapping discovery', async () => {
+    const query = jest.fn().mockResolvedValue({ affectedRows: 0 });
+    expect(
+      await new DocumentAiStore({ query } as any).claimCleanup({
+        id: 'job',
+        owner: 'owner',
+        business: 'business',
+      } as any),
+    ).toBeNull();
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain('next_at<=UTC_TIMESTAMP(3)');
+    expect(sql).toContain('id=? AND owner=? AND business=?');
+    expect(sql).toContain("purpose='FORM_FILL'");
+    expect(sql).toContain('expires_at<UTC_TIMESTAMP(3)');
+    expect(sql).toContain('lease_expires_at<UTC_TIMESTAMP(3)');
+    expect(params.slice(1)).toEqual(['job', 'owner', 'business']);
+  });
 });

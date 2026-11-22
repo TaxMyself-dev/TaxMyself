@@ -20,6 +20,25 @@ export class DocumentSchedulerController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    return this.execute(request, response, (signal) =>
+      this.worker.round(signal),
+    );
+  }
+  @Post('maintenance')
+  @HttpCode(200)
+  async maintenance(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.execute(request, response, (signal) =>
+      this.worker.maintenance(signal),
+    );
+  }
+  private async execute(
+    request: Request,
+    response: Response,
+    work: (signal: AbortSignal) => Promise<unknown>,
+  ) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     // Response close signals a disconnected client; request.close also fires on normal body completion.
@@ -28,7 +47,7 @@ export class DocumentSchedulerController {
     if (request.aborted || response.destroyed) abort();
     const timer = setTimeout(abort, 120000);
     try {
-      return await this.worker.round(controller.signal);
+      return await work(controller.signal);
     } finally {
       clearTimeout(timer);
       request.removeListener('aborted', abort);

@@ -53,6 +53,7 @@ function subject() {
       .mockResolvedValue({ estimatedInput: 1, estimatedOutput: 1 }),
     completeQueuedAnalysis: jest.fn().mockResolvedValue({ ok: true }),
     recordQueuedFailure: jest.fn(),
+    recoverQueuedUploads: jest.fn().mockResolvedValue(undefined),
   };
   const provider: any = {
     id: 'anthropic',
@@ -91,15 +92,14 @@ describe('request-bound document rounds (offline)', () => {
     expect(t.provider.analyze).not.toHaveBeenCalled();
     expect(t.executor.prepareQueuedAnalysis).not.toHaveBeenCalled();
   });
-  it('awaits two jobs, ignores local overlap and does not replenish slots from a large queue', async () => {
+  it('refills two slots, ignores local overlap and drains all eligible jobs', async () => {
     const t = subject(),
       gate = deferred(),
       entered = deferred();
     let count = 0;
-    t.store.claimNext.mockImplementation(async () => ({
-      ...t.job,
-      id: String(++count),
-    }));
+    t.store.claimNext.mockImplementation(async () =>
+      count < 5 ? { ...t.job, id: String(++count) } : null,
+    );
     t.provider.analyze.mockImplementation(async () => {
       if (t.provider.analyze.mock.calls.length === 2) entered.resolve();
       await gate.promise;
@@ -117,9 +117,115 @@ describe('request-bound document rounds (offline)', () => {
       admitted: 0,
     });
     gate.resolve();
+    expect(await round).toEqual({ status: 'completed', admitted: 5 });
+    expect(count).toBe(5);
+    expect(t.executor.completeQueuedAnalysis).toHaveBeenCalledTimes(5);
+  });
+  it('stops refilling at one minute but drains the last active jobs', async () => {
+    jest.useFakeTimers();
+    const t = subject(),
+      entered = deferred(),
+      gate = deferred();
+    let active = 0,
+      peak = 0;
+    t.store.claimNext.mockImplementation(async () => ({ ...t.job }));
+    t.provider.analyze.mockImplementation(async () => {
+      active++;
+      peak = Math.max(peak, active);
+      if (active === 2) entered.resolve();
+      await gate.promise;
+      active--;
+      return { invoices: [] };
+    });
+    const round = t.worker.round(new AbortController().signal);
+    await entered.promise;
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(t.provider.analyze).toHaveBeenCalledTimes(2);
+    gate.resolve();
     expect(await round).toEqual({ status: 'completed', admitted: 2 });
-    expect(count).toBe(2);
-    expect(t.executor.completeQueuedAnalysis).toHaveBeenCalledTimes(2);
+    expect(peak).toBe(2);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+  it('refills a freed slot without waiting for the slower companion job', async () => {
+    const t = subject(),
+      first = deferred(),
+      second = deferred(),
+      entered = deferred(),
+      refilled = deferred();
+    let n = 0;
+    t.store.claimNext.mockImplementation(async () =>
+      n < 3 ? { ...t.job, id: String(++n) } : null,
+    );
+    t.provider.analyze.mockImplementation(async () => {
+      const call = t.provider.analyze.mock.calls.length;
+      if (call === 2) entered.resolve();
+      if (call === 1) await first.promise;
+      if (call === 2) await second.promise;
+      if (call === 3) refilled.resolve();
+      return { invoices: [] };
+    });
+    const round = t.worker.round(new AbortController().signal);
+    await entered.promise;
+    first.resolve();
+    await refilled.promise;
+    expect(t.provider.analyze).toHaveBeenCalledTimes(3);
+    second.resolve();
+    expect((await round).admitted).toBe(3);
+  });
+  it('runs bounded maintenance independently from processing and awaits settlement', async () => {
+    jest.useFakeTimers();
+    const t = subject(),
+      entered = deferred(),
+      gate = deferred();
+    let budget: () => boolean;
+    t.executor.recoverQueuedUploads.mockImplementation(async (fn) => {
+      budget = fn;
+      entered.resolve();
+      await gate.promise;
+    });
+    let finished = false;
+    const maintenance = t.worker
+      .maintenance(new AbortController().signal)
+      .then((v) => {
+        finished = true;
+        return v;
+      });
+    await entered.promise;
+    expect(budget()).toBe(true);
+    expect(await t.worker.maintenance(new AbortController().signal)).toEqual({
+      status: 'busy',
+    });
+    expect((await t.worker.round(new AbortController().signal)).admitted).toBe(
+      0,
+    );
+    await jest.advanceTimersByTimeAsync(60000);
+    expect(budget()).toBe(false);
+    expect(finished).toBe(false);
+    gate.resolve();
+    await maintenance;
+    expect(t.provider.analyze).not.toHaveBeenCalled();
+  });
+  it('cancels and drains maintenance during shutdown', async () => {
+    const t = subject(),
+      entered = deferred(),
+      gate = deferred();
+    let signal: AbortSignal;
+    t.executor.recoverQueuedUploads.mockImplementation(async () => {
+      signal = documentExecution.getStore();
+      entered.resolve();
+      await gate.promise;
+    });
+    const maintenance = t.worker.maintenance(new AbortController().signal);
+    await entered.promise;
+    let stopped = false;
+    const stop = t.worker.beforeApplicationShutdown().then(() => {
+      stopped = true;
+    });
+    expect(signal.aborted).toBe(true);
+    expect(stopped).toBe(false);
+    gate.resolve();
+    await stop;
+    expect((await maintenance).status).toBe('cancelled');
   });
   it('drains already-started work if a later claim fails', async () => {
     const t = subject(),
@@ -300,7 +406,10 @@ describe('request-bound document rounds (offline)', () => {
 });
 describe('Scheduler HTTP authorization', () => {
   let app: INestApplication, previous: NodeJS.ProcessEnv;
-  const worker = { round: jest.fn().mockResolvedValue({ admitted: 0 }) };
+  const worker = {
+    round: jest.fn().mockResolvedValue({ admitted: 0 }),
+    maintenance: jest.fn().mockResolvedValue({ status: 'completed' }),
+  };
   const claims = () => ({
     aud: env.DOCUMENT_AI_SCHEDULER_AUDIENCE,
     email: env.DOCUMENT_AI_SCHEDULER_SERVICE_ACCOUNT,
@@ -382,6 +491,24 @@ describe('Scheduler HTTP authorization', () => {
       env.DOCUMENT_AI_SCHEDULER_AUDIENCE,
     );
     expect(worker.round).toHaveBeenCalledTimes(1);
+  });
+  it('requires the same verified service identity for the maintenance route', async () => {
+    worker.maintenance.mockClear();
+    await request(app.getHttpServer())
+      .post('/internal/document-ai/maintenance')
+      .expect(401);
+    verify.mockResolvedValue({ ...claims(), sub: 'wrong' });
+    await request(app.getHttpServer())
+      .post('/internal/document-ai/maintenance')
+      .set('Authorization', 'Bearer synthetic')
+      .expect(401);
+    expect(worker.maintenance).not.toHaveBeenCalled();
+    verify.mockResolvedValue(claims());
+    await request(app.getHttpServer())
+      .post('/internal/document-ai/maintenance')
+      .set('Authorization', 'Bearer synthetic')
+      .expect(200);
+    expect(worker.maintenance).toHaveBeenCalledTimes(1);
   });
   it('fails startup closed for missing identity configuration', () => {
     delete process.env.DOCUMENT_AI_SCHEDULER_SERVICE_ACCOUNT_SUB;

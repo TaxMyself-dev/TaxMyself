@@ -69,7 +69,7 @@ export class GoogleDriveService {
     const result = await this.getSystemDrive().files.list({
       q: `'${folderId.replace(/'/g, "\\'")}' in parents and trashed=false and appProperties has { key='keepintaxProtectedOperation' and value='${operationId}' }`,
       fields: 'files(id)', pageSize: 100, supportsAllDrives: true, includeItemsFromAllDrives: true,
-    }, { timeout: 30000, retry: false });
+    }, { timeout: 30000, retry: false, ...documentTransportOptions() });
     return (result.data.files || []).map(file => file.id).filter(Boolean);
   }
 
@@ -78,7 +78,7 @@ export class GoogleDriveService {
     const result = await this.getSystemDrive().files.create({
       requestBody: { name, parents: [folderId], mimeType, appProperties: { keepintaxProtectedOperation: operationId } },
       media: { mimeType, body: Readable.from(bytes) }, fields: 'id', supportsAllDrives: true,
-    }, { timeout: 30000, retry: false });
+    }, { timeout: 30000, retry: false, ...documentTransportOptions() });
     if (!result.data.id) throw new Error('Protected upload returned no identity');
     return result.data.id;
   }
@@ -91,7 +91,7 @@ export class GoogleDriveService {
   }
   /** Unlike the legacy delete wrapper, a 404 is NOT confirmed deletion. */
   async deleteIntakeFile(fileId: string): Promise<'DELETED'|'UNCONFIRMED'> {
-    try { await this.getSystemDrive().files.delete({fileId,supportsAllDrives:true},{timeout:30000,retry:false}); return 'DELETED'; }
+    try { await this.getSystemDrive().files.delete({fileId,supportsAllDrives:true},{timeout:30000,retry:false,...documentTransportOptions()}); return 'DELETED'; }
     catch(error:any) { if((error?.code??error?.response?.status)===404)return 'UNCONFIRMED'; throw new Error('Intake deletion failed'); }
   }
   private readonly logger = new Logger(GoogleDriveService.name);
@@ -353,7 +353,7 @@ export class GoogleDriveService {
       spaces: 'drive',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-    });
+    }, documentTransportOptions());
 
     const existing = list.data.files?.[0]?.id;
     if (existing) return existing;
@@ -366,7 +366,7 @@ export class GoogleDriveService {
       },
       fields: 'id',
       supportsAllDrives: true,
-    });
+    }, documentTransportOptions());
 
     const id = res.data.id;
     if (!id) {

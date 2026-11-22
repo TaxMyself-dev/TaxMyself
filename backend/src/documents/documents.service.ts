@@ -3406,23 +3406,42 @@ ${finalOwnerName}`;
     }
     return {ok:true,documentId:claim.id,driveFileId:claim.driveFileId,driveFileName:claim.driveFileName,invoiceNumber:claim.invoiceNumber,allocationNumber:claim.allocationNumber,documentType:claim.documentType};
   }
-  async recoverQueuedUploads():Promise<void>{
+  async recoverQueuedUploads(shouldContinue:()=>boolean=()=>true):Promise<void>{
     const store=this.queueStore();
-    for(const pending of await store.unfinishedUploads()){
-      const job=await store.claimUpload(pending);if(!job)continue;
-      const {business}=await this.analysisBusiness(job.owner,job.business);
-      const context=analysisContext(job.context_json);
-      const folder=context.temporaryUpload?await this.googleDriveService.ensureAnalysisTemporary(business.driveFolderId):await this.googleDriveService.ensureIntakeStaging(business.driveFolderId);
-      const candidates=await this.googleDriveService.findProtectedUploads(folder,job.id);
-      let found:string|undefined;
-      for(const fileId of candidates){const bytes=await this.googleDriveService.downloadFile(fileId);if(createHash('sha256').update(bytes).digest('hex')===job.content_hash){found=fileId;break;}}
-      if(found)await store.bindUpload(job,found,folder);
-      else await store.patch(job,{state:'BLOCKED',error_code:'UPLOAD_NOT_FOUND_REUPLOAD_REQUIRED',lease_token:null,lease_expires_at:null});
+    if(!shouldContinue())return;
+    const uploads=await store.unfinishedUploads();
+    const cleanups=await store.expiredPrefills();
+    // Both lists are bounded to ten by the store. Alternate lanes so cleanup
+    // is not hidden behind every slow upload in the batch.
+    for(let i=0;i<Math.max(uploads.length,cleanups.length);i++){
+      if(!shouldContinue())return;
+      if(uploads[i]){
+        try{await this.recoverQueuedUpload(uploads[i],shouldContinue);}
+        catch{this.logger.warn('Document upload recovery retained for retry');}
+      }
+      if(!shouldContinue())return;
+      if(cleanups[i]){
+        const job=await store.claimCleanup(cleanups[i]);if(!job)continue;
+        try{await this.cleanupQueuedPrefill(job);}catch{await store.finishCleanup(job,'RETRY');}
+      }
     }
-    for(const pending of await store.expiredPrefills()){
-      const job=await store.claimCleanup(pending);if(!job)continue;
-      try{await this.cleanupQueuedPrefill(job);}catch{await store.finishCleanup(job,'RETRY');}
+  }
+  private async recoverQueuedUpload(pending:AnalysisJob,shouldContinue:()=>boolean):Promise<void>{
+    const store=this.queueStore();
+    const job=await store.claimUpload(pending);if(!job)return;
+    const {business}=await this.analysisBusiness(job.owner,job.business);
+    const context=analysisContext(job.context_json);
+    const folder=context.temporaryUpload?await this.googleDriveService.ensureAnalysisTemporary(business.driveFolderId):await this.googleDriveService.ensureIntakeStaging(business.driveFolderId);
+    const candidates=await this.googleDriveService.findProtectedUploads(folder,job.id);
+    let found:string|undefined;
+    for(const fileId of candidates){
+      // A partial candidate scan must never produce a false missing-upload verdict.
+      if(!shouldContinue())return;
+      const bytes=await this.googleDriveService.downloadFile(fileId);
+      if(createHash('sha256').update(bytes).digest('hex')===job.content_hash){found=fileId;break;}
     }
+    if(found)await store.bindUpload(job,found,folder);
+    else if(shouldContinue())await store.patch(job,{state:'BLOCKED',error_code:'UPLOAD_NOT_FOUND_REUPLOAD_REQUIRED',lease_token:null,lease_expires_at:null});
   }
   private async cleanupQueuedPrefill(job:AnalysisJob){
     const store=this.queueStore(),context=analysisContext(job.context_json);
