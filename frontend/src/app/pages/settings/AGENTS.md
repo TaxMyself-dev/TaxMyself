@@ -3,6 +3,12 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 
 ## Gmail connection boundary
 
+- Each connected mailbox opens 'הגדרות קליטה ושיוך לעסק' for an owned-business
+  default and multiple exact sender rules. Sender is the address, not display name.
+  AI identity can override assignment defaults; blocking rules prevent new intake.
+  The server owns validation/ownership and conflicting rule rejection. See
+  [routing specification](../../../../../docs/features/gmail-business-routing.md).
+
 - Gmail uses Composio Managed OAuth; retain the shared component in both settings pages.
 - Pass the local integration ID for reconnect, never a provider connection ID from UI.
 - Callback query parameters only indicate a return; connection success comes from saved

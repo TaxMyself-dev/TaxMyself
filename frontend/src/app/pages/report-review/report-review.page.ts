@@ -111,6 +111,7 @@ interface EditableReviewRow {
    *  etc.). Empty for tx_only. Derived once in toEditableRow so the
    *  template doesn't have to re-map every change-detection cycle. */
   documentTypeLabel: string;
+  routingNote?: string | null;
   /** Raw documentType enum value from the backend ("invoice", "receipt",
    *  "invoice_receipt_pair", ...). Used by the template to decide whether
    *  to show the "פצל" (unpair) action — only invoice_receipt_pair rows
@@ -742,6 +743,7 @@ export class ReportReviewPage implements OnInit {
       invoiceNumber: docSide?.invoiceNumber ?? '',
       allocationNumber: docSide?.allocationNumber ?? '',
       documentTypeLabel: this.documentTypeLabel(docSide?.documentType ?? null),
+      routingNote: docSide?.routingNote ?? null,
       documentType: docSide?.documentType ?? null,
       documentKind: docSide?.documentKind ?? null,
       supplier,

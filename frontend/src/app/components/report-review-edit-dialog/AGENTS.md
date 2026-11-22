@@ -11,6 +11,10 @@ changes and save intent while the parent page owns persistence.
 
 ## Main flows
 
+- Optional routingNote renders the server's AI business-routing provenance as
+  text in both archive approval and report-review edit details. Never render
+  raw AI output as HTML or perform routing from this presentation component.
+
 - Never call persistence APIs from this component. Emit changes to
   `ReportReviewPage`, which chooses document/transaction ownership and waits for
   the server before closing.

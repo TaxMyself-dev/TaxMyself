@@ -1,3 +1,4 @@
+import { emailRoutingNote } from '../email-intake/email-routing.policy';
 import { Optional } from '@nestjs/common';
 import { EmailIntakeStore } from '../email-intake/email-intake.store';
 import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
@@ -1619,6 +1620,7 @@ export class ReportReviewService {
 
     return {
       documentId: d.id,
+      routingNote: emailRoutingNote(d.emailRouting),
       driveFileId: d.driveFileId,
       driveFileName: d.driveFileName,
       supplier: d.supplier,

@@ -34,6 +34,9 @@ import {
 @Index('ix_user_integrations_provider_status', ['provider', 'status'])
 @Index('ux_user_integrations_connected_account', ['connectedAccountId'], { unique: true })
 export class UserIntegration {
+  @Column({ name: 'email_routing_json', type: 'json', nullable: true })
+  emailRouting: import('../../email-intake/email-routing.policy').EmailRoutingSettings | null;
+
   @Column({ name: 'connection_backend', type: 'varchar', length: 32, nullable: true })
   connectionBackend: 'COMPOSIO' | null;
 

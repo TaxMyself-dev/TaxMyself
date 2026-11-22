@@ -16,6 +16,7 @@
 /** Document-side fields the review modal needs to render a row. Subset of
  *  ExtractedDocument — only the columns the modal cares about. */
 export interface ReviewDocSummary {
+  routingNote?: string | null;
   documentId: number;
   driveFileId: string;
   driveFileName: string;

@@ -178,9 +178,11 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'documentDate', value: 'תאריך מסמך', type: FormTypes.DATE },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
     { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT, cellRenderer: ICellRenderer.SOURCE_BADGE },
+    { name: 'routingNote', value: 'שיוך לעסק', type: FormTypes.TEXT },
   ]);
 
   readonly archiveSearchColumns = [
+    'routingNote',
     'name',
     'documentTypeLabel',
     'statusLabel',

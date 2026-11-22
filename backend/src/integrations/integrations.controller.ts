@@ -1,5 +1,6 @@
 import { Optional } from '@nestjs/common';
 import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
+import { EmailRoutingService } from '../email-intake/email-routing.service';
 import {
   Body,
   BadRequestException,
@@ -43,6 +44,7 @@ export class IntegrationsController {
     private readonly gmailDriveImportService: GmailDriveImportService,
     private readonly gmailSyncService: GmailSyncService,
     @Optional() private readonly durableRuns?: EmailIntakeRunsService,
+    @Optional() private readonly emailRouting?: EmailRoutingService,
   ) {}
 
   private ownerId(request: AuthenticatedRequest): string {
@@ -52,6 +54,18 @@ export class IntegrationsController {
       throw new ForbiddenException('Mailbox access is available only to the account owner');
     }
     return user.firebaseId;
+  }
+
+  @Get('google/:integrationId/routing')
+  @UseGuards(FirebaseAuthGuard)
+  async routing(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id: number) {
+    return this.emailRouting.get(this.ownerId(request),id);
+  }
+
+  @Post('google/:integrationId/routing')
+  @UseGuards(FirebaseAuthGuard)
+  async saveRouting(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id: number, @Body() body: unknown) {
+    return this.emailRouting.save(this.ownerId(request),id,body);
   }
 
   /** Returns the Google consent-screen URL the frontend should navigate to. */

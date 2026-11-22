@@ -52,6 +52,8 @@
           }
         </p>
 
+        <button type="button" (click)="openRouting(account.id)" [disabled]="routingBusy()">הגדרות קליטה ושיוך לעסק</button>
+
         @if (account.remoteDisconnectPending) {
           <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
           <app-p-button [buttonText]="'נסה שוב לנתק'" [severity]="'danger'" [variant]="'outlined'"
@@ -190,6 +192,36 @@
 </div>
 
 <!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
+<p-dialog header="הגדרות קליטה ושיוך לעסק" [visible]="routingAccountId() !== null" [modal]="true"
+  [closable]="!routingBusy()" [style]="{width:'min(680px,95vw)'}" (visibleChange)="!$event && routingAccountId.set(null)">
+  @if(routingBusy()){<p role="status">טוען ושומר הגדרות...</p>}
+  @if(routingConfig(); as config){
+    <fieldset [disabled]="routingBusy()" class="email-routing-form">
+      <label>עסק ברירת מחדל לתיבה
+        <select [(ngModel)]="config.settings.businessNumber">
+          <option [ngValue]="null">בחר עסק</option>
+          @for(business of config.businesses;track business.businessNumber){<option [ngValue]="business.businessNumber">{{business.businessName || business.businessNumber}}</option>}
+        </select>
+      </label>
+      <p>זיהוי חד־משמעי של העסק במסמך באמצעות AI קודם לברירת המחדל ולכללי השיוך. כללי אי־ייבוא מונעים קליטה וניתוח חדשים.</p>
+      @for(rule of config.settings.rules;track $index){
+        <div class="email-routing-rule">
+          <label>כתובת השולח<input type="email" dir="ltr" maxlength="320" [(ngModel)]="rule.sender" placeholder="billing@example.com" /></label>
+          <label>פעולה<select [(ngModel)]="rule.action"><option value="BLOCK">אל תייבא</option><option value="BUSINESS">ברירת מחדל לשיוך לעסק</option></select></label>
+          @if(rule.action==='BUSINESS'){
+            <label>עסק<select [(ngModel)]="rule.businessNumber"><option [ngValue]="undefined">בחר עסק</option>
+              @for(business of config.businesses;track business.businessNumber){<option [ngValue]="business.businessNumber">{{business.businessName || business.businessNumber}}</option>}
+            </select></label>
+          }
+          <button type="button" (click)="removeRoutingRule($index)">הסר כלל</button>
+        </div>
+      }
+      <button type="button" (click)="addRoutingRule()" [disabled]="config.settings.rules.length >= 100">הוסף כלל שולח</button>
+      <button type="button" (click)="saveRouting()">שמור הגדרות</button>
+    </fieldset>
+  }
+  @if(routingError()){<p role="alert" class="gmail-error">{{routingError()}}</p>}
+</p-dialog>
 <p-dialog header="משיכת מסמכים לפי תאריכים" [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"
   [style]="{ width: 'min(440px, 95vw)' }"

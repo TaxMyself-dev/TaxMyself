@@ -1,5 +1,11 @@
 ## Purpose
 
+Gmail business routing: owner-only GET/POST google/:integrationId/routing manages
+a mailbox default and up to 100 exact sender rules. Provider read boundaries
+reload all current rules; blocked senders never reach attachment/AI calls. Query
+changes restart durable pagination without discarding source identities. See
+../../../docs/features/gmail-business-routing.md and email-intake/AGENTS.md.
+
 Owns connected third-party user integrations, currently Composio-managed Gmail
 document import/synchronization.
 

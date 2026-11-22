@@ -7,6 +7,9 @@ export type GmailSyncRunStatus = 'RUNNING' | 'SUCCESS' | 'ERROR';
 
 /** סטטוס האינטגרציה עצמה (REVOKED לא מוחזר לפרונט). */
 export type GmailIntegrationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export interface EmailSenderRule { sender:string;action:'BLOCK'|'BUSINESS';businessNumber?:string; }
+export interface EmailRoutingSettings { businessNumber:string|null;rules:EmailSenderRule[]; }
+export interface EmailRoutingConfiguration {settings:EmailRoutingSettings;businesses:{businessNumber:string;businessName:string}[];}
 
 /** מצב סנכרון של חשבון Gmail בודד (שורה אחת מתוך user_integrations). */
 export interface GmailAccountSyncStatus {
@@ -73,6 +76,13 @@ export interface GmailImportAllResult {
 })
 export class IntegrationsService {
   constructor(private http: HttpClient) {}
+
+  getEmailRouting(id:number):Observable<EmailRoutingConfiguration>{
+    return this.http.get<EmailRoutingConfiguration>(`${environment.apiUrl}integrations/google/${id}/routing`);
+  }
+  saveEmailRouting(id:number,settings:EmailRoutingSettings):Observable<{settings:EmailRoutingSettings}>{
+    return this.http.post<{settings:EmailRoutingSettings}>(`${environment.apiUrl}integrations/google/${id}/routing`,settings);
+  }
 
   /** כתובת מסך ההסכמה של Google — הפרונט מנווט אליה כדי לחבר חשבון. */
   getGoogleConnectUrl(integrationId?: number): Observable<{ url: string }> {

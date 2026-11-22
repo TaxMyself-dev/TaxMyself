@@ -15,6 +15,8 @@ export interface EmailMessage {
 }
 
 export interface EmailAccountContext {
+  /** Known sender for rule checks at each attachment-provider boundary. */
+  senderEmail?: string | null;
   firebaseId: string;
   connectedAccountId: string;
   environment: string;

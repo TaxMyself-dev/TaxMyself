@@ -30,6 +30,7 @@ export interface EmailItem {
   attempts: number;
 }
 export interface EmailWork {
+  email_routing_json?: any;
   source?: string;
   email_policy_version?: string;
   id: number;
@@ -208,10 +209,9 @@ export class EmailIntakeStore {
         const known = part.skip
           ? []
           : await this.query(
-              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND r.business_number=? AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
+              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND d.firebase_id=r.firebase_id AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
               [
                 run.firebase_id,
-                run.business_number,
                 run.integration_id,
                 message.message_id,
                 part.path,
@@ -305,7 +305,7 @@ export class EmailIntakeStore {
   async dueWork(): Promise<EmailWork[]> {
     if (!this.enabled()) return [];
     return this.query(
-      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) ORDER BY id LIMIT 20",
+      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','ROUTING_PENDING','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) ORDER BY id LIMIT 20",
     );
   }
   async claimWork(work: EmailWork) {
@@ -328,6 +328,7 @@ export class EmailIntakeStore {
     changes: Record<string, any>,
   ) {
     const allowed = [
+      'email_routing_json',
       'email_work_state',
       'email_ai_state',
       'email_ai_attempt_id',

@@ -109,6 +109,9 @@ export enum ExtractedDocumentType {
 // never previously declared.
 @Index('ix_extracted_document_paired_with', ['pairedWithDocumentId'])
 export class ExtractedDocument {
+  @Column({ name: 'email_routing_json', type: 'json', nullable: true })
+  emailRouting: import('../email-intake/email-routing.policy').EmailRoutingDecision | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 

@@ -13,6 +13,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
 import {
   GmailAccountSyncStatus,
+  EmailRoutingConfiguration,
   IntegrationsService,
 } from 'src/app/services/integrations.service';
 import { inputsSize } from 'src/app/shared/enums';
@@ -58,6 +59,33 @@ export class GmailIntegrationComponent implements OnInit {
   durableState(value:string):string {return ({READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
   runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
   readonly connecting = signal(false);
+  readonly routingAccountId=signal<number|null>(null);
+  readonly routingConfig=signal<EmailRoutingConfiguration|null>(null);
+  readonly routingBusy=signal(false);
+  readonly routingError=signal('');
+  openRouting(id:number):void{
+    if(this.authService.isViewingAsClient()||this.routingBusy())return;
+    this.routingAccountId.set(id);this.routingConfig.set(null);this.routingError.set('');this.routingBusy.set(true);
+    this.integrationsService.getEmailRouting(id).subscribe({
+      next:config=>{this.routingConfig.set(config);this.routingBusy.set(false);},
+      error:()=>{this.routingError.set('לא ניתן לטעון את הגדרות המייל.');this.routingBusy.set(false);},
+    });
+  }
+  addRoutingRule():void{
+    this.routingConfig.update(config=>config?{...config,settings:{...config.settings,rules:[...config.settings.rules,{sender:'',action:'BLOCK'}]}}:config);
+  }
+  removeRoutingRule(index:number):void{
+    this.routingConfig.update(config=>config?{...config,settings:{...config.settings,rules:config.settings.rules.filter((_,i)=>i!==index)}}:config);
+  }
+  saveRouting():void{
+    const id=this.routingAccountId(),config=this.routingConfig();
+    if(id===null||!config||this.routingBusy()||this.authService.isViewingAsClient())return;
+    this.routingBusy.set(true);this.routingError.set('');
+    this.integrationsService.saveEmailRouting(id,config.settings).subscribe({
+      next:()=>{this.routingBusy.set(false);this.routingAccountId.set(null);this.messageService.add({severity:'success',summary:'הגדרות המייל נשמרו',key:'br'});},
+      error:()=>{this.routingBusy.set(false);this.routingError.set('לא ניתן לשמור. יש לבחור עסק תקף ולבדוק שכתובות השולחים מלאות ושאין כללי שיוך סותרים.');},
+    });
+  }
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
   readonly importing = signal(false);
   /** מזהי אינטגרציה שמתנתקים כרגע (spinner per-account). */

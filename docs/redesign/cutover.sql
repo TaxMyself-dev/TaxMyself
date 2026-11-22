@@ -3109,3 +3109,11 @@ ALTER TABLE classified_transactions ADD COLUMN createdBySource varchar(10) NULL,
 ALTER TABLE slim_transactions ADD COLUMN classificationSource varchar(10) NULL;
 
 ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) NULL;
+
+-- Gmail business routing, 2026-11-22. Explicit preparation approval only.
+-- Do not execute without separate database-change authorization. Apply once.
+-- Same statements as backend/scripts/migrations/2026-11-22_gmail-business-routing.sql;
+-- choose one execution path, never run both.
+ALTER TABLE user_integrations ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE imported_documents ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE extracted_document ADD COLUMN email_routing_json JSON NULL;

@@ -13,6 +13,14 @@ describe('Gmail connection requests', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
+  it('reads and saves multiple mailbox-scoped rules without provider credentials',()=>{
+    const settings={businessNumber:'123456789',rules:[{sender:'blocked@example.com',action:'BLOCK' as const},{sender:'billing@example.com',action:'BUSINESS' as const,businessNumber:'987654321'}]};
+    service.getEmailRouting(17).subscribe();
+    http.expectOne(`${environment.apiUrl}integrations/google/17/routing`).flush({settings,businesses:[]});
+    service.saveEmailRouting(17,settings).subscribe();
+    const save=http.expectOne(`${environment.apiUrl}integrations/google/17/routing`);
+    expect(save.request.method).toBe('POST');expect(save.request.body).toEqual(settings);save.flush({settings});
+  });
   it('creates a new connection without a mailbox identifier from the browser', () => {
     service.getGoogleConnectUrl().subscribe();
     const request = http.expectOne(`${environment.apiUrl}integrations/google/connect`);

@@ -195,6 +195,7 @@ export class GmailReaderService {
     this.assertUsableIntegration(integration);
     const account=this.accountContext(integration);
     const message=await this.emailProvider.getMessage(account,messageId);
+    account.senderEmail=message.payload.headers?.find(header=>header.name?.toLowerCase()==='from')?.value || null;
     if(!/^root(?:\.\d+)*$/.test(path))throw new EmailProviderError('CONTRACT');
     let part=message.payload;
     for(const index of path.split('.').slice(1)) { if(!/^\d+$/.test(index)||!part.parts?.[Number(index)])throw new EmailProviderError('CONTRACT'); part=part.parts[Number(index)]; }
@@ -366,6 +367,8 @@ export class GmailReaderService {
     aiReviewQueued: number;
   }> {
     const message = await this.emailProvider.getMessage(account, messageId);
+
+    account = {...account, senderEmail: message.payload.headers?.find(header=>header.name?.toLowerCase()==='from')?.value || null};
 
     const header = (name: string): string | null =>
       message.payload?.headers?.find((h) => h.name?.toLowerCase() === name)?.value ?? null;

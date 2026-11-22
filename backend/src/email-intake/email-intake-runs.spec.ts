@@ -1,4 +1,16 @@
 import { EmailIntakeRunsService } from './email-intake-runs.service';
+import { EmailRulesChangedError } from './email-routing.policy';
+
+it('restarts pagination on changed rules while retaining durable source identities',async()=>{
+  const run:any={id:'run',firebase_id:'owner',business_number:'123',integration_id:17,query_text:'has:attachment',page_token:'old',scan_state:'PAGING'};
+  const query=jest.fn(async(sql:string)=>sql.startsWith('SELECT *')?[run]:{affectedRows:1});
+  const store:any={enabled:()=>true,leaseRun:async()=> 'token',items:async()=>[],summary:async()=>({messages:{},attachments:{}}),query};
+  const reader:any={durablePage:jest.fn(async()=>{throw new EmailRulesChangedError('has:attachment -from:(blocked@example.com)');})};
+  const service=new EmailIntakeRunsService(store,reader,{findOwnedByIdOrThrow:async()=>({status:'ACTIVE'})} as any,{} as any,{} as any);
+  await service.step(run);
+  expect(query).toHaveBeenCalledWith(expect.stringContaining("error_code='RULES_CHANGED'"),['has:attachment -from:(blocked@example.com)','run','token']);
+  expect(query.mock.calls.some(([sql])=>/DELETE|TRUNCATE/.test(sql))).toBe(false);
+});
 function simulation() {
   const run: any = {
     id: 'run',

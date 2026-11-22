@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { EmailRoutingService } from './email-routing.service';
 import { Cron } from '@nestjs/schedule';
 import { EmailIntakeStore, EmailRun } from './email-intake.store';
 import { EmailIntakeStorage } from './email-intake.storage';
@@ -13,6 +14,7 @@ import {
   IntegrationStatus,
 } from '../integrations/enums/integrations.enums';
 import { UserIntegration } from '../integrations/entities/user-integration.entity';
+import { EmailRuleBlockedError, EmailRulesChangedError } from './email-routing.policy';
 import { EmailProviderError } from '../integrations/providers/email-provider.error';
 @Injectable()
 export class EmailIntakeRunsService {
@@ -24,6 +26,7 @@ export class EmailIntakeRunsService {
     readonly integrations: UserIntegrationsService,
     readonly importer: DocumentImportService,
     readonly storage: EmailIntakeStorage,
+    @Optional() readonly routing?: EmailRoutingService,
   ) {}
   enabled() {
     return this.store.enabled();
@@ -57,9 +60,10 @@ export class EmailIntakeRunsService {
         ? 'has:attachment after:' + (now - 90 * 86400) + ' before:' + (now + 1)
         : suppliedQuery +
           (options.type === 'NIGHTLY' ? ' before:' + (now + 1) : '');
+    const mailboxBusiness = this.routing ? (await this.routing.initial(integration.firebaseId,integration.id)).initialBusiness : options.businessNumber;
     const business = await this.importer.resolveEmailBusiness(
       integration.firebaseId,
-      options.businessNumber,
+      mailboxBusiness,
     );
     return this.store.createRun({
       owner: integration.firebaseId,
@@ -88,6 +92,7 @@ export class EmailIntakeRunsService {
         row.provider !== IntegrationProvider.GOOGLE
       )
         throw new Error('Mailbox unavailable');
+      if(this.routing)await this.routing.initial(owner,row.id);
       rows.push(row);
     }
     const runIds = [];
@@ -172,6 +177,10 @@ export class EmailIntakeRunsService {
             await this.reader.durableParts(integration, item.message_id),
           );
         } catch (error) {
+          if (error instanceof EmailRuleBlockedError) {
+            await this.store.finishItem(run,token,item,'FILTERED');
+            continue;
+          }
           if (error instanceof EmailProviderError && error.category === 'AUTH')
             throw error;
           await this.store.retryItem(run, token, item, 'MESSAGE_RETRY');
@@ -197,6 +206,10 @@ export class EmailIntakeRunsService {
               result.id,
             );
           } catch (error) {
+            if (error instanceof EmailRuleBlockedError) {
+              await this.store.finishItem(run,token,item,'FILTERED');
+              return;
+            }
             await this.store.retryItem(
               run,
               token,
@@ -263,6 +276,10 @@ export class EmailIntakeRunsService {
           'Documents retained for manual handling; the mail cursor was not advanced.',
         );
     } catch (error) {
+      if (error instanceof EmailRulesChangedError) {
+        await this.store.query("UPDATE email_import_runs SET query_text=?,page_token=NULL,page_history_json=NULL,scan_state='READY',error_code='RULES_CHANGED' WHERE id=? AND lease_token=?",[error.query,run.id,token]);
+        return;
+      }
       const category =
         error instanceof EmailProviderError ? error.category : 'TRANSIENT';
       // Expired cursor: restart the frozen query; durable item identities/hash dedup survive.
