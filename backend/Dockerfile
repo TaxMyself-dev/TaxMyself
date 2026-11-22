@@ -14,8 +14,8 @@ WORKDIR /usr/src/app
 # Copying this first prevents re-running npm install on every code change.
 COPY --chown=node:node package*.json ./
 
-# Install app dependencies using the `npm ci` command instead of `npm install`
-RUN npm ci
+# Match the npm version used to create both lockfiles.
+RUN npm install --global npm@11.6.2 --no-audit --no-fund && npm ci
 
 # Bundle app source
 COPY --chown=node:node . .
@@ -45,7 +45,7 @@ RUN npm run build
 ENV NODE_ENV production
 
 # Running `npm ci` removes the existing node_modules directory and passing in --only=production ensures that only the production dependencies are installed. This ensures that the node_modules directory is as optimized as possible
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --global npm@11.6.2 --no-audit --no-fund && npm ci --omit=dev && npm cache clean --force
 
 USER node
 
@@ -53,18 +53,24 @@ USER node
 # SEPARATE ESM AGENT PACKAGE
 ###################
 
-FROM node:22.22.3-alpine AS agent-build
+# Match the agent lockfile toolchain; npm 10 re-resolves incompatible peers.
+FROM node:22.22.3-alpine AS agent-base
+RUN npm install --global npm@11.6.2 --no-audit --no-fund
+
+FROM agent-base AS agent-build
 WORKDIR /usr/src/app/agent
 COPY agent/package.json agent/package-lock.json ./
 COPY agent/scripts ./scripts
 COPY agent/project.inlang ./project.inlang
 COPY agent/messages ./messages
-RUN npm ci
+# Skip only the development lint/compiler patch, unsupported on Alpine/musl.
+# Dependency and postinstall scripts still run; COPY restores the manifest.
+RUN npm pkg delete scripts.prepare && npm ci
 COPY agent/ ./
 COPY src/agent-harness/agent-model.config.ts /usr/src/app/src/agent-harness/agent-model.config.ts
 RUN npm run build
 
-FROM node:22.22.3-alpine AS agent-runtime-deps
+FROM agent-base AS agent-runtime-deps
 WORKDIR /usr/src/app/agent
 COPY agent/package.json agent/package-lock.json ./
 # Root prepare/postinstall need build tools; runtime packages have no native builds.
