@@ -1,6 +1,6 @@
 # Feezback end-user activity IP
 
-- Status: `WORKER_COMPLETE`
+- Status: `IN_PROGRESS`
 - Task manager: current Codex chat
 - Worktree: `TaxMyself-feezback-psu-ip`
 - Branch: `codex/feezback-psu-ip`
@@ -80,8 +80,8 @@ in the selected suites.
 
 Security/external impact: only existing authorized provider GETs gain a
 validated owner IP. Default direct requests ignore spoofable forwarding
-headers; Cloud Run uses one appended hop, and extra controlled proxies require
-the documented Feezback-specific hop setting. No schema/accounting impact.
+headers; Cloud Run uses its appended client address. There is no additional configurable
+hop-count setting. No schema/accounting impact.
 No persistent local server was started, so concurrent dev ports are unchanged.
 
 Documentation: nearest Feezback/users/transactions AGENTS files, proxy README,
@@ -96,5 +96,17 @@ separate approval gates. No webhook delivery repair is included.
 During work, another task advanced main from 17961d37 to 712db3ce and left an
 untracked backend/journey-timings.local file. Both were preserved. This feature
 remains on its original verified base; it has not been tested as an integration
-with those newer Scheduler changes. Integration and push require Elazar's
-separate explicit approvals.
+with those newer Scheduler changes. Main integration was subsequently approved explicitly by Elazar for this feature;
+GitHub push still requires his manual main test and separate push approval.
+
+## Removal and authorized local integration — 2026-11-22
+
+Elazar requested removing the optional hop-count setting and merging locally.
+Removed its runtime branch, test configuration and documentation; local socket
+and existing Cloud Run address selection remain fixed. No new environment
+variable or schema change. Before integration, main launchers reported frontend
+4200, backend 3000 and API http://localhost:3000/. Feature ports remain in its
+ignored local configuration (4201/3001). Current main 712db3ce contains Scheduler
+changes; combine those on the feature branch before final verification, preserve
+main's existing untracked backend/journey-timings.local, and fast-forward main
+only after checks pass. No push or production operation is authorized.

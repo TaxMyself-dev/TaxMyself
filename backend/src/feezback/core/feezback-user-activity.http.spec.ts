@@ -30,12 +30,12 @@ describe('PSU IP on real local HTTP through the application controllers', () => 
   let app: INestApplication, upstream: Server, client: FeezbackHttpClient, base: string;
   const seen: { url: string; ip?: string }[] = [];
   const pending: Promise<unknown>[] = [];
-  const originalHops = process.env.FEEZBACK_TRUSTED_PROXY_HOPS;
+  const originalService = process.env.K_SERVICE;
   const read = (id: string, kind = 'consents') => client.get(
     `${base}/tpp/v1/users/${id}_sub@KNCAXnwXk1/${kind}`, { sub: `${id}_sub` });
   beforeAll(async () => {
-    // Explicitly trust the single loopback test ingress; no real external calls.
-    process.env.FEEZBACK_TRUSTED_PROXY_HOPS = '1';
+    // Emulate the Cloud Run ingress with a loopback fake; no external calls.
+    process.env.K_SERVICE = 'psu-ip-http-fixture';
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -87,8 +87,8 @@ describe('PSU IP on real local HTTP through the application controllers', () => 
   afterAll(async () => {
     await app?.close();
     await new Promise<void>(resolve => upstream.close(() => resolve()));
-    if (originalHops === undefined) delete process.env.FEEZBACK_TRUSTED_PROXY_HOPS;
-    else process.env.FEEZBACK_TRUSTED_PROXY_HOPS = originalHops;
+    if (originalService === undefined) delete process.env.K_SERVICE;
+    else process.env.K_SERVICE = originalService;
     jest.restoreAllMocks();
   });
   it.each(['/feezback/refresh-permissions', '/transactions/retry-source'])

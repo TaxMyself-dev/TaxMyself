@@ -21,7 +21,7 @@ describe('Feezback PSU activity context', () => {
   let http: any, auth: any, client: FeezbackHttpClient;
   const env = { ...process.env };
   beforeEach(() => {
-    delete process.env.FEEZBACK_TRUSTED_PROXY_HOPS; delete process.env.K_SERVICE;
+    delete process.env.K_SERVICE;
     http = { get: jest.fn(() => of({ status: 200, data: {}, headers: {} })),
       post: jest.fn(() => of({ status: 200, data: {}, headers: {} })),
       delete: jest.fn(() => of({ status: 204, data: {}, headers: {} })) };
@@ -53,13 +53,6 @@ describe('Feezback PSU activity context', () => {
     const req = owner(); req.headers = { 'x-forwarded-for': '198.51.100.9', 'x-psu-ip-address': '192.0.2.9' };
     req.body = { ip: '192.0.2.8' };
     expect(resolvePsuIp(req)).toBe('203.0.113.7');
-  });
-  it('takes a configured trusted hop from the right, not a spoofed prefix', () => {
-    const req = owner(); req.headers['x-forwarded-for'] = '192.0.2.9, 198.51.100.7, 10.0.0.1';
-    process.env.FEEZBACK_TRUSTED_PROXY_HOPS = '2';
-    expect(resolvePsuIp(req)).toBe('198.51.100.7');
-    process.env.FEEZBACK_TRUSTED_PROXY_HOPS = '4'; expect(resolvePsuIp(req)).toBeUndefined();
-    process.env.FEEZBACK_TRUSTED_PROXY_HOPS = 'invalid'; expect(resolvePsuIp(req)).toBeUndefined();
   });
   it('uses the Cloud Run appended hop and omits a missing/malformed forwarded IP', () => {
     process.env.K_SERVICE = 'local-test';

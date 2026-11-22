@@ -33,20 +33,13 @@ Webhook routing/replay behavior is unchanged.
   forwarding/PSU headers and body fields.
 - In Cloud Run (`K_SERVICE` set), the default is one trusted ingress hop:
   select the rightmost X-Forwarded-For entry rather than a client-supplied prefix.
-- `FEEZBACK_TRUSTED_PROXY_HOPS` overrides this specifically for Feezback
-  attribution (integer 0-10). It does not change global Express proxy trust or
-  authorization. Set it to the actual number of controlled proxy hops; for
-  example, a local ngrok-only ingress requires an explicit value of 1. Do not
-  enable forwarding trust on an ingress where direct/untrusted callers can
-  supply the chosen position. Additional load balancers require verifying and
-  configuring their exact chain before rollout.
-- Missing/invalid addresses or trust settings omit the header. IPv4-mapped
+- Missing/invalid addresses omit the header. IPv4-mapped
   IPv6 is normalized to IPv4; ordinary IPv6 is accepted; zone IDs, lists and
   malformed IPs are rejected. No fallback substitutes the server's public IP.
 
 The proxy preserves the explicit backend header through both forwarding paths
 and never derives a PSU address from its own connection. Backend diagnostics
-and proxy header/cURL logs redact its value. The IP is not stored in the DB.
+and proxy header/cURL logs redact its value. The IP is not stored in the DB. No new environment variable is required.
 
 ## Verification and rollout
 
@@ -57,6 +50,7 @@ controllers against a loopback fake Feezback server. Proxy tests exercise the
 actual middleware against a loopback upstream and check header omission and
 log redaction. They make no calls to Feezback, databases or deployed services.
 
-Backend and proxy changes require their normal separately approved release;
+The fixed ingress behavior supports direct local access and the existing Cloud
+Run route. Backend and proxy changes require their normal separately approved release;
 local tests/commits do not update a deployed proxy. The feature does not
 restore an already-terminated permission; the customer must reconnect.

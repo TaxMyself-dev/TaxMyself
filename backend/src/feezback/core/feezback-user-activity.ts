@@ -12,20 +12,15 @@ export function normalizePsuIp(value: unknown): string | undefined {
   return !ip.includes('%') && isIP(ip) ? ip : undefined;
 }
 
-/** Local direct requests trust no forwarding headers. Cloud Run adds one hop.
- * Extra reverse proxies require an explicit, deployment-specific hop count.
- * Never take the leftmost, client-supplied X-Forwarded-For entry blindly.
+/** Direct local connections use the socket. Cloud Run uses its appended
+ * client address, never a client-supplied prefix in X-Forwarded-For.
  */
 export function resolvePsuIp(request: AuthenticatedRequest): string | undefined {
-  const configured = process.env.FEEZBACK_TRUSTED_PROXY_HOPS;
-  const hops = configured === undefined ? (process.env.K_SERVICE ? 1 : 0) : Number(configured);
-  if (!Number.isInteger(hops) || hops < 0 || hops > 10 || configured === '') return undefined;
-  if (hops === 0) return normalizePsuIp(request.socket?.remoteAddress);
+  if (!process.env.K_SERVICE) return normalizePsuIp(request.socket?.remoteAddress);
   const forwarded = request.headers?.['x-forwarded-for'];
   if (typeof forwarded !== 'string') return undefined;
   const chain = forwarded.split(',');
-  if (chain.length < hops) return undefined;
-  return normalizePsuIp(chain[chain.length - hops]);
+  return normalizePsuIp(chain[chain.length - 1]);
 }
 
 /** Only the verified owner's own session is PSU activity, never view-as/admin. */
