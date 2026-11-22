@@ -12,7 +12,7 @@ Admission checks a shared capacity row inside a short transaction. Jobs are sele
 
 ## Capacity configuration and measurement
 
-No actual quota values have been invented or enabled in DEV. Before activation, provide reviewed values in the backend's ignored environment file:
+The feature worktree has a conservative local DEV profile based on the controlled measurements below. All scheduled tasks remain disabled. Production configuration has not been set. The supported settings are:
 
 | Variable | Meaning / source |
 | --- | --- |
@@ -45,7 +45,7 @@ Per-job `usage_json` and `timings_json` retain input/output/cache usage, wait/pr
 - Known provider rejections are distinguished from ambiguous network/5xx outcomes. Confirmed rate limits may retry; technical failures never authorize deletion.
 - PDF password requirements retain their dedicated path. Invalid/unreadable PDFs and oversized estimates remain blocked for attention.
 - Gmail keeps its existing six-type classification, ordinary uncertain approval and explicit-negative deletion lifecycle. The Gmail file worker performs storage/persistence/deletion only; the shared worker performs AI. Other intake purposes do not inherit Gmail's deletion policy.
-- Form autofill uses a private business `analysis-temporary` folder and a 24-hour expiry. It creates no archive/expense row. Closing the form stops polling, not the durable job. Expired temporary files require matching operation tag, owned folder, hash and no references before deletion. Unconfirmed deletion retries, at most five attempts before attention; shared/original files are retained. Stored results are purged on cleanup. This cleanup code has only been tested with mocks and has not executed against Drive.
+- Form autofill uses a private business `analysis-temporary` folder and a 24-hour expiry. It creates no archive/expense row. Closing the form stops polling, not the durable job. Expired temporary files require matching operation tag, owned folder, hash and no references before deletion. Unconfirmed deletion retries, at most five attempts before attention; shared/original files are retained. Stored results are purged on cleanup. Controlled synthetic live verification confirmed temporary-file deletion and reference protection; no general cleanup worker was enabled.
 - Transaction completion locks and rechecks the document and transaction together. Another link, a deleted document or intervening approval prevents a new link.
 - Existing staging is retained during transition. Do not remove it until existing workers/jobs have been audited and a separately approved cutover has completed.
 
@@ -53,18 +53,31 @@ Per-job `usage_json` and `timings_json` retain input/output/cache usage, wait/pr
 
 Upload/OCR endpoints return `{queued:true, jobId, state, driveFileId, filename}`. `GET /documents/me/analysis/:jobId?businessNumber=…` returns scoped state and terminal completion data. Frontend services poll without overlapping requests and stop after a terminal result/unsubscription. Manual autofill ignores results for an obsolete file/business and preserves edited fields. Transaction UI ignores a result for a business that is no longer selected.
 
-## Prepared schema and activation boundary
+## DEV state and activation boundary — 2026-11-22
 
-Update, 2026-11-22: separately authorized DEV schema creation has completed against `keepintax-dev`. Both new tables, columns and indexes were verified; both have zero rows. No existing work was migrated and no application/AI/deletion was started. The initial implementation record below predates this authorization. Production schema remains untouched. Capacity configuration remains absent. Before UI testing without AI/deletion, prepare an isolated startup with automatic workers suspended: the lack of a capacity profile does not disable existing file-lifecycle/deletion workers.
+The two queue tables from `document-ai-queue.sql` were applied to DEV under separate authorization and tested with synthetic records. The same schema block is retained in `docs/redesign/cutover.sql`; do not execute that historic cumulative script. No production schema was changed. Existing DEV jobs are out of scope for migration, as confirmed by Elazar. Production is expected to have no legacy jobs; verify that expectation before activation rather than silently replaying unknown in-flight work.
 
-`document-ai-queue.sql` contains two new tables only. The same prepared block is included in `docs/redesign/cutover.sql`. Neither has been applied. No TypeORM synchronization or startup migration creates these tables.
+Current local DEV settings exist only in this feature worktree's ignored `backend/.env`:
 
-Before any future DEV activation, separately authorize schema application, fill measured quota settings, audit old `AI_IN_FLIGHT`/claims and existing pending jobs, and agree which synthetic batch may execute. Do not automatically transfer old jobs. Stop old dispatch before an approved backfill, retain origin IDs/history and reconcile counts before starting shared admission. Rollback requires stopping dispatch first; unknown paid outcomes and saved results must remain durable. Do not switch old inline AI back on for queued content.
+| Setting | DEV value | Basis |
+| --- | --- | --- |
+| Provider / model | `anthropic` / `claude-sonnet-4-6` | Provider used in the live sample |
+| Limit group | `dev-anthropic-sonnet-4-6` | Stable DEV quota-pool identity; all replicas sharing this provider pool must share it |
+| Maximum concurrency | 4 | Four live jobs completed in 14.828 seconds; observed provider overlap peaked at three. This is a tested starting ceiling, not a saturation benchmark |
+| RPM | 60 | Conservative application budget versus observed provider quota 5,000 RPM; about four calls per four seconds of measured mean provider time before overhead |
+| Input tokens/minute | 200,000 | Four percent of observed 5,000,000 input quota, allowing margin over the small-file sample |
+| Output tokens/minute | 100,000 | Ten percent of observed 1,000,000 output quota |
+| PDF page / image estimate | 5,000 / 5,000 | Conservative initial reservations; large scans and images were not calibrated by the single-page sample |
+| Output estimate | 8,192 | Matches the processor's `max_tokens`, rather than assuming the small observed average will hold |
 
-No server was started for this implementation. No live schema, user data, AI request, document deletion, main integration, push or deployment was performed. The existing launcher reads ignored `.local-ai-dev/ports.json`: feature frontend 4204, backend 3004 and API `http://127.0.0.1:3004/`. The backend's ignored env uses port 3004 and frontend return URL 4204. Configuration was verified with `node frontend/scripts/start-local.js --print-config` only. Tracked main defaults remain 4200/3000.
+Reservations are reconciled with usage. Token budgets can constrain throughput before the concurrency ceiling. The initial estimates are not exact token counts; provider responses and representative larger-document measurements must guide subsequent changes. Other provider clients sharing the account also consume quota; separate environment keys do not create separate provider quotas. OpenAI requires a real adapter and its own measured profile; fake-adapter tests do not provide a live integration.
 
-The scheduler needs a running process with CPU time. In a future Cloud Run activation, verify the existing always-on/min-instance/CPU allocation policy before expecting autonomous background progress. Persistence prevents lost work while no worker runs; it does not cause a suspended instance to execute cron jobs. No deployment configuration was changed here.
+`DISABLE_SCHEDULED_TASKS=true` remains set locally, disabling Nest cron jobs, intervals and timeouts, including AI dispatch and deletion workers. No app or provider is started by saving settings. This is not a blanket block on HTTP-triggered work: do not call import, processing or deletion endpoints without authorization. No server was started during merge preparation. No schema or existing job was changed. Feature ports remain 4204/3004 through ignored configuration; tracked defaults stay 4200/3000. Main environment files were not changed or copied.
 
-## Verification limits
+To activate a later authorized DEV test, first review pending jobs and start only the agreed scope. No legacy-job backfill is required for this delivery. Do not change inline processing back on for content already queued; saved results and unknown outcomes remain durable. Existing staging stays in place. Production activation requires separately approved schema/configuration and an audit that no old dispatcher is active.
 
-Mock tests prove scheduling decisions, source contracts, lease-fencing/error paths, UI polling and guarded completion. They do not prove MySQL engine behavior under real replica contention, actual provider throughput, Drive permissions or end-to-end application behavior. Those require the separately authorized DEV phase. Build/test commands and exact outcomes are recorded in the task file.
+The scheduler needs a process with CPU time. Before future Cloud Run activation, verify always-on/min-instance/CPU allocation policy. Persistence prevents lost work while stopped, but does not run cron on a suspended instance. No deployment policy was changed.
+
+## Verification
+
+The controlled live report is `document-ai-live-verification-2026-11-22.md`. It records real MySQL contention, provider/Drive operations on synthetic fixtures, exact scope and limits, and authenticated browser verification through 4204. The active task records offline checks after current main was merged into the feature branch. No new live operations were used for merge preparation. Representative 300-document throughput, deployment sizing and live financial transaction linking remain unmeasured; they are not claimed by the synthetic tests.
