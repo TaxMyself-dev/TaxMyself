@@ -145,8 +145,10 @@ for documents.service.ts is informational. Full changed-code diff reviewed.
 ## Handoff
 
 - Result: local implementation and automated verification complete.
-- Executable commit: recorded after the local commit below; later evidence-only
-  documentation does not change executable inputs.
+- Executable commit: `d4485dabefe1649793b8c472926be5cb5cfce761`. The 319-test final
+  backend pass and final Nest build cover this exact executable tree. The passing
+  Angular build and 18 browser tests cover its unchanged frontend inputs.
+  Later evidence-only documentation does not change executable inputs.
 - Changed files: mailbox settings/controller/provider, intake routing/persistence,
   AI recipient fields and preflight, same-file transfer, provenance wire/UI,
   focused tests, nearest topic docs, specification and prepared schema SQL.
@@ -155,3 +157,8 @@ for documents.service.ts is informational. Full changed-code diff reviewed.
   output/gmail-routing-email-frontend-tests.log in the original chat workspace.
 - No required automated checks remain. Manual/provider/schema activation checks
   above were not run and are not represented as passing.
+
+Post-commit checks: `git show --check --oneline HEAD` passed; feature worktree
+clean and backend/.env ignored. Main remains exactly
+`712db3ce33c033b241b5263e853ba8f520802c2e`, with its original untracked
+backend/journey-timings.local still present. No remote action was performed.
