@@ -1,6 +1,6 @@
 # Feezback end-user activity IP
 
-- Status: `IN_PROGRESS`
+- Status: `VERIFIED`
 - Task manager: current Codex chat
 - Worktree: `TaxMyself-feezback-psu-ip`
 - Branch: `codex/feezback-psu-ip`
@@ -94,9 +94,9 @@ the actual ingress hop chain and deploy backend/proxy through the normal
 separate approval gates. No webhook delivery repair is included.
 
 During work, another task advanced main from 17961d37 to 712db3ce and left an
-untracked backend/journey-timings.local file. Both were preserved. This feature
-remains on its original verified base; it has not been tested as an integration
-with those newer Scheduler changes. Main integration was subsequently approved explicitly by Elazar for this feature;
+untracked backend/journey-timings.local file. Both were preserved. At the original handoff this feature had not been combined with those newer
+Scheduler changes; the combined verification recorded below supersedes that
+limitation. Main integration was subsequently approved explicitly by Elazar for this feature;
 GitHub push still requires his manual main test and separate push approval.
 
 ## Removal and authorized local integration — 2026-11-22
@@ -110,3 +110,30 @@ ignored local configuration (4201/3001). Current main 712db3ce contains Schedule
 changes; combine those on the feature branch before final verification, preserve
 main's existing untracked backend/journey-timings.local, and fast-forward main
 only after checks pass. No push or production operation is authorized.
+
+## Final combined verification
+
+- Original feature: d7f22d0c. Optional-setting removal: 9c00d5b8.
+- Current main 712db3ce was merged into the feature at 1c1d405d without conflicts.
+- On 1c1d405d, the following backend command passed, exit 0: 11 suites,
+  109 tests, 86.192 seconds. One obsolete configurable-hop test was removed,
+  explaining the change from the original 110 tests.
+
+  npm test -- --runInBand --runTestsByPath src/feezback/core/feezback-user-activity.spec.ts src/feezback/core/feezback-user-activity.http.spec.ts src/feezback/core/feezback-transaction-logging.spec.ts src/feezback/core/feezback-token-expiry.spec.ts src/feezback/core/feezback-key-lookup-retry.spec.ts src/feezback/feezback.controller.spec.ts src/users/users.controller.spec.ts src/users/users.controller.banking-start.spec.ts src/users/users.controller.demo-sync.spec.ts src/transactions/transactions.controller.admin-sync.spec.ts src/transactions/transactions.controller.demo-sync.spec.ts
+
+- npm run build passed, exit 0, on the same combined executable revision.
+- Proxy sources/tests did not change since the passing 29-test run recorded
+  above; that evidence is reused. Frontend source/configuration is unchanged,
+  so no Angular build or unrelated repository-wide suite was run.
+- Only documentation changed after the passing checks. git diff --check and
+  git show --check passed; the removed setting has no tracked references.
+- Effective local main launchers were checked again: frontend 4200, backend
+  3000, API http://localhost:3000/. Feature-only ignored settings still report
+  4201/3001; no port or environment files are staged.
+- Neither local .env contains the removed setting. No schema/migration change.
+- The exact verified feature candidate plus this documentation-only record is
+  authorized for a local main fast-forward; no push, deployment or production
+  access. Existing untracked main journey timing configuration is preserved.
+- Prior dev-only live proxy verification confirmed foreground header presence
+  and direct background header absence. No new provider request was required
+  for this removal; direct-local behavior is unchanged.

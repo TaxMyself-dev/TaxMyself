@@ -211,4 +211,4 @@ Background service/cron/webhook calls, admin view-as and other-owner targets
 omit it. Never store/reuse a user's IP on a singleton or add it to auth/link
 requests. Diagnostics redact it; the proxy preserves the explicit header.
 See [activity attribution](../../../docs/features/feezback-user-activity.md)
-for trusted-ingress configuration and local verification.
+for fixed local/Cloud Run address resolution and local verification.
