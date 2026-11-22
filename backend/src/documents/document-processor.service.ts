@@ -237,7 +237,7 @@ export class DocumentProcessorService {
     mimeType: string,
     catalog: CatalogEntry[] = [],
     emailIntakeReview = false,
-    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;onHeaders?:(headers:{get(name:string):string|null})=>void;bounded?:boolean},
+    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;onHeaders?:(headers:{get(name:string):string|null})=>void;bounded?:boolean;signal?:AbortSignal},
   ): Promise<ProcessOutcome> {
     if (mimeType === 'application/pdf') {
       if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
@@ -293,7 +293,7 @@ export class DocumentProcessorService {
           content: [fileBlock as any, { type: 'text', text: emailIntakeReview ? 'Classify and extract every relevant document from the attached file in the same JSON response.' : USER_TRAILER }],
         },
       ],
-    }, emailIntakeReview || options?.bounded ? { timeout: 45_000, maxRetries: 0 } : undefined);
+    }, emailIntakeReview || options?.bounded ? { timeout: 45_000, maxRetries: 0, signal: options?.signal } : undefined);
     const wrapped=options?.onHeaders&&typeof (request as any).withResponse==='function'?await (request as any).withResponse():null;
     const response:Anthropic.Message=wrapped?wrapped.data:await request;
     if(wrapped?.response?.headers)options.onHeaders(wrapped.response.headers);

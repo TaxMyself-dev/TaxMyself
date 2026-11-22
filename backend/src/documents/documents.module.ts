@@ -1,3 +1,5 @@
+import { DocumentSchedulerController } from '../document-ai/document-ai-scheduler.controller';
+import { DocumentSchedulerGuard } from '../document-ai/document-ai-scheduler.guard';
 import { EmailIntakeModule } from '../email-intake/email-intake.module';
 import { EmailProcessingWorker } from '../email-intake/email-processing.worker';
 import { forwardRef, Module } from '@nestjs/common';
@@ -66,12 +68,13 @@ import { FullTransactionCache } from '../transactions/full-transaction-cache.ent
     forwardRef(() => UsersModule),
     forwardRef(() => BillingModule),
   ],
-  controllers: [DocumentsController],
+  controllers: [DocumentsController, DocumentSchedulerController],
   providers: [
     AnthropicDocumentProvider,
     {provide:DOCUMENT_AI_PROVIDERS,useFactory:(provider:AnthropicDocumentProvider)=>[provider],inject:[AnthropicDocumentProvider]},
     {provide:DocumentAnalysisExecutor,useExisting:DocumentsService},
     DocumentAiWorker,
+    DocumentSchedulerGuard,
     MatchingService,
     DocumentPdfClient,
     DocumentPdfRenderer,

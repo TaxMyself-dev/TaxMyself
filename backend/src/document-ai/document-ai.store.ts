@@ -245,11 +245,11 @@ export class DocumentAiStore {
       );
       const { state } = await this.lockedCapacity(p, m);
       const [count] = await this.query(
-        "SELECT COUNT(*) AS active FROM document_processing_jobs WHERE capacity_key=? AND state IN ('PREPARING','IN_FLIGHT') AND lease_expires_at>UTC_TIMESTAMP(3)",
-        [p.key],
+        "SELECT COUNT(*) AS active FROM document_processing_jobs WHERE state IN ('PREPARING','IN_FLIGHT','RESULT_SAVED','COMPLETING') AND lease_expires_at>UTC_TIMESTAMP(3)",
+        [],
         m,
       );
-      if (Number(count.active) >= p.concurrency) return null;
+      if (Number(count.active) >= Math.min(2, p.concurrency)) return null;
       // One head per tenant and lane: a large first tenant cannot hide competitors behind LIMIT.
       const heads = await this.query(
         `SELECT j.* FROM document_processing_jobs j JOIN
@@ -522,11 +522,28 @@ export class DocumentAiStore {
       throw error;
     }
   }
-  async claimCompletion(): Promise<AnalysisJob | null> {
+  async claimCompletion(p: CapacityProfile): Promise<AnalysisJob | null> {
     return this.db.transaction(async (m) => {
-      const rows = await this.query(
-        "SELECT * FROM document_processing_jobs WHERE state='RESULT_SAVED' AND completion_attempts<5 AND (next_at IS NULL OR next_at<=UTC_TIMESTAMP(3)) ORDER BY sequence LIMIT 1 FOR UPDATE",
+      // Serialize admission across provider groups as well, so compatible content cannot be paid twice.
+      await this.query(
+        "INSERT IGNORE INTO document_ai_capacity (capacity_key,state_json) VALUES ('__document_analysis_admission__',NULL)",
         [],
+        m,
+      );
+      await this.query(
+        "SELECT capacity_key FROM document_ai_capacity WHERE capacity_key='__document_analysis_admission__' FOR UPDATE",
+        [],
+        m,
+      );
+      await this.lockedCapacity(p, m);
+      const [count] = await this.query(
+        "SELECT COUNT(*) AS active FROM document_processing_jobs WHERE state IN ('PREPARING','IN_FLIGHT','RESULT_SAVED','COMPLETING') AND lease_expires_at>UTC_TIMESTAMP(3)",
+        [], m,
+      );
+      if (Number(count.active) >= Math.min(2, p.concurrency)) return null;
+      const rows = await this.query(
+        "SELECT * FROM document_processing_jobs WHERE capacity_key=? AND state='RESULT_SAVED' AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND completion_attempts<5 AND (next_at IS NULL OR next_at<=UTC_TIMESTAMP(3)) ORDER BY sequence LIMIT 1 FOR UPDATE",
+        [p.key],
         m,
       );
       if (!rows[0]) return null;
@@ -558,16 +575,16 @@ export class DocumentAiStore {
   async recoverExpired() {
     // Never replay a possibly paid attempt. Source files and saved outcomes are retained.
     await this.query(
-      "UPDATE document_processing_jobs SET state='UNKNOWN',error_code='AI_UNKNOWN_OUTCOME',lease_token=NULL,lease_expires_at=NULL WHERE state='IN_FLIGHT' AND lease_expires_at<UTC_TIMESTAMP(3)",
+      "UPDATE document_processing_jobs SET state='UNKNOWN',error_code='AI_UNKNOWN_OUTCOME',lease_token=NULL,lease_expires_at=NULL WHERE state='IN_FLIGHT' AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
     );
     await this.query(
-      "UPDATE document_processing_jobs SET state='READY',lease_token=NULL,lease_expires_at=NULL WHERE state='PREPARING' AND attempt_id IS NULL AND lease_expires_at<UTC_TIMESTAMP(3)",
+      "UPDATE document_processing_jobs SET state='READY',lease_token=NULL,lease_expires_at=NULL WHERE state='PREPARING' AND attempt_id IS NULL AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
     );
     await this.query(
-      "UPDATE document_processing_jobs SET state='RESULT_SAVED',lease_token=NULL,lease_expires_at=NULL WHERE state='COMPLETING' AND lease_expires_at<UTC_TIMESTAMP(3)",
+      "UPDATE document_processing_jobs SET state='RESULT_SAVED',lease_token=NULL,lease_expires_at=NULL WHERE state='COMPLETING' AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
     );
     await this.query(
-      "UPDATE document_processing_jobs SET state='BLOCKED',error_code='FORM_EXPIRED' WHERE purpose='FORM_FILL' AND state='READY' AND expires_at<UTC_TIMESTAMP(3)",
+      "UPDATE document_processing_jobs SET state='BLOCKED',error_code='FORM_EXPIRED' WHERE purpose='FORM_FILL' AND state='READY' AND expires_at<UTC_TIMESTAMP(3) LIMIT 100",
     );
   }
   async markPassword(job: AnalysisJob) {

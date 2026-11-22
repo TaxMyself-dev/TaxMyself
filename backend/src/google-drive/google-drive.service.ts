@@ -1,3 +1,4 @@
+import { documentTransportOptions } from '../document-ai/document-ai.execution';
 import {
   Injectable,
   InternalServerErrorException,
@@ -85,7 +86,7 @@ export class GoogleDriveService {
     return this.getOrCreateChildFolder(businessFolderId, 'intake-staging');
   }
   async getIntakeFileMetadata(fileId: string) {
-    const result = await this.getSystemDrive().files.get({fileId,supportsAllDrives:true,fields:'id,name,mimeType,size,md5Checksum,createdTime,parents,trashed,appProperties'},{timeout:30000,retry:false});
+    const result = await this.getSystemDrive().files.get({fileId,supportsAllDrives:true,fields:'id,name,mimeType,size,md5Checksum,createdTime,parents,trashed,appProperties'},{timeout:30000,retry:false,...documentTransportOptions()});
     return result.data;
   }
   /** Unlike the legacy delete wrapper, a 404 is NOT confirmed deletion. */
@@ -271,7 +272,7 @@ export class GoogleDriveService {
         removeParents: fromParentId ?? undefined,
         fields: 'id, parents',
         supportsAllDrives: true,
-      });
+      }, documentTransportOptions());
       return;
     } catch (error: any) {
       systemError = error;
@@ -289,7 +290,7 @@ export class GoogleDriveService {
         removeParents: fromParentId ?? undefined,
         fields: 'id, parents',
         supportsAllDrives: true,
-      });
+      }, documentTransportOptions());
     } catch (error: any) {
       this.logger.error(
         `moveFile failed (fileId=${fileId}, from=${fromParentId}, to=${toParentId}): ` +
@@ -633,7 +634,7 @@ export class GoogleDriveService {
       const drive = this.getSystemDrive();
       const res = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
-        { responseType: 'arraybuffer' },
+        { responseType: 'arraybuffer', ...documentTransportOptions() },
       );
       return Buffer.from(res.data as ArrayBuffer);
     } catch (error: any) {
@@ -648,7 +649,7 @@ export class GoogleDriveService {
       const { drive } = this.getDrive();
       const res = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
-        { responseType: 'arraybuffer' },
+        { responseType: 'arraybuffer', ...documentTransportOptions() },
       );
       return Buffer.from(res.data as ArrayBuffer);
     } catch (error: any) {

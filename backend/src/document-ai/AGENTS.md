@@ -1,3 +1,5 @@
 # Shared document AI queue
 
 All document AI admission belongs here. One tenant may use all spare capacity; fairness applies only when tenants compete. Provider/model quotas and leases are shared through short DB transactions, never connection-holding locks during AI. Unknown paid outcomes must not be replayed or switched to another provider automatically. Preserve purpose-specific retention and ownership. No live DB, app bootstrap, schema application, existing-work migration, real providers or deletion during development.
+
+Scheduler mode uses the OIDC-guarded request-bound round documented in ../../../docs/features/document-ai-scheduler.md. Keep the hard global ceiling at two, including completion; never return while a round job/heartbeat is pending. Preserve the shared admission transaction and do not reclaim a still-leased saved result. Do not replace cancellation/drain with Promise.race. Scheduler mode suppresses document cron wrappers but does not migrate Gmail, protected PDF, upload/cleanup maintenance or classification workers.

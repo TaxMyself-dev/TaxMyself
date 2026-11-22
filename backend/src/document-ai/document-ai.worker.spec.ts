@@ -68,7 +68,7 @@ describe('shared document worker (no real provider)', () => {
     const saved = { ...process.env };
     Object.assign(process.env, {
       DOCUMENT_AI_LIMIT_GROUP: 'test',
-      DOCUMENT_AI_MAX_CONCURRENCY: '8',
+      DOCUMENT_AI_MAX_CONCURRENCY: '2',
       DOCUMENT_AI_RPM: '60',
       DOCUMENT_AI_ITPM: '60000',
       DOCUMENT_AI_OTPM: '6000',
@@ -92,13 +92,13 @@ describe('shared document worker (no real provider)', () => {
       return { invoices: [], rawResponse: 'synthetic' };
     });
     try {
-      for (let i = 0; i < 40 && jobs.length; i++) {
+      for (let i = 0; i < 160 && jobs.length; i++) {
         await t.worker.tick();
         await t.worker.drain();
       }
       expect(jobs).toHaveLength(0);
       expect(t.provider.analyze).toHaveBeenCalledTimes(300);
-      expect(peak).toBe(8);
+      expect(peak).toBe(2);
     } finally {
       process.env = saved;
     }
@@ -180,7 +180,7 @@ describe('shared document worker (no real provider)', () => {
     const saved = { ...process.env };
     Object.assign(process.env, {
       DOCUMENT_AI_LIMIT_GROUP: 'test',
-      DOCUMENT_AI_MAX_CONCURRENCY: '8',
+      DOCUMENT_AI_MAX_CONCURRENCY: '2',
       DOCUMENT_AI_RPM: '60',
       DOCUMENT_AI_ITPM: '60000',
       DOCUMENT_AI_OTPM: '6000',
@@ -195,17 +195,17 @@ describe('shared document worker (no real provider)', () => {
       await gate;
       return t.input;
     });
-    const jobs = Array.from({ length: 8 }, (_, i) => ({
+    const jobs = Array.from({ length: 2 }, (_, i) => ({
       ...t.job,
       id: String(i),
     }));
     t.store.claimNext.mockImplementation(async () => jobs.shift() || null);
     try {
       await t.worker.tick();
-      expect(t.executor.prepareQueuedAnalysis).toHaveBeenCalledTimes(8);
+      expect(t.executor.prepareQueuedAnalysis).toHaveBeenCalledTimes(2);
       release();
       await t.worker.drain();
-      expect(t.provider.analyze).toHaveBeenCalledTimes(8);
+      expect(t.provider.analyze).toHaveBeenCalledTimes(2);
     } finally {
       release?.();
       process.env = saved;
