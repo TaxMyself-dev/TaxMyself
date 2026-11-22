@@ -1,6 +1,6 @@
 # Document AI Scheduler rounds
 
-- Status: LOCAL_COMPLETE_AWAITING_MAIN_APPROVAL
+- Status: LOCAL_MAIN_INTEGRATION_APPROVED_VERIFIED
 - Manager/implementation: Codex, no delegated agents
 - Worktree: C:/Users/user/Keepintax/TaxMyself-scheduler-background-round
 - Branch: codex/scheduler-background-round
@@ -22,7 +22,7 @@
 - Source build uses independent npm ci --ignore-scripts --no-audit --no-fund (1176 packages, exit 0, 47s). Node v24.13.0; npm 11.6.2. Dependency lifecycle scripts were deliberately not executed.
 - No schema changes; no migrations or cutover SQL executed. Production schema completion and Composio version/host information are operator-reported and not rechecked via data access.
 - Security change is limited to the requested OIDC service route. No user auth, ownership, accounting policy, deletion capability or retention expansion.
-- Docker agent packaging blocker remains separate and unfixed.
+- The initial agent packaging blocker was observed on the original feature base; latest local main has since fixed it, as recorded in the integration section below.
 
 ## Verification evidence
 
@@ -57,3 +57,18 @@ Main integration requires Elazar's separate explicit approval. Push additionally
 - Final consolidated offline regression command: node --max-old-space-size=768 node_modules/jest/bin/jest.js --config 'C:/Users/user/Documents/ChatGPT/Keepintax - GMAIL/scheduler-offline-jest.json' --runInBand document-ai email-intake google-drive.service.file-access.spec.ts google-drive.service.delete-file.spec.ts protected-recovery.spec.ts protected-intake.spec.ts protected-ai-boundary.spec.ts protected-pdf.service.spec.ts. Result: 23 suites / 207 tests passed, exit 0, 81.802s, on the final executable tree. Sequential build command: $env:NODE_OPTIONS='--max-old-space-size=2048'; npm run build: exit 0, including full TypeScript checking. Host memory pressure made the build slower; it was allowed to finish and was not restarted. No live providers, DB connections, user data or actual file deletion. Both invocations have 60-second start windows and a 120-second cooperative abort budget; non-abortable DB work is still awaited. No schema or production change, main integration or push.
 
 - Final review: git diff --check and local Markdown-target checks passed. Reviewed the full follow-up diff: only the worker/controller/executor, existing maintenance implementation/transport cancellation, due-time claim fence, tests and scoped documentation changed. No change to the cleanup method's ownership/tag/hash/reference policy, no new schema or deletion scope. No frontend changes, so no Angular build. Live multi-instance MySQL contention, representative production load/latency, and forced container termination still require separately authorized acceptance; offline mocks are not claimed as production proof.
+
+
+## Approved local main integration — 2026-11-22
+
+- Explicit user authorization: integrate codex/scheduler-background-round into current local main after current-main, port and required-check verification; no push or deployment.
+- Main before integration: 17961d37057db9dc5bafe0c63284f36953489c1b, clean. Remote read-only check (git ls-remote origin refs/heads/main): 82446400227ee6e5ed8751eafc2eab1656c4161c. Current local main already includes that remote reconciliation; no remote feature integration was inferred.
+- Feature source commits: 2f1bd4f5fd6f8c0816c26284da1845e9d7fcb20f and 1db6ad4f7f1ebe3b47ed2aed52e53b3ef3868af1.
+- git merge --no-ff main -m "Merge current local main for Scheduler integration verification" ran only in the feature worktree, without conflicts. Combined executable candidate: 9ee58c5fd4d3def899623e3a745a750550ff3419. Main remains its ancestor. Backend package.json/package-lock.json are unchanged from the independently installed feature dependencies; no reinstall or shared node_modules was needed.
+- Selected tier: backend service/controller/domain plus direct shared Drive callers. No executable frontend difference versus current main, so Angular build/tests were not applicable. The newer main agent loader receives seven narrow offline checks; no Docker rebuild, full agent evals, app bootstrap, providers, live DB or user data access.
+- Combined regression command: node --max-old-space-size=768 node_modules/jest/bin/jest.js --config 'C:/Users/user/Documents/ChatGPT/Keepintax - GMAIL/scheduler-offline-jest.json' --runInBand document-ai email-intake google-drive.service.file-access.spec.ts google-drive.service.delete-file.spec.ts protected-recovery.spec.ts protected-intake.spec.ts protected-ai-boundary.spec.ts protected-pdf.service.spec.ts documents/documents-inbox-restore.spec.ts. Result: 24 suites / 215 tests passed, exit 0, 26.205s on 9ee58c5f. Same temporary isolated transpilation config as prior verification; final Nest build checks types separately.
+- node --test backend/scripts/check-agent-image.test.cjs backend/scripts/agent-bundle-loader.test.cjs: 7 passed, exit 0, 377.5321ms. The source-only Node diagnostic emits the previously documented MODULE_TYPELESS_PACKAGE_JSON warning; production uses compiled CommonJS. Test-owned temporary fixtures only, no application request or provider call.
+- Final build result: passed, exit 0 (full TypeScript checking; command: $env:NODE_OPTIONS='--max-old-space-size=2048'; npm run build).
+- Main port gate: node frontend/scripts/start-local.js --print-config reports frontendPort=4200, backendPort=3000, apiUrl=http://localhost:3000/, source=main defaults. node backend/scripts/start-watch.js --print-config reports backendPort=3000, synchronize=false. angular.json serve defaults to development, no explicit port or file replacement override for that serve path. Backend .env PORT=3000; inherited process PORT and NODE_OPTIONS are unset. No .local-ai-dev port override is active in main. Existing main listeners were also observed at 4200 and 3000; the matching Node command lines contained no explicit --port override. No server was started/restarted for these checks.
+- Existing ignored main environment is preserved: DISABLE_SYNCHRONIZE=true and SKIP_BOOT_SEED=true; no Scheduler mode/capacity settings were added. Neither saving code nor local integration creates Cloud Scheduler jobs or changes Cloud Run/DB configuration.
+- Final diff/Markdown checks and metadata commit record this verified candidate without further executable changes. Delivery is a fast-forward of clean main to this reviewed feature, conditional on main still matching the checked starting revision. The resulting exact main hash is reported in the chat handoff. Keep the feature worktree; no archive, remote push or deployment is authorized.

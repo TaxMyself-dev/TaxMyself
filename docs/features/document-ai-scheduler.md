@@ -3,8 +3,11 @@
 Implementation date: 2026-11-22. Base: local main
 `5d405a014aded6995c4c4bf987af894f275eada8`, explicitly selected by Elazar.
 Remote main was independently checked at `82446400227ee6e5ed8751eafc2eab1656c4161c`;
-the histories diverge and that remote revision lacks the shared queue and agent.
-No integration between those histories is part of this change.
+the histories diverged at initial implementation and that remote revision lacked
+the shared queue and agent. Before the separately approved local integration,
+local main had advanced to 17961d37057db9dc5bafe0c63284f36953489c1b, including
+the remote reconciliation and agent image packaging fix. That current main was
+merged into this feature and the combined backend was verified without conflicts.
 
 ## Behavior and limits
 
@@ -297,10 +300,13 @@ clear an alert. Review terminal/blocked outcomes using existing ownership scopes
   longer PDFs and manual form waiting time before increasing batch size.
 - Restore reliable scheduling for every uncovered workflow in the audit before
   declaring the complete production background system ready.
-- Separate existing release blocker: backend/Dockerfile still neither installs
-  and builds backend/agent nor copies it into the production image. This change
-  does not fix it; agent deployment is **not ready** on this evidence. Nest build
-  success is not an agent image or container-start validation.
+- The initial agent-image packaging blocker was fixed by current local main
+  17961d37 and is preserved in this integration. See the separate
+  [agent image packaging verification](../operations/agent-image-packaging.md).
+  The seven offline loader/image-contract tests were rerun successfully on the
+  combined candidate. The Scheduler integration did not rebuild a combined
+  Docker image or deploy it; Nest build success alone is not container-start
+  or production readiness evidence.
 
 ## Official references
 
