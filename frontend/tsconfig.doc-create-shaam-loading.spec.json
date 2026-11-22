@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/app/pages/doc-create/doc-create-shaam-loading.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

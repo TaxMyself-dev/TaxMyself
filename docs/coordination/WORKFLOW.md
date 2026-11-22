@@ -113,9 +113,11 @@ Documentation updated:
    another worktree with a junction, symlink, shared path, or package-manager
    conversion. If dependencies are missing, use `npm ci` in the current
    worktree; do not install into the user's `main` checkout.
-7. Run focused tests covering the changed behavior, then the relevant build.
-   Record commands, counts, exit codes, and warnings. Do not describe a test as
-   passed if it did not execute.
+7. Classify the staged change with the risk-based matrix in
+   `QUALITY_GATES.md`, then run the smallest focused checks required by that
+   tier and the relevant build. Record the tier, commands, counts, exit codes,
+   warnings, and why broader suites are not applicable. Do not describe a test
+   as passed if it did not execute.
 8. Distinguish failures:
    - changed-code failure: fix it; this blocks completion;
    - pre-existing failure: reproduce on the recorded base and document it;
@@ -141,13 +143,16 @@ Documentation updated:
    preserving both entries. A code conflict requires renewed semantic review.
 5. The primary integration manager adds the shared redesign worklog entry when
    required and updates `MANAGER_STATE.md`. Workers never edit either file.
-6. Run the checks required by `QUALITY_GATES.md` on the integrated tree. At
-   minimum this normally includes:
+6. Run the checks required by the risk-based matrix in `QUALITY_GATES.md` on
+   the integrated tree. Depending on the selected tier this includes:
    - focused backend tests for changed modules;
    - Nest build for backend changes;
-   - focused frontend tests where the repository runner can isolate them;
+   - focused frontend tests where the changed tier requires them and the
+     repository runner can isolate them;
    - Angular build for frontend changes;
    - extra regression or baseline checks required by topic instructions.
+   Do not broaden a local presentation-only change into unrelated feature
+   suites solely because they share an umbrella test configuration.
 7. A repository-wide legacy test failure is not silently ignored. It may be
    classified as pre-existing only after comparison with the base; record the
    exact failure and require the changed modules' focused checks plus build to
