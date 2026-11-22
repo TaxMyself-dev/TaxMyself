@@ -1,6 +1,8 @@
 # Shared document analysis queue
 
-Implementation branch: `codex/document-ai-queue`, based on `de8369bc`.
+Original implementation branch: `codex/document-ai-queue`, based on `de8369bc`.
+
+The DEV measurements and schema/activation notes below record that earlier delivery. For the current two-task ceiling, operator-reported production schema completion and authenticated Cloud Scheduler activation, use the [Scheduler runbook](document-ai-scheduler.md).
 
 ## Ownership and admission
 
@@ -27,7 +29,7 @@ The feature worktree has a conservative local DEV profile based on the controlle
 | `DOCUMENT_AI_IMAGE_TOKENS` | Conservative measured image input estimate |
 | `DOCUMENT_AI_OUTPUT_ESTIMATE` | Conservative measured output reservation per request |
 
-Numeric settings are required positive integers. Concurrency above 64 requires a separate implementation review; 64 is an implementation guard, not an assertion about provider quota or measured server throughput. Missing/invalid configuration fails closed. Existing jobs keep their provider/model/policy; changing the active quota group does not migrate them.
+Numeric settings are required positive integers. The current hard safety ceiling is two document tasks globally, including saved-result completion. Higher configured concurrency is rejected. Historical DEV measurements below are not the current activation profile. Missing/invalid configuration fails closed. Existing jobs keep their provider/model/policy; changing the active quota group does not migrate them.
 
 The admission engine reserves separate request/input/output budgets and reconciles observed usage, including cache writes. Missing usage does not earn a refund. Successful response headers may reduce remaining budgets; confirmed 429 responses honor Retry-After. Text prompt size is estimated in addition to measured image/page cost. Estimates are conservative inputs, not exact token counting or a guarantee that the provider will never throttle.
 
@@ -39,7 +41,7 @@ Per-job `usage_json` and `timings_json` retain input/output/cache usage, wait/pr
 
 - Upload reservation precedes bytes; an operation tag and SHA-256 allow recovery without uploading again.
 - Discovery and durable admission remain separate from completion. Existing restoration/dedup rules remain in discovery; compatible jobs can reuse a retained owned file/result.
-- Dispatch runs every 2 seconds. Recovery runs every 30 seconds; leases are 3 minutes with a 30-second heartbeat. An orphan upload is examined after 5 minutes.
+- Legacy cron dispatch runs every 2 seconds and recovery every 30 seconds. In scheduler mode both wrappers are suppressed; authenticated request-bound rounds replace dispatch and expired-lease recovery, and a second authenticated maintenance endpoint replaces upload recovery and temporary cleanup. See [Scheduler runbook](document-ai-scheduler.md). In both modes, leases are 3 minutes with a 30-second heartbeat. An orphan upload is examined after 5 minutes.
 - Expired preparation can resume before a provider attempt. Expired `IN_FLIGHT` becomes `UNKNOWN`; it is never automatically replayed or sent to another provider.
 - A saved result resumes completion without AI. Completion claims and source handoff are fenced. A persistence marker prevents a Drive completion retry from overwriting later user edits.
 - Known provider rejections are distinguished from ambiguous network/5xx outcomes. Confirmed rate limits may retry; technical failures never authorize deletion.
@@ -63,7 +65,7 @@ Current local DEV settings exist only in this feature worktree's ignored `backen
 | --- | --- | --- |
 | Provider / model | `anthropic` / `claude-sonnet-4-6` | Provider used in the live sample |
 | Limit group | `dev-anthropic-sonnet-4-6` | Stable DEV quota-pool identity; all replicas sharing this provider pool must share it |
-| Maximum concurrency | 4 | Four live jobs completed in 14.828 seconds; observed provider overlap peaked at three. This is a tested starting ceiling, not a saturation benchmark |
+| Maximum concurrency (historical; now capped at 2) | 4 | Four live jobs completed in 14.828 seconds; observed provider overlap peaked at three. This is a tested starting ceiling, not a saturation benchmark |
 | RPM | 60 | Conservative application budget versus observed provider quota 5,000 RPM; about four calls per four seconds of measured mean provider time before overhead |
 | Input tokens/minute | 200,000 | Four percent of observed 5,000,000 input quota, allowing margin over the small-file sample |
 | Output tokens/minute | 100,000 | Ten percent of observed 1,000,000 output quota |

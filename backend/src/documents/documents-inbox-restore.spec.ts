@@ -4,7 +4,7 @@ import { DocumentImportSource } from 'src/document-import/enums/document-import.
 import { ExtractedDocStatus } from './extracted-document.entity';
 
 const priorEnv={...process.env};
-beforeEach(()=>Object.assign(process.env,{DOCUMENT_AI_LIMIT_GROUP:'test',DOCUMENT_AI_MAX_CONCURRENCY:'8',DOCUMENT_AI_RPM:'60',DOCUMENT_AI_ITPM:'60000',DOCUMENT_AI_OTPM:'6000',DOCUMENT_AI_PDF_PAGE_TOKENS:'1000',DOCUMENT_AI_IMAGE_TOKENS:'1000',DOCUMENT_AI_OUTPUT_ESTIMATE:'100'}));
+beforeEach(()=>Object.assign(process.env,{DOCUMENT_AI_LIMIT_GROUP:'test',DOCUMENT_AI_MAX_CONCURRENCY:'2',DOCUMENT_AI_RPM:'60',DOCUMENT_AI_ITPM:'60000',DOCUMENT_AI_OTPM:'6000',DOCUMENT_AI_PDF_PAGE_TOKENS:'1000',DOCUMENT_AI_IMAGE_TOKENS:'1000',DOCUMENT_AI_OUTPUT_ESTIMATE:'100'}));
 afterEach(()=>{process.env={...priorEnv};});
 describe('DocumentsService.processInboxForUser deleted-document restoration', () => {
   function subject(findResults: any[][], file: any, importRows: any[] = []) {

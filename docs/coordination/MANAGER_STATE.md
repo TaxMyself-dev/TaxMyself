@@ -578,3 +578,21 @@ reached `origin/main`. Per the user's explicit request, verification was limited
 to `git diff --check` and targeted static assertions; no Karma suite or Angular
 build ran. No backend, schema, database, report-total, accounting,
 authorization, production change or deployment occurred.
+
+
+## Document Scheduler local-main integration — 2026-11-22
+
+Elazar explicitly approved local integration of codex/scheduler-background-round,
+with no push or deployment. Starting clean main: 17961d37. Feature commits
+2f1bd4f5 and 1db6ad4f were combined with that main without conflicts; executable
+candidate 9ee58c5f retains the already-integrated remote reconciliation and agent
+packaging fix. Selected backend/Drive regression tier passed 215 tests in 24
+suites; seven offline agent loader/image-contract checks passed. Nest build:
+passed, exit 0 (full TypeScript checking; command: $env:NODE_OPTIONS='--max-old-space-size=2048'; npm run build). Main startup print-config and existing listeners verify
+4200/3000 with http://localhost:3000/ and no active worktree port override.
+Full commands, warnings, skipped checks and safety boundaries are in
+docs/tasks/active/document-ai-scheduler.md. Only documentation follows the
+tested executable candidate before the conditional clean-main fast-forward.
+No remote push, deployment, cloud config, schema, provider or user-data action.
+Manual testing of the delivered current main and separate explicit push approval
+are still required before any future push. Feature worktree is retained.

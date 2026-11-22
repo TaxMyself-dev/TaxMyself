@@ -1,3 +1,4 @@
+import { documentExecution } from './document-ai.execution';
 import { Injectable } from '@nestjs/common';
 import { DocumentProcessorService } from '../documents/document-processor.service';
 import {
@@ -65,6 +66,7 @@ export class AnthropicDocumentProvider implements DocumentAiProvider {
               }
           },
           bounded: true,
+          signal: documentExecution.getStore(),
         },
       );
       return { ...result, usage, capacity };

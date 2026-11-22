@@ -55,7 +55,7 @@ export function capacityProfile(
     imageTokens: positive('DOCUMENT_AI_IMAGE_TOKENS', env),
     outputEstimate: positive('DOCUMENT_AI_OUTPUT_ESTIMATE', env),
   };
-  if (result.concurrency > 64)
+  if (result.concurrency > 2)
     throw new Error('Document AI concurrency exceeds tested safety ceiling');
   return result;
 }

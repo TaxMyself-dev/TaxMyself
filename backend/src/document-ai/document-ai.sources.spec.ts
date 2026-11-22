@@ -7,7 +7,7 @@ const saved = { ...process.env };
 beforeEach(() =>
   Object.assign(process.env, {
     DOCUMENT_AI_LIMIT_GROUP: 'test',
-    DOCUMENT_AI_MAX_CONCURRENCY: '8',
+    DOCUMENT_AI_MAX_CONCURRENCY: '2',
     DOCUMENT_AI_RPM: '60',
     DOCUMENT_AI_ITPM: '60000',
     DOCUMENT_AI_OTPM: '6000',
@@ -417,5 +417,44 @@ describe('all-source queue entry points (offline)', () => {
       errorCode: undefined,
       completion: { invoice: null },
     });
+  });
+
+  it('alternates upload recovery and temporary cleanup without new deletion rules',async()=>{
+    const t=subject(),order:string[]=[];
+    t.queue.unfinishedUploads.mockResolvedValue([{...t.job,id:'u1'},{...t.job,id:'u2'}]);
+    t.queue.expiredPrefills.mockResolvedValue([{...t.job,id:'c1'},{...t.job,id:'c2'}]);
+    t.queue.claimCleanup=jest.fn(async j=>j);
+    t.service.recoverQueuedUpload=jest.fn(async j=>{order.push(j.id);});
+    t.service.cleanupQueuedPrefill=jest.fn(async j=>{order.push(j.id);});
+    await t.service.recoverQueuedUploads(()=>true);expect(order).toEqual(['u1','c1','u2','c2']);
+  });
+  it('does not claim maintenance items after the budget ends',async()=>{
+    const t=subject();await t.service.recoverQueuedUploads(()=>false);
+    expect(t.queue.claimUpload).not.toHaveBeenCalled();expect(t.queue.expiredPrefills).not.toHaveBeenCalled();expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
+  });
+  it('does not mark a partially scanned upload missing when time runs out',async()=>{
+    const t=subject();let available=true;t.drive.findProtectedUploads.mockResolvedValue(['candidate-1','candidate-2']);
+    t.drive.downloadFile.mockImplementation(async()=>{available=false;return Buffer.from('different');});
+    await t.service.recoverQueuedUploads(()=>available);
+    expect(t.drive.downloadFile).toHaveBeenCalledTimes(1);expect(t.queue.patch).not.toHaveBeenCalled();expect(t.queue.bindUpload).not.toHaveBeenCalled();
+  });
+  it('continues cleanup after a recoverable upload failure',async()=>{
+    const t=subject();t.service.logger={warn:jest.fn()};t.drive.ensureIntakeStaging.mockRejectedValue(new Error('Drive unavailable'));
+    t.queue.expiredPrefills.mockResolvedValue([t.job]);t.queue.claimCleanup=jest.fn(async j=>j);t.service.cleanupQueuedPrefill=jest.fn();
+    await t.service.recoverQueuedUploads(()=>true);expect(t.service.cleanupQueuedPrefill).toHaveBeenCalledTimes(1);
+  });
+  it.each(['foreign-tag','foreign-folder','shared','changed-hash'])('maintenance retains temporary files failing %s',async reason=>{
+    const t=subject();Object.assign(t.job,{purpose:'FORM_FILL',drive_file_id:'file',context_json:{temporaryUpload:true}});
+    t.queue.unfinishedUploads.mockResolvedValue([]);t.queue.expiredPrefills.mockResolvedValue([t.job]);t.queue.claimCleanup=jest.fn(async j=>j);
+    t.drive.getIntakeFileMetadata.mockResolvedValue({parents:[reason==='foreign-folder'?'foreign':'temp'],appProperties:{keepintaxProtectedOperation:reason==='foreign-tag'?'foreign':'id'}});
+    if(reason==='shared')t.queue.query.mockResolvedValue([{reason:'document'}]);
+    if(reason==='changed-hash')t.drive.downloadFile.mockResolvedValue(Buffer.from('changed'));
+    await t.service.recoverQueuedUploads(()=>true);expect(t.drive.deleteIntakeFile).not.toHaveBeenCalled();
+  });
+  it('maintenance deletes only the existing owned tagged unreferenced hash-matching temporary file',async()=>{
+    const t=subject();Object.assign(t.job,{purpose:'FORM_FILL',drive_file_id:'file',context_json:{temporaryUpload:true}});
+    t.queue.unfinishedUploads.mockResolvedValue([]);t.queue.expiredPrefills.mockResolvedValue([t.job]);t.queue.claimCleanup=jest.fn(async j=>j);
+    t.drive.getIntakeFileMetadata.mockResolvedValue({parents:['temp'],appProperties:{keepintaxProtectedOperation:'id'}});t.drive.deleteIntakeFile.mockResolvedValue('DELETED');
+    await t.service.recoverQueuedUploads(()=>true);expect(t.drive.deleteIntakeFile).toHaveBeenCalledWith('file');expect(t.queue.finishCleanup).toHaveBeenCalledWith(t.job,'DONE');expect(t.service.documentProcessor.extract).not.toHaveBeenCalled();
   });
 });

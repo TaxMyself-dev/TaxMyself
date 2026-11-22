@@ -1,3 +1,12 @@
+import {
+  ServiceUnavailableException,
+  BeforeApplicationShutdown,
+} from '@nestjs/common';
+import {
+  assertDocumentExecution,
+  documentExecution,
+  schedulerDispatch,
+} from './document-ai.execution';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DocumentAiStore } from './document-ai.store';
@@ -12,7 +21,10 @@ import {
 } from './document-ai.types';
 export const DOCUMENT_AI_PROVIDERS = Symbol('DOCUMENT_AI_PROVIDERS');
 @Injectable()
-export class DocumentAiWorker {
+export class DocumentAiWorker implements BeforeApplicationShutdown {
+  private stopping = false;
+  private maintaining = false;
+  private readonly rounds = new Map<AbortController, Promise<void>>();
   private readonly logger = new Logger(DocumentAiWorker.name);
   private readonly active = new Set<Promise<void>>();
   private dispatching = false;
@@ -24,7 +36,7 @@ export class DocumentAiWorker {
   ) {}
   @Cron('*/2 * * * * *', { name: 'documentAiDispatch' })
   async tick() {
-    if (this.dispatching) return;
+    if (schedulerDispatch() || this.stopping || this.dispatching) return;
     this.dispatching = true;
     try {
       const profile = capacityProfile();
@@ -36,7 +48,7 @@ export class DocumentAiWorker {
         this.active.size < profile.concurrency &&
         admitted++ < profile.concurrency
       ) {
-        const completion = await this.store.claimCompletion();
+        const completion = await this.store.claimCompletion(profile);
         const job = completion || (await this.store.claimNext(profile));
         if (!job) break;
         const task = this.run(job, profile)
@@ -56,12 +68,136 @@ export class DocumentAiWorker {
       this.dispatching = false;
     }
   }
+  /** Refill up to two slots for 60 seconds; always drain before returning. */
+  async round(signal: AbortSignal) {
+    if (this.stopping)
+      throw new ServiceUnavailableException('Document worker stopping');
+    if (this.dispatching) return { status: 'busy', admitted: 0 };
+    this.dispatching = true;
+    const cancellation = new AbortController();
+    const abort = () => cancellation.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+    let finishRound: () => void;
+    this.rounds.set(
+      cancellation,
+      new Promise<void>((resolve) => {
+        finishRound = resolve;
+      }),
+    );
+    const tasks = new Set<Promise<void>>();
+    const admissionUntil = Date.now() + 60000;
+    let admitted = 0;
+    let failed = false;
+    try {
+      await documentExecution.run(cancellation.signal, async () => {
+        assertDocumentExecution();
+        const profile = capacityProfile();
+        if (!this.providers.some((p) => p.id === profile.provider))
+          throw new Error('Provider not configured');
+        await this.store.recoverExpired();
+        for (const job of await this.store.unreportedGmailFailures()) {
+          if (cancellation.signal.aborted) break;
+          await this.executor.recordQueuedFailure?.(job, job.error_code);
+        }
+        while (!cancellation.signal.aborted && Date.now() < admissionUntil) {
+          if (tasks.size >= Math.min(2, profile.concurrency)) {
+            // Race waits for a free slot only; finalization below always awaits every task.
+            await Promise.race(tasks);
+            continue;
+          }
+          const job =
+            (await this.store.claimCompletion(profile)) ||
+            (await this.store.claimNext(profile));
+          if (!job) {
+            if (!tasks.size) break;
+            await Promise.race(tasks);
+            continue;
+          }
+          const task = this.run(job, profile)
+            .catch(() => {
+              failed = true;
+            })
+            .finally(() => {
+              tasks.delete(task);
+              this.active.delete(task);
+            });
+          admitted++;
+          tasks.add(task);
+          this.active.add(task);
+        }
+        // Always drain even if a later claim/storage operation fails.
+      });
+    } catch {
+      failed = true;
+    } finally {
+      await Promise.all(tasks);
+      this.rounds.delete(cancellation);
+      finishRound();
+      signal.removeEventListener('abort', abort);
+      this.dispatching = false;
+    }
+    if (failed)
+      throw new ServiceUnavailableException(
+        'Document round retained for recovery',
+      );
+    return {
+      status: cancellation.signal.aborted ? 'cancelled' : 'completed',
+      admitted,
+    };
+  }
+  /** Separate authenticated Scheduler invocation; never performs paid analysis. */
+  async maintenance(signal: AbortSignal) {
+    if (this.stopping)
+      throw new ServiceUnavailableException('Document worker stopping');
+    if (this.maintaining) return { status: 'busy' };
+    this.maintaining = true;
+    const cancellation = new AbortController();
+    const abort = () => cancellation.abort();
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+    let finish: () => void;
+    this.rounds.set(
+      cancellation,
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const until = Date.now() + 60000;
+    try {
+      await documentExecution.run(cancellation.signal, async () => {
+        assertDocumentExecution();
+        await this.executor.recoverQueuedUploads(
+          () => !cancellation.signal.aborted && Date.now() < until,
+        );
+      });
+      return {
+        status: cancellation.signal.aborted ? 'cancelled' : 'completed',
+      };
+    } catch {
+      throw new ServiceUnavailableException(
+        'Document maintenance retained for recovery',
+      );
+    } finally {
+      this.rounds.delete(cancellation);
+      finish();
+      signal.removeEventListener('abort', abort);
+      this.maintaining = false;
+    }
+  }
+  async beforeApplicationShutdown() {
+    this.stopping = true;
+    for (const controller of this.rounds.keys()) controller.abort();
+    await Promise.all([...this.rounds.values()]);
+    await this.drain();
+  }
   /** Test/controlled shutdown synchronization; never starts a worker or provider by itself. */
   async drain() {
     await Promise.all([...this.active]);
   }
   @Cron('*/30 * * * * *', { name: 'documentAiRecovery' })
   async recover() {
+    if (schedulerDispatch() || this.stopping) return;
     try {
       await this.store.recoverExpired();
       for (const job of await this.store.unreportedGmailFailures())
@@ -75,19 +211,26 @@ export class DocumentAiWorker {
     if (!['PREPARING', 'COMPLETING', 'RESULT_SAVED'].includes(job.state))
       return;
     let lostLease = false;
-    const heartbeat = setInterval(
-      () =>
-        void this.store.heartbeat(job).catch(() => {
-          lostLease = true;
-        }),
-      30000,
-    );
+    let pendingHeartbeat: Promise<void> | undefined;
+    const heartbeat = setInterval(() => {
+      if (!pendingHeartbeat)
+        pendingHeartbeat = this.store
+          .heartbeat(job)
+          .catch(() => {
+            lostLease = true;
+          })
+          .finally(() => {
+            pendingHeartbeat = undefined;
+          });
+    }, 30000);
     heartbeat.unref?.();
     const started = Date.now();
     const cpu = process.cpuUsage();
     try {
       if (!['COMPLETING', 'RESULT_SAVED'].includes(job.state)) {
+        assertDocumentExecution();
         const input = await this.executor.prepareQueuedAnalysis(job, profile);
+        assertDocumentExecution();
         if (lostLease) throw new Error('Preparation lease lost');
         if (input.cached) {
           await this.store.patch(job, {
@@ -117,6 +260,7 @@ export class DocumentAiWorker {
           const aiStart = Date.now();
           let outcome;
           try {
+            assertDocumentExecution();
             outcome = await provider.analyze(input, job.model);
           } catch (error) {
             if (error instanceof ProviderRejectedError) {
@@ -157,6 +301,7 @@ export class DocumentAiWorker {
           });
         }
       }
+      assertDocumentExecution();
       await this.store.patch(job, { state: 'COMPLETING' });
       const completing = Date.now();
       const result = await this.executor.completeQueuedAnalysis(
@@ -211,6 +356,7 @@ export class DocumentAiWorker {
         await this.executor.recordQueuedFailure?.(job, code);
     } finally {
       clearInterval(heartbeat);
+      await pendingHeartbeat;
     }
   }
 }
