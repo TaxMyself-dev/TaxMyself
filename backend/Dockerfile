@@ -50,6 +50,27 @@ RUN npm ci --only=production && npm cache clean --force
 USER node
 
 ###################
+# SEPARATE ESM AGENT PACKAGE
+###################
+
+FROM node:22.22.3-alpine AS agent-build
+WORKDIR /usr/src/app/agent
+COPY agent/package.json agent/package-lock.json ./
+COPY agent/scripts ./scripts
+COPY agent/project.inlang ./project.inlang
+COPY agent/messages ./messages
+RUN npm ci
+COPY agent/ ./
+COPY src/agent-harness/agent-model.config.ts /usr/src/app/src/agent-harness/agent-model.config.ts
+RUN npm run build
+
+FROM node:22.22.3-alpine AS agent-runtime-deps
+WORKDIR /usr/src/app/agent
+COPY agent/package.json agent/package-lock.json ./
+# Root prepare/postinstall need build tools; runtime packages have no native builds.
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
+###################
 # PRODUCTION
 ###################
 
@@ -64,9 +85,16 @@ COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 COPY --chown=node:node --from=build /usr/src/app/assets ./assets
 
+COPY --chown=node:node --from=agent-build /usr/src/app/agent/dist ./agent/dist
+COPY --chown=node:node --from=agent-runtime-deps /usr/src/app/agent/package.json ./agent/package.json
+COPY --chown=node:node --from=agent-runtime-deps /usr/src/app/agent/node_modules ./agent/node_modules
+COPY --chown=node:node scripts/check-agent-image.cjs ./scripts/check-agent-image.cjs
+
 # Preserve the original production runtime user, as explicitly requested.
 USER root
 
+# Fail the build if the final filesystem cannot load the actual agent contract.
+RUN --network=none node scripts/check-agent-image.cjs
+
 # Start the server using the production build
 CMD [ "node", "dist/main.js" ]
-

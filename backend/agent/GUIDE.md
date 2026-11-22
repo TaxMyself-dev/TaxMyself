@@ -96,7 +96,7 @@ Not ported, with reason:
 
 ## Open decisions before production
 
-- The Docker image uses Node 18 and does not build the agent; the agent needs Node 22+, `npm ci --omit=dev` in `backend/agent` and `npm run build` (with dev dependencies) in the build stage.
+- Production Docker packaging builds the separate agent ESM package on Node 22.22.3 and installs its production dependencies independently. The final image checks the shared Nest loader without network access; see [image packaging](../../docs/operations/agent-image-packaging.md).
 - Legacy agent data: rows from before 2026-11-05 (`agent_users.data_owner_firebase_id IS NULL`) are kept and never served. `keepintax-dev` had none when the migration ran; production has no agent tables yet. Deleting such rows is a separate, explicit decision (the statement is in the migration's header).
 - Local Langfuse requires its Docker stack to be running. Development evals use local tracing; see KT-089 for the runs actually executed, rather than treating configured keys as proof of exported traces.
 - `agent_users` is not linked to KeepInTax's users: deleting an account does not delete its agent data yet.

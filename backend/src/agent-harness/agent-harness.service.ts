@@ -1,8 +1,7 @@
 import { AutoClassificationService } from '../auto-classification/auto-classification.service';
 import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import * as path from 'path';
-import { pathToFileURL } from 'url';
+import { agentPackageDir, loadAgentBundle } from './agent-bundle-loader';
 import { AgentBooksService } from './agent-books.service';
 import { AgentClassificationService } from './agent-classification.service';
 import {
@@ -39,17 +38,6 @@ interface AgentHarnessBundle {
   disposeAppRuntime: () => Promise<void>;
 }
 
-// The bundle is an ES module (Effect 4 and AI SDK 7 are ESM-only), and this
-// backend compiles to CommonJS, which turns `import()` into `require()`. A
-// function built at runtime keeps a real dynamic import.
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
-const importModule = new Function('specifier', 'return import(specifier)') as (
-  specifier: string,
-) => Promise<unknown>;
-
-// The agent package's directory: its bundle and its own node_modules.
-const agentPackageDir = path.resolve(__dirname, '../../agent');
-
 let rejectionGuardInstalled = false;
 
 /**
@@ -71,26 +59,16 @@ export class AgentHarnessService implements OnModuleDestroy {
     private readonly automation?: AutoClassificationService,
   ) {}
 
-  private bundlePath() {
-    return (
-      process.env.AGENT_BUNDLE_PATH ||
-      path.join(agentPackageDir, 'dist/agent-http.mjs')
-    );
-  }
-
   load(): Promise<AgentHarnessBundle> {
     if (!this.bundle) {
       if (!rejectionGuardInstalled) {
         installAgentRejectionGuard(this.logger, agentPackageDir);
         rejectionGuardInstalled = true;
       }
-      const file = this.bundlePath();
-      this.bundle = withAgentBackgroundContext(() =>
-        importModule(pathToFileURL(file).href),
-      ).then((loaded) => loaded as AgentHarnessBundle);
+      this.bundle = loadAgentBundle().then((loaded) => loaded as AgentHarnessBundle);
       this.bundle.catch((error: unknown) => {
         this.logger.error(
-          `AGENT_BUNDLE_UNAVAILABLE: ${file} could not be loaded (run npm run build in backend/agent)`,
+          `AGENT_BUNDLE_UNAVAILABLE: agent bundle could not be loaded (run npm run build in backend/agent)`,
           error instanceof Error ? error.stack : String(error),
         );
         // A later request tries again, after a build.
