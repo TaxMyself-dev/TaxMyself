@@ -52,7 +52,7 @@ package (`backend/agent`, an ES module) after `FirebaseAuthGuard`.
 - `agent-harness.access.spec.ts` runs the real `FirebaseAuthGuard`: a revoked
   or missing delegation reaches no agent route.
 - The agent must be built (`npm run build` in `backend/agent`) for these
-  routes to answer; the production Dockerfile does not build it yet.
+  routes to answer; the production Dockerfile builds and packages it independently and verifies the shared loader offline in the final stage. See docs/operations/agent-image-packaging.md.
   `backend/Dockerfile.agent-dev` builds both packages with Node 24 and includes
   the agent bundle and its runtime dependencies for the dev Cloud Run service.
   It defaults DISABLE_SYNCHRONIZE=true. See docs/operations/dev-ai-assistant.md.

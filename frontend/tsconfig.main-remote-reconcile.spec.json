@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/app/pages/book-keeping/incomes/incomes-shaam-confirmation.spec.ts",
+    "src/app/pages/doc-create/doc-create-manual-allocation.spec.ts",
+    "src/app/pages/doc-create/doc-create-shaam-loading.spec.ts",
+    "src/app/pages/doc-create/doc-create-request.spec.ts",
+    "src/app/pages/doc-create/doc-create-discount-audit.spec.ts",
+    "src/app/pages/pnl-report-journal/pnl-report-defaults.spec.ts",
+    "src/app/pages/vat-report-journal/vat-report-journal.page.spec.ts",
+    "src/app/shared/report-period-defaults.spec.ts",
+    "src/app/shared/report-filter-navigation.spec.ts",
+    "src/app/shared/vat-report-eligibility.spec.ts",
+    "src/app/services/document-analysis.spec.ts",
+    "src/app/services/document-analysis-report.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}
