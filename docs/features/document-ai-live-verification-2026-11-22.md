@@ -85,3 +85,20 @@ The previously passing **214 backend tests / 33 suites**, **7 headless UI tests*
 ## Final state
 
 No frontend/backend server was left listening on 4204/3004, and no automatic worker was started. General AI/deletion remain unactivated; only the controlled helper performed the authorized synthetic operations. Existing jobs were not transferred. No application source, accounting rules, main branch or production state changed.
+
+## Authenticated live browser verification through 4204
+
+Follow-up completed on 2026-11-22 after the user enabled Chrome extension file URL access. This supersedes the earlier browser-test exclusion above; the 24-job core audit remains a separate point-in-time result.
+
+The real Angular frontend on 4204 called the real Nest API on loopback 3004 using normal authentication. The isolated local harness disabled schema synchronization, boot seeds, all scheduled tasks and general discovery; startup asserted zero registered schedules. Only the two document-upload POST routes were allowed. Upload hashes were restricted to this run's synthetic fixtures. No expense was saved, no existing jobs were processed and no additional real provider requests were made during the browser phase.
+
+Verified:
+
+- Manual expense form: select business נגרות (5), upload manual.pdf with the real file chooser, poll the queued result, and populate invoice QA-MANUAL-6ea2888e and amount 94.40 from the previously saved real extraction.
+- Pending form result: upload open.pdf, edit amount to 321.45 while waiting, then complete only its exact FORM_FILL job using the actual worker's cached-result path. Invoice changed to QA-OPEN-6ea2888e while the edited amount remained 321.45. The provider adapter was guarded to throw if called; zero calls occurred. No general worker started.
+- Quick Drive upload: submit manual.pdf again through the dialog for business 5. Read-only DEV audit exited 0: one DOCUMENT job, COMPLETED, and one distinct Drive file across matching jobs. No duplicate document work was created.
+- Archive: filtered Synthetic Workshop QA Ltd shows eight synthetic rows in business נגרות, including all six requested document types and Drive/email origins. The earlier partial-data control remains pending approval; the intentionally invalid PDF remains an error control.
+
+The homepage banking warning OB-03 was expected from deliberately blocked bank-sync requests in this isolated harness. No bank operation was performed. This is not a full normal-startup/background-worker test.
+
+Local proof: output/ui-4204-preserved-edit.jpg and output/ui-4204-archive.jpg in the chat workspace. Commands: node shared-queue-ui-process-cached.cjs (exact scoped job, exit 0); node shared-queue-ui-audit.cjs (read-only synthetic audit, exit 0). Test helpers are local and untracked. Application executable code was unchanged; previously passing focused suites/builds were reused.
