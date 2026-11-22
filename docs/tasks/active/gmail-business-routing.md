@@ -162,3 +162,19 @@ Post-commit checks: `git show --check --oneline HEAD` passed; feature worktree
 clean and backend/.env ignored. Main remains exactly
 `712db3ce33c033b241b5263e853ba8f520802c2e`, with its original untracked
 backend/journey-timings.local still present. No remote action was performed.
+
+## Authorized development schema execution — 2026-11-22
+
+After the implementation handoff, Elazar explicitly requested execution of the
+three documented columns. The worktree backend/.env identified keepintax-dev at
+34.165.27.179:3306. The bounded script
+`C:/Users/user/Documents/ChatGPT/Keepintax - GMAIL/tmp/apply-gmail-routing-dev-schema.cjs`
+asserted that exact development target and SELECT DATABASE(), inspected only the
+three target columns in INFORMATION_SCHEMA, and added all three as JSON NULL.
+Final inspection verified all three nullable JSON columns. Exit 0. Initial
+sandbox connection failed EACCES; the narrow approved rerun succeeded.
+
+This supersedes the earlier 'prepared only / no SQL executed' status for the
+development database only. No production connection, full cutover execution,
+application bootstrap, data updates, service restart, main integration or push.
+No executable files changed; existing automated evidence remains applicable.
