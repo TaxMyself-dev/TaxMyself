@@ -19,6 +19,7 @@ import { TransactionsService } from '../transactions/transactions.page.service';
 import { VatReportJournalService } from './vat-report-journal.service';
 import { VatReportJournalPage } from './vat-report-journal.page';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
+import { DriveDocsService } from 'src/app/services/drive-docs.service';
 import { of } from 'rxjs';
 
 const business = (
@@ -94,6 +95,7 @@ describe('VatReportJournalPage business selection', () => {
         { provide: DateService, useValue: {} },
         { provide: FilesService, useValue: files },
         { provide: ExpenseDataService, useValue: expenseData },
+        { provide: DriveDocsService, useValue: {} },
         { provide: VatReportJournalService, useValue: {} },
         { provide: ModalController, useValue: {} },
         { provide: TransactionsService, useValue: {} },
@@ -149,6 +151,45 @@ describe('VatReportJournalPage business selection', () => {
     const period = component.filterConfig.find((field) => field.controlName === 'period');
     expect(period?.allowedPeriodModes).toEqual([ReportingPeriodType.BIMONTHLY]);
     expect(period?.periodDefaults?.periodMode).toBe(ReportingPeriodType.BIMONTHLY);
+  });
+
+  it('defaults November bimonthly reporting to September-October after integration', async () => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(2026, 10, 22));
+    try {
+      businesses.set([
+        business('licensed', BusinessType.LICENSED, VATReportingType.DUAL_MONTH_REPORT),
+      ]);
+      await component.ngOnInit();
+
+      const period = component.filterConfig.find(field => field.controlName === 'period');
+      expect(period.periodDefaults).toEqual(jasmine.objectContaining({
+        periodMode: ReportingPeriodType.BIMONTHLY,
+        year: 2026,
+        month: '9',
+        bimonthlyDefaultMonth: '9',
+      }));
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('defaults January monthly reporting to December of the previous year', async () => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(2026, 0, 15));
+    try {
+      businesses.set([
+        business('licensed', BusinessType.LICENSED, VATReportingType.MONTHLY_REPORT),
+      ]);
+      await component.ngOnInit();
+
+      const period = component.filterConfig.find(field => field.controlName === 'period');
+      expect(period.periodDefaults).toEqual(jasmine.objectContaining({
+        periodMode: ReportingPeriodType.MONTHLY, year: 2025, month: '12',
+      }));
+    } finally {
+      jasmine.clock().uninstall();
+    }
   });
 
   it('shows only eligible choices for multiple eligible businesses in a mixed account', async () => {

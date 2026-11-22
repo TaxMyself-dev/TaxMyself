@@ -7,7 +7,7 @@ Wizard-style page for preparing a business's annual tax report: answer a fixed q
 - Uses `AnnualReportService`, `ClientPanelService`, `FilesService` (injected from `src/app/services`).
 
 ## Main flows
-- Load or create the current year's report (`AnnualReportService.getOrCreate`) for the active business (self or, when an accountant is viewing a client, the client's business).
+- Load or create the selected report (`AnnualReportService.getOrCreate`) for the active business (self or, when an accountant is viewing a client, the client's business). Initial entry defaults to the most recently completed tax year; an explicit `taxYear` query parameter still selects that year.
 - Answer questionnaire (`ANNUAL_REPORT_QUESTIONS`), with debounced auto-save (800ms) of partial answers.
 - Upload/remove/preview/download supporting files per document category (via `FilesService`, backed by Firebase Storage).
 - Finish the report (`finish()`) once all required answers/docs are present; mark/unmark as "reported" (`setReported`).

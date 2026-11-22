@@ -140,6 +140,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
   showCreateDocErrorDialog = signal(false); // Error dialog when document creation fails
   documentRequestBusy = computed(() => this.createPDFIsLoading() || this.createPreviewPDFIsLoading() || this.allocationNumberLoading());
   allocationNumberLoading = signal(false); // Loading state for allocation number request
+  allocationFlowLoading = signal(false);
+  allocationConnectionCheckLoading = signal(false);
   clients = signal<IClient[]>([]);
   filteredClients = signal<IClient[]>([]);
   selectedClientData: IClient = null; // Store selected client data for expanded fields
@@ -2252,8 +2254,17 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.openShaamDialog();
   }
 
+  /** Persist the pending document, then open the existing populated manual flow. */
+  onCreateWithManualAllocation(): void {
+    this.showAllocationDecisionDialog.set(false);
+    this.createPendingAllocationDoc({
+      requestAllocation: false,
+      openManualAllocation: true,
+    });
+  }
+
   /**
-   * Button 3: Create without allocation number — confirm, then issue the doc
+   * Create without allocation number — confirm, then issue the doc
    * normally (full PDF, journal entry, etc.) without an allocation #.
    */
   onCreateWithoutAllocation(): void {
@@ -2286,7 +2297,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
    * the incomes page, or immediately asks the backend to allocate and finalize
    * that exact persisted document.
    */
-  private createPendingAllocationDoc(opts: { requestAllocation: boolean }): void {
+  private createPendingAllocationDoc(opts: {
+    requestAllocation: boolean;
+    openManualAllocation?: boolean;
+  }): void {
     if (this.documentRequestBusy()) return;
     this.createPDFIsLoading.set(true);
 
@@ -2299,6 +2313,9 @@ export class DocCreatePage implements OnInit, OnDestroy {
     }).pipe(
       finalize(() => this.createPDFIsLoading.set(false)),
       catchError((err) => {
+        if (opts.requestAllocation) {
+          this.allocationFlowLoading.set(false);
+        }
         console.error('Error saving pending-allocation doc:', err);
         this.messageService.add({
           severity: 'error',
@@ -2310,7 +2327,12 @@ export class DocCreatePage implements OnInit, OnDestroy {
         return EMPTY;
       }),
     ).subscribe((response) => {
-      if (!response?.docNumber) return;
+      if (!response?.docNumber) {
+        if (opts.requestAllocation) {
+          this.allocationFlowLoading.set(false);
+        }
+        return;
+      }
 
       // Best-effort: delete any draft (matches the normal createDoc path).
       if (this.selectedBusinessNumber && this.fileSelected()) {
@@ -2335,7 +2357,19 @@ export class DocCreatePage implements OnInit, OnDestroy {
         return;
       }
 
+      const pendingAllocationRow = {
+        ...payload.docData,
+        docNumber: String(response.docNumber),
+        issuerBusinessNumber: String(payload.docData.issuerBusinessNumber),
+      };
       this.resetDocFormsAndDrafts();
+      if (opts.openManualAllocation) {
+        this.router.navigate(
+          ['/book-keeping/incomes'],
+          { state: { autoOpenAllocationFor: pendingAllocationRow } },
+        );
+        return;
+      }
       this.router.navigate(['/book-keeping/incomes']);
     });
   }
@@ -2354,11 +2388,16 @@ export class DocCreatePage implements OnInit, OnDestroy {
       return;
     }
 
+    this.allocationFlowLoading.set(true);
+    this.allocationConnectionCheckLoading.set(true);
+
     // Check for valid SHAAM connection
     firstValueFrom(
       this.shaamService.getConnectionStatus(this.selectedBusinessNumber)
     ).then((connection) => {
+      this.allocationConnectionCheckLoading.set(false);
       if (!connection?.connected) {
+        this.allocationFlowLoading.set(false);
         // No valid connection exists, show confirmation dialog
         this.showShaamConnectionRequiredDialog();
         return;
@@ -2367,6 +2406,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
       // any approval request is sent to SHAAM.
       this.createPendingAllocationDoc({ requestAllocation: true });
     }).catch((error) => {
+      this.allocationConnectionCheckLoading.set(false);
+      this.allocationFlowLoading.set(false);
       this.showShaamConnectionError(error);
     });
   }
@@ -2395,7 +2436,10 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.allocationNumberLoading.set(true);
     this.shaamService.requestInvoiceAllocation(businessNumber, docNumber, docType)
       .pipe(
-        finalize(() => this.allocationNumberLoading.set(false)),
+        finalize(() => {
+          this.allocationNumberLoading.set(false);
+          this.allocationFlowLoading.set(false);
+        }),
         catchError((error) => {
           const code = error?.error?.code;
           const isBlocked = code === 'ALLOCATION_OUTCOME_UNKNOWN'

@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-116/KT-117 Allocation button borders and risk-based gates — 2026-11-19
+
+All white actions in the document-allocation decision and completion dialogs
+now use the existing `WHITE_BORDER` variant, preserving a visible black outline
+without changing the global white-button style. The repository quality gates
+now classify changes by risk: local presentation-only edits use a direct
+template/component assertion plus the frontend build and visual check, while
+behavioral, shared, service, backend and infrastructure changes retain broader
+targeted verification. The original focused runs passed 52/52 allocation/table
+tests and 27/27 doc-create tests; after reconciliation with the newer remote
+main, static allocation-style checks and the Angular production build passed.
+Feature commit `aa549003` and governance commit `362ec52b` were pushed through
+delivery `362ec52b`. No backend, database, accounting, external-service,
+production, or deployment action occurred.
+
 ## KT-114 Hosted checkout terminal result — 2026-11-15
 
 CardCom `GetLpResult` non-success responses now release a hosted checkout only
@@ -489,3 +504,77 @@ focused backend tests; its Chrome rerun was blocked before spec loading by a
 local Windows GPU/cache crash, while the identical source had already passed
 35/35 in the isolated worker. No schema, data, amount/VAT, receipt/accounting,
 credential, provider-write, production or deployment action occurred.
+
+## KT-118 manual allocation portal details — 2026-11-19
+
+The pending-allocation manual flow now shows selectable, read-only values for
+the Tax Authority request type, document reference, customer identifier, date,
+pre-VAT amount, VAT amount and item/service descriptions loaded from the
+document lines. A line-loading failure remains non-blocking and preserves the
+general document description as a fallback. Feature commit `9d2d7688` and its
+worker handoff reached `origin/main` at `2c2c3b6b`. The integrated tree passed
+the isolated allocation-flow Karma spec (7 tests) and Angular production build;
+no unrelated suites were run under the component-behavior tier. No schema,
+database, accounting, authorization, Tax Authority write, production change or
+deployment occurred.
+
+## KT-119 manual allocation dialog state — 2026-11-19
+
+Fixed the PrimeNG dialog transition that cleared `pendingFinalizeRow` after the
+user chose manual allocation, leaving only the Tax Authority link and
+allocation-number input visible. The method-choice `onHide` now preserves the
+row while the manual dialog is open, so all copyable portal fields remain in
+that same popup; explicit dismissal still clears state. Fix commit `06f9f3cd`
+reached `origin/main` at `38326e0e`. Only the focused allocation-flow Karma
+spec ran (8 tests), followed by the Angular production build; both passed. No
+backend, schema, database, accounting, authorization, Tax Authority write,
+production change or deployment occurred.
+
+## KT-120 manual allocation during document creation — 2026-11-19
+
+The mandatory allocation decision on the document-creation page now includes a
+bordered white "הפק מספר הקצאה באופן ידני" action. It persists the numbered
+`PENDING_ALLOCATION` document and journal entry, then navigates with the saved
+document snapshot so the existing populated manual-allocation dialog opens on
+the incomes page. Feature commit `903318c9` reached `origin/main` at
+`9dde9e6b`. Verification was intentionally minimal: one isolated Karma test and
+the Angular production build passed; no other suites ran. No backend, schema,
+database, accounting-rule, authorization, Tax Authority write, production
+change or deployment occurred.
+
+## KT-121 SHAAM connection-check loading — 2026-11-19
+
+Automatic allocation on document creation now gives immediate and continuous
+feedback. The existing modal first displays "בודק חיבור לרשות המסים", then
+switches to "מפיק מספר הקצאה" after a usable connection is confirmed and stays
+visible while the pending document and allocation request complete. It closes
+before disconnected/error feedback is shown. Fix commit `1fe8a9cc` reached
+`origin/main` at `5a2729d6`. Verification was intentionally narrow: two isolated
+Karma tests and the Angular production build passed; no other suites ran. No
+backend, provider-contract, schema, database, accounting, authorization,
+production change or deployment occurred.
+
+## KT-122 report-period defaults — 2026-11-19
+
+VAT report entry now keeps the selected business's configured monthly or
+bimonthly cadence while selecting the most recently completed reporting
+period; in November/December a bimonthly business opens on September-October,
+including correct previous-year rollover. Annual-report entry now defaults to
+the current calendar year while preserving an explicit `taxYear` query
+parameter. Feature commit `0897fa3c` reached `origin/main`. Verification was
+intentionally narrow: four isolated Karma tests and the Angular production
+build passed; unrelated suites did not run. No backend, schema, database,
+report-total, accounting, authorization, production change or deployment
+occurred.
+
+## KT-123 P&L annual default — 2026-11-19
+
+Clarified that the requested annual default belongs to the profit-and-loss
+report filter, not the annual-report preparation wizard. P&L now opens in
+annual mode for the current calendar year, while review-return parameters
+still restore their explicit period. The unrelated annual-report wizard was
+returned to its prior completed-tax-year default. Feature commit `451b18af`
+reached `origin/main`. Per the user's explicit request, verification was limited
+to `git diff --check` and targeted static assertions; no Karma suite or Angular
+build ran. No backend, schema, database, report-total, accounting,
+authorization, production change or deployment occurred.

@@ -591,17 +591,22 @@
   </div>
 
   <!-- Loading Dialog for Allocation Number Request -->
-  <p-dialog header="מפיק מספר הקצאה" [visible]="allocationNumberLoading()" [modal]="true" [rtl]="true"
+  <p-dialog [header]="allocationConnectionCheckLoading() ? 'בודק חיבור לרשות המסים' : 'מפיק מספר הקצאה'"
+    [visible]="allocationFlowLoading() || allocationNumberLoading()" [modal]="true" [rtl]="true"
     [closable]="false" [style]="{ width: '400px' }">
     <div class="allocation-loading-content">
       <div class="allocation-loading-wrapper">
         <div class="allocation-spinner"></div>
         <div class="allocation-loading-text">
           <p class="allocation-loading-title">
-            מפיק מספר הקצאה משעמ...
+            {{ allocationConnectionCheckLoading()
+              ? 'בודק חיבור לרשות המסים...'
+              : 'מפיק מספר הקצאה מרשות המסים...' }}
           </p>
           <p class="allocation-loading-subtitle">
-            אנא המתן, התהליך עשוי לקחת מספר שניות
+            {{ allocationConnectionCheckLoading()
+              ? 'הבדיקה עשויה להימשך מספר שניות'
+              : 'אנא המתן, התהליך עשוי לקחת מספר שניות' }}
           </p>
         </div>
       </div>
@@ -625,11 +630,14 @@
         <app-p-button [buttonText]="'קבל מספר הקצאה מרשות המיסים'" [buttonSize]="buttonSize.AUTO"
           [buttonColor]="buttonColor.BLACK" (onButtonClicked)="onGetAllocationFromTaxAuthority()">
         </app-p-button>
+        <app-p-button [buttonText]="'הפק מספר הקצאה באופן ידני'" [buttonSize]="buttonSize.AUTO"
+          [buttonColor]="buttonColor.WHITE_BORDER" (onButtonClicked)="onCreateWithManualAllocation()">
+        </app-p-button>
         <app-p-button [buttonText]="'הפק ללא מספר הקצאה'" [buttonSize]="buttonSize.AUTO"
-          [buttonColor]="buttonColor.WHITE" (onButtonClicked)="onCreateWithoutAllocation()">
+          [buttonColor]="buttonColor.WHITE_BORDER" (onButtonClicked)="onCreateWithoutAllocation()">
         </app-p-button>
         <app-p-button [buttonText]="'הפק מספר הקצאה מאוחר יותר'" [buttonSize]="buttonSize.AUTO"
-          [buttonColor]="buttonColor.WHITE" (onButtonClicked)="onDeferAllocationDecision()">
+          [buttonColor]="buttonColor.WHITE_BORDER" (onButtonClicked)="onDeferAllocationDecision()">
         </app-p-button>
       </div>
     </div>

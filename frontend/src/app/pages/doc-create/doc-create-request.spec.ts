@@ -19,6 +19,8 @@ describe('document preview and create request coordination', () => {
     page.createPDFIsLoading = signal(false);
     page.createPreviewPDFIsLoading = signal(false);
     page.allocationNumberLoading = signal(false);
+    page.allocationFlowLoading = signal(false);
+    page.allocationConnectionCheckLoading = signal(false);
     page.documentRequestBusy = computed(() => page.createPDFIsLoading() || page.createPreviewPDFIsLoading() || page.allocationNumberLoading());
     page.allocationNumber = signal(null);
     page.pdfPreviewBlob = signal(null); page.pdfPreviewVisible = signal(false);
@@ -324,6 +326,8 @@ describe('SHAAM connection pre-flight', () => {
   function createPage(connectionResult: any): any {
     const page = Object.create(DocCreatePage.prototype);
     page.selectedBusinessNumber = '777777715';
+    page.allocationFlowLoading = signal(false);
+    page.allocationConnectionCheckLoading = signal(false);
     page.shaamService = {
       getConnectionStatus: jasmine.createSpy().and.returnValue(connectionResult),
     };
