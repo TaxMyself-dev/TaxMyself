@@ -65,3 +65,24 @@
   send `סיום בדיקות` from that phone when finished. No extra resend/replay was run.
 - Documentation-only evidence update: git diff --check; no repeat application
   tests needed because executable source is unchanged from tested revision.
+
+## Authorized local main integration (2026-11-23)
+
+- Elazar explicitly requested local main integration; remote push/deployment are
+  not authorized. Main before integration: ceff13aca6bb134680833d525ecf5555c9af88ed.
+- Main's effective `node frontend/scripts/start-local.js --print-config` reported
+  frontendPort=4200, backendPort=3000, apiUrl=http://localhost:3000/, main defaults.
+  `node backend/scripts/start-watch.js --print-config` reported backendPort=3000,
+  process/environment source and synchronize=false. No port configuration changes.
+- Main had no tracked changes. Its unrelated untracked
+  backend/journey-timings.local is preserved in place and not staged.
+- Merged current main into the feature first, without conflicts: 355b9fa1.
+  Reviewed the automatic merge: retains main's immediate OCR integration together
+  with custom-button selection. Candidate delta from main contains only this task.
+- On combined candidate 355b9fa1, repeated the exact nine-suite backend command
+  above: 209/209 tests, 9/9 suites, 73.288 seconds. `npm run build`: exit 0.
+  `node --test proxy/lychee-webhook.test.js proxy/lychee-routing-store.test.js`:
+  40/40 passed. `git diff --check main HEAD`: exit 0. No frontend changes, so no
+  frontend build needed. Verification reused for the identical fast-forwarded tree.
+- Deliver through local fast-forward only. Preserve the unrelated timing file;
+  never push until Elazar personally tests the current local main and approves it.
