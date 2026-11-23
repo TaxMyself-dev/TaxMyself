@@ -55,6 +55,31 @@ test('test sender goes only to ngrok with exact signed bytes', async () => {
   assert.equal(calls[0].options.redirect, 'error');
 });
 
+test('custom button without quote routes by persisted ownership, never by sender mode', async () => {
+  const result = await invoke({ eventOverrides: { has_media: false, message_type: 'text', button_id: 'saved-choice' },
+    ownership: { [env.LYCHEE_DEV_WEBHOOK_URL + '/reply-owner']: true } });
+  assert.equal(result.res.code, 200);
+  assert.equal(result.routeCalls.length, 0);
+  assert.equal(result.calls.length, 1);
+  assert.equal(result.calls[0].url, env.LYCHEE_DEV_WEBHOOK_URL);
+  assert.strictEqual(result.calls[0].options.body, result.bytes);
+});
+
+test('unknown custom button never falls through to mode routing or production', async () => {
+  const result = await invoke({ eventOverrides: { button_id: 'unknown-choice', has_media: false } });
+  assert.equal(result.res.code, 409);
+  assert.equal(result.calls.length, 0);
+  assert.equal(result.routeCalls.length, 0);
+});
+
+test('invalid custom button fields never forward', async () => {
+  for (const button_id of [123, {}, 'a'.repeat(201)]) {
+    const result = await invoke({ eventOverrides: { button_id } });
+    assert.equal(result.res.code, 400);
+    assert.equal(result.calls.length, 0);
+  }
+});
+
 test('quoted dev question routes reply to dev without marker, preserving signed bytes', async () => {
   const { res, calls, bytes, signed } = await invoke({ eventOverrides: {
     text: 'business A', reply_to_whatsapp_message_id: 'wamid.dev-question' },

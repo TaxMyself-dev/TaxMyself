@@ -99,9 +99,20 @@ after an owned selection; validated bytes retained by earlier versions are reuse
 The selection flow builds a vendor-compatible preview
 quoted to the original document. New choice snapshots contain short unique
 labels with business names (number fallback); up to three choices use buttons,
-larger lists use a numbered quoted text menu. The future sender must use these
+four to ten use a button list, and larger sets use a numbered quoted text menu.
+The sender must use these
 stored labels, not recalculate labels from a potentially reordered business list.
 The document and a durable question draft are staged in one SQL transaction.
+New snapshots also contain a unique opaque `id` per choice, derived from channel,
+document event and business. The exact IDs are sent in `buttons[].id` and returned
+unchanged by Lychee in signed `button_id` (up to 200 characters). The snapshot and
+outbox commit before HTTP, so an early click does not depend on the send receipt.
+Custom-ID replies resolve by the saved choice, sender, channel and current account;
+unknown IDs never fall back to labels or another document. Old buttons echoing their
+text as `button_id`, and older events without that field, retain quote/label matching.
+Receipt persistence remains useful for legacy replies and diagnostics and can finish
+after a fast choice has already queued or imported the document. Repeated valid
+custom-ID choices retain the existing original-business explanation and never reimport.
 `business.prompt.queued` logs only a count, never the question/recipient content.
 Both delivery workers use ConfiguredLycheeTransport: matching development/
 keepintax-dev or production/keepintax-prod identities, configured key/channel and

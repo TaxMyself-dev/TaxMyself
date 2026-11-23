@@ -26,6 +26,9 @@ export function promptDiagnostic(
     ...(request?.buttons || []).map((button) =>
       typeof button === 'string' ? button : button.text,
     ),
+    ...(request?.buttons || []).map((button) =>
+      typeof button === 'string' ? undefined : button.id,
+    ),
   ].filter((v): v is string => typeof v === 'string' && !!v);
   function clean(value: unknown): string | undefined {
     if (typeof value !== 'string') return undefined;

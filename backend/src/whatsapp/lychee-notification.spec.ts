@@ -105,7 +105,11 @@ class MemoryDb {
         ? [copy(row)]
         : [];
     }
-    if (q.startsWith('SELECT') && q.includes('prompt_whatsapp_message_id=?')) {
+    if (
+      q.startsWith('SELECT') &&
+      (q.includes('prompt_whatsapp_message_id=?') ||
+        q.includes('JSON_CONTAINS'))
+    ) {
       return copy(
         all
           .filter(
@@ -113,7 +117,9 @@ class MemoryDb {
               r.channel_id === p[0] &&
               r.sender_phone === p[1] &&
               r.firebase_id === p[2] &&
-              r.prompt_whatsapp_message_id === p[3],
+              (q.includes('JSON_CONTAINS')
+                ? r.business_choices?.some((c) => c.id === JSON.parse(p[3]).id)
+                : r.prompt_whatsapp_message_id === p[3]),
           )
           .slice(0, 2),
       );
@@ -349,15 +355,13 @@ describe('document result notifications (all boundaries mocked)', () => {
   });
   afterEach(() => service.onModuleDestroy());
   it('delivers a spouse result to the original sending phone for the same owner', async () => {
-    users
-      .createQueryBuilder()
-      .getMany.mockResolvedValue([
-        {
-          firebaseId: 'test-owner',
-          phone: '0549999999',
-          spousePhone: '0501234567',
-        },
-      ]);
+    users.createQueryBuilder().getMany.mockResolvedValue([
+      {
+        firebaseId: 'test-owner',
+        phone: '0549999999',
+        spousePhone: '0501234567',
+      },
+    ]);
     await succeed();
     await service.tick();
     expect(transport.send).toHaveBeenCalledTimes(1);
@@ -525,6 +529,24 @@ describe('document result notifications (all boundaries mocked)', () => {
     expect(db.rows.get(reply.event_id).status).toBe('PROCESSING');
     expect(parent()).toEqual(original);
     expect(notice()).toBeUndefined();
+  });
+
+  it('delivers a repeat-choice explanation by custom ID without a quote or saved receipt', async () => {
+    const reply: any = repeatChoice();
+    reply.payload.button_id = 'saved-choice';
+    reply.payload.reply_to_whatsapp_message_id = null;
+    db.rows.get(reply.event_id).payload = copy(reply.payload);
+    delete parent().prompt_whatsapp_message_id;
+    parent().business_choices[1].id = 'saved-choice';
+    const original = copy(parent());
+    expect(await events.explainSelectedBusiness(reply, 'test-owner')).toBe(
+      true,
+    );
+    expect(notice().payload.request.text).toContain('כבר שויך לעסק נגרות');
+    await service.tick();
+    expect(notice().status).toBe('NOTICE_SENT');
+    expect(parent()).toEqual(original);
+    expect(transport.send).toHaveBeenCalledTimes(1);
   });
   it.each(['owner', 'sender', 'quote', 'label', 'waiting', 'ambiguous'])(
     'does not stage an explanation for an unsafe repeat: %s',

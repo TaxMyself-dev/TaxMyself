@@ -1,3 +1,5 @@
+import { FeezbackUserActivityInterceptor } from '../feezback/core/feezback-user-activity.interceptor';
+import { UseInterceptors } from '@nestjs/common';
 import { Body, Controller, Post, Get, Patch, Delete, Headers, Query,
          Param, ParseIntPipe, NotFoundException, Session, UseGuards, Req, HttpException, HttpStatus, Logger,
          Inject, forwardRef, Header } from '@nestjs/common';
@@ -35,6 +37,7 @@ export class UsersController {
 
 
     @Get('/signin')
+    @UseInterceptors(FeezbackUserActivityInterceptor)
     @UseGuards(FirebaseAuthGuard)
     // Identical URL for the accountant's own session and for view-as/impersonation
     // (same firebaseId-swapped identity resolution) — never let the browser (or any

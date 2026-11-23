@@ -16,7 +16,6 @@ describe('ShaamCallbackPage origin routing', () => {
     Object.assign(page, {
       route: { queryParams: of({ connected: 'true' }) },
       router: { navigate: jasmine.createSpy('navigate') },
-      accessHandlerService: { handleFeatureAccess: jasmine.createSpy() },
       messageService: { add: jasmine.createSpy('add') },
       isLoading: true,
       isSuccess: false,
@@ -51,6 +50,15 @@ describe('ShaamCallbackPage origin routing', () => {
     expect(page.isSettingsOrigin).toBeFalse();
     expect(page.connectionOrigin).toBe('document');
     expect(sessionStorage.getItem(SHAAM_OAUTH_ORIGIN_STORAGE_KEY)).toBeNull();
+  });
+
+  it('delegates document return navigation to the route guards', () => {
+    const page = setup();
+
+    page.ngOnInit();
+    page.navigateToDocCreate();
+
+    expect((page as any).router.navigate).toHaveBeenCalledWith(['/doc-create']);
   });
 
   it('returns a uniform-file authorization to the uniform-file page', () => {

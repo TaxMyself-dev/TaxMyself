@@ -1,3 +1,4 @@
+import { FeezbackUserActivityInterceptor } from '../feezback/core/feezback-user-activity.interceptor';
 import { Controller, Get, Post, ParseIntPipe, Patch, Delete, Param, Body, Query, UploadedFile, UseInterceptors, Headers, Header, BadRequestException, ConflictException, ForbiddenException, UsePipes, ValidationPipe, Put, UseGuards, Req, HttpCode, HttpStatus, HttpException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TransactionsService } from './transactions.service';
@@ -178,6 +179,7 @@ export class TransactionsController {
   }
 
   @Post('retry-source')
+  @UseInterceptors(FeezbackUserActivityInterceptor)
   @UseGuards(FirebaseAuthGuard)
   async retrySource(
     @Req() request: AuthenticatedRequest,
@@ -231,6 +233,7 @@ export class TransactionsController {
   }
 
   @Post('trigger-sync')
+  @UseInterceptors(FeezbackUserActivityInterceptor)
   @UseGuards(FirebaseAuthGuard, SubscriptionGuard)
   @RequireModule(ModuleName.OPEN_BANKING)
   @HttpCode(HttpStatus.OK)

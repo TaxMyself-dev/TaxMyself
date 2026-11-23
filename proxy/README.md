@@ -9,3 +9,12 @@ The JSON parser records the parsed byte count so a zero-byte request remains dis
 body-parsing.test.js executes the actual middleware against two loopback HTTP servers, with the upstream target overridden locally, startup/NAT probing disabled, and webhook fetch mocked. It covers empty/no-framing/zero-length/chunked DELETE, empty and nonempty JSON, GET, token/link POST, PUT/PATCH, malformed JSON rejection, JSON-key compatibility, webhook acknowledgement/forwarding, and credential redaction. logging.test.js retains the existing header/body redaction checks. Tests send no real consent cancellations or external network requests.
 
 This fix requires a separate authorized proxy deployment to affect the live service. A local commit does not change the deployed proxy.
+
+## Account-holder activity header
+
+The proxy preserves the explicit X-Psu-IP-Address supplied by the backend on
+TPP requests through both the option decorator and proxyReq hook. It never
+synthesizes one from its socket or forwarded IP headers. Header/cURL diagnostics
+redact the value. Local body-parsing tests cover consent/account/card/V2
+transaction foreground and background requests; logging tests also cover the
+legacy options path. See [activity attribution](../docs/features/feezback-user-activity.md).

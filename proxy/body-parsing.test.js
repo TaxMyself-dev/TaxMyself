@@ -27,7 +27,7 @@ test('proxy body handling through real local HTTP and upstream forwarding', asyn
   const upstream = http.createServer((req, res) => {
     let body = ''; req.on('data', chunk => body += chunk);
     req.on('end', () => {
-      received.push({ method: req.method, url: req.url, body, authorization: req.headers.authorization });
+      received.push({ method: req.method, url: req.url, body, authorization: req.headers.authorization, psuIp: req.headers['x-psu-ip-address'] });
       res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"ok":true}');
     });
   });
@@ -110,6 +110,18 @@ test('proxy body handling through real local HTTP and upstream forwarding', asyn
     assert.equal(result.status, 200); assert.equal(webhooks.length, 1);
     assert.deepEqual(JSON.parse(webhooks[0].body), JSON.parse(body));
   });
+  for (const suffix of ['/tpp/v1/users/local/consents', '/tpp/v1/users/local/accounts',
+    '/tpp/v1/users/local/cards', '/tpp/v2/users/local/consents/c/accounts/r/transactions']) {
+    await t.test('preserves explicit PSU IP and omits it for background: ' + suffix, async () => {
+      const foreground = await request(origin, 'GET', '/proxy/feezback' + suffix, undefined,
+        { 'X-Psu-IP-Address': '203.0.113.71' });
+      assert.equal(foreground.status, 200); assert.equal(received.at(-1).psuIp, '203.0.113.71');
+      const background = await request(origin, 'GET', '/proxy/feezback' + suffix, undefined,
+        { 'x-forwarded-for': '192.0.2.99' });
+      assert.equal(background.status, 200); assert.equal(received.at(-1).psuIp, undefined);
+      assert.equal(logs.join('\n').includes('203.0.113.71'), false, 'PSU IP leaked in diagnostics');
+    });
+  }
   assert.ok(logs.some(line => line.includes('Incoming: DELETE')));
   for (const secret of ['fake-test-auth', 'fake-test-token', 'fake-link-token'])
     assert.equal(logs.join('\n').includes(secret), false);

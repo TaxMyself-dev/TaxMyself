@@ -1,3 +1,5 @@
+import { FeezbackUserActivityInterceptor } from './core/feezback-user-activity.interceptor';
+import { UseInterceptors } from '@nestjs/common';
 import { FeezbackDisconnectionService, DisconnectRequest } from './feezback-disconnection.service';
 import { BankingBatchError, bankingIssue } from './core/open-banking-issue';
 import { ServiceUnavailableException } from '@nestjs/common';
@@ -20,6 +22,7 @@ import { OpenBankingEnrollmentService } from '../billing/services/open-banking-e
 import { Optional } from '@nestjs/common';
 
 @Controller('feezback')
+@UseInterceptors(FeezbackUserActivityInterceptor)
 @RequireModule(ModuleName.OPEN_BANKING)
 export class FeezbackController {
   private readonly logger = new Logger(FeezbackController.name);

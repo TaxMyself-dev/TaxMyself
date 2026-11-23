@@ -13,6 +13,10 @@ Handles the full lifecycle of official documents the user issues (invoices, rece
 `finalizeAllocation` rejects finalization without a stored allocation while
 the latest attempt is `PROCESSING` or `UNKNOWN_OUTCOME`. With a stored
 allocation, retries perform local work only and never call SHAAM again.
+Finalizing a pending receipt or tax-invoice-receipt linked to a transaction
+invoice closes that open parent in the same database transaction as the child
+status/file update. Saving the child as `PENDING_ALLOCATION` does not close the
+parent early.
 
 ## PDF rendering and signing
 
@@ -74,6 +78,9 @@ Shared analysis queue: inbound AI entry points register durable work in `documen
 - `GET /documents/get-docs`, `GET /documents/get-doc-lines` — list/filter issued documents.
 - `GET|POST /documents/get-setting-doc-by-type/:typeDoc`, `setting-initial-index` — manage per-business running-number counters.
 - `POST /documents/rollback`, `POST /documents/finalize-allocation`, `PATCH /documents/update-status` — document lifecycle/allocation-number operations.
+- `GET /documents/get-docs` returns issued and pending-allocation documents but
+  excludes OAuth recovery drafts; drafts are restored only through the draft
+  endpoint and never appear in "documents I issued".
 - Allocation-required issuance first persists the header/lines/final running
   number with `PENDING_ALLOCATION` and posts the journal entry in the same
   transaction, so the numbered document participates in accounting reports

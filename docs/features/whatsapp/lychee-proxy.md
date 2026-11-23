@@ -50,7 +50,14 @@ connection strings, query parameters or raw exception messages.
 Null, missing or blank sender_phone falls back to contact_phone; malformed or
 conflicting nonempty sender phones are rejected. Signed bytes remain unchanged.
 Never mirror or fall back to prod after a dev failure.
-Quoted replies take precedence over the current test mode. For allowlisted senders the proxy
+Custom button replies and quoted replies take precedence over the current test mode.
+The signed optional `button_id` is bounded to 200 characters. A custom ID (different
+from the echoed button text) resolves against `business_choices` JSON in the existing
+development table, scoped to sender and channel, before any WhatsApp receipt exists.
+Unknown custom IDs use the same fail-closed ownership rules; never route them by mode
+or interpret button text as a routing command. This requires the updated proxy and
+backend together; an unchanged deployed proxy still requires a saved quote mapping.
+For allowlisted senders the proxy
 queries development prompt ownership directly in SQL first, scoped by channel,
 sender and quoted question ID, including completed documents. A unique dev owner
 routes to dev without a production request. Unknown replies in active test mode

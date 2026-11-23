@@ -5,9 +5,6 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize, ButtonColor } from 'src/app/components/button/button.enum';
-import { environment } from 'src/environments/environment';
-import { AccessHandlerService } from 'src/app/services/access-handler.service';
-import { AppFeature } from 'src/app/shared/access-control';
 import {
   SHAAM_OAUTH_ORIGIN_STORAGE_KEY,
   ShaamOAuthOrigin,
@@ -23,7 +20,6 @@ import {
 export class ShaamCallbackPage implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private accessHandlerService = inject(AccessHandlerService);
   private messageService = inject(MessageService);
 
   readonly buttonSize = ButtonSize;
@@ -101,10 +97,10 @@ export class ShaamCallbackPage implements OnInit {
   }
 
   navigateToDocCreate(): void {
-    const result = this.accessHandlerService.handleFeatureAccess(AppFeature.DOC_CREATE_BUTTON_PIVOT);
-    if (result.allowed) {
-      this.router.navigate(['/doc-create']);
-    }
+    // Route guards load and await the authoritative billing/access state. A
+    // synchronous feature check here used to ignore the first click after the
+    // full-page OAuth round trip while that state was still loading.
+    this.router.navigate(['/doc-create']);
   }
 
   navigateToSettings(): void {

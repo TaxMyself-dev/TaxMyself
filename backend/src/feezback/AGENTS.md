@@ -201,3 +201,14 @@ Failed account/consent-list requests now emit [FeezbackResponse] like card/trans
 failures. Provider code and a redacted, bounded body are retained, with attempt
 timing and async-local run/source/role context when available. Success bodies and
 Axios request/config objects are not logged. No raw provider body is sent to users.
+
+## Account-holder activity IP
+
+Foreground owner data GETs use an async-local PSU IP context after Firebase
+authentication, including login/manual sync descendants. Only the matching
+primary/spouse identity at the configured API receives X-Psu-IP-Address.
+Background service/cron/webhook calls, admin view-as and other-owner targets
+omit it. Never store/reuse a user's IP on a singleton or add it to auth/link
+requests. Diagnostics redact it; the proxy preserves the explicit header.
+See [activity attribution](../../../docs/features/feezback-user-activity.md)
+for fixed local/Cloud Run address resolution and local verification.

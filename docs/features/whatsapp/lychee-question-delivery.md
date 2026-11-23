@@ -1,5 +1,13 @@
 # Business-question delivery
 
+New questions persist custom choice IDs atomically with the parent and outbox
+before sending. Lychee echoes them in `button_id`; clicks resolve from that
+snapshot without waiting for the provider receipt. Buttons and lists preserve
+the exact saved IDs at the HTTP boundary. Legacy questions retain quote/label
+matching. Receipt recovery below still applies, but linking is also allowed
+after an early choice already queued or completed the parent. A recorded custom
+ID never authorizes another account, sender, channel, or business.
+
 Question and result delivery are tested with fake SQL and mock HTTP. Code supports
 development and production deployment identities. No live production access,
 messages, schema execution, cloud changes, deployment or push are performed by

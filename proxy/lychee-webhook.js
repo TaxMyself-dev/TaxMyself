@@ -113,8 +113,12 @@ function createHandler(config, fetchImpl = fetch, routingStore) {
     audit(event.event_id, 'webhook.verify', 'completed', 'החתימה, הערוץ וזהות השולח אושרו');
     try {
       const replyId = event.reply_to_whatsapp_message_id;
-      if (replyId != null && replyId !== '') {
-        if (typeof replyId !== 'string' || replyId.length > 255) {
+      if (event.button_id != null && (typeof event.button_id !== 'string' || event.button_id.length > 200)) {
+        return res.status(400).json({ error: 'Invalid button identifier' });
+      }
+      const buttonId = event.button_id && event.button_id !== event.text ? event.button_id : null;
+      if (buttonId || (replyId != null && replyId !== '')) {
+        if (replyId != null && replyId !== '' && (typeof replyId !== 'string' || replyId.length > 255)) {
           audit(event.event_id, 'reply.resolve', 'blocked', 'מזהה ההודעה המצוטטת אינו תקין');
           return res.status(400).json({ error: 'Invalid reply identifier' });
         }

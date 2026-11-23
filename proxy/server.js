@@ -4,7 +4,7 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 // Only copies used for diagnostics are redacted; outgoing headers stay intact.
 function logHeaders(headers) {
   return Object.fromEntries(Object.entries(headers).map(([key, value]) =>
-    [key, /authorization|token|cookie|secret|api[-_]?key/i.test(key) ? '[REDACTED]' : value]));
+    [key, /authorization|token|cookie|secret|api[-_]?key|x-psu-ip-address/i.test(key) ? '[REDACTED]' : value]));
 }
 
 const app = express();
@@ -256,6 +256,10 @@ app.use(
           }
         }
         
+        // Preserve the explicit backend PSU address, never the proxy's IP.
+        if (req.headers['x-psu-ip-address']) {
+          headersToKeep['x-psu-ip-address'] = req.headers['x-psu-ip-address'];
+        }
         // Clear all headers and set only the ones we want
         opts.headers = headersToKeep;
         
@@ -324,6 +328,13 @@ app.use(
           console.log("   Authorization:", setHeader ? "[REDACTED]" : "NOT SET");
         }
         
+        // Preserve the explicit backend PSU address in both proxy code paths.
+        // Never synthesize an address for a background request.
+        proxyReq.removeHeader('x-psu-ip-address');
+        if (target === TPP_TARGET && req.headers['x-psu-ip-address']) {
+          proxyReq.setHeader('X-Psu-IP-Address', req.headers['x-psu-ip-address']);
+        }
+
         // Get request body if available (but skip for accounts endpoint)
         let bodyStr = '';
         if (!isAccountsEndpoint) {

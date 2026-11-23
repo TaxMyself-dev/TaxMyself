@@ -17,6 +17,7 @@ import { LycheePromptService } from './lychee-prompt.service';
 import { LycheeNotificationService } from './lychee-notification.service';
 import { LycheeImmediateQueue } from './lychee-immediate-queue';
 import type { LycheeEvent } from './lychee-webhook.controller';
+import { customButtonId } from './lychee-button';
 import {
   lycheeLog,
   lycheeStep,
@@ -242,12 +243,14 @@ export class LycheeIntakeService {
         job,
         selected
           ? 'BUSINESS_SELECTED'
-          : e.reply_to_whatsapp_message_id
+          : e.reply_to_whatsapp_message_id || customButtonId(e)
           ? 'REJECTED_BUSINESS_SELECTION'
           : 'IGNORED',
-        selected || !e.reply_to_whatsapp_message_id ? owner : null,
+        selected || !(e.reply_to_whatsapp_message_id || customButtonId(e))
+          ? owner
+          : null,
       );
-      if (!selected && e.reply_to_whatsapp_message_id)
+      if (!selected && (e.reply_to_whatsapp_message_id || customButtonId(e)))
         this.notifications.wake();
       return;
     }

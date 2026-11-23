@@ -134,6 +134,9 @@ export class LycheeHttpPromptTransport extends LycheePromptTransport {
           ...request,
           buttons: request.buttons.map((button) => ({
             text: typeof button === 'string' ? button : button.text,
+            ...(typeof button !== 'string' && button.id
+              ? { id: button.id }
+              : {}),
           })),
         }
       : request;

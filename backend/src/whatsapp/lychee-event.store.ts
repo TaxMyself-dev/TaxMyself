@@ -13,6 +13,7 @@ import { commitDocumentResults } from './lychee-notification.store';
 import { isIntakeRejection } from './lychee-intake-rejections';
 import { ImportBlockCode } from '../document-import/document-import-blocked.error';
 import { selectedBusinessSnapshot } from './lychee-selection-reminder';
+import { customButtonId, buttonPredicate } from './lychee-button';
 
 export interface LycheeJob {
   event_id: string;
@@ -114,7 +115,10 @@ export class LycheeEventStore {
     if (
       (job.payload.has_media ||
         (status === 'REJECTED_BUSINESS_SELECTION' &&
-          !!job.payload.reply_to_whatsapp_message_id)) &&
+          !!(
+            job.payload.reply_to_whatsapp_message_id ||
+            customButtonId(job.payload)
+          ))) &&
       (['IMPORTED', 'ALREADY_IMPORTED', 'REJECTED_BUSINESS'].includes(status) ||
         isIntakeRejection(status))
     ) {
@@ -135,6 +139,21 @@ export class LycheeEventStore {
   ): Promise<void> {
     const sender = lycheeSender(job.payload);
     if (!sender) throw new ConflictException('Question sender unavailable');
+    // Deterministic per document/choice, persisted atomically before the outbox can send.
+    choices = choices.map((choice) => ({
+      ...choice,
+      id:
+        'ktchoice:' +
+        createHash('sha256')
+          .update(
+            JSON.stringify([
+              job.payload.channel_id,
+              job.event_id,
+              choice.businessNumber,
+            ]),
+          )
+          .digest('hex'),
+    }));
     const draft: PromptDraft = {
       kind: 'BUSINESS_QUESTION',
       documentEventId: job.event_id,
@@ -241,7 +260,7 @@ export class LycheeEventStore {
   }
 
   async selectBusiness(event: LycheeEvent, owner: string): Promise<boolean> {
-    if (!event.reply_to_whatsapp_message_id) {
+    if (!event.reply_to_whatsapp_message_id && !customButtonId(event)) {
       lycheeLog(
         event.event_id,
         'business.reply.match',
@@ -251,16 +270,12 @@ export class LycheeEventStore {
       );
       return false;
     }
+    const match = buttonPredicate(event);
     const rows = await this.db.query(
-      `SELECT event_id, business_choices FROM lychee_intake_events
+      `SELECT event_id, business_choices,prompt_whatsapp_message_id FROM lychee_intake_events
       WHERE channel_id=? AND sender_phone=? AND firebase_id=? AND status='WAITING_FOR_BUSINESS'
-      AND prompt_whatsapp_message_id=? LIMIT 2`,
-      [
-        event.channel_id,
-        lycheeSender(event),
-        owner,
-        event.reply_to_whatsapp_message_id,
-      ],
+      AND ${match.sql} LIMIT 2`,
+      [event.channel_id, lycheeSender(event), owner, match.value],
     );
     if (rows.length !== 1) {
       lycheeLog(
@@ -284,7 +299,19 @@ export class LycheeEventStore {
       typeof rows[0].business_choices === 'string'
         ? JSON.parse(rows[0].business_choices)
         : rows[0].business_choices;
-    const choice = choices.filter((c: any) => c.label === event.text.trim());
+    // A supplied custom ID never falls back to label or to the latest document.
+    if (
+      customButtonId(event) &&
+      event.reply_to_whatsapp_message_id &&
+      rows[0].prompt_whatsapp_message_id &&
+      rows[0].prompt_whatsapp_message_id !== event.reply_to_whatsapp_message_id
+    )
+      return false;
+    const choice = choices.filter((c: any) =>
+      customButtonId(event)
+        ? c.id === customButtonId(event)
+        : c.label === event.text.trim(),
+    );
     if (choice.length !== 1) {
       lycheeLog(
         event.event_id,
@@ -329,23 +356,19 @@ export class LycheeEventStore {
     const event = job.payload;
     if (
       event.has_media ||
-      !event.reply_to_whatsapp_message_id ||
+      (!event.reply_to_whatsapp_message_id && !customButtonId(event)) ||
       !lycheeSender(event)
     )
       return false;
     let explained = false;
+    const match = buttonPredicate(event);
     await commitDocumentResults(this.db, async (sql) => {
       const rows = await sql.query(
         `SELECT event_id,channel_id,sender_phone,firebase_id,status,
         business_number,business_choices,payload,prompt_whatsapp_message_id FROM lychee_intake_events
-        WHERE channel_id=? AND sender_phone=? AND firebase_id=? AND prompt_whatsapp_message_id=?
+        WHERE channel_id=? AND sender_phone=? AND firebase_id=? AND ${match.sql}
         LIMIT 2 FOR UPDATE`,
-        [
-          event.channel_id,
-          lycheeSender(event),
-          owner,
-          event.reply_to_whatsapp_message_id,
-        ],
+        [event.channel_id, lycheeSender(event), owner, match.value],
       );
       const snapshot =
         rows.length === 1 && selectedBusinessSnapshot(rows[0], event, owner);
@@ -372,15 +395,13 @@ export class LycheeEventStore {
 
   /** Read-only lookup: completed prompts retain ownership for late/repeated replies. */
   async ownsReply(event: LycheeEvent): Promise<boolean> {
-    if (!event.reply_to_whatsapp_message_id) return false;
+    if (!event.reply_to_whatsapp_message_id && !customButtonId(event))
+      return false;
+    const match = buttonPredicate(event);
     const rows = await this.db.query(
       `SELECT event_id FROM lychee_intake_events WHERE channel_id=? AND sender_phone=?
-       AND prompt_whatsapp_message_id=? LIMIT 2`,
-      [
-        event.channel_id,
-        lycheeSender(event),
-        event.reply_to_whatsapp_message_id,
-      ],
+       AND ${match.sql} LIMIT 2`,
+      [event.channel_id, lycheeSender(event), match.value],
     );
     if (rows.length > 1)
       throw new ConflictException('Ambiguous prompt ownership');
@@ -403,7 +424,7 @@ export class LycheeEventStore {
     }
     await this.db.query(
       `UPDATE lychee_intake_events SET prompt_whatsapp_message_id=?
-       WHERE event_id=? AND channel_id=? AND firebase_id=? AND status='WAITING_FOR_BUSINESS'
+       WHERE event_id=? AND channel_id=? AND firebase_id=? AND business_choices IS NOT NULL
        AND (prompt_whatsapp_message_id IS NULL OR prompt_whatsapp_message_id=?)`,
       [promptId, eventId, channelId, owner, promptId],
     );
