@@ -2,8 +2,15 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
 const source = readFileSync(require.resolve('./check-agent-image.cjs'), 'utf8');
+const dockerfile = readFileSync(path.join(__dirname, '..', 'Dockerfile'), 'utf8');
+
+test('uses a legacy-Docker-compatible final image probe', () => {
+  assert.match(dockerfile, /^RUN node scripts\/check-agent-image\.cjs$/m);
+  assert.doesNotMatch(dockerfile, /^RUN\s+--network=/m);
+});
 
 async function check(bundle, env = {}) {
   let result;
