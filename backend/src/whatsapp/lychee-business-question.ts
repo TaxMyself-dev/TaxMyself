@@ -1,6 +1,7 @@
 import type { LycheeEvent } from './lychee-webhook.controller';
 
 export interface BusinessChoice {
+  id?: string;
   businessNumber: string;
   name: string;
   label: string;
@@ -10,7 +11,8 @@ export interface BusinessQuestionRequest {
   channel_id: string;
   phone: string;
   text: string;
-  buttons?: { text: string }[];
+  buttons?: { text: string; id?: string }[];
+  list_button?: string;
   reply_to_whatsapp_message_id: string;
 }
 
@@ -36,14 +38,25 @@ export function questionFromChoices(
     channel_id: event.channel_id,
     phone,
     text:
-      choices.length <= 3
+      choices.length <= 3 ||
+      (choices.length <= 10 && choices.every((c) => !!c.id))
         ? 'לאיזה עסק לשייך את המסמך?'
         : 'לאיזה עסק לשייך את המסמך? השב בציטוט להודעה זו עם המספר המתאים:\n' +
           choices
             .map((c) => `${c.label}. ${c.name || c.businessNumber}`)
             .join('\n'),
-    ...(choices.length <= 3
-      ? { buttons: choices.map((c) => ({ text: c.label })) }
+    ...(choices.length <= 3 ||
+    (choices.length <= 10 && choices.every((c) => !!c.id))
+      ? {
+          buttons: choices.map((c) => ({
+            text:
+              choices.length > 3
+                ? `${c.label}. ${c.name || c.businessNumber}`.slice(0, 20)
+                : c.label,
+            ...(c.id ? { id: c.id } : {}),
+          })),
+          ...(choices.length > 3 ? { list_button: 'בחירת עסק' } : {}),
+        }
       : {}),
     reply_to_whatsapp_message_id: event.whatsapp_message_id,
   };

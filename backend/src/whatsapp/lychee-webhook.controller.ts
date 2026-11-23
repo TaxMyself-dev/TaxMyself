@@ -13,6 +13,7 @@ import { lycheeSender } from './lychee-sender';
 import { LycheeIntakeService } from './lychee-intake.service';
 import { LycheeEventStore } from './lychee-event.store';
 import { lycheeLog } from './lychee-log';
+import { customButtonId } from './lychee-button';
 
 export interface LycheeEvent {
   event: 'message.received';
@@ -25,6 +26,7 @@ export interface LycheeEvent {
   message_type: string;
   has_media: boolean;
   text: string;
+  button_id?: string | null;
   reply_to_whatsapp_message_id: string | null;
 }
 
@@ -58,9 +60,11 @@ export function parseLycheeEvent(
     typeof e.has_media !== 'boolean' ||
     typeof e.message_type !== 'string' ||
     typeof e.text !== 'string' ||
+    (e.button_id != null &&
+      (typeof e.button_id !== 'string' || e.button_id.length > 200)) ||
     e.text.length > 8192 ||
     !(
-      e.reply_to_whatsapp_message_id === null ||
+      e.reply_to_whatsapp_message_id == null ||
       (typeof e.reply_to_whatsapp_message_id === 'string' &&
         e.reply_to_whatsapp_message_id.length <= 255)
     ) ||
@@ -82,7 +86,7 @@ export class LycheeWebhookController {
   @HttpCode(200)
   async replyOwner(@Req() req: Request & { rawBody?: Buffer }) {
     const event = this.verifiedEvent(req);
-    if (!event.reply_to_whatsapp_message_id)
+    if (!event.reply_to_whatsapp_message_id && !customButtonId(event))
       throw new BadRequestException('Quoted reply required');
     const ownsReply = await this.events.ownsReply(event);
     lycheeLog(

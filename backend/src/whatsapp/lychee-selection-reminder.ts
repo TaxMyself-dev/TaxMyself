@@ -1,5 +1,6 @@
 import type { LycheeEvent } from './lychee-webhook.controller';
 import { lycheeSender } from './lychee-sender';
+import { customButtonId } from './lychee-button';
 
 export interface SelectionSnapshot {
   documentEventId: string;
@@ -20,7 +21,7 @@ const selectedStates = [
   'BLOCKED_IMPORT',
 ];
 
-/** A quoted, valid button choice for an owned document whose first choice already won. */
+/** A valid persisted choice for an owned document whose first choice already won. */
 export function selectedBusinessSnapshot(
   source: any,
   reply: LycheeEvent,
@@ -29,12 +30,19 @@ export function selectedBusinessSnapshot(
   if (
     !source ||
     reply.has_media ||
-    !reply.reply_to_whatsapp_message_id ||
+    (!reply.reply_to_whatsapp_message_id && !customButtonId(reply)) ||
     source.channel_id !== reply.channel_id ||
     source.firebase_id !== owner ||
     !lycheeSender(reply) ||
     source.sender_phone !== lycheeSender(reply) ||
-    source.prompt_whatsapp_message_id !== reply.reply_to_whatsapp_message_id ||
+    (!customButtonId(reply) &&
+      source.prompt_whatsapp_message_id !==
+        reply.reply_to_whatsapp_message_id) ||
+    (customButtonId(reply) &&
+      reply.reply_to_whatsapp_message_id &&
+      source.prompt_whatsapp_message_id &&
+      source.prompt_whatsapp_message_id !==
+        reply.reply_to_whatsapp_message_id) ||
     !source.business_number ||
     !selectedStates.includes(source.status)
   )
@@ -56,13 +64,17 @@ export function selectedBusinessSnapshot(
   );
   if (
     selected.length !== 1 ||
-    choices.filter((c) => c.label === reply.text.trim()).length !== 1
+    choices.filter((c) =>
+      customButtonId(reply)
+        ? c.id === customButtonId(reply)
+        : c.label === reply.text.trim(),
+    ).length !== 1
   )
     return null;
   return {
     documentEventId: source.event_id,
     documentWhatsappMessageId: original.whatsapp_message_id,
-    questionId: source.prompt_whatsapp_message_id,
+    questionId: customButtonId(reply) || source.prompt_whatsapp_message_id,
     businessNumber: source.business_number,
     name:
       typeof selected[0].name === 'string' && selected[0].name.trim()

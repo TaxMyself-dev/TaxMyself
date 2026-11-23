@@ -22,7 +22,7 @@ function databaseOptions(env) {
 }
 
 function routingCommand(event) {
-  if (event.has_media || event.message_type !== 'text' || event.reply_to_whatsapp_message_id) return null;
+  if (event.has_media || event.message_type !== 'text' || event.reply_to_whatsapp_message_id || event.button_id) return null;
   const text = event.text.trim().replace(/\s+/g, ' ');
   return text === 'בדיקות' ? 'dev' : text === 'סיום בדיקות' ? 'prod' : null;
 }
@@ -37,13 +37,15 @@ function createRoutingStore(env, testPhones, poolFactory) {
     async replyRoute(event, sender) {
       if (!testPhones.has(sender) || event.channel_id !== env.LYCHEE_CHANNEL_ID) throw new Error('Unauthorized routing sender or channel');
       const reply = event.reply_to_whatsapp_message_id;
-      if (typeof reply !== 'string' || !reply || reply.length > 255) throw new Error('Invalid reply identifier');
+      const buttonId = event.button_id && event.button_id !== event.text ? event.button_id : null;
+      if (buttonId ? typeof buttonId !== 'string' || buttonId.length > 200 :
+        typeof reply !== 'string' || !reply || reply.length > 255) throw new Error('Invalid reply identifier');
       const timestamp = typeof event.occurred_at === 'string' ? Date.parse(event.occurred_at) : NaN;
       if (!Number.isFinite(timestamp)) throw new Error('Event timestamp required');
       const pool = getPool();
       const [owners] = await pool.query({ sql: `SELECT event_id FROM lychee_intake_events
-        WHERE channel_id=? AND sender_phone=? AND prompt_whatsapp_message_id=? LIMIT 2`, timeout: 5000 },
-        [event.channel_id, sender, reply]);
+        WHERE channel_id=? AND sender_phone=? AND ${buttonId ? "JSON_CONTAINS(business_choices, ?, '$')" : 'prompt_whatsapp_message_id=?'} LIMIT 2`, timeout: 5000 },
+        [event.channel_id, sender, buttonId ? JSON.stringify({ id: buttonId }) : reply]);
       if (owners.length > 1) throw new Error('Ambiguous development prompt ownership');
       if (owners.length === 1) return 'dev';
       const [commands] = await pool.query({ sql: `SELECT DISTINCT status,

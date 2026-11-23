@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { customButtonId } from './lychee-button';
 import { createHash, randomUUID } from 'crypto';
 import { DataSource } from 'typeorm';
 import type { BusinessQuestionRequest } from './lychee-business-question';
@@ -68,8 +69,9 @@ export function documentResult(row: any): ResultDraft | null {
       !reminder &&
       !(
         row.status === 'REJECTED_BUSINESS_SELECTION' &&
-        typeof event?.reply_to_whatsapp_message_id === 'string' &&
-        event.reply_to_whatsapp_message_id.trim()
+        ((typeof event?.reply_to_whatsapp_message_id === 'string' &&
+          event.reply_to_whatsapp_message_id.trim()) ||
+          customButtonId(event))
       )) ||
     !sender ||
     sender !== row.sender_phone ||
@@ -97,7 +99,8 @@ export function documentResult(row: any): ResultDraft | null {
       event.has_media ||
       !row.firebase_id ||
       reminder.businessNumber !== row.business_number ||
-      reminder.questionId !== event.reply_to_whatsapp_message_id)
+      reminder.questionId !==
+        (customButtonId(event) || event.reply_to_whatsapp_message_id))
   )
     return null;
   const success = ['IMPORTED', 'ALREADY_IMPORTED'].includes(row.status);

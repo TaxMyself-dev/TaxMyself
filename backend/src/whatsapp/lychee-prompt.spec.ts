@@ -172,7 +172,7 @@ class MemoryDb {
         !row ||
         row.channel_id !== args[2] ||
         row.firebase_id !== args[3] ||
-        row.status !== 'WAITING_FOR_BUSINESS' ||
+        !row.business_choices ||
         (row.prompt_whatsapp_message_id &&
           row.prompt_whatsapp_message_id !== args[0])
       )
@@ -218,7 +218,9 @@ class MemoryDb {
           r.channel_id === args[0] &&
           r.sender_phone === args[1] &&
           r.firebase_id === args[2] &&
-          r.prompt_whatsapp_message_id === args[3] &&
+          (sql.includes('JSON_CONTAINS')
+            ? r.business_choices?.some((c) => c.id === JSON.parse(args[3]).id)
+            : r.prompt_whatsapp_message_id === args[3]) &&
           r.status === 'WAITING_FOR_BUSINESS',
       );
     if (sql.includes('WHERE event_id=? AND channel_id=? AND firebase_id=?'))
@@ -356,6 +358,41 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(journal().prompt_whatsapp_message_id).toBeUndefined();
     expect(journal().status).toBe('PROMPT_SENT');
     await makeService().tick();
+    expect(transport.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a click during send before its receipt exists; links later without resending', async () => {
+    await stage();
+    const id = journal().payload.choices[1].id;
+    expect(journal().payload.request.buttons[1].id).toBe(id);
+    expect(id.length).toBeLessThanOrEqual(200);
+    transport.send.mockImplementation(async () => {
+      expect(db.rows.get('doc').prompt_whatsapp_message_id).toBeUndefined();
+      const reply = {
+        ...doc('reply'),
+        has_media: false,
+        message_type: 'text',
+        text: 'changed display label',
+        button_id: id,
+      };
+      expect(await events.selectBusiness(reply, 'other-owner')).toBe(false);
+      expect(
+        await events.selectBusiness(
+          { ...reply, contact_phone: '0541234567' },
+          'owner',
+        ),
+      ).toBe(false);
+      expect(await events.selectBusiness(reply, 'owner')).toBe(true);
+      expect(await events.selectBusiness(reply, 'owner')).toBe(false);
+      expect(db.rows.get('doc').business_number).toBe('456');
+      return 'test-only-fast-receipt';
+    });
+    await makeService().tick();
+    expect(journal().status).toBe('PROMPT_SENT');
+    expect(db.rows.get('doc').status).toBe('PENDING');
+    expect(db.rows.get('doc').prompt_whatsapp_message_id).toBe(
+      'test-only-fast-receipt',
+    );
     expect(transport.send).toHaveBeenCalledTimes(1);
   });
 
@@ -856,6 +893,27 @@ describe('Durable business question delivery — fake database and fake transpor
     expect(db.rows.get('A').business_number).toBe('123');
     expect(db.rows.get('B').business_number).toBe('456');
     expect(transport.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps precommitted IDs unique across documents and selects out of order before either send', async () => {
+    await stage('A');
+    await stage('B');
+    const ids = ['A', 'B'].flatMap((id) =>
+      journal(id).payload.choices.map((c) => c.id),
+    );
+    expect(new Set(ids).size).toBe(4);
+    const reply = (id: string, choice: number) => ({
+      ...doc('reply'),
+      has_media: false,
+      text: 'provider display',
+      button_id: journal(id).payload.choices[choice].id,
+    });
+    expect(await events.selectBusiness(reply('B', 1), 'owner')).toBe(true);
+    expect(db.rows.get('A').status).toBe('WAITING_FOR_BUSINESS');
+    expect(await events.selectBusiness(reply('A', 0), 'owner')).toBe(true);
+    expect(db.rows.get('A').business_number).toBe('123');
+    expect(db.rows.get('B').business_number).toBe('456');
+    expect(transport.send).not.toHaveBeenCalled();
   });
 
   it('draft hashes survive MySQL JSON key reordering and distinguish changed recipients', async () => {

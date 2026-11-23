@@ -34,7 +34,8 @@ function fixture() {
         }
         if (sql.startsWith('SELECT payload_hash')) return [state.journal.filter(r => r.event_id === args[0])];
         if (sql.startsWith('SELECT event_id')) return [state.prompts.filter(r =>
-          r.channel_id === args[0] && r.sender_phone === args[1] && r.prompt_whatsapp_message_id === args[2]).slice(0, 2)];
+          r.channel_id === args[0] && r.sender_phone === args[1] &&
+          (sql.includes('JSON_CONTAINS') ? r.business_choices?.some(c => c.id === JSON.parse(args[2]).id) : r.prompt_whatsapp_message_id === args[2])).slice(0, 2)];
         if (sql.startsWith('SELECT DISTINCT status,')) {
           const distinct = new Map();
           for (const row of state.journal.filter(r => r.channel_id === args[0] && r.sender_phone === args[1] &&
@@ -55,6 +56,21 @@ function fixture() {
   };
   return { state, factory, store: createRoutingStore(env, allowed, factory) };
 }
+
+test('precommitted custom IDs resolve before receipts, remain scoped and survive ending tests', async () => {
+  const { store, state } = fixture();
+  state.prompts.push({ event_id: 'doc', channel_id: 'channel', sender_phone: sender,
+    business_choices: [{ id: 'saved-choice' }], prompt_whatsapp_message_id: null });
+  const reply = event('choice', 5, { has_media: false, message_type: 'text', button_id: 'saved-choice' });
+  assert.equal(await store.replyRoute(reply, sender), 'dev');
+  await store.resolve(command('stop', 1, 'סיום בדיקות'), sender);
+  assert.equal(await store.replyRoute(reply, sender), 'dev');
+  await store.resolve(command('start', 2), sender);
+  assert.equal(await store.replyRoute({ ...reply, button_id: 'unknown' }, sender), 'unknown');
+  assert.equal(await store.replyRoute({ ...reply, contact_phone: '0541234567' }, '972541234567'), 'prod');
+  state.prompts.push({ ...state.prompts[0], event_id: 'ambiguous' });
+  await assert.rejects(store.replyRoute(reply, sender), /Ambiguous/);
+});
 
 test('defaults to prod, starts dev, accepts captionless files and stops tests', async () => {
   const { store, state } = fixture();

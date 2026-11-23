@@ -2,6 +2,14 @@
 
 ## Lychee adapter (2026-10-25)
 
+New business choices persist opaque IDs with document/outbox before send. Send
+`buttons[].id` unchanged and resolve signed `button_id` by saved choices plus
+channel/sender/current owner, including repeat-selection explanations. No quote
+receipt is required for a custom ID; never fall back to labels for an unknown ID.
+Old buttons echoing text as their ID retain quote matching. Four to ten choices
+use lists. Receipt linking may complete after the first selection and must not
+resend a question or modify the selected business. No schema change is needed.
+
 Approved owner mapping for this adapter is either User.phone or the existing
 User.spousePhone (normalized), with ambiguous or unknown accounts rejected.
 Both map to the same account and all its businesses; no filtering by spouse
