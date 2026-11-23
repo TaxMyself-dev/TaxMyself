@@ -204,3 +204,7 @@ callback are preserved. Canonical frontend and backend --print-config commands
 passed and both local configuration files remain ignored. No application code
 changed, so no repeated application tests/builds; prior passing evidence applies.
 git diff --check passed. No main integration, push, DB/provider call or server boot.
+
+## Requested backend port adjustment and restart — 2026-11-23
+
+Elazar explicitly requested that the running DEV backend use the standard backend port. Updated only ignored local backend/launch configuration and both providers callback URLs; frontend destination preserved. Verified the original listener and watch ancestry belonged to this feature worktree before stopping that exact process tree. Restarted the canonical start-watch entrypoint hidden with logs in ignored .local-ai-dev. Compilation reported 0 errors; bootstrap verified keepintax-dev and synchronize=false; the requested listener is owned by this worktree, and the previous port has no listener. Existing frontend process preserved. No application source change, schema operation, main integration or push. No repeated application suite/build required for this configuration-only restart. Feature worktree now has an active development server and must be retained until it is intentionally stopped before any later authorized cleanup.
