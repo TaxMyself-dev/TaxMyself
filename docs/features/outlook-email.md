@@ -114,3 +114,24 @@ toolkit responses, download hosts and long-ID persistence still require dedicate
 verification after user consent. DEV schema/configuration operations above are approved.
 No Nest app boot, mailbox read, AI run, main integration, push or deployment occurred.
 Exact automated commands and results are recorded in docs/tasks/active/outlook-email.md.
+
+## Current DEV runtime verification (2026-11-24)
+
+The user subsequently authorized local DEV runtime repair and mailbox import.
+Backend 3000 and frontend return 4200 are configured only in ignored local files.
+The actual Microsoft OAuth connection was verified ACTIVE with matching managed
+owner/config/profile. The original durable pull completed: three messages scanned,
+15 attachments downloaded and identified as existing content, no duplicate document
+creation, connection ACTIVE and last sync SUCCESS. New-document creation and
+subsequent AI processing were not separately exercised by this duplicate fixture.
+
+The shared DEV cloud revision predates Outlook and can mistakenly consume Outlook
+runs using its Gmail-only adapter. Local EMAIL_DEV_EXCLUSIVE_SCANNER=true retains
+the existing global scanner lock across ticks while this feature server runs;
+other cooperating scanners skip. Exact live keepintax-dev identity and safe DEV
+settings are mandatory; normal behavior is unchanged without the local opt-in.
+Keep this local feature server running for Outlook tests until shared DEV workers
+are upgraded compatibly. Shutdown releases ownership, allowing legacy workers to
+resume. No cloud deployment or remote setting was changed. Structured diagnostics,
+bounded retries and accurate Hebrew status messages are implemented. Full command
+and live acceptance evidence is in docs/tasks/active/outlook-email.md.

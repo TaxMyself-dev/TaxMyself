@@ -260,3 +260,65 @@ flag is not a reliable way to stop that scanner. Stable live resumption remains
 pending identification/control of the competing DEV worker. The local backend is
 running from this feature on port 3000; frontend return remains 4200. No main
 integration, push or cloud deployment. Retain the active feature worktree.
+
+## Mixed-version DEV scanner coordination and completed Outlook pull — 2026-11-24
+
+Acceptance: restore the verified Outlook connection; complete the original frozen
+run through the provider/download/dedup pipeline without false expiration; preserve
+existing documents, cursor/query and authorization; retain backend 3000/frontend
+4200; no main integration, push, cloud deployment or production access.
+
+The exact DEV revision ce70fdf1 has an unfiltered cross-integration run selector,
+but GmailReaderService constructs a Gmail-only account context. Its managed-account
+lookup is filtered to Gmail auth config/toolkit, so it rejects an Outlook connection
+as AUTH; ComposioGmailProvider then marks it EXPIRED. This explains the observed
+false-expiry/retry mechanism. The live DEV service remains on that revision and
+keepintax-dev. No per-run cloud log was available to uniquely attribute the prior
+write; attribution to that exact process remains inferential. The independently
+observed competing-worker updates and incompatible deployed code are confirmed.
+
+Added explicit local EMAIL_DEV_EXCLUSIVE_SCANNER=true, saved only in ignored
+backend/.env. The scanner keeps its existing global gmail-durable-scan lock on one
+connection across ticks. Competing cooperating workers skip scanning, while this
+worker continues the same bounded/fenced scan pipeline for the shared DEV queue.
+Each tick verifies live DATABASE() equals keepintax-dev and confirms retained lock
+ownership before reading runs. Production mode, non-dev Composio or enabled schema
+synchronization refuse this mode. Ownership loss skips work/releases the runner;
+module shutdown releases the advisory lock/connection; process death also releases
+its MySQL session lock. Normal scanning behavior is unchanged when not opted in.
+This is local DEV coordination, not a cloud rollout: keep this feature server
+running for Outlook pulls until all shared DEV scanners support Outlook. Stopping
+it allows the legacy scanner to resume. No remote configuration was changed.
+
+Recovery helper now also recognizes the exact paused ACCESS run with
+EMAIL_CONNECTION_UNVERIFIED, still requiring local EXPIRED, MICROSOFT, exact owner,
+unleased run, active managed remote account and matching profile identity. Updates
+are transactional/guarded, preserve query/cursor/items/documents, and defer resumption
+120 seconds so the validated local scanner can acquire ownership after startup.
+Inspected then applied once to integration 19 / run
+d517e89d-f65c-43d1-a1e2-8635d788da2e while the verified feature process was stopped.
+Restarted the canonical hidden local watcher. Actual DB inspection confirmed the
+held scanner session uses the same peer as the local diagnostic, across ticks.
+
+Live result: ACTIVE connection, last_sync_status SUCCESS, last_sync_error NULL,
+scan_state DONE, pull_state COMPLETE, error_code NULL, attempts 0. Three messages
+SCANNED and 15 attachments DUPLICATE: bytes were retrieved through the Outlook
+adapter/download service and existing content dedup avoided extra documents.
+There were no queued failed or unfinished items. This verifies listing, metadata,
+attachment download, durable completion and dedup in DEV; it does not independently
+exercise creation of a brand-new document or downstream AI processing.
+
+Final focused command (backend): `npm test -- --runInBand --silent
+--runTestsByPath src/email-intake/email-scanner-ownership.spec.ts
+src/email-intake/email-intake-runs.spec.ts
+src/email-intake/email-intake-failure.spec.ts`: exit 0, 3 suites / 21 tests,
+15.930 seconds. Covers retained lock, competing owner, wrong DB, production refusal,
+lost ownership, shutdown release and existing pull/failure behavior. An initial
+invocation before the new test file was written failed ENOENT; its other 16 tests
+passed. That setup error was corrected; final combined command above passed.
+`npm run build`: exit 0. Canonical watch startup also compiled with 0 errors and
+verified keepintax-dev / synchronize=false / listening 3000. Frontend unchanged;
+reuse the prior passing 16 focused tests and production build. Recovery helper
+syntax checked and live guarded inspect/apply completed. git diff --check passed.
+Local watcher root PID 17860 / app PID 31044 at verification; frontend listener
+4200 preserved. No merge/main/push/cloud service or schema change in this repair.
