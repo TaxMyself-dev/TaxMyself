@@ -14,6 +14,7 @@ export interface EmailRun {
   scan_state: string;
   page_token?: string;
   scan_generation: number;
+  attempts?: number;
   lease_token?: string;
   started_at: Date;
 }

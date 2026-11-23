@@ -1,3 +1,4 @@
+import { emailSyncErrorMessage } from './email-sync-messages';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { Subscription, interval } from 'rxjs';
@@ -135,7 +136,7 @@ export class GmailSyncStateService {
       this.messageService.add({
         severity: 'success',
         summary: 'המשיכה מהמייל הושלמה',
-        detail: `המשיכה מ-Gmail הסתיימה; מצב עיבוד המסמכים מוצג בנפרד${email ? ` (${email})` : ''}`,
+        detail: `המשיכה מהמייל הסתיימה; מצב עיבוד המסמכים מוצג בנפרד${email ? ` (${email})` : ''}`,
         life: 5000,
         key: 'br',
       });
@@ -144,8 +145,7 @@ export class GmailSyncStateService {
         severity: 'error',
         summary: 'הייבוא נכשל',
         detail:
-          account.lastSyncError ||
-          `הייבוא מ-Gmail נכשל${email ? ` (${email})` : ''}. ניתן לנסות שוב.`,
+          emailSyncErrorMessage(account.lastSyncError),
         life: 6000,
         key: 'br',
       });

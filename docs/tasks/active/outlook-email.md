@@ -208,3 +208,55 @@ git diff --check passed. No main integration, push, DB/provider call or server b
 ## Requested backend port adjustment and restart — 2026-11-23
 
 Elazar explicitly requested that the running DEV backend use the standard backend port. Updated only ignored local backend/launch configuration and both providers callback URLs; frontend destination preserved. Verified the original listener and watch ancestry belonged to this feature worktree before stopping that exact process tree. Restarted the canonical start-watch entrypoint hidden with logs in ignored .local-ai-dev. Compilation reported 0 errors; bootstrap verified keepintax-dev and synchronize=false; the requested listener is owned by this worktree, and the previous port has no listener. Existing frontend process preserved. No application source change, schema operation, main integration or push. No repeated application suite/build required for this configuration-only restart. Feature worktree now has an active development server and must be retained until it is intentionally stopped before any later authorized cleanup.
+
+## False expiry, durable failure handling and user messages — 2026-11-24
+
+Local changes distinguish transport/configuration access failures from confirmed
+mailbox revocation. HTTP 401/403 alone no longer expires a mailbox; confirmed
+remote EXPIRED/REVOKED or explicit invalid-grant/token signals still require
+reconnection. Account ownership/toolkit/managed-config checks remain enforced.
+Structured provider/intake warnings contain operation, stage, run/integration IDs,
+category and allowlisted status/code only; no raw errors, credentials, mailbox
+contents, addresses, OAuth state or signed URLs. Fatal access/config/auth errors
+pause the pull and clear misleading RUNNING status. Other run failures retry at
+most five times. Lease-fenced updates preserve cursors and processed documents.
+Attachment failures settle before lease release. Shared Hebrew UI messages map
+stable error codes and do not claim an unverified permission has expired.
+
+Verification on the consolidated changes before the final local-expiry/lease
+correction: backend `npm test -- --runInBand --silent
+--testPathPattern='src.integrations|src.email-intake'`: 24 suites, 255 tests,
+exit 0, 107.463 s. After that correction, final affected checks:
+`npm test -- --runInBand --silent --runTestsByPath
+src/email-intake/email-intake-failure.spec.ts
+src/email-intake/email-intake-runs.spec.ts`: 2 suites, 16 tests, exit 0, 55.003 s.
+Final `npm run build`: exit 0. The 255-test result is not a full final-revision run.
+Frontend: CHROME_BIN set to installed Edge, `npm test -- --watch=false
+--browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json
+--include=src/app/services/integrations.service.spec.ts
+--include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts
+--progress=false`: 16 tests, exit 0. Final production `npm run build --
+--configuration production --progress=false` with CI=true: exit 0, hash
+c4a6060648ba237c, 192320 ms; existing CSS/CommonJS/bundle warnings remain.
+
+DEV-only investigation verified the affected managed remote account ACTIVE with
+owner/config matching, profile identity matching and a future-only metadata probe
+returning zero messages. The guarded recover-outlook-dev-run.cjs defaults to inspect,
+requires exact DEV database/settings, global scanner lock, one unleased AUTH retry
+and live owner/profile verification before --apply. One repair was applied without
+changing frozen query/cursor, items or documents. Another worker restored EXPIRED
+and AUTH retry before this local backend finished booting. Attempts also increased
+while the verified local process tree was stopped. The repaired local worker then
+paused the run as PARTIAL/ACCESS, with last_sync_status ERROR and stable
+EMAIL_CONNECTION_UNVERIFIED, zero queued items. Do not repeatedly reset this row.
+
+Read-only exact DEV service inspection found taxmyself-prod/me-west1/
+taxmys16elf-dev running taxmys16elf-dev-test-ce70fdf1-1123, minScale=1,
+CPU throttling disabled, and DB_DATABASE=keepintax-dev. This is a candidate competing
+worker; exact-service filtered recent logs returned no matching intake events, so
+its responsibility is not proven. No cloud service/configuration was changed.
+The intake enabled() implementation is unconditional, so an unverified legacy env
+flag is not a reliable way to stop that scanner. Stable live resumption remains
+pending identification/control of the competing DEV worker. The local backend is
+running from this feature on port 3000; frontend return remains 4200. No main
+integration, push or cloud deployment. Retain the active feature worktree.

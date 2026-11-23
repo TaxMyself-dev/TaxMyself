@@ -1,3 +1,4 @@
+import { emailSyncErrorMessage, emailConnectionIssueMessage } from 'src/app/services/email-sync-messages';
 import { environment } from 'src/environments/environment';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
@@ -57,6 +58,8 @@ export class GmailIntegrationComponent implements OnInit {
 
   durableState(value:string):string {return ({READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
   runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
+  syncErrorMessage(account: GmailAccountSyncStatus): string { return emailSyncErrorMessage(account.lastSyncError); }
+  connectionIssueMessage(account: GmailAccountSyncStatus): string { return emailConnectionIssueMessage(account.lastSyncError); }
   readonly connecting = signal(false);
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
   readonly importing = signal(false);

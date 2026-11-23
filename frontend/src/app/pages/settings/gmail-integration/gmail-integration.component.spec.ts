@@ -27,6 +27,17 @@ describe('Gmail connection controls', () => {
     ] });
     component = TestBed.runInInjectionContext(() => new GmailIntegrationComponent());
   });
+
+  it('does not claim an old unverified connection was revoked by the provider',()=>{
+    const text=component.connectionIssueMessage({lastSyncError:null} as any);
+    expect(text).toContain('לא ניתן לאמת');expect(text).not.toContain('פגה');expect(text).not.toContain('בוטלה');
+  });
+  it('distinguishes permissions, reconnect and retry messages',()=>{
+    expect(component.syncErrorMessage({lastSyncError:'EMAIL_ACCESS_DENIED'} as any)).toContain('הרשאות');
+    expect(component.syncErrorMessage({lastSyncError:'EMAIL_RECONNECT_REQUIRED'} as any)).toContain('לחבר מחדש');
+    expect(component.syncErrorMessage({lastSyncError:'EMAIL_RETRY_PENDING'} as any)).toContain('אוטומטית');
+    expect(component.syncErrorMessage({lastSyncError:'secret raw provider failure'} as any)).not.toContain('secret');
+  });
   it('passes the selected Outlook row when reconnecting', () => {
     component.connectGmail(43, 'MICROSOFT');
     expect(connect).toHaveBeenCalledOnceWith(43);

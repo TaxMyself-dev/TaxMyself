@@ -23,12 +23,12 @@ describe('Composio read-only SDK boundary', () => {
     expect(sdk.tools.execute).toHaveBeenCalledWith('GMAIL_FETCH_EMAILS', expect.objectContaining({ connectedAccountId: 'ca-a', version: '20261105_00', arguments: { ids_only: true, user_id: 'me' } }), expect.anything());
   });
   it('rejects a write tool even if passed outside TypeScript', async () => {
-    await expect(service.execute(account, 'GMAIL_SEND_EMAIL' as any, {})).rejects.toMatchObject({ category: 'AUTH' });
+    await expect(service.execute(account, 'GMAIL_SEND_EMAIL' as any, {})).rejects.toMatchObject({ category: 'ACCESS' });
     expect(sdk.tools.execute).not.toHaveBeenCalled();
   });
   it('rejects an account absent from the user-scoped listing', async () => {
     (sdk.connectedAccounts.list as jest.Mock).mockResolvedValue({ items: [] });
-    await expect(service.execute(account, 'GMAIL_FETCH_EMAILS', {})).rejects.toMatchObject({ category: 'AUTH' });
+    await expect(service.execute(account, 'GMAIL_FETCH_EMAILS', {})).rejects.toMatchObject({ category: 'ACCESS' });
     expect(sdk.tools.execute).not.toHaveBeenCalled();
   });
   it.each([
@@ -38,7 +38,7 @@ describe('Composio read-only SDK boundary', () => {
     { ...active, authConfig: { ...active.authConfig, isComposioManaged: false } },
   ])('rejects an invalid connection %j', async invalid => {
     (sdk.connectedAccounts.list as jest.Mock).mockResolvedValue({ items: [invalid] });
-    await expect(service.assertAccount(account)).rejects.toMatchObject({ category: 'AUTH' });
+    await expect(service.assertAccount(account)).rejects.toMatchObject({ category: invalid.status === 'EXPIRED' ? 'AUTH' : 'ACCESS' });
   });
   it('continues membership lookup over pages', async () => {
     (sdk.connectedAccounts.list as jest.Mock).mockResolvedValueOnce({ items: [], nextCursor: 'page-2' }).mockResolvedValueOnce({ items: [active] });
@@ -46,7 +46,7 @@ describe('Composio read-only SDK boundary', () => {
     expect(sdk.connectedAccounts.list).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'page-2' }));
   });
   it('isolates environments before provider access', async () => {
-    await expect(service.assertAccount({ ...account, environment: 'prod' })).rejects.toMatchObject({ category: 'AUTH' });
+    await expect(service.assertAccount({ ...account, environment: 'prod' })).rejects.toMatchObject({ category: 'ACCESS' });
     expect(sdk.connectedAccounts.list).not.toHaveBeenCalled();
   });
   it('rejects PROD credentials in a non-production runtime even with an initialized SDK', async () => {
@@ -56,7 +56,7 @@ describe('Composio read-only SDK boundary', () => {
   });
   it('does not leak SDK error text or request credentials', async () => {
     (sdk.connectedAccounts.list as jest.Mock).mockRejectedValue({ status: 403, message: 'secret-token', config: { headers: { Authorization: 'secret-token' } } });
-    await expect(service.assertAccount(account)).rejects.toEqual(new EmailProviderError('AUTH'));
+    await expect(service.assertAccount(account)).rejects.toEqual(new EmailProviderError('ACCESS', { httpStatus: 403 }));
   });
   it('creates links with intentional multi-account support', async () => {
     (sdk.connectedAccounts.link as jest.Mock).mockResolvedValue({ id: 'ca-new', redirectUrl: 'https://connect.composio.dev/link/test' });
@@ -87,10 +87,23 @@ describe('Composio read-only SDK boundary', () => {
     const msAccount = {...account,toolkit:'outlook' as const};
     await service.execute(msAccount,'OUTLOOK_GET_PROFILE',{user_id:'someone-else'});
     expect(sdk.tools.execute).toHaveBeenCalledWith('OUTLOOK_GET_PROFILE',expect.objectContaining({version:'20261123_00',arguments:{user_id:'me'}}),expect.anything());
-    await expect(service.execute(msAccount,'GMAIL_FETCH_EMAILS',{})).rejects.toMatchObject({category:'AUTH'});
-    await expect(service.execute(msAccount,'OUTLOOK_SEND_EMAIL' as any,{})).rejects.toMatchObject({category:'AUTH'});
+    await expect(service.execute(msAccount,'GMAIL_FETCH_EMAILS',{})).rejects.toMatchObject({category:'ACCESS'});
+    await expect(service.execute(msAccount,'OUTLOOK_SEND_EMAIL' as any,{})).rejects.toMatchObject({category:'ACCESS'});
     (sdk.connectedAccounts.list as jest.Mock).mockResolvedValue({items:[active]});
-    await expect(service.assertAccount(msAccount)).rejects.toMatchObject({category:'AUTH'});
+    await expect(service.assertAccount(msAccount)).rejects.toMatchObject({category:'ACCESS'});
+  });
+
+  it('logs only safe operation metadata for platform access denials', async () => {
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => {});
+    (sdk.tools.execute as jest.Mock).mockRejectedValue({status:403,message:'secret-token owner@example.com https://signed.example/secret'});
+    await expect(service.execute(account,'GMAIL_FETCH_EMAILS',{})).rejects.toMatchObject({category:'ACCESS',details:{httpStatus:403}});
+    const logs=warn.mock.calls.map(x=>String(x[0])).join(' ');
+    expect(logs).toContain('tool_execute'); expect(logs).toContain('403');
+    expect(logs).not.toContain('secret');expect(logs).not.toContain('@');expect(logs).not.toContain('https:');
+  });
+  it.each([['invalid_grant secret-token','AUTH'],['ErrorAccessDenied secret-token','ACCESS'],['unauthorized secret-token','ACCESS']])('distinguishes explicit grant failure from access denial: %s',async(reason,category)=>{
+    (sdk.tools.execute as jest.Mock).mockResolvedValue({successful:false,error:reason});
+    await expect(service.execute(account,'GMAIL_FETCH_EMAILS',{})).rejects.toMatchObject({category});
   });
 
 });

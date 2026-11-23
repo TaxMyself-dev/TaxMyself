@@ -67,8 +67,7 @@
           <div class="gmail-error">
             <i class="pi pi-exclamation-triangle"></i>
             <span>
-              ההרשאה של חשבון זה פגה או בוטלה אצל ספק המייל, ולכן איננו יכולים למשוך ממנו מסמכים חדשים.
-              יש לחבר מחדש את החשבון כדי לחדש את הסנכרון. הנתונים שכבר יובאו נשמרים.
+              {{ connectionIssueMessage(account) }}
             </span>
           </div>
           <div class="gmail-actions">
@@ -117,8 +116,7 @@
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
-                הסנכרון האחרון נכשל{{ account.lastSyncError ? ': ' + account.lastSyncError : '' }}.
-                ננסה שוב אוטומטית בלילה הקרוב.
+                {{ syncErrorMessage(account) }}
               </span>
             </div>
           }
@@ -142,7 +140,7 @@
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
-                הייבוא הקודם נכשל{{ account.lastSyncError ? ': ' + account.lastSyncError : '' }}.
+                {{ syncErrorMessage(account) }}
                 ניתן לנסות שוב.
               </span>
             </div>

@@ -155,14 +155,17 @@ export class EmailIntakeRunsService {
       return;
     const token = await this.store.leaseRun(run.id);
     if (!token) return;
+    let stage = 'load_integration';
     try {
       const integration = await this.integrations.findOwnedByIdOrThrow(
         run.integration_id,
         run.firebase_id,
       );
       if (integration.status !== IntegrationStatus.ACTIVE)
-        throw new EmailProviderError('AUTH');
+        throw new EmailProviderError('ACCESS', { providerCode: 'LOCAL_CONNECTION_UNVERIFIED' });
+      if (integration.lastSyncStatus === 'ERROR') await this.integrations.markSyncRunning(integration.id);
       // One metadata message + at most two file downloads per tick, never a total cap.
+      stage = 'load_message';
       for (const item of await this.store.items(run.id, 'message', 1)) {
         try {
           await this.store.recordParts(
@@ -172,11 +175,14 @@ export class EmailIntakeRunsService {
             await this.reader.durableParts(integration, item.message_id),
           );
         } catch (error) {
-          if (error instanceof EmailProviderError && error.category === 'AUTH')
+          if (error instanceof EmailProviderError && ['AUTH', 'ACCESS', 'CONFIG'].includes(error.category))
             throw error;
+          this.logFailure(run, stage, error);
           await this.store.retryItem(run, token, item, 'MESSAGE_RETRY');
         }
       }
+      stage = 'download_attachment';
+      const partFailures: unknown[] = [];
       await Promise.all(
         (await this.store.items(run.id, 'part', 2)).map(async (item) => {
           try {
@@ -197,6 +203,8 @@ export class EmailIntakeRunsService {
               result.id,
             );
           } catch (error) {
+            if (error instanceof EmailProviderError && ['AUTH', 'ACCESS', 'CONFIG'].includes(error.category)) { partFailures.push(error); return; }
+            this.logFailure(run, stage, error);
             await this.store.retryItem(
               run,
               token,
@@ -207,6 +215,7 @@ export class EmailIntakeRunsService {
           }
         }),
       );
+      if (partFailures.length) throw partFailures[0];
       const summary = await this.store.summary(run);
       const unfinished =
         (summary.messages.DISCOVERED || 0) +
@@ -221,6 +230,7 @@ export class EmailIntakeRunsService {
       )[0];
       if (!current) throw new Error('Run lease changed');
       if (!unfinished && current.scan_state !== 'DONE') {
+        stage = 'list_messages';
         const page = await this.reader.durablePage(
           integration,
           run.query_text,
@@ -230,7 +240,9 @@ export class EmailIntakeRunsService {
           throw new EmailProviderError('CONTRACT');
         await this.store.savePage(run, token, page.ids, page.nextPageToken);
       }
+      stage = 'refresh_run';
       const status = await this.store.refreshRun(run);
+      stage = 'finalize_sync';
       if (status.pull === 'COMPLETE' && run.sync_type !== 'MANUAL') {
         let cursor = new Date(run.started_at);
         const from =
@@ -265,17 +277,23 @@ export class EmailIntakeRunsService {
     } catch (error) {
       const category =
         error instanceof EmailProviderError ? error.category : 'TRANSIENT';
+      this.logFailure(run, stage, error);
+      const terminal = ['AUTH', 'ACCESS', 'CONFIG'].includes(category) || (run.attempts || 0) >= 4;
+      const messageCode = error instanceof EmailProviderError && error.details.providerCode === 'LOCAL_CONNECTION_UNVERIFIED' ? 'EMAIL_CONNECTION_UNVERIFIED' : category === 'AUTH' ? 'EMAIL_RECONNECT_REQUIRED' : category === 'ACCESS' ? 'EMAIL_ACCESS_DENIED' : category === 'CONFIG' ? 'EMAIL_CONFIGURATION' : terminal ? 'EMAIL_RETRY_EXHAUSTED' : 'EMAIL_RETRY_PENDING';
       // Expired cursor: restart the frozen query; durable item identities/hash dedup survive.
-      if (category === 'CONTRACT' && run.page_token)
-        await this.store.query(
+      if (category === 'CONTRACT' && run.page_token) {
+        const transition = await this.store.query(
           "UPDATE email_import_runs SET page_token=NULL,page_history_json=NULL,scan_state='READY',pull_state=IF(scan_generation>=2,'PARTIAL','RETRY'),scan_generation=scan_generation+1,error_code='CURSOR_RESTART' WHERE id=? AND lease_token=?",
           [run.id, token],
         );
-      else
-        await this.store.query(
-          "UPDATE email_import_runs SET pull_state='RETRY',attempts=attempts+1,error_code=?,next_attempt_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE) WHERE id=? AND lease_token=?",
-          [category, run.id, token],
+        if (transition?.affectedRows === 1) await this.integrations.markSyncError(run.integration_id, (run.scan_generation || 0) >= 2 ? 'EMAIL_RETRY_EXHAUSTED' : 'EMAIL_RETRY_PENDING');
+      } else {
+        const transition = await this.store.query(
+          "UPDATE email_import_runs SET pull_state=?,attempts=attempts+1,error_code=?,next_attempt_at=IF(?='RETRY',DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE),NULL) WHERE id=? AND lease_token=?",
+          [terminal ? 'PARTIAL' : 'RETRY', category, terminal ? 'PARTIAL' : 'RETRY', run.id, token],
         );
+        if (transition?.affectedRows === 1) await this.integrations.markSyncError(run.integration_id, messageCode);
+      }
     } finally {
       await this.store.query(
         'UPDATE email_import_runs SET lease_token=NULL,lease_expires_at=NULL WHERE id=? AND lease_token=?',
@@ -283,4 +301,9 @@ export class EmailIntakeRunsService {
       );
     }
   }
+  private logFailure(run: EmailRun, stage: string, error: unknown): void {
+    const failure = error instanceof EmailProviderError ? error : new EmailProviderError('TRANSIENT');
+    this.logger.warn(JSON.stringify({ event: 'email.intake.failure', runId: run.id, integrationId: run.integration_id, stage, category: failure.category, httpStatus: failure.details.httpStatus, providerCode: failure.details.providerCode }));
+  }
+
 }

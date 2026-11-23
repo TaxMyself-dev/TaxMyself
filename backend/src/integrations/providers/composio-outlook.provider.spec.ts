@@ -53,4 +53,10 @@ describe('Outlook read adapter', () => {
     await expect(provider.getMessage(account, 'm1')).rejects.toThrow();
     expect(integrations.expireConnectedAccount).toHaveBeenCalledWith('ca-outlook', 'owner');
   });
+  it('does not expire the mailbox for an access/permission error',async()=>{
+    client.execute.mockRejectedValue(new EmailProviderError('ACCESS',{httpStatus:403}));
+    await expect(provider.getMessage(account,'m1')).rejects.toMatchObject({category:'ACCESS'});
+    expect(integrations.expireConnectedAccount).not.toHaveBeenCalled();
+  });
+
 });
