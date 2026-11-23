@@ -45,4 +45,4 @@ the backend validates managed auth config, toolkit, owner, active account and id
 Read tools are allowlisted separately per toolkit. The persisted provider selects the
 reader; date windows, durable runs, owner restrictions and content-hash dedup are shared.
 Historical GMAIL source/metadata names identify this shared email pipeline internally.
-See `docs/features/outlook-email.md` for configuration and the pending schema gate.
+See `docs/features/outlook-email.md` for configuration and the prepared schema awaiting separate application approval.

@@ -47,15 +47,32 @@ Existing Google URLs remain compatible. Shared status/import URLs retain their h
 New URLs: GET outlook/connect, GET outlook/callback, DELETE email/:integrationId,
 under `/integrations`.
 
-## Pending schema approval — do not enable Outlook intake yet
+## Prepared schema — application not authorized
 
-The checked-in durable queue defines email_import_items.message_id as VARCHAR(128).
-Outlook IDs can exceed this. Its case-insensitive default collation is also unsuitable
-for opaque case-sensitive Outlook IDs. The proposed change is VARCHAR(512) with
-ASCII binary collation, preserving complete IDs and fitting the existing composite index.
-Preparing this schema change requires Elazar's explicit approval under AUTHORITY.md;
-approval was requested and remains pending. No SQL/schema edit or DB operation has
-been performed. This branch is not ready for main integration or live Outlook intake.
+On 2026-11-23 Elazar approved preparation only. The standalone script is
+`docs/features/outlook-email.sql`; the same statement is appended to cutover.sql
+for the repository schema record. Do not execute the cumulative cutover file.
+No database was contacted or changed.
+
+The existing durable queue defines email_import_items.message_id as VARCHAR(128).
+The prepared ALTER expands it to VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
+preserving complete, case-sensitive Gmail/Outlook message IDs. The existing
+ux_email_item(run_id,message_id,part_path) unique index remains intact without
+prefix truncation. Assuming utf8mb4 for the other two fields, its maximum string
+payload is 36*4 + 512 + 160*4 = 1296 bytes, below modern InnoDB's 3072-byte limit.
+No source-document metadata, accounting schema or application code changed.
+
+Before separately authorized application, inspect the target table's SHOW CREATE
+TABLE, column definitions, row format and full unique index. Verify zero existing
+message IDs contain non-ASCII characters or exceed 512 characters. This is a
+precondition for conversion; no assumption about live data has been verified.
+Review deployment locking/DDL behavior for the actual MySQL version. Keep the
+original durable CREATE script as the historical baseline and apply the standalone
+ALTER afterward on either existing or newly provisioned databases.
+
+Preparation approval does not authorize application in DEV or PROD, live Outlook
+intake, main integration, push or deployment. The failed frontend production build
+and live provider verification remain outstanding.
 
 ## Verification and live limits
 

@@ -1,19 +1,19 @@
 # Outlook email through Composio
 
-Status: WAITING_FOR_SCHEMA_APPROVAL
+Status: SCHEMA_PREPARED_NOT_APPLIED
 Base: 7b63265d; main and origin/main verified equal on 2026-11-23.
 
 Acceptance: owner can connect/reconnect/disconnect Outlook in Settings; Microsoft identity is verified and stored separately from Google; existing manual/initial/nightly durable intake reads Outlook files with fixed date ranges and pagination; Gmail remains compatible.
 
 Plan: provider-aware OAuth/client boundary and Outlook adapter; shared intake and settings; focused backend/frontend regressions and builds; configuration documentation; local commit.
 
-Boundaries: schema preparation approval requested and pending; no schema changes, live mailbox reads, database access, main integration, push or deployment. No accounting/deletion policy changes. Existing GMAIL source names remain internal shared email pipeline identifiers. Provider schemas discovered through Composio only; live OAuth/toolkit configuration remains an operator check.
+Boundaries: schema preparation approved on 2026-11-23; no live schema changes, live mailbox reads, database access, main integration, push or deployment. No accounting/deletion policy changes. Existing GMAIL source names remain internal shared email pipeline identifiers. Provider schemas discovered through Composio only; live OAuth/toolkit configuration remains an operator check.
 
 ## Implementation checkpoint
 
 Added owner-only Outlook OAuth/callback, verified Microsoft profile identity, provider-specific managed auth config/tool versions/read-tool allowlists, local/remote disconnect handling, a Microsoft attachment adapter and persisted-provider routing. Settings includes Outlook add/reconnect/disconnect; shared initial/manual/nightly intake accepts Microsoft. Google endpoints remain compatible. Updated topic docs and docs/features/outlook-email.md. No accounting/deletion policy changes.
 
-## Required decision
+## Historical decision request (superseded below)
 
 The existing durable queue uses VARCHAR(128) for message_id and default case-insensitive collation. Microsoft opaque IDs can be longer and case-sensitive. Asked Elazar to approve preparation of a VARCHAR(512) ASCII binary field change without applying it, or choose connect-only scope. No reply yet. No schema/SQL edits performed; do not integrate or enable live Outlook intake on this checkpoint.
 
@@ -38,4 +38,27 @@ Known baseline test failures: none claimed. Disk exhaustion is an environment fa
 - Final `git diff --check`: passed, exit 0. File scope reviewed; no environment secrets, dependencies or generated output are included.
 - Removed only this task-created worktree dependencies and generated build/cache directories after verification to restore disk capacity. Dependencies must be installed independently again before further verification.
 
-Result: implementation checkpoint only; completion is blocked by pending schema-preparation approval and unsuccessful frontend production build. Live configuration/DEV OAuth verification remains outstanding. No main integration, push or deploy. Do not describe this branch as ready to merge.
+Result at 139ab18a: implementation checkpoint only; completion was blocked by pending schema-preparation approval and unsuccessful frontend production build. Live configuration/DEV OAuth verification remains outstanding. No main integration, push or deploy. Do not describe this branch as ready to merge.
+
+## Approved schema preparation — 2026-11-23
+
+Elazar explicitly selected preparation only, without application to any database.
+Prepared docs/features/outlook-email.sql and appended its exact ALTER statement to
+docs/redesign/cutover.sql as required by the root schema-record instructions.
+The ALTER changes only email_import_items.message_id to VARCHAR(512) CHARACTER SET
+ascii COLLATE ascii_bin NOT NULL. Existing full-column unique index stays intact;
+maximum conservative string payload is 1296 bytes for the three indexed columns.
+Preconditions: live table/index/row-format inspection, zero non-ASCII/overlength
+existing values, separate application approval. No DB connection or SQL execution.
+
+This supersedes the earlier pending-preparation decision only. Application code
+and test inputs are unchanged from 139ab18a; reuse prior focused evidence and its
+stated limits. Frontend production build remains failed with ENOSPC; no application
+tests/builds rerun for this schema/documentation-only follow-up. Static SQL scope,
+standalone/cumulative parity, index-size arithmetic, documentation targets and Git
+whitespace checks are the focused verification. No main integration, push or deploy.
+
+Verification result: offline Node assertions passed (exit 0): exactly one scoped ALTER,
+exact standalone/cutover statement parity, unchanged historical CREATE and full index,
+1296-byte index arithmetic and valid documentation file targets. No SQL execution.
+Git diff --check passed (exit 0). Application tests/builds skipped as unchanged.
