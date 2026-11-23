@@ -27,6 +27,12 @@ describe('Gmail connection requests', () => {
     expect(request.request.params.keys()).toEqual([]);
     request.flush({ url: 'https://connect.composio.dev/link/test' });
   });
+  it('sends the selected business before opening Google and lists only server-owned choices',()=>{
+    service.getEmailRoutingOptions().subscribe();http.expectOne(`${environment.apiUrl}integrations/google/routing-options`).flush({businesses:[]});
+    service.getGoogleConnectUrl(undefined,'123456789').subscribe();
+    const request=http.expectOne(`${environment.apiUrl}integrations/google/connect?businessNumber=123456789`);
+    expect(request.request.params.has('integrationId')).toBeFalse();request.flush({url:'https://connect.composio.dev/link/test'});
+  });
   it('reconnects only the explicitly selected local integration', () => {
     service.getGoogleConnectUrl(42).subscribe();
     const request = http.expectOne(`${environment.apiUrl}integrations/google/connect?integrationId=42`);

@@ -3117,3 +3117,8 @@ ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) 
 ALTER TABLE user_integrations ADD COLUMN email_routing_json JSON NULL;
 ALTER TABLE imported_documents ADD COLUMN email_routing_json JSON NULL;
 ALTER TABLE extracted_document ADD COLUMN email_routing_json JSON NULL;
+
+-- Gmail pre-connect business selection, 2026-11-23. Development application
+-- authorized; production execution still requires separate authorization.
+-- Same as backend/scripts/migrations/2026-11-23_gmail-connect-business.sql: run once.
+ALTER TABLE oauth_states ADD COLUMN business_number VARCHAR(32) NULL;

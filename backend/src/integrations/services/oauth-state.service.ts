@@ -32,6 +32,7 @@ export class OauthStateService {
     firebaseId: string,
     provider: IntegrationProvider,
     redirectAfterSuccess: string | null = null,
+    businessNumber: string | null = null,
   ): Promise<string> {
     await this.deleteExpired();
 
@@ -41,6 +42,7 @@ export class OauthStateService {
       firebaseId,
       provider,
       redirectAfterSuccess,
+      businessNumber,
       expiresAt: new Date(Date.now() + STATE_TTL_MS),
     });
     return state;

@@ -62,6 +62,13 @@ export class IntegrationsController {
     return this.emailRouting.get(this.ownerId(request),id);
   }
 
+  @Get('google/routing-options')
+  @UseGuards(FirebaseAuthGuard)
+  async routingOptions(@Req() request: AuthenticatedRequest) {
+    const businesses=await this.emailRouting.ownedBusinesses(this.ownerId(request));
+    return {businesses:businesses.map(b=>({businessNumber:b.businessNumber,businessName:b.businessName}))};
+  }
+
   @Post('google/:integrationId/routing')
   @UseGuards(FirebaseAuthGuard)
   async saveRouting(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id: number, @Body() body: unknown) {
@@ -71,13 +78,14 @@ export class IntegrationsController {
   /** Returns the Google consent-screen URL the frontend should navigate to. */
   @Get('google/connect')
   @UseGuards(FirebaseAuthGuard)
-  async connect(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string) {
+  async connect(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string, @Query('businessNumber') businessNumber?:string) {
     const firebaseId = this.ownerId(request);
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
     const targetId = integrationId === undefined ? undefined : Number(integrationId);
     if (targetId !== undefined && (!Number.isSafeInteger(targetId) || targetId <= 0)) throw new NotFoundException('Integration not found');
-    return this.emailConnectionsService.connect(firebaseId, targetId);
+    if(businessNumber!==undefined&&(typeof businessNumber!=='string'||!businessNumber.trim()||businessNumber.length>32))throw new BadRequestException('Invalid connection business');
+    return this.emailConnectionsService.connect(firebaseId, targetId,businessNumber?.trim());
   }
 
   /**

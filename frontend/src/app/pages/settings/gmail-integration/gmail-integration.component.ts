@@ -8,6 +8,8 @@ import { DialogModule } from 'primeng/dialog';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
+import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
+import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
 import { GenericService } from 'src/app/services/generic.service';
 import { AuthService } from 'src/app/services/auth.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
@@ -39,6 +41,8 @@ import { inputsSize } from 'src/app/shared/enums';
     CheckboxModule,
     ButtonComponent,
     InputDateComponent,
+    InputSelectComponent,
+    InputTextComponent,
   ],
 })
 export class GmailIntegrationComponent implements OnInit {
@@ -63,27 +67,45 @@ export class GmailIntegrationComponent implements OnInit {
   readonly routingConfig=signal<EmailRoutingConfiguration|null>(null);
   readonly routingBusy=signal(false);
   readonly routingError=signal('');
+  readonly routingForm=this.fb.group({businessNumber:this.fb.control<string|null>(null,Validators.required)});
+  readonly routingRules=signal<FormGroup[]>([]);
+  readonly routingBusinesses=computed(()=>this.routingConfig()?.businesses.map(b=>({value:b.businessNumber,name:b.businessName||b.businessNumber}))||[]);
+  readonly ruleActions=[{value:'BLOCK',name:'לא לייבא מסמכים'},{value:'BUSINESS',name:'לשייך לעסק'}];
+  readonly connectionDialogVisible=signal(false);
+  readonly connectionLoading=signal(false);
+  readonly connectionError=signal('');
+  readonly connectionBusinesses=signal<{value:string;name:string}[]>([]);
+  readonly connectionForm=this.fb.group({businessNumber:this.fb.control<string|null>(null,Validators.required)});
+  private connectionIntegrationId:number|undefined;
+  private ruleForm(rule?:EmailRoutingConfiguration['settings']['rules'][number]):FormGroup{
+    return this.fb.group({sender:[rule?.sender||'',[Validators.required,Validators.email]],action:[rule?.action||'BLOCK',Validators.required],businessNumber:[rule?.businessNumber||null]});
+  }
   openRouting(id:number):void{
     if(this.authService.isViewingAsClient()||this.routingBusy())return;
     this.routingAccountId.set(id);this.routingConfig.set(null);this.routingError.set('');this.routingBusy.set(true);
     this.integrationsService.getEmailRouting(id).subscribe({
-      next:config=>{this.routingConfig.set(config);this.routingBusy.set(false);},
+      next:config=>{this.routingConfig.set(config);this.routingForm.enable();this.routingForm.reset({businessNumber:config.settings.businessNumber||(config.businesses.length===1?config.businesses[0].businessNumber:null)});this.routingRules.set(config.settings.rules.map(rule=>this.ruleForm(rule)));this.routingBusy.set(false);},
       error:()=>{this.routingError.set('לא ניתן לטעון את הגדרות המייל.');this.routingBusy.set(false);},
     });
   }
   addRoutingRule():void{
-    this.routingConfig.update(config=>config?{...config,settings:{...config.settings,rules:[...config.settings.rules,{sender:'',action:'BLOCK'}]}}:config);
+    if(this.routingRules().length<100)this.routingRules.update(rules=>[...rules,this.ruleForm()]);
   }
   removeRoutingRule(index:number):void{
-    this.routingConfig.update(config=>config?{...config,settings:{...config.settings,rules:config.settings.rules.filter((_,i)=>i!==index)}}:config);
+    this.routingRules.update(rules=>rules.filter((_,i)=>i!==index));
   }
   saveRouting():void{
     const id=this.routingAccountId(),config=this.routingConfig();
     if(id===null||!config||this.routingBusy()||this.authService.isViewingAsClient())return;
+    const rules=this.routingRules().map(form=>form.getRawValue());
+    if(this.routingForm.invalid||this.routingRules().some(form=>form.invalid)||rules.some(rule=>rule.action==='BUSINESS'&&!rule.businessNumber)){
+      this.routingForm.markAllAsTouched();this.routingRules().forEach(form=>form.markAllAsTouched());this.routingError.set('בחרו עסק והשלימו את פרטי הכללים לפני השמירה.');return;
+    }
     this.routingBusy.set(true);this.routingError.set('');
-    this.integrationsService.saveEmailRouting(id,config.settings).subscribe({
+    this.routingRules().forEach(form=>form.disable());
+    this.integrationsService.saveEmailRouting(id,{businessNumber:this.routingForm.getRawValue().businessNumber,rules:rules.map(rule=>rule.action==='BLOCK'?{sender:rule.sender.trim(),action:'BLOCK'}:{sender:rule.sender.trim(),action:'BUSINESS',businessNumber:rule.businessNumber})}).subscribe({
       next:()=>{this.routingBusy.set(false);this.routingAccountId.set(null);this.messageService.add({severity:'success',summary:'הגדרות המייל נשמרו',key:'br'});},
-      error:()=>{this.routingBusy.set(false);this.routingError.set('לא ניתן לשמור. יש לבחור עסק תקף ולבדוק שכתובות השולחים מלאות ושאין כללי שיוך סותרים.');},
+      error:()=>{this.routingBusy.set(false);this.routingRules().forEach(form=>form.enable());this.routingError.set('לא ניתן לשמור. יש לבחור עסק תקף ולבדוק שכתובות השולחים מלאות ושאין כללי שיוך סותרים.');},
     });
   }
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
@@ -155,14 +177,33 @@ export class GmailIntegrationComponent implements OnInit {
 
   /** מפנה למסך ההסכמה של Google לחיבור חשבון (נוסף); החזרה נוחתת בהגדרות. */
   connectGmail(integrationId?: number): void {
-    if (this.connecting() || this.authService.isViewingAsClient()) return;
+    if(this.connecting()||this.connectionLoading()||this.authService.isViewingAsClient())return;
+    this.connectionIntegrationId=integrationId;this.connectionDialogVisible.set(false);this.connectionLoading.set(true);this.connectionError.set('');this.connectionForm.reset();this.connectionBusinesses.set([]);
+    const request=integrationId===undefined?this.integrationsService.getEmailRoutingOptions():this.integrationsService.getEmailRouting(integrationId);
+    request.subscribe({next:config=>{
+      this.connectionBusinesses.set(config.businesses.map(b=>({value:b.businessNumber,name:b.businessName||b.businessNumber})));
+      const previous='settings' in config?(config as EmailRoutingConfiguration).settings.businessNumber:null;
+      this.connectionForm.setValue({businessNumber:config.businesses.length===1?config.businesses[0].businessNumber:previous});
+      this.connectionLoading.set(false);
+      if(config.businesses.length===1){this.confirmConnection();return;}
+      this.connectionDialogVisible.set(true);
+      if(!config.businesses.length)this.connectionError.set('יש להוסיף עסק בחשבון לפני חיבור תיבת מייל.');
+    },error:()=>{this.connectionLoading.set(false);this.connectionDialogVisible.set(true);this.connectionError.set('לא ניתן לטעון את רשימת העסקים. סגרו את החלון ונסו שוב.');}});
+  }
+
+  confirmConnection(): void {
+    if(this.connecting()||this.connectionLoading()||this.authService.isViewingAsClient())return;
+    const businessNumber=this.connectionForm.getRawValue().businessNumber;
+    if(!businessNumber||!this.connectionBusinesses().some(b=>b.value===businessNumber)){this.connectionForm.markAllAsTouched();return;}
     this.connecting.set(true);
-    this.integrationsService.getGoogleConnectUrl(integrationId).subscribe({
+    this.integrationsService.getGoogleConnectUrl(this.connectionIntegrationId,businessNumber).subscribe({
       next: ({ url }) => {
         window.location.href = url;
       },
       error: () => {
         this.connecting.set(false);
+        this.connectionDialogVisible.set(true);
+        this.connectionError.set('לא ניתן להתחיל את חיבור Google. אפשר לנסות שוב.');
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',

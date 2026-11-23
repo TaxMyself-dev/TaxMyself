@@ -47,6 +47,12 @@ export class EmailRoutingService {
       })),
     };
   }
+  async connectionBusiness(owner:string, selected?:string|null):Promise<string>{
+    const businesses=await this.ownedBusinesses(owner);
+    const target=selected?.trim()||(businesses.length===1?businesses[0].businessNumber:null);
+    if(!target||!businesses.some(b=>b.businessNumber===target))throw new BadRequestException('יש לבחור עסק בבעלות החשבון לפני חיבור תיבת המייל');
+    return target;
+  }
   async save(owner: string, id: number, input: unknown) {
     await this.configuration(owner, id);
     let settings: EmailRoutingSettings;

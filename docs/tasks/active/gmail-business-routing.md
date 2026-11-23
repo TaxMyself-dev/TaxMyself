@@ -1,5 +1,86 @@
 # Gmail business routing
 
+## Follow-up approved 2026-11-23 — connection selection and native app UI
+
+Status: LOCAL_COMPLETE_AWAITING_MAIN_APPROVAL. Existing feature worktree from c33cb46e.
+Acceptance: choose an owned business before Google OAuth; bind the choice to
+server-side single-use state and save it with the verified mailbox. Reconnect
+must preserve rules and validate the business again. Use the existing application
+InputSelect/InputText/Button components, with responsive RTL layout, clear empty
+state and visible footer actions. Owner-only access and OAuth safeguards remain.
+Elazar decided: one business goes directly to Google with no selection dialog;
+multiple businesses require pre-connect selection. Sender rules only; recipient
+and subject expansion explicitly deferred. Elazar explicitly approved the one
+nullable OAuth-state column including application to keepintax-dev. No main
+integration/push.
+
+Design plan: inherit application font, white surfaces (#fff), ink (#111827),
+secondary text (#64748b), quiet separators (#e2e8f0), primary app button palette.
+An owned-business selection precedes the Google action; settings separate mailbox
+default from a vertically ordered rule list. Shared controls at full available
+width; two-column rule fields on desktop, one column on mobile; action footer
+with cancel/save. Avoid native reset buttons and cramped all-in-one rows.
+Verification: focused connection/state/rule tests, rendered component tests,
+Nest and production Angular builds; screenshot review if a local fixture permits.
+
+Development schema execution for this follow-up: explicit user approval received
+2026-11-23 for oauth_states.business_number VARCHAR(32) NULL, including dev
+application. Bounded script tmp/apply-gmail-connect-business-dev-schema.cjs
+verified the exact keepintax-dev target, added the column and verified type,
+length and nullability; exit 0. No data writes or production connection.
+Ignored worktree backend/.env had retained callback/return ports 3000/4200;
+only COMPOSIO_GMAIL_CALLBACK_URL and GMAIL_FRONTEND_URL were changed locally
+to 3002/4202, preserving paths and all other environment values. These changes
+are not tracked, and main remains unchanged.
+
+### Follow-up verification and delivery — 2026-11-23
+
+- Final backend scope: **5 suites / 49 tests passed**, exit 0, 33.395s. Covers
+  owned/foreign/missing business selection, single-business fallback, server-state
+  persistence/consumption/replay, callback ownership revalidation, atomic JSON_SET
+  preservation of existing sender rules and controller owner boundaries.
+- Final desktop browser run: **24 tests passed**, exit 0. Final narrow browser run:
+  **18 tests passed**, exit 0; these overlap and must not be added as unique tests.
+  Actual rendered dialogs check shared controls, valid business before Google,
+  button height, footer overflow and responsive one/two-column rule layout.
+- Initial geometry assertions were reviewed: the test body was hidden and the
+  actual app Aura theme was absent. The fixture now uses a visible body (restored
+  after the test) and the same providePrimeNG/Aura provider as AppModule. Original
+  geometry thresholds remain unchanged. No implementation was altered to hide a
+  failed assertion. Existing shared-control reactive disabled-binding warnings
+  remain visible. CUA screenshot tools were unavailable (missing kernel assets);
+  no screenshot or live mailbox visual check is claimed.
+- Final Nest build: exit 0. Final Angular production build: exit 0,
+  hash a5634de16009703d, 57498ms. Existing bundle/component warning budgets and
+  CommonJS warnings remain; no build thresholds or dependencies changed.
+- Original 319-test intake/AI regression belongs to the initial feature revision;
+  it was not rerun or presented as a full follow-up run. Its unchanged intake
+  inputs retain that evidence; this follow-up checks the connection/UI boundary.
+- Source diff reviewed; Markdown/static schema checks and git diff --check passed.
+  No real OAuth/provider call, application bootstrap, server restart, production
+  access, local main integration or push. Local configuration still verifies
+  frontend 4202, backend 3002 and API http://127.0.0.1:3002/.
+
+Exact commands (backend directory; output logs in original chat workspace):
+
+```powershell
+node --max-old-space-size=768 node_modules/jest/bin/jest.js --config='C:\Users\user\Documents\ChatGPT\Keepintax - GMAIL\tmp\gmail-routing-offline-jest.json' --runInBand --silent --json --outputFile='C:\Users\user\Documents\ChatGPT\Keepintax - GMAIL\output\gmail-connect-final-backend.json' integrations/services/email-connections.service.spec.ts integrations/services/user-integrations.service.spec.ts integrations/services/oauth-state.service.spec.ts integrations/integrations.controller.spec.ts email-intake/email-routing.service.spec.ts
+npm run build
+```
+
+Exact frontend commands:
+
+```powershell
+node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --include=src/app/services/integrations.service.spec.ts --include=src/app/components/report-review-edit-dialog/email-routing-note.spec.ts --progress=false
+node node_modules/@angular/cli/bin/ng.js test --watch=false --browsers=GmailMobileHeadless --karma-config='C:\Users\user\Documents\ChatGPT\Keepintax - GMAIL\tmp\gmail-connect-mobile-karma.cjs' --ts-config=tsconfig.email-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false
+npm run build -- --configuration production
+```
+
+The temporary mobile launcher extends the repository Karma configuration with a
+390x844 window request and its own port 9878. All test runners/dependencies belong
+to this worktree. Follow-up source revision is the local commit in the final chat
+handoff; only documentation followed the final executable checks above.
+
 - Status: `LOCAL_COMPLETE_AWAITING_MAIN_APPROVAL`
 - Task manager / developer: Codex
 - Worktree: C:/Users/user/Keepintax/TaxMyself-gmail-business-routing

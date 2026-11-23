@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
+import { routingSettings } from '../../email-intake/email-routing.policy';
 import {
   IntegrationProvider,
   IntegrationStatus,
@@ -14,6 +15,7 @@ import {
 } from '../enums/integrations.enums';
 
 export interface UpsertIntegrationInput {
+  businessNumber?:string;
   firebaseId: string;
   provider: IntegrationProvider;
   /**
@@ -181,6 +183,7 @@ export class UserIntegrationsService {
     integration.scopes = input.scopes ?? null;
     integration.expiresAt = input.expiresAt ?? null;
     integration.status = IntegrationStatus.ACTIVE;
+    if(input.businessNumber!==undefined)integration.emailRouting={...routingSettings(existing?.emailRouting),businessNumber:input.businessNumber};
 
     let saved: UserIntegration;
     try {
@@ -191,10 +194,12 @@ export class UserIntegrationsService {
           retiredConnectedAccountIds: integration.retiredConnectedAccountIds, remoteDisconnectPending: false,
           accountEmail: integration.accountEmail, status: IntegrationStatus.ACTIVE,
           refreshToken: null, accessToken: null, scopes: integration.scopes, expiresAt: integration.expiresAt,
+          ...(input.businessNumber===undefined?{}:{emailRouting:()=>"JSON_SET(COALESCE(email_routing_json,JSON_OBJECT('rules',JSON_ARRAY())), '$.businessNumber', :routingBusiness)"}),
         };
         const result = await this.userIntegrationRepo.createQueryBuilder().update(UserIntegration).set(values)
           .where('id = :id AND firebase_id = :firebaseId AND connected_account_id <=> :previousConnection AND remote_disconnect_pending = 0 AND (last_sync_status IS NULL OR last_sync_status <> :running)', {
             id: existing.id, firebaseId: input.firebaseId, running: IntegrationSyncStatus.RUNNING, previousConnection: previousConnectedAccountId,
+            ...(input.businessNumber===undefined?{}:{routingBusiness:input.businessNumber}),
           }).execute();
         if (result.affected !== 1) throw new ConflictException('Connection changed or a synchronization started; retry');
         saved = integration;

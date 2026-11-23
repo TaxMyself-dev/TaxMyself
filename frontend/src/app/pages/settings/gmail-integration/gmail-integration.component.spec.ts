@@ -2,6 +2,8 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter } from '@angular/router';
+import { providePrimeNG } from 'primeng/config';
+import Aura from '@primeng/themes/aura';
 import { EMPTY, of, throwError } from 'rxjs';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { AuthService } from 'src/app/services/auth.service';
@@ -21,7 +23,7 @@ describe('Gmail connection controls', () => {
     refresh = jasmine.createSpy();
     TestBed.configureTestingModule({ providers: [
       { provide: AuthService, useValue: { isViewingAsClient: () => viewingAsClient } },
-      { provide: IntegrationsService, useValue: { getGoogleConnectUrl: connect, disconnectGoogleIntegration: () => throwError(() => new Error('remote failure')) } },
+      { provide: IntegrationsService, useValue: { getGoogleConnectUrl: connect,getEmailRouting:()=>of({settings:{businessNumber:'123456789',rules:[]},businesses:[{businessNumber:'123456789',businessName:'עסק'}]}),getEmailRoutingOptions:()=>of({businesses:[{businessNumber:'123456789',businessName:'עסק'}]}), disconnectGoogleIntegration: () => throwError(() => new Error('remote failure')) } },
       { provide: GmailSyncStateService, useValue: { refresh, accounts: signal([]), status: signal(null) } },
       { provide: GenericService, useValue: { isMobile: signal(false) } },
       { provide: MessageService, useValue: { add: jasmine.createSpy() } },
@@ -31,7 +33,8 @@ describe('Gmail connection controls', () => {
   });
   it('passes the selected row when reconnecting', () => {
     component.connectGmail(42);
-    expect(connect).toHaveBeenCalledOnceWith(42);
+    expect(connect).toHaveBeenCalledOnceWith(42,'123456789');
+    expect(component.connectionDialogVisible()).toBeFalse();
   });
   it('does not create connections in represented-client mode', () => {
     viewingAsClient = true;
@@ -70,28 +73,86 @@ describe('Mailbox routing settings',()=>{
   });
   it('supports adding/removing several rules and saves the clicked mailbox only',()=>{
     component.openRouting(17);component.addRoutingRule();component.addRoutingRule();
-    component.routingConfig()!.settings.rules[0]={sender:'a@example.com',action:'BLOCK'};
-    component.routingConfig()!.settings.rules[1]={sender:'b@example.com',action:'BUSINESS',businessNumber:'123456789'};
+    component.routingRules()[0].patchValue({sender:'a@example.com',action:'BLOCK'});
+    component.routingRules()[1].patchValue({sender:'b@example.com',action:'BUSINESS',businessNumber:'123456789'});
     component.removeRoutingRule(0);component.saveRouting();component.saveRouting();
     expect(save).toHaveBeenCalledOnceWith(17,{businessNumber:'123456789',rules:[{sender:'b@example.com',action:'BUSINESS',businessNumber:'123456789'}]});
   });
   it('retains editable rules after a rejected save and permits retry',()=>{
     save.and.returnValue(throwError(()=>new Error('invalid rules')));
-    component.openRouting(17);component.addRoutingRule();component.saveRouting();
+    component.openRouting(17);component.addRoutingRule();component.routingRules()[0].patchValue({sender:'a@example.com'});component.saveRouting();
     expect(component.routingBusy()).toBeFalse();expect(component.routingAccountId()).toBe(17);
-    expect(component.routingConfig()!.settings.rules.length).toBe(1);expect(component.routingError()).toContain('לא ניתן לשמור');
+    expect(component.routingRules().length).toBe(1);expect(component.routingError()).toContain('לא ניתן לשמור');
   });
   it('does not read or save settings in represented-client mode',()=>{
     represented=true;component.openRouting(17);component.saveRouting();expect(get).not.toHaveBeenCalled();expect(save).not.toHaveBeenCalled();
   });
 });
 
+describe('Business selection before Google connect',()=>{
+  function setup(businesses:{businessNumber:string;businessName:string}[],previous:string|null=null){
+    const connect=jasmine.createSpy().and.returnValue(EMPTY);
+    TestBed.configureTestingModule({providers:[
+      {provide:AuthService,useValue:{isViewingAsClient:()=>false}},
+      {provide:IntegrationsService,useValue:{getGoogleConnectUrl:connect,getEmailRoutingOptions:()=>of({businesses}),getEmailRouting:()=>of({businesses,settings:{businessNumber:previous,rules:[]}})}},
+      {provide:GmailSyncStateService,useValue:{refresh:()=>{},accounts:signal([]),status:signal(null)}},
+      {provide:GenericService,useValue:{isMobile:signal(false)}},{provide:MessageService,useValue:{add:()=>{}}},{provide:ConfirmationService,useValue:{}},
+    ]});
+    return {component:TestBed.runInInjectionContext(()=>new GmailIntegrationComponent()),connect};
+  }
+  const first={businessNumber:'123456789',businessName:'עסק א'},second={businessNumber:'987654321',businessName:'עסק ב'};
+  it('goes directly to Google for one business without displaying a selection dialog',()=>{
+    const t=setup([first]);t.component.connectGmail();
+    expect(t.component.connectionDialogVisible()).toBeFalse();expect(t.connect).toHaveBeenCalledOnceWith(undefined,'123456789');
+  });
+  it('waits for an explicit valid business when more than one exists',()=>{
+    const t=setup([first,second]);t.component.connectGmail();
+    expect(t.component.connectionDialogVisible()).toBeTrue();expect(t.connect).not.toHaveBeenCalled();
+    t.component.confirmConnection();expect(t.connect).not.toHaveBeenCalled();
+    t.component.connectionForm.setValue({businessNumber:'foreign'});t.component.confirmConnection();expect(t.connect).not.toHaveBeenCalled();
+    t.component.connectionForm.setValue({businessNumber:'987654321'});t.component.confirmConnection();
+    expect(t.connect).toHaveBeenCalledOnceWith(undefined,'987654321');
+  });
+  it('preselects the existing business on reconnect and preserves the chosen mailbox id',()=>{
+    const t=setup([first,second],'987654321');t.component.connectGmail(42);
+    expect(t.component.connectionForm.value.businessNumber).toBe('987654321');expect(t.connect).not.toHaveBeenCalled();
+    t.component.confirmConnection();expect(t.connect).toHaveBeenCalledOnceWith(42,'987654321');
+  });
+  it('does not initiate Google when the account has no businesses',()=>{
+    const t=setup([]);t.component.connectGmail();
+    expect(t.component.connectionError()).toContain('להוסיף עסק');expect(t.connect).not.toHaveBeenCalled();
+  });
+});
+
 describe('Rendered mailbox routing controls',()=>{
+  let originalBodyDisplay:string;
+  beforeEach(()=>{originalBodyDisplay=document.body.style.display;document.body.style.display='block';});
+  afterEach(()=>{document.body.style.display=originalBodyDisplay;});
+  it('renders the multi-business choice with application controls and a non-overflowing action footer',async()=>{
+    const connect=jasmine.createSpy().and.returnValue(EMPTY);
+    await TestBed.configureTestingModule({imports:[GmailIntegrationComponent],providers:[
+      provideNoopAnimations(),provideRouter([]),providePrimeNG({theme:{preset:Aura}}),
+      {provide:AuthService,useValue:{isViewingAsClient:()=>false}},
+      {provide:IntegrationsService,useValue:{getGoogleConnectUrl:connect,getEmailRoutingOptions:()=>of({businesses:[{businessNumber:'123456789',businessName:'עסק א'},{businessNumber:'987654321',businessName:'עסק ב'}]})}},
+      {provide:GmailSyncStateService,useValue:{refresh:()=>{},loading:signal(false),accounts:signal([]),status:signal(null)}},
+      {provide:GenericService,useValue:{isMobile:signal(false)}},{provide:MessageService,useValue:{add:()=>{}}},{provide:ConfirmationService,useValue:{}},
+    ]}).compileComponents();
+    const fixture=TestBed.createComponent(GmailIntegrationComponent);fixture.detectChanges();fixture.componentInstance.connectGmail();fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+    const dialog=fixture.nativeElement.querySelector('.email-connect-dialog') as HTMLElement;
+    expect(dialog.querySelector('app-input-select')).not.toBeNull();
+    const button=Array.from(dialog.querySelectorAll('button')).find(item=>item.textContent?.includes('המשך לחיבור Google'))!;
+    expect(button.disabled).toBeTrue();expect(connect).not.toHaveBeenCalled();
+    fixture.componentInstance.connectionForm.setValue({businessNumber:'987654321'});fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+    await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+    const footer=dialog.querySelector('.email-routing-footer') as HTMLElement;
+    expect(button.getBoundingClientRect().height).toBeGreaterThan(28);expect(footer.scrollWidth).toBeLessThanOrEqual(footer.clientWidth+1);
+    button.click();expect(connect).toHaveBeenCalledOnceWith(undefined,'987654321');fixture.destroy();
+  });
   it('renders multiple editable rules and sends changes made through the form',async()=>{
     const config={settings:{businessNumber:'123456789',rules:[{sender:'old@example.com',action:'BLOCK'}]},businesses:[{businessNumber:'123456789',businessName:'עסק לדוגמה'}]};
     const save=jasmine.createSpy().and.returnValue(of({settings:config.settings}));
     await TestBed.configureTestingModule({imports:[GmailIntegrationComponent],providers:[
-      provideNoopAnimations(),provideRouter([]),
+      provideNoopAnimations(),provideRouter([]),providePrimeNG({theme:{preset:Aura}}),
       {provide:AuthService,useValue:{isViewingAsClient:()=>false}},
       {provide:IntegrationsService,useValue:{getEmailRouting:()=>of(config),saveEmailRouting:save}},
       {provide:GmailSyncStateService,useValue:{refresh:()=>{},loading:signal(false),accounts:signal([]),status:signal(null)}},
@@ -100,11 +161,18 @@ describe('Rendered mailbox routing controls',()=>{
     ]}).compileComponents();
     const fixture=TestBed.createComponent(GmailIntegrationComponent);fixture.detectChanges();
     fixture.componentInstance.openRouting(17);fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
-    const fieldset=fixture.nativeElement.querySelector('.email-routing-form') as HTMLElement;
-    expect(fieldset.textContent).toContain('זיהוי חד־משמעי');
-    const sender=fieldset.querySelector('input[type=email]') as HTMLInputElement;
+    const fieldset=fixture.nativeElement.querySelector('.email-routing-content') as HTMLElement;
+    expect(fieldset.textContent).toContain('זיהוי עסק חד־משמעי');
+    expect(fieldset.querySelector('app-input-select')).not.toBeNull();
+    const sender=fieldset.querySelector('app-input-text input') as HTMLInputElement;
     sender.value='new@example.com';sender.dispatchEvent(new Event('input'));fixture.detectChanges();await fixture.whenStable();
-    const saveButton=Array.from(fieldset.querySelectorAll('button')).find(button=>button.textContent?.includes('שמור הגדרות'))!;
+    const saveButton=Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>).find(button=>button.textContent?.includes('שמור הגדרות'))!;
+    await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
+    expect(saveButton.closest('app-p-button')).not.toBeNull();
+    expect(saveButton.getBoundingClientRect().height).toBeGreaterThan(28);
+    const grid=fieldset.querySelector('.email-routing-rule-fields') as HTMLElement;
+    expect(getComputedStyle(grid).gridTemplateColumns.split(' ').length).toBe(window.innerWidth<=520?1:2);
+    expect(sender.getBoundingClientRect().width).toBeLessThanOrEqual(grid.getBoundingClientRect().width+1);
     saveButton.click();expect(save).toHaveBeenCalledOnceWith(17,jasmine.objectContaining({rules:[{sender:'new@example.com',action:'BLOCK'}]}));
     fixture.destroy();
   });

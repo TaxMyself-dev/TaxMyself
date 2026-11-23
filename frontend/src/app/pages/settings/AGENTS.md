@@ -3,6 +3,14 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 
 ## Gmail connection boundary
 
+- A single owned business connects directly to Google without a selection or
+  confirmation dialog. Multiple businesses use the application business select
+  before OAuth; reconnect preselects the saved business. The server freezes the
+  choice in single-use state and applies it after mailbox identity verification.
+- Routing dialogs use InputSelect/InputText/Button, responsive rule fields and
+  separate cancel/save footer actions. Sender rules only; no recipient/subject
+  rules in this release. Rules stay intact through reconnect.
+
 - Each connected mailbox opens 'הגדרות קליטה ושיוך לעסק' for an owned-business
   default and multiple exact sender rules. Sender is the address, not display name.
   AI identity can override assignment defaults; blocking rules prevent new intake.

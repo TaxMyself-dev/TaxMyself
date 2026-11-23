@@ -60,6 +60,18 @@ describe('UserIntegrationsService — multi-account upsert', () => {
     expect(savedArg.status).toBe(IntegrationStatus.ACTIVE);
     expect(saved.id).toBe(42);
   });
+  it('persists the connection business on a new mailbox',async()=>{
+    repo.findOne.mockResolvedValue(null);
+    await service.upsertIntegration({...baseInput,businessNumber:'123456789'});
+    expect(repo.save.mock.calls[0][0]).toMatchObject({emailRouting:{businessNumber:'123456789',rules:[]}});
+  });
+  it('updates only the default business atomically on reconnect, preserving concurrent sender-rule edits',async()=>{
+    repo.findOne.mockResolvedValue({id:10,firebaseId:'user-1',provider:IntegrationProvider.GOOGLE,accountId:'google-sub-1',connectedAccountId:'old',emailRouting:{businessNumber:'old-business',rules:[{sender:'blocked@example.com',action:'BLOCK'}]}} as UserIntegration);
+    await service.upsertIntegration({...baseInput,businessNumber:'123456789'});
+    const expression=query.set.mock.calls[0][0].emailRouting;
+    expect(typeof expression).toBe('function');expect(expression()).toContain('JSON_SET');expect(expression()).toContain('$.businessNumber');
+    expect(query.where.mock.calls[0][1]).toMatchObject({routingBusiness:'123456789'});
+  });
 
   it('reconnecting the same account for the same user updates tokens WITHOUT resetting sync state', async () => {
     const existing = {

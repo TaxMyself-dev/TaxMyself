@@ -32,7 +32,7 @@
     </p>
     <div class="gmail-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="connecting()||connectionLoading()"
         (onButtonClicked)="connectGmail()"></app-p-button>
     </div>
 
@@ -52,7 +52,8 @@
           }
         </p>
 
-        <button type="button" (click)="openRouting(account.id)" [disabled]="routingBusy()">הגדרות קליטה ושיוך לעסק</button>
+        <app-p-button [buttonText]="'הגדרות קליטה ושיוך לעסק'" [variant]="'outlined'" [buttonSize]="buttonSize.SMALL"
+          [disabled]="routingBusy()" (onButtonClicked)="openRouting(account.id)"></app-p-button>
 
         @if (account.remoteDisconnectPending) {
           <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
@@ -71,7 +72,7 @@
           </div>
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
-              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="connecting()||connectionLoading()"
               (onButtonClicked)="connectGmail(account.id)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
@@ -181,7 +182,7 @@
     <!-- פעולות גלובליות -->
     <div class="gmail-actions gmail-global-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()||connectionLoading()" [isLoading]="connecting()||connectionLoading()"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'משוך מסמכים עכשיו'" [variant]="'outlined'"
         [buttonSize]="buttonSize.AUTO" [disabled]="importing()"
@@ -191,36 +192,74 @@
   }
 </div>
 
-<!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
-<p-dialog header="הגדרות קליטה ושיוך לעסק" [visible]="routingAccountId() !== null" [modal]="true"
-  [closable]="!routingBusy()" [style]="{width:'min(680px,95vw)'}" (visibleChange)="!$event && routingAccountId.set(null)">
-  @if(routingBusy()){<p role="status">טוען ושומר הגדרות...</p>}
-  @if(routingConfig(); as config){
-    <fieldset [disabled]="routingBusy()" class="email-routing-form">
-      <label>עסק ברירת מחדל לתיבה
-        <select [(ngModel)]="config.settings.businessNumber">
-          <option [ngValue]="null">בחר עסק</option>
-          @for(business of config.businesses;track business.businessNumber){<option [ngValue]="business.businessNumber">{{business.businessName || business.businessNumber}}</option>}
-        </select>
-      </label>
-      <p>זיהוי חד־משמעי של העסק במסמך באמצעות AI קודם לברירת המחדל ולכללי השיוך. כללי אי־ייבוא מונעים קליטה וניתוח חדשים.</p>
-      @for(rule of config.settings.rules;track $index){
-        <div class="email-routing-rule">
-          <label>כתובת השולח<input type="email" dir="ltr" maxlength="320" [(ngModel)]="rule.sender" placeholder="billing@example.com" /></label>
-          <label>פעולה<select [(ngModel)]="rule.action"><option value="BLOCK">אל תייבא</option><option value="BUSINESS">ברירת מחדל לשיוך לעסק</option></select></label>
-          @if(rule.action==='BUSINESS'){
-            <label>עסק<select [(ngModel)]="rule.businessNumber"><option [ngValue]="undefined">בחר עסק</option>
-              @for(business of config.businesses;track business.businessNumber){<option [ngValue]="business.businessNumber">{{business.businessName || business.businessNumber}}</option>}
-            </select></label>
-          }
-          <button type="button" (click)="removeRoutingRule($index)">הסר כלל</button>
+<p-dialog header="חיבור Gmail לעסק" [visible]="connectionDialogVisible()" [modal]="true" [rtl]="true"
+  styleClass="email-routing-dialog email-connect-dialog" [style]="{width:'min(500px,94vw)'}" [draggable]="false" [resizable]="false"
+  [closable]="!connecting()" (visibleChange)="!$event && connectionDialogVisible.set(false)">
+  <div class="email-routing-content">
+    <p class="email-routing-intro">בחרו לאיזה עסק ייכנסו המסמכים מהתיבה שתחברו.</p>
+    <app-input-select [parentForm]="connectionForm" controlName="businessNumber" [items]="connectionBusinesses()"
+      labelText="העסק לשיוך התיבה" placeholder="בחרו עסק" [size]="inputsSize.AUTO" [filter]="false" [disabled]="connecting()||connectionLoading()"></app-input-select>
+    <p class="email-routing-help">לאחר הבחירה תעברו ל־Google לבחירת חשבון המייל ולאישור החיבור.</p>
+    @if(connectionError()){<p role="alert" class="email-routing-error">{{connectionError()}}</p>}
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="email-routing-footer">
+      <app-p-button buttonText="ביטול" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" (onButtonClicked)="connectionDialogVisible.set(false)"></app-p-button>
+      <app-p-button buttonText="המשך לחיבור Google" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+        [disabled]="connecting()||connectionLoading()||connectionForm.invalid" [isLoading]="connecting()" (onButtonClicked)="confirmConnection()"></app-p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="הגדרות קליטת מסמכים" [visible]="routingAccountId() !== null" [modal]="true" [rtl]="true"
+  styleClass="email-routing-dialog" [style]="{width:'min(720px,94vw)'}" [contentStyle]="{'max-height':'65vh','overflow-y':'auto'}"
+  [draggable]="false" [resizable]="false" [closable]="!routingBusy()" (visibleChange)="!$event && routingAccountId.set(null)">
+  @if(routingBusy()&&!routingConfig()){<p role="status" class="email-routing-help">טוען את הגדרות התיבה...</p>}
+  @if(routingConfig()){
+    <div class="email-routing-content">
+      <section class="email-routing-default">
+        <app-input-select [parentForm]="routingForm" controlName="businessNumber" [items]="routingBusinesses()"
+          labelText="עסק ברירת המחדל לתיבה" placeholder="בחרו עסק" [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+        <p class="email-routing-help">מסמכים ייכנסו לעסק הזה, אלא אם כלל שולח או זיהוי במסמך מצביעים על עסק אחר.</p>
+      </section>
+      <section class="email-routing-rules" aria-label="כללי שולחים">
+        <div class="email-routing-section-heading"><div><h4>כללי שולחים</h4><p class="email-routing-help">בחרו איך לטפל במסמכים משולחים מסוימים.</p></div>
+          <app-p-button buttonText="הוסף כלל" icon="pi pi-plus" [variant]="'outlined'" [buttonSize]="buttonSize.SMALL"
+            [disabled]="routingBusy()||routingRules().length>=100" (onButtonClicked)="addRoutingRule()"></app-p-button>
         </div>
-      }
-      <button type="button" (click)="addRoutingRule()" [disabled]="config.settings.rules.length >= 100">הוסף כלל שולח</button>
-      <button type="button" (click)="saveRouting()">שמור הגדרות</button>
-    </fieldset>
+        @if(!routingRules().length){
+          <div class="email-routing-empty"><i class="pi pi-filter" aria-hidden="true"></i><div><strong>עדיין אין כללי שולחים</strong><p>אפשר לחסום ייבוא משולח או להגדיר עבורו עסק קבוע כברירת מחדל.</p></div></div>
+        }
+        @for(rule of routingRules();track rule;let index=$index){
+          <div class="email-routing-rule">
+            <div class="email-routing-rule-heading"><strong>כלל {{index+1}}</strong>
+              <app-p-button buttonText="הסר" icon="pi pi-trash" [severity]="'danger'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+                [disabled]="routingBusy()" (onButtonClicked)="removeRoutingRule(index)"></app-p-button>
+            </div>
+            <div class="email-routing-rule-fields">
+              <app-input-text [parentForm]="rule" controlName="sender" labelText="כתובת השולח" placeholder="billing@example.com"
+                [size]="inputsSize.AUTO" [disabled]="routingBusy()"></app-input-text>
+              <app-input-select [parentForm]="rule" controlName="action" labelText="מה לעשות עם המסמכים?" [items]="ruleActions"
+                [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+              @if(rule.get('action')?.value==='BUSINESS'){
+                <app-input-select class="email-routing-rule-destination" [parentForm]="rule" controlName="businessNumber" labelText="העסק לשיוך"
+                  placeholder="בחרו עסק" [items]="routingBusinesses()" [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+              }
+            </div>
+          </div>
+        }
+      </section>
+      <p class="email-routing-priority"><i class="pi pi-info-circle" aria-hidden="true"></i><span>חסימת שולח מונעת ייבוא. זיהוי עסק חד־משמעי באמצעות AI קודם להגדרות השיוך.</span></p>
+    </div>
   }
-  @if(routingError()){<p role="alert" class="gmail-error">{{routingError()}}</p>}
+  @if(routingError()){<p role="alert" class="email-routing-error">{{routingError()}}</p>}
+  <ng-template pTemplate="footer">
+    <div class="email-routing-footer">
+      <app-p-button buttonText="ביטול" [variant]="'text'" [buttonSize]="buttonSize.SMALL" [disabled]="routingBusy()" (onButtonClicked)="routingAccountId.set(null)"></app-p-button>
+      <app-p-button buttonText="שמור הגדרות" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL" [disabled]="routingBusy()||!routingConfig()"
+        [isLoading]="routingBusy()&&!!routingConfig()" (onButtonClicked)="saveRouting()"></app-p-button>
+    </div>
+  </ng-template>
 </p-dialog>
 <p-dialog header="משיכת מסמכים לפי תאריכים" [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"

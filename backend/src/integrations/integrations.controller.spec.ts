@@ -19,6 +19,11 @@ describe('Mailbox owner-only controller', () => {
     await expect(controller.connect({ user: { firebaseId: 'owner', actorFirebaseId: 'owner' } } as any, 'NaN')).rejects.toThrow();
     expect(connections.connect).not.toHaveBeenCalled();
   });
+  it('passes the selected business to the server-owned OAuth attempt',async()=>{
+    await controller.connect({user:{firebaseId:'owner'}} as any,undefined,'123456789');
+    expect(connections.connect).toHaveBeenCalledWith('owner',undefined,'123456789');
+    await expect(controller.connect({user:{firebaseId:'owner'}} as any,undefined,' ')).rejects.toThrow();
+  });
   it('keeps mailbox routing reads and writes owner-only',async()=>{
     const routing:any={get:jest.fn(),save:jest.fn()};
     const guarded=new IntegrationsController(connections,{} as any,{} as any,{} as any,{} as any,undefined,routing);

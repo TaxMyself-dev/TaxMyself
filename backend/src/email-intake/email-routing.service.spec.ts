@@ -30,6 +30,13 @@ function fixture(
   };
 }
 describe('owned mailbox settings and initial routing', () => {
+  it('auto-selects a sole owned business but requires a valid choice for multiple businesses',async()=>{
+    const single=fixture([{businessNumber:'123456789'}]);
+    expect(await single.service.connectionBusiness('owner')).toBe('123456789');
+    await expect(single.service.connectionBusiness('owner','foreign')).rejects.toThrow();
+    const multi=fixture();await expect(multi.service.connectionBusiness('owner')).rejects.toThrow();
+    expect(await multi.service.connectionBusiness('owner','987654321')).toBe('987654321');
+  });
   it('prefers sender rule over mailbox and validates all destinations', async () => {
     const t = fixture();
     t.integration.emailRouting.rules = [

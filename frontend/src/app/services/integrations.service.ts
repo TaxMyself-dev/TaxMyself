@@ -80,14 +80,17 @@ export class IntegrationsService {
   getEmailRouting(id:number):Observable<EmailRoutingConfiguration>{
     return this.http.get<EmailRoutingConfiguration>(`${environment.apiUrl}integrations/google/${id}/routing`);
   }
+  getEmailRoutingOptions():Observable<Pick<EmailRoutingConfiguration,'businesses'>>{
+    return this.http.get<Pick<EmailRoutingConfiguration,'businesses'>>(`${environment.apiUrl}integrations/google/routing-options`);
+  }
   saveEmailRouting(id:number,settings:EmailRoutingSettings):Observable<{settings:EmailRoutingSettings}>{
     return this.http.post<{settings:EmailRoutingSettings}>(`${environment.apiUrl}integrations/google/${id}/routing`,settings);
   }
 
   /** כתובת מסך ההסכמה של Google — הפרונט מנווט אליה כדי לחבר חשבון. */
-  getGoogleConnectUrl(integrationId?: number): Observable<{ url: string }> {
+  getGoogleConnectUrl(integrationId?: number, businessNumber?:string): Observable<{ url: string }> {
     return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`, {
-      params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
+      params: {...(integrationId===undefined?{}:{integrationId:String(integrationId)}),...(businessNumber?{businessNumber}:{})},
     });
   }
 
