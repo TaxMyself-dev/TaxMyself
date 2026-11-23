@@ -1,9 +1,10 @@
 # New personal settings
 
-This is the additive `/settings-new` implementation. Keep `/settings` and all
-files under `pages/settings/` unchanged during the design trial.
+This is the sole settings screen at `/settings`. The former `/settings-new` URL
+redirects here while preserving query parameters and fragments. The user ended
+the design trial and authorized deletion of the legacy screen.
 
-- `SettingsNewPage` reuses the existing `SettingsPage` form builders and
+- `SettingsNewPage` reuses the viewless `SettingsFormBase` form builders and
   persistence methods, with a separate standalone template and scoped styles.
 - Includes personal/family/business settings and subscription/payment/history,
   permissions, banking and category-rule settings.
@@ -24,7 +25,7 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
   edit mode only after a successful server response (and account-profile refresh
   for personal/spouse); failures retain the entered values and edit state.
 - These new-page callbacks use the existing AuthService APIs without changing
-  the old SettingsPage callbacks. Reload the saved form from server values and
+  the shared form-base callbacks. Reload the saved form from server values and
   preserve local calendar dates. New family members open directly in edit mode.
 
 ## Subscription and connection presentation
@@ -39,7 +40,7 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
   Keep OpenBankingManagementComponent's saved reads and verified cancellation
   previews; do not call provider refresh or disconnect on page entry.
 - See `docs/tasks/active/settings-subscription-redesign.md` for verification.
-- Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Keep old category files unchanged. Load only when its section is reached.
+- Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Shared category handlers remain required by this view. Load only when its section is reached.
 - Personal Cancel restores the entry snapshot (including after Clear), resets touched/dirty state, and closes editing. It is disabled while saving; explicit image saves remain separate.
 
 ## Temporary section memory

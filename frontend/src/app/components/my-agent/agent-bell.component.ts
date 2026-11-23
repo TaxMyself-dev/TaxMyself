@@ -17,5 +17,5 @@ export class AgentBellComponent implements OnInit,OnDestroy {
  ngOnDestroy(){this.destroyed=true;if(this.timer)clearInterval(this.timer);}
  async refresh(){if(this.busy)return;const owner=this.api.context();if(!owner){this.visible.set(false);this.api.unread.set(0);return;}this.busy=true;
   try{const data=await this.api.inbox();if(!this.destroyed && owner===this.api.context()){this.visible.set(true);this.notices.set(data.items.filter(n=>!n.read_at).slice(0,5));}}catch{this.visible.set(false);}finally{this.busy=false;}}
- open(n?:AgentNotice){this.expanded.set(false);void this.router.navigate(['/settings-new'],{queryParams:{section:'agent',...(n?{notice:n.id}:{})}});}
+ open(n?:AgentNotice){this.expanded.set(false);void this.router.navigate(['/settings'],{queryParams:{section:'agent',...(n?{notice:n.id}:{})}});}
 }

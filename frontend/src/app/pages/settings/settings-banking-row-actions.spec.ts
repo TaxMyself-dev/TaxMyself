@@ -1,5 +1,5 @@
 import { signal } from '@angular/core';
-import { SettingsPage } from './settings.page';
+import { SettingsFormBase } from './settings-form-base';
 import { IRowDataTable } from 'src/app/shared/interface';
 import { of } from 'rxjs';
 import { paymentIdentifierType } from 'src/app/shared/enums';
@@ -8,7 +8,7 @@ import { paymentIdentifierType } from 'src/app/shared/enums';
 // record identifies the selected row safely.
 describe('settings banking row action routing', () => {
   function setup() {
-    const page = Object.create(SettingsPage.prototype) as SettingsPage;
+    const page = Object.create(SettingsFormBase.prototype) as SettingsFormBase;
     page.accountSourcesLoading = signal(false);
     page.retryingSourceId = signal<string | null>(null);
     page.deletingSourceId = signal<number | null>(null);

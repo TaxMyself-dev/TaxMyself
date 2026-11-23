@@ -1,3 +1,5 @@
+import { of } from 'rxjs';
+import { convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { PERSONAL_SETTINGS_LINKS, SUBSCRIPTION_SETTINGS_LINKS, activeSettingsSection, SettingsSection } from './settings-navigation';
@@ -120,5 +122,15 @@ describe('admin-only agent settings',()=>{
   const page:any=Object.create(SettingsNewPage.prototype);page.agentAccess={isAdmin:()=>false};page.agentActivated=signal(false);
   expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeFalse();page.activateSection('agent');expect(page.agentActivated()).toBeFalse();
   page.agentAccess={isAdmin:()=>true};expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeTrue();page.activateSection('agent');expect(page.agentActivated()).toBeTrue();
+ });
+});
+
+describe('canonical settings OAuth return section',()=>{
+ it('opens permissions after an existing tab=permissions callback instead of restoring another section',()=>{
+  const page:any=Object.create(SettingsNewPage.prototype);
+  page.selectedTab='permissions';page.agentRoute={queryParamMap:of(convertToParamMap({})),snapshot:{queryParamMap:convertToParamMap({})}};
+  page.navigationSession={open:()=>({context:'visit',section:'history'})};page.goTo=jasmine.createSpy();
+  const parent=document.createElement('div');parent.appendChild(document.createElement('div'));page.scroller={nativeElement:parent};
+  page.ngAfterViewInit();expect(page.goTo).toHaveBeenCalledOnceWith('permissions',true);page.ngOnDestroy();
  });
 });

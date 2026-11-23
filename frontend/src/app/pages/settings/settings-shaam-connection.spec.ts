@@ -1,11 +1,11 @@
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
-import { SettingsPage } from './settings.page';
+import { SettingsFormBase } from './settings-form-base';
 import { SHAAM_TSANDBOX_BUSINESS_NOT_ALLOWED } from 'src/app/services/shaam.service';
 
 describe('settings SHAAM connection management', () => {
   function setup(status: 'connected' | 'disconnected' | 'reauth-required' = 'connected') {
-    const page = Object.create(SettingsPage.prototype) as SettingsPage;
+    const page = Object.create(SettingsFormBase.prototype) as SettingsFormBase;
     page.shaamConnectionStatuses = signal({ '515000000': status });
     page.connectingShaamBusinessNumber = signal<string | null>(null);
     page.confirmationService = { confirm: jasmine.createSpy('confirm') } as any;

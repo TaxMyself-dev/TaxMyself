@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal, ChangeDetectorRef, inject } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { AccountImageComponent } from '../../components/account-image/account-image.component';
-import { SettingsPage } from '../settings/settings.page';
+import { SettingsFormBase } from '../settings/settings-form-base';
 import { SettingsField, SettingsNewFieldComponent } from './settings-new-field.component';
 import { Validators } from '@angular/forms';
 import { Business } from '../../shared/interface';
@@ -34,7 +34,7 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
   imports: [MyAgentComponent, SettingsNewCategoriesComponent, CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
   templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss', './settings-new-connections.scss'],
 })
-export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
+export class SettingsNewPage extends SettingsFormBase implements AfterViewInit, OnDestroy {
   @ViewChild('scroller', { static: true }) scroller!: ElementRef<HTMLElement>;
   @ViewChild('businessSection', { static: true }) businessSection!: ElementRef<HTMLElement>;
   confirmLogout(): void {
@@ -122,7 +122,11 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     this.agentRouteSubscription=this.agentRoute.queryParamMap.subscribe(params=>{if(params.get('section')==='agent')this.goTo('agent',true);});
     const visit = this.navigationSession.open();
     this.navigationContext = visit.context;
-    if (this.agentRoute.snapshot.queryParamMap.get('section')!=='agent' && visit.section !== 'account') this.goTo(visit.section, true);
+    const returnSection = ({businesses:'businesses', permissions:'permissions', subscription:'subscription', categories:'categories'} as Partial<Record<string, SettingsSection>>)[this.selectedTab];
+    if (this.agentRoute.snapshot.queryParamMap.get('section') !== 'agent') {
+      if (returnSection) this.goTo(returnSection, true);
+      else if (visit.section !== 'account') this.goTo(visit.section, true);
+    }
     this.resizeObserver = new ResizeObserver(() => {
       if (this.restoringSection) this.goTo(this.restoringSection, true);
       else this.onScroll();

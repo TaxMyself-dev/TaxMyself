@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "types": [
+      "jasmine",
+      "node"
+    ]
+  },
+  "include": [
+    "src/app/components/topNav/topNav.component.spec.ts",
+    "src/app/components/my-agent/agent-bell.component.spec.ts",
+    "src/app/pages/settings/settings.routes.spec.ts",
+    "src/app/pages/settings-new/settings-new.page.spec.ts",
+    "src/app/pages/settings-new/settings-navigation.spec.ts",
+    "src/app/pages/settings/settings-banking-row-actions.spec.ts",
+    "src/app/pages/settings/settings-source-deletion.spec.ts",
+    "src/app/pages/settings/settings-shaam-connection.spec.ts",
+    "src/app/shared/israeli-phone.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}
