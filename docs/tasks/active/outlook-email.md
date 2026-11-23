@@ -144,3 +144,49 @@ UI verification commands/results (frontend directory unless noted):
 - Removed only this task's generated frontend/.angular and frontend/dist after the failed build. 2,465,488,896 free bytes afterward. No source/dependencies or other worktrees removed.
 - Retrying `$env:CI='true'; npm run build -- --configuration production --progress=false`. Installed Angular normalize-cache.js confirms that CI=true disables its default local-only disk cache without editing angular.json. Result below.
 - Final cache-disabled production build: exit 0, hash eda7748066c74f4f, 133648 ms. Existing unchanged CSS/CommonJS/initial-bundle warnings only. No angular.json/configuration source change. Production asset bytes equal the source SVG and the icon binding is present in emitted chunks. Final git diff --check passed. No main integration or push.
+
+## Duplicate provider icon and callback diagnosis — 2026-11-23
+
+User reported both Gmail and Outlook branding on the Outlook button and a return
+to backend port 3002. Root causes: settings-new-connections.scss added Gmail via
+::after to every black button in .gmail-actions; the Outlook config helper wrote
+3002/4202 independently of actual local launch configuration (PORT was 3000,
+ignored ports file absent, no listener on 3002/4202 at diagnosis).
+
+Narrowed Gmail decoration to explicit gmail-connect-button controls, marked both
+Gmail add-account buttons, and replaced the hand-drawn SVG with the actual Outlook
+asset linked on https://www.microsoft.com/en-gb/microsoft-365 (Microsoft CDN
+product-icon-M365-Outlook-48x48-1, 8739 bytes, viewBox 0 0 48 48). XML checked for
+scripts, foreign objects, embedded images and external references; none present.
+Rendered at 20px on black and visually checked. Asset remains local at runtime.
+
+Added real browser cascade regressions using the served actual Settings stylesheet
+and rendered ButtonComponent: Outlook has one Outlook icon and no Gmail pseudo-
+element/Google image; explicitly marked Gmail retains Gmail; generic import has
+no Gmail badge. Existing email component tests run alongside these regressions.
+
+Local configuration correction: created ignored .local-ai-dev/ports.json for
+4202/3002, aligned ignored backend/.env PORT and both providers’ local callback/return
+URLs, preserving all credentials.
+Both files verified ignored. Canonical frontend/backend --print-config commands
+confirm frontend 4202, backend 3002, API http://127.0.0.1:3002/. New pure helper
+outlook-dev-urls.cjs resolves return URLs using these effective ports rather than
+hardcoded feature defaults. No main configuration, app server, DB, account or
+callback-state operation was performed. The user-supplied callback was not replayed.
+A fresh owner-initiated OAuth attempt is required after correct local app startup;
+active connection and end-to-end callback remain unverified.
+
+`node --test backend/scripts/outlook-dev-urls.test.cjs`: exit 0, 4/4 passed,
+164.9547 ms; covers PORT/default mismatch, ignored overrides, preserved frontend
+route/query and rejected invalid/nonlocal settings. No Nest build/repository Jest
+rerun needed for a standalone local helper; app backend source unchanged.
+`node frontend/scripts/start-local.js --print-config` and backend
+`node scripts/start-watch.js --print-config`: exit 0 with aligned effective ports.
+Frontend focused cascade/component tests and production build results below.
+No main integration or push. Feature worktree retained because integration is not
+approved and OAuth/live fixture acceptance is still pending.
+
+
+Focused frontend command: `$env:CHROME_BIN='C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'; npm test -- --watch=false --browsers=ChromeHeadless --karma-config=karma.email-icons.conf.cjs --ts-config=tsconfig.email-icons-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --include=src/app/pages/settings-new/email-provider-icons.spec.ts --progress=false`: exit 0, 13/13 passed (10 existing component tests + 3 rendered CSS-cascade regressions), Edge 158 headless.
+Production command: `$env:CI='true'; npm run build -- --configuration production --progress=false`; final result below. No unrelated frontend or repository-wide backend suites rerun.
+Final production build: exit 0, hash 447bf620a1cbb4b4, 180081 ms. Existing unchanged CSS/CommonJS/initial-bundle warnings. Emitted Outlook SVG equals the Microsoft source asset. Final offline consistency assertion confirms ignored runtime ports match configured Outlook URLs; no server started. git diff --check passed. Application source verification is complete for these corrections; live callback remains pending correct server startup and a fresh consent attempt.

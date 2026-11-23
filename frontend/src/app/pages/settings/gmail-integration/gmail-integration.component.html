@@ -31,7 +31,7 @@
       וחשבוניות שמגיעות אליך במייל, ישירות אל מסמכי העסק.
     </p>
     <div class="gmail-actions">
-      <app-p-button [buttonText]="'חבר חשבון Gmail'" [buttonColor]="buttonColor.BLACK"
+      <app-p-button [buttonText]="'חבר חשבון Gmail'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
@@ -182,7 +182,7 @@
 
     <!-- פעולות גלובליות -->
     <div class="gmail-actions gmail-global-actions">
-      <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [buttonColor]="buttonColor.BLACK"
+      <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"

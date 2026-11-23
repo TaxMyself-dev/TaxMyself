@@ -7,6 +7,12 @@ Implementation branch: `codex/outlook-email`, based on `7b63265d`.
 Both Settings screens reuse the email component. The section heading is
 "חבר את תיבת המייל שלך לטובת משיכת מסמכים". Both Outlook add-account buttons
 show the local decorative Outlook SVG through the existing button icon input.
+The asset is the Outlook SVG linked by Microsoft’s own Microsoft 365 page:
+https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/product-icon-M365-Outlook-48x48-1
+(source page: https://www.microsoft.com/en-gb/microsoft-365). It replaces the earlier
+hand-drawn approximation. New Settings applies its Gmail pseudo-element only to
+explicit gmail-connect-button controls, preventing a second Gmail icon on Outlook
+or unrelated import buttons.
 Owners can add Outlook accounts,
 reconnect the exact selected Microsoft account, disconnect and retry remote revocation.
 The callback success flag only triggers a refresh; backend-verified state is authoritative.
@@ -83,7 +89,14 @@ No auth-config credentials or scopes were changed through the API.
 Local app return configuration: backend Outlook callback on localhost:3002,
 frontend return on localhost:4202. These are feature-worktree destinations, not
 changes to main. No app servers were started or frontend API destination changed.
-Configure the feature frontend to use its own backend before a full manual UI run.
+The ignored .local-ai-dev/ports.json now aligns both canonical local launchers:
+frontend 4202, backend 3002, frontend API 127.0.0.1:3002. Ignored backend/.env
+PORT is also 3002. The configuration helper resolves return URLs from those actual
+local ports instead of writing fixed feature ports independently. No servers were
+started for this correction. A complete app callback validates/consumes state and
+then redirects to the frontend Settings URL; status=success in the incoming query
+alone is not persisted connection verification. Old/expired attempts must be
+restarted through the application after the correct feature servers are running.
 
 `node scripts/test-outlook-dev-connection.cjs` starts an isolated loopback listener
 on 127.0.0.1:4318, overriding the callback only in that diagnostic process. It

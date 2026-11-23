@@ -17,7 +17,9 @@ async function main(){
  const versions=[];
  for(const slug of SLUGS){try{const tool=await sdk.tools.getRawComposioToolBySlug(slug);if(!/^\d{8}_\d+$/.test(tool.version))throw Error('Unpinned version');versions.push(tool.version);console.log(JSON.stringify({definition:slug,version:tool.version,required:tool.inputParameters?.required||[]}));}catch(e){console.log(JSON.stringify({definition:slug,read:false,...safe(e)}));}}
  if(versions.length!==SLUGS.length||new Set(versions).size!==1)throw Error('REFUSED: unable to pin consistent Outlook toolkit');
- const changes={COMPOSIO_OUTLOOK_AUTH_CONFIG_ID:CONFIG_ID,COMPOSIO_OUTLOOK_TOOLKIT_VERSION:versions[0],COMPOSIO_OUTLOOK_CALLBACK_URL:'http://localhost:3002/integrations/outlook/callback',OUTLOOK_FRONTEND_URL:'http://localhost:4202/settings?tab=permissions'};
+ const portFile=path.join(__dirname,'../../.local-ai-dev/ports.json');
+ const ports=fs.existsSync(portFile)?JSON.parse(fs.readFileSync(portFile,'utf8')):undefined;
+ const changes={COMPOSIO_OUTLOOK_AUTH_CONFIG_ID:CONFIG_ID,COMPOSIO_OUTLOOK_TOOLKIT_VERSION:versions[0],...require('./outlook-dev-urls.cjs').outlookDevUrls(cfg,ports)};
  let env=fs.readFileSync(envPath,'utf8');
  for(const [key,value]of Object.entries(changes)){const regex=new RegExp('^'+key+'=.*$','m');env=regex.test(env)?env.replace(regex,key+'='+value):env.trimEnd()+'\n'+key+'='+value+'\n';}
  fs.writeFileSync(envPath,env);
