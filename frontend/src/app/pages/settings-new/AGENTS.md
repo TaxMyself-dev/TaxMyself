@@ -50,9 +50,16 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
 - Reset on Firebase owner changes (including sign-out) and delegated-client
   changes even while settings is unmounted. Generation-bound visit contexts
   reject trailing scroll events from previous identities.
-- New page instances restore the section without form/edit state. Keep the
-  restored anchor aligned while async content resizes; stop repositioning on
-  wheel/touch/pointer/keyboard interaction or explicit sidebar navigation.
+- New page instances restore the section without form/edit state. Clicked and
+  restored anchors remain selected while content/viewport resizes; intermediate
+  programmatic scroll events must not activate lazy sections or overwrite memory.
+- Recompute the destination only when geometry changes; clamp to the available
+  scroll range and avoid restarting unchanged animations. A newer sidebar click
+  replaces and cancels any pending animation. Restore/reduced-motion uses instant
+  scrolling. Manual wheel/touch/pointer/navigation keys (including Tab) release
+  the anchor and stop pending animation; typing keys do not move the page.
+- Observe the content, scroll viewport and section sizes. Disconnect observers
+  and cancel pending animation when the page is destroyed.
 - Reloading/reopening starts at account. Do not persist unsaved forms or pixels.
 
 ## My Agent (2026-11-19)

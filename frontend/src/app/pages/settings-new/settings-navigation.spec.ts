@@ -78,12 +78,12 @@ describe('restore settings section', () => {
     page.activeSection=signal('account');page.personalEditing=signal(false);page.spouseEditing=signal(false);page.childEditing=signal(null);
     page.activateSection=jasmine.createSpy('activate');page.navigationSession={remember:jasmine.createSpy('remember')};page.navigationContext='visit';
     const scrollTo=jasmine.createSpy('scroll');
-    page.scroller={nativeElement:{scrollTop:0,getBoundingClientRect:()=>({top:0}),querySelector:()=>({getBoundingClientRect:()=>({top:700})}),scrollTo}};
+    page.scroller={nativeElement:{scrollTop:0,scrollHeight:2000,clientHeight:500,getBoundingClientRect:()=>({top:0}),querySelector:()=>({getBoundingClientRect:()=>({top:700})}),scrollTo}};
     page.goTo('history',true);page.onScroll();
     expect(scrollTo).toHaveBeenCalledWith({behavior:'instant',top:668});
     expect(page.activeSection()).toBe('history');expect(page.personalEditing()).toBeFalse();expect(page.spouseEditing()).toBeFalse();expect(page.childEditing()).toBeNull();
-    page.stopRestoringSection();expect(page.restoringSection).toBeNull();
-    page.goTo('payment');expect(page.restoringSection).toBeNull();
+    page.stopRestoringSection();expect(page.scrollTarget).toBeNull();
+    page.goTo('payment');expect(page.scrollTarget).toBe('payment');
   });
 });
 
