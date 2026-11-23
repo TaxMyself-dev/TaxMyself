@@ -338,7 +338,18 @@ export class UserIntegrationsService {
     await this.userIntegrationRepo.update({ id: integrationId, connectedAccountId }, { retiredConnectedAccountIds: null });
   }
 
-  async finishManualSync(integrationId: number, failed: boolean, reason?: string): Promise<void> {
+  async finishManualSync(integrationId: number, failed: boolean, reason?: string, startedAt?: Date): Promise<void> {
+    if (startedAt) {
+      // A completed manual pull clears older errors without advancing the nightly cursor
+      // or overwriting a newer/in-flight synchronization.
+      await this.userIntegrationRepo.createQueryBuilder().update(UserIntegration)
+        .set({ lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS,
+          lastSyncError: failed ? (reason || 'Manual scan incomplete; retry required').slice(0, 2000) : null })
+        .where("id = :id AND status = :active AND (last_sync_status IS NULL OR last_sync_status <> :running) AND (last_sync_started_at IS NULL OR last_sync_started_at <= :startedAt) AND NOT EXISTS (SELECT 1 FROM email_import_runs newer WHERE newer.integration_id = :id AND newer.started_at > :startedAt)",
+          { id: integrationId, active: IntegrationStatus.ACTIVE, running: IntegrationSyncStatus.RUNNING, startedAt })
+        .execute();
+      return;
+    }
     await this.userIntegrationRepo.update({ id: integrationId }, { lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS, lastSyncError: failed ? (reason || 'Manual scan incomplete; retry required').slice(0, 2000) : null });
   }
 }

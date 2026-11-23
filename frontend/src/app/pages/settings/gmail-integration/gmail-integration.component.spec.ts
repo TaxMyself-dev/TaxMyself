@@ -230,3 +230,34 @@ describe('Manual Gmail date selection', () => {
     expect(component.manualImportForm.getRawValue()).toEqual({fromDate:null,toDate:null});
   });
 });
+
+describe('Latest Gmail pull presentation',()=>{
+  it('renders one closed summary per mailbox and keeps processing active after pull completion',async()=>{
+    const account={id:17,connected:true,initialImportCompleted:true,lastSyncStatus:'SUCCESS'};
+    const run={id:'latest',integrationId:17,pull_state:'COMPLETE',processing_state:'RUNNING',messages:{SCANNED:7,BLOCKED:2},attachments:{IMPORTED:4,DUPLICATE:1},documents:{READY:4}};
+    const status=signal<any>({runs:[run,{...run,id:'old',processing_state:'COMPLETE'}]});
+    await TestBed.configureTestingModule({imports:[GmailIntegrationComponent],providers:[
+      provideNoopAnimations(),provideRouter([]),providePrimeNG({theme:{preset:Aura}}),
+      {provide:AuthService,useValue:{isViewingAsClient:()=>false}},
+      {provide:IntegrationsService,useValue:{}},
+      {provide:GmailSyncStateService,useValue:{refresh:()=>{},loading:signal(false),accounts:signal([account]),status}},
+      {provide:GenericService,useValue:{isMobile:signal(false)}},{provide:MessageService,useValue:{add:()=>{}}},{provide:ConfirmationService,useValue:{}},
+    ]}).compileComponents();
+    const fixture=TestBed.createComponent(GmailIntegrationComponent);
+    Object.defineProperty(fixture.componentInstance,'showRunDiagnostics',{value:false,configurable:true});
+    fixture.detectChanges();
+    const host:HTMLElement=fixture.nativeElement;
+    const details=host.querySelector('details.gmail-last-run') as HTMLDetailsElement;
+    expect(host.querySelectorAll('details.gmail-last-run').length).toBe(1);expect(details.open).toBeFalse();
+    expect(host.querySelector('.gmail-running')?.textContent).toContain('פעילה');
+    expect(host.querySelector('.gmail-run-stages')?.textContent).toContain('בתהליך');
+    expect(details.querySelectorAll('.gmail-run-summary span').length).toBe(4);
+    expect(details.textContent).toContain('כמות הודעות: 9');expect(details.textContent).toContain('כמות קבצים: 5');
+    expect(host.querySelector('.gmail-run-diagnostics')).toBeNull();
+    details.open=true;fixture.detectChanges();expect(details.open).toBeTrue();
+    Object.defineProperty(fixture.componentInstance,'showRunDiagnostics',{value:true});fixture.detectChanges();
+    expect(host.querySelector('.gmail-run-diagnostics')).not.toBeNull();
+    status.set({runs:[{...run,processing_state:'COMPLETE'}]});fixture.detectChanges();
+    expect(host.querySelector('.gmail-running')).toBeNull();fixture.destroy();
+  });
+});

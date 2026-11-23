@@ -15,6 +15,7 @@ import { AuthService } from 'src/app/services/auth.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
 import {
   GmailAccountSyncStatus,
+  GmailDurableRun,
   EmailRoutingConfiguration,
   IntegrationsService,
 } from 'src/app/services/integrations.service';
@@ -60,8 +61,18 @@ export class GmailIntegrationComponent implements OnInit {
   readonly inputsSize = inputsSize;
   readonly isMobile = computed(() => this.genericService.isMobile());
 
-  durableState(value:string):string {return ({READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
+  durableState(value:string):string {return ({WAITING:'ממתין לעיבוד',READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
   runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
+  latestRunFor(id: number): GmailDurableRun | undefined {
+    return this.syncState.status()?.runs?.find(run => run.integrationId === id);
+  }
+  activeRunsFor(id: number): GmailDurableRun[] {
+    return (this.syncState.status()?.runs ?? []).filter(run => run.integrationId === id &&
+      (['RUNNING', 'RETRY'].includes(run.pull_state) || run.processing_state === 'RUNNING'));
+  }
+  totalCount(counts: Record<string, number>): number {
+    return Object.values(counts ?? {}).reduce((sum, count) => sum + count, 0);
+  }
   readonly connecting = signal(false);
   readonly routingAccountId=signal<number|null>(null);
   readonly routingConfig=signal<EmailRoutingConfiguration|null>(null);

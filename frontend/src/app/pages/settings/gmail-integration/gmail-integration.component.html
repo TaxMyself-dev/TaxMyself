@@ -5,22 +5,6 @@
   <h3 class="subsection-title">חיבור Gmail לקליטת מסמכים</h3>
   <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
-  @for (run of syncState.status()?.runs ?? []; track run.id) {
-    <section class="gmail-card" aria-label="התקדמות משיכת מסמכים">
-      <p>סטטוס משיכה: {{durableState(run.pull_state)}}</p>
-      <p>סטטוס עיבוד: {{durableState(run.processing_state)}}</p>
-      <p>קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}}</p>
-      @if (showRunDiagnostics) {
-        <details>
-          <summary>פרטי ריצה לפיתוח</summary>
-      <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
-      <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
-      <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
-      <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
-        </details>
-      }
-    </section>
-  }
   @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
   } @else if (syncState.accounts().length === 0) {
@@ -55,6 +39,42 @@
         <app-p-button [buttonText]="'הגדרות קליטה ושיוך לעסק'" [variant]="'outlined'" [buttonSize]="buttonSize.SMALL"
           [disabled]="routingBusy()" (onButtonClicked)="openRouting(account.id)"></app-p-button>
 
+        @if (activeRunsFor(account.id).length) {
+          <div class="gmail-running" role="status" aria-live="polite">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            <span>משיכת מסמכים פעילה</span>
+          </div>
+          @for (run of activeRunsFor(account.id); track run.id) {
+            <div class="gmail-run-stages">
+              <span>סטטוס משיכה: {{ durableState(run.pull_state) }}</span>
+              <span>סטטוס עיבוד: {{ durableState(run.processing_state) }}</span>
+            </div>
+          }
+        }
+        @if (latestRunFor(account.id); as run) {
+          @if (!activeRunsFor(account.id).length && account.lastSyncStatus !== 'ERROR' && (run.pull_state === 'PARTIAL' || run.processing_state === 'ATTENTION')) {
+            <div class="gmail-error" role="status">המשיכה או עיבוד המסמכים דורשים טיפול.</div>
+          }
+          <details class="gmail-last-run">
+            <summary>פרטי המשיכה האחרונה</summary>
+            <div class="gmail-run-summary">
+              <span>סטטוס משיכה: {{ durableState(run.pull_state) }}</span>
+              <span>סטטוס עיבוד: {{ durableState(run.processing_state) }}</span>
+              <span>כמות הודעות: {{ totalCount(run.messages) }}</span>
+              <span>כמות קבצים: {{ totalCount(run.attachments) }}</span>
+            </div>
+            @if (showRunDiagnostics) {
+              <div class="gmail-run-diagnostics">
+      <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
+      <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
+      <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
+      <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
+                <pre>{{ run | json }}</pre>
+              </div>
+            }
+          </details>
+        }
+
         @if (account.remoteDisconnectPending) {
           <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
           <app-p-button [buttonText]="'נסה שוב לנתק'" [severity]="'danger'" [variant]="'outlined'"
@@ -83,6 +103,7 @@
         } @else if (account.lastSyncStatus === 'RUNNING') {
 
           <!-- ייבוא רץ -->
+          @if (!activeRunsFor(account.id).length) {
           <div class="gmail-running">
             <i class="pi pi-spin pi-spinner"></i>
             <span>
@@ -90,6 +111,7 @@
               אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
             </span>
           </div>
+          }
           <div class="gmail-actions">
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
@@ -101,16 +123,6 @@
 
           @if (account.syncErrorPredatesConnection) {
             <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; טרם בוצע ייבוא נוסף.</p>
-          }
-          <!-- ייבוא ראשוני הושלם -->
-          <div class="gmail-success">
-            <i class="pi pi-check-circle"></i>
-            <span>הייבוא הראשוני הושלם בהצלחה.</span>
-          </div>
-          @if (account.lastSuccessfulSyncAt) {
-            <p class="gmail-text">
-              סנכרון אחרון: {{ account.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
-            </p>
           }
           @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">

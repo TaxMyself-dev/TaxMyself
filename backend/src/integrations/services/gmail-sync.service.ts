@@ -134,8 +134,15 @@ export class GmailSyncService {
 
     const passwordCounts = this.protectedPdf?.enabled()
       ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
+    const runs = this.durableRuns?.enabled() ? await this.durableRuns.status(firebaseId) : undefined;
+    const supersededError = (integration: UserIntegration) => {
+      const latest = runs?.find(run => run.integrationId === integration.id);
+      return integration.lastSyncStatus === IntegrationSyncStatus.ERROR && !!integration.lastSyncStartedAt
+        && latest?.pull_state === 'COMPLETE'
+        && new Date(latest.startedAt).getTime() > integration.lastSyncStartedAt.getTime();
+    };
     return {
-      ...(this.durableRuns?.enabled()?{runs:await this.durableRuns.status(firebaseId)}:{}),
+      ...(runs ? { runs } : {}),
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
@@ -148,9 +155,9 @@ export class GmailSyncService {
         initialImportCompleted: !!integration.initialImportCompletedAt,
         initialImportCompletedAt: integration.initialImportCompletedAt?.toISOString() ?? null,
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
-        lastSyncStatus: integration.lastSyncStatus ?? null,
-        lastSyncError: integration.lastSyncError ?? null,
-        syncErrorPredatesConnection: integration.status === IntegrationStatus.ACTIVE
+        lastSyncStatus: supersededError(integration) ? IntegrationSyncStatus.SUCCESS : integration.lastSyncStatus ?? null,
+        lastSyncError: supersededError(integration) ? null : integration.lastSyncError ?? null,
+        syncErrorPredatesConnection: !supersededError(integration) && integration.status === IntegrationStatus.ACTIVE
           && integration.lastSyncStatus === IntegrationSyncStatus.ERROR
           && !!integration.connectionVerifiedAt && !!integration.lastSyncStartedAt
           && integration.lastSyncStartedAt.getTime() < integration.connectionVerifiedAt.getTime(),

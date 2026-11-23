@@ -149,6 +149,7 @@ function simulation() {
       status: 'ACTIVE',
     }),
     markSyncSuccess: jest.fn(),
+    finishManualSync: jest.fn(),
   };
   const create = () =>
     new EmailIntakeRunsService(store, reader, integrations, {} as any, storage);
@@ -259,4 +260,15 @@ it('reconciles completed pull after a crash before integration finalization with
 
 it('reports persisted status without starting work or requiring an activation switch',async()=>{
  const t=simulation();t.store.query.mockResolvedValue([{pull_state:'RUNNING',processing_state:'RUNNING'}]);const status=await t.create().status('owner');expect(status[0].processing_state).toBe('RUNNING');expect(status[0]).not.toHaveProperty('processingPaused');expect(t.reader.durablePage).not.toHaveBeenCalled();expect(t.storage.accept).not.toHaveBeenCalled();
+});
+
+describe('Successful manual pulls supersede old account errors',()=>{
+ it('clears an older account error only after a manual pull is complete',async()=>{
+  const t=simulation();t.integrations.finishManualSync=jest.fn();t.run.sync_type='MANUAL';
+  t.store.refreshRun=async()=>({pull:'RUNNING'});await t.create().step(t.run);
+  expect(t.integrations.finishManualSync).not.toHaveBeenCalled();
+  t.store.refreshRun=async()=>({pull:'COMPLETE'});await t.create().step(t.run);
+  expect(t.integrations.finishManualSync).toHaveBeenCalledWith(t.run.integration_id,false,undefined,t.run.started_at);
+  expect(t.integrations.markSyncSuccess).not.toHaveBeenCalled();
+ });
 });

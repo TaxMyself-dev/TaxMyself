@@ -194,3 +194,18 @@ describe('UserIntegrationsService — multi-account upsert', () => {
     });
   });
 });
+
+describe('Durable manual completion race guard',()=>{
+ it('clears only older errors without advancing the nightly cursor or replacing an active sync',async()=>{
+  const qb:any={update:jest.fn().mockReturnThis(),set:jest.fn().mockReturnThis(),where:jest.fn().mockReturnThis(),execute:jest.fn().mockResolvedValue({affected:1})};
+  const repo:any={createQueryBuilder:()=>qb};
+  const service=new UserIntegrationsService(repo);
+  const startedAt=new Date('2026-11-23T01:00:00Z');
+  await service.finishManualSync(17,false,undefined,startedAt);
+  expect(qb.set).toHaveBeenCalledWith({lastSyncStatus:'SUCCESS',lastSyncError:null});
+  expect(qb.where.mock.calls[0][0]).toContain('last_sync_started_at <= :startedAt');
+  expect(qb.where.mock.calls[0][0]).toContain('last_sync_status <> :running');
+  expect(qb.where.mock.calls[0][0]).toContain('newer.started_at > :startedAt');
+  expect(qb.where.mock.calls[0][1]).toEqual({id:17,active:'ACTIVE',running:'RUNNING',startedAt});
+ });
+});

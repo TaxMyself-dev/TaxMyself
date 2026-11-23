@@ -107,6 +107,7 @@ export class EmailIntakeRunsService {
         integrationId: run.integration_id,
         businessNumber: run.business_number,
         query: run.query_text,
+        startedAt: run.started_at,
         ...(await this.store.summary(run)),
         ...(
           await this.store.query(
@@ -269,6 +270,9 @@ export class EmailIntakeRunsService {
           'UPDATE email_import_runs SET integration_finalized_at=UTC_TIMESTAMP(3) WHERE id=? AND lease_token=?',
           [run.id, token],
         );
+      }
+      if (status.pull === 'COMPLETE' && run.sync_type === 'MANUAL') {
+        await this.integrations.finishManualSync(run.integration_id, false, undefined, run.started_at);
       }
       if (status.pull === 'PARTIAL')
         await this.integrations.markSyncError(

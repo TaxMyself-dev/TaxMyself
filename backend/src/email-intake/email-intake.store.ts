@@ -126,7 +126,12 @@ export class EmailIntakeStore {
     if (!this.enabled()) return [];
     return this.query(
       owner
-        ? 'SELECT * FROM email_import_runs WHERE firebase_id=? ORDER BY started_at DESC LIMIT 20'
+        ? `SELECT r.* FROM email_import_runs r WHERE r.firebase_id=? AND (
+          r.pull_state IN ('RUNNING','RETRY') OR r.processing_state='RUNNING' OR
+          r.id=(SELECT latest.id FROM email_import_runs latest
+            WHERE latest.firebase_id=r.firebase_id AND latest.integration_id=r.integration_id
+            ORDER BY latest.started_at DESC,latest.id DESC LIMIT 1)
+        ) ORDER BY r.started_at DESC,r.id DESC`
         : "SELECT * FROM email_import_runs WHERE (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3)) ORDER BY started_at LIMIT 2",
       owner ? [owner] : [],
     );
