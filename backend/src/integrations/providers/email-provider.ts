@@ -14,7 +14,10 @@ export interface EmailMessage {
   payload: EmailPart;
 }
 
+export type EmailToolkit = 'gmail' | 'outlook';
+
 export interface EmailAccountContext {
+  toolkit?: EmailToolkit;
   firebaseId: string;
   connectedAccountId: string;
   environment: string;

@@ -8,6 +8,22 @@ describe('Mailbox owner-only controller', () => {
     connections = { connect: jest.fn(), complete: jest.fn(), disconnect: jest.fn() };
     controller = new IntegrationsController(connections, {} as any, {} as any, {} as any, {} as any);
   });
+
+  it('creates Outlook connections only for owners and validates reconnect IDs', async () => {
+    await controller.connectOutlook({user:{firebaseId:'owner'}} as any,'42');
+    expect(connections.connect).toHaveBeenCalledWith('owner',42,'MICROSOFT');
+    await expect(controller.connectOutlook({user:{firebaseId:'client'},isDelegatedAccess:true} as any)).rejects.toThrow('owner');
+    await expect(controller.connectOutlook({user:{firebaseId:'owner'}} as any,'NaN')).rejects.toThrow();
+  });
+  it('returns Outlook callback state without exposing connection identifiers', async () => {
+    process.env.OUTLOOK_FRONTEND_URL='http://localhost:4200/settings?tab=permissions';
+    const res={redirect:jest.fn()};
+    await controller.outlookCallback(res as any,'ca-ms','success','opaque');
+    expect(connections.complete).toHaveBeenCalledWith('opaque','ca-ms','success','MICROSOFT');
+    const url=new URL(res.redirect.mock.calls[0][0]);
+    expect(url.searchParams.get('outlookIntegration')).toBe('success');
+    expect(url.searchParams.has('state')).toBe(false);
+  });
   it('does not let a represented client request create a mailbox connection', async () => {
     await expect(controller.connect({ user: { firebaseId: 'client', actorFirebaseId: 'accountant' }, isDelegatedAccess: true } as any)).rejects.toThrow('owner');
     expect(connections.connect).not.toHaveBeenCalled();

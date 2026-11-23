@@ -54,4 +54,26 @@ describe('Email connection lifecycle without a live mailbox', () => {
     await expect(service.disconnect('user-a', 1)).rejects.toThrow();
     expect(integrations.disconnect).toHaveBeenCalledWith(1);
   });
+  it('creates provider-bound Outlook OAuth and saves verified Microsoft identity', async () => {
+    process.env.COMPOSIO_OUTLOOK_CALLBACK_URL = 'http://localhost:3000/integrations/outlook/callback';
+    await service.connect('user-a', undefined, IntegrationProvider.MICROSOFT);
+    expect(states.createState).toHaveBeenCalledWith('user-a', IntegrationProvider.MICROSOFT);
+    expect(composio.link).toHaveBeenCalledWith('user-a', expect.stringContaining('/outlook/callback?state='), 'outlook');
+    composio.execute.mockResolvedValue({id:'ms-id',mail:'mail@example.com'});
+    await service.complete('single-use', 'ca-a', 'success', IntegrationProvider.MICROSOFT);
+    expect(states.consumeState).toHaveBeenCalledWith('single-use', IntegrationProvider.MICROSOFT);
+    expect(composio.assertAccount).toHaveBeenCalledWith(expect.objectContaining({toolkit:'outlook'}));
+    expect(integrations.upsertIntegration).toHaveBeenCalledWith(expect.objectContaining({provider:IntegrationProvider.MICROSOFT,accountId:'ms-id',accountEmail:'mail@example.com'}));
+  });
+  it('does not reconnect a Google row through Outlook', async () => {
+    integrations.findOwnedByIdOrThrow.mockResolvedValue({provider:IntegrationProvider.GOOGLE});
+    await expect(service.connect('user-a', 1, IntegrationProvider.MICROSOFT)).rejects.toThrow();
+    expect(composio.link).not.toHaveBeenCalled();
+  });
+  it('revokes Outlook using its own toolkit context', async () => {
+    integrations.findOwnedByIdOrThrow.mockResolvedValue({provider:IntegrationProvider.MICROSOFT,connectedAccountId:'ca-ms'});
+    await service.disconnect('user-a',1);
+    expect(composio.remove).toHaveBeenCalledWith(expect.objectContaining({toolkit:'outlook',connectedAccountId:'ca-ms'}));
+  });
+
 });

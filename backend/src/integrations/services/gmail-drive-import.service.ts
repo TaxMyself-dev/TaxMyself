@@ -118,11 +118,13 @@ export class GmailDriveImportService {
     integrationIds: number[],
     options: { businessNumber?: string; query?: string; maxMessages?: number },
   ): Promise<GmailImportAllResult> {
-    const activeIntegrations =
+    const googleIntegrations =
       await this.userIntegrationsService.findAllActiveByUserAndProvider(
         firebaseId,
         IntegrationProvider.GOOGLE,
       );
+    const microsoftIntegrations = await this.userIntegrationsService.findAllActiveByUserAndProvider(firebaseId, IntegrationProvider.MICROSOFT);
+    const activeIntegrations = [...googleIntegrations, ...microsoftIntegrations.filter(row => row.provider === IntegrationProvider.MICROSOFT)];
 
     // 404 (not 403) for foreign/EXPIRED/unknown ids alike — a foreign id must
     // not leak that the integration exists (findOwnedByIdOrThrow philosophy).

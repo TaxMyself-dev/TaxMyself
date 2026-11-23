@@ -10,6 +10,7 @@ export type GmailIntegrationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
 
 /** מצב סנכרון של חשבון Gmail בודד (שורה אחת מתוך user_integrations). */
 export interface GmailAccountSyncStatus {
+  provider?: 'GOOGLE' | 'MICROSOFT';
   passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
@@ -79,6 +80,16 @@ export class IntegrationsService {
     return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`, {
       params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
     });
+  }
+
+  getOutlookConnectUrl(integrationId?: number): Observable<{ url: string }> {
+    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/outlook/connect`, {
+      params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
+    });
+  }
+
+  disconnectEmailIntegration(integrationId: number): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}integrations/email/${integrationId}`);
   }
 
   /** מצב הסנכרון של Gmail עבור המשתמש הנוכחי (משמש גם ל-polling בזמן ריצה). */

@@ -13,6 +13,15 @@ describe('Gmail connection requests', () => {
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
+
+  it('connects and disconnects an Outlook row through the provider-aware endpoints', () => {
+    service.getOutlookConnectUrl(42).subscribe();
+    http.expectOne(`${environment.apiUrl}integrations/outlook/connect?integrationId=42`).flush({url:'https://connect.composio.dev/link/test'});
+    service.disconnectEmailIntegration(42).subscribe();
+    const request=http.expectOne(`${environment.apiUrl}integrations/email/42`);
+    expect(request.request.method).toBe('DELETE');
+    request.flush({});
+  });
   it('creates a new connection without a mailbox identifier from the browser', () => {
     service.getGoogleConnectUrl().subscribe();
     const request = http.expectOne(`${environment.apiUrl}integrations/google/connect`);

@@ -2,7 +2,7 @@
   <p class="gmail-muted">חיבור לתיבת מייל וניהולה זמינים לבעל החשבון בלבד.</p>
 } @else {
 <div class="gmail-integration">
-  <h3 class="subsection-title">חיבור Gmail לקליטת מסמכים</h3>
+  <h3 class="subsection-title">חיבור Gmail ו־Outlook לקליטת מסמכים</h3>
   <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
   @for (run of syncState.status()?.runs ?? []; track run.id) {
@@ -27,13 +27,17 @@
 
     <!-- אין חשבונות מחוברים -->
     <p class="gmail-text">
-      חשבון Gmail אינו מחובר. חיבור החשבון מאפשר קליטה אוטומטית של קבלות
+      טרם חובר חשבון מייל. חיבור החשבון מאפשר קליטה אוטומטית של קבלות
       וחשבוניות שמגיעות אליך במייל, ישירות אל מסמכי העסק.
     </p>
     <div class="gmail-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
+      <app-p-button [buttonText]="'חבר חשבון Outlook'" [buttonColor]="buttonColor.BLACK"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
+
     </div>
 
   } @else {
@@ -46,7 +50,7 @@
         }
         <p class="gmail-account">
           @if (account.connected) {
-            חשבון מחובר: <strong>{{ account.accountEmail }}</strong>
+            {{ account.provider === 'MICROSOFT' ? 'Outlook' : 'Gmail' }} מחובר: <strong>{{ account.accountEmail }}</strong>
           } @else {
             חשבון: <strong>{{ account.accountEmail }}</strong>
           }
@@ -63,14 +67,14 @@
           <div class="gmail-error">
             <i class="pi pi-exclamation-triangle"></i>
             <span>
-              ההרשאה של חשבון זה פגה או בוטלה בצד Google, ולכן איננו יכולים למשוך ממנו מסמכים חדשים.
+              ההרשאה של חשבון זה פגה או בוטלה אצל ספק המייל, ולכן איננו יכולים למשוך ממנו מסמכים חדשים.
               יש לחבר מחדש את החשבון כדי לחדש את הסנכרון. הנתונים שכבר יובאו נשמרים.
             </span>
           </div>
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
               [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
-              (onButtonClicked)="connectGmail(account.id)"></app-p-button>
+              (onButtonClicked)="connectGmail(account.id, account.provider)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
               [isLoading]="isDisconnecting(account.id)"
@@ -83,7 +87,7 @@
           <div class="gmail-running">
             <i class="pi pi-spin pi-spinner"></i>
             <span>
-              ייבוא הודעות מ-Gmail מתבצע כעת. התהליך עשוי להימשך מספר דקות —
+              ייבוא הודעות מהמייל מתבצע כעת. התהליך עשוי להימשך מספר דקות —
               אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
             </span>
           </div>
@@ -162,7 +166,7 @@
             </div>
           </div>
           <div class="gmail-actions">
-            <app-p-button [buttonText]="'התחל ייבוא מ-Gmail'" [buttonColor]="buttonColor.BLACK"
+            <app-p-button [buttonText]="'התחל ייבוא מהמייל'" [buttonColor]="buttonColor.BLACK"
               [buttonSize]="buttonSize.AUTO" [disabled]="syncState.isStarting(account.id)"
               [isLoading]="syncState.isStarting(account.id)"
               (onButtonClicked)="startImport(account)"></app-p-button>
@@ -181,6 +185,10 @@
       <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
+      <app-p-button [buttonText]="'חבר חשבון Outlook'" [buttonColor]="buttonColor.BLACK"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
+
       <app-p-button [buttonText]="'משוך מסמכים עכשיו'" [variant]="'outlined'"
         [buttonSize]="buttonSize.AUTO" [disabled]="importing()"
         (onButtonClicked)="openImportDialog()"></app-p-button>
@@ -196,7 +204,7 @@
   [contentStyle]="{ 'max-height': '60vh', 'overflow-y': 'auto' }"
   (onHide)="importDialogVisible.set(false)">
   <div class="gmail-import-dialog">
-    <p class="gmail-import-description">בחר טווח תאריכים ואת חשבונות Gmail שמהם יימשכו המסמכים. ניתן לבחור מתחילת השנה הקודמת ועד היום.</p>
+    <p class="gmail-import-description">בחר טווח תאריכים ואת חשבונות המייל שמהם יימשכו המסמכים. ניתן לבחור מתחילת השנה הקודמת ועד היום.</p>
     <div class="gmail-date-range">
       <div class="gmail-date-field">
         <app-input-date [parentForm]="manualImportForm" [controlName]="'fromDate'"
@@ -246,7 +254,7 @@
                 ההרשאה פגה או בוטלה — לא ניתן למשוך מחשבון זה עד שיחובר מחדש.
               </span>
               <button type="button" class="gmail-link-button" [disabled]="connecting() || importing()"
-                (click)="connectGmail(account.id)">חבר מחדש</button>
+                (click)="connectGmail(account.id, account.provider)">חבר מחדש</button>
             } @else if (!account.initialImportCompleted) {
               <span class="gmail-import-account-note">
                 <i class="pi pi-info-circle"></i>

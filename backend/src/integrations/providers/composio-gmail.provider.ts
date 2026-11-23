@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UserIntegrationsService } from '../services/user-integrations.service';
 import { ComposioClientService, GmailReadTool, objectValue } from '../services/composio-client.service';
-import { IntegrationStatus } from '../enums/integrations.enums';
+import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
 import { EmailAccountContext, EmailMessage, EmailPart, EmailProvider } from './email-provider';
 import { EmailProviderError } from './email-provider.error';
 import { EmailAttachmentDownloadService } from '../services/email-attachment-download.service';
@@ -12,6 +12,7 @@ export class ComposioGmailProvider extends EmailProvider {
 
   private async assertLocalAccount(account: EmailAccountContext): Promise<void> {
     const row = await this.integrations.findByConnectedAccountId(account.connectedAccountId, account.firebaseId);
+    if (row?.provider && row.provider !== IntegrationProvider.GOOGLE) throw new EmailProviderError('AUTH');
     if (!row || row.status !== IntegrationStatus.ACTIVE || row.connectionBackend !== 'COMPOSIO') throw new EmailProviderError('AUTH');
   }
 

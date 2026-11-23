@@ -159,3 +159,13 @@ payment method.
 ## Manual Gmail pull date range
 
 The manual pull dialog requires from/to dates shared by selected accounts. Server validation and inclusive-end query construction reuse GmailSyncService initial-import rules (Jan 1 previous year through today in Israel). The API retains its no-date 90-day fallback for existing clients; partial date ranges or combining dates with q are rejected. Initial-import completion and nightly cursor are unchanged.
+
+
+## Outlook through Composio
+
+Settings now supports Microsoft Outlook alongside Gmail. OAuth state is provider-bound;
+the backend validates managed auth config, toolkit, owner, active account and identity.
+Read tools are allowlisted separately per toolkit. The persisted provider selects the
+reader; date windows, durable runs, owner restrictions and content-hash dedup are shared.
+Historical GMAIL source/metadata names identify this shared email pipeline internally.
+See `docs/features/outlook-email.md` for configuration and the pending schema gate.

@@ -85,7 +85,7 @@ export class EmailIntakeRunsService {
         row.status !== IntegrationStatus.ACTIVE ||
         row.connectionBackend !== 'COMPOSIO' ||
         !row.initialImportCompletedAt ||
-        row.provider !== IntegrationProvider.GOOGLE
+        ![IntegrationProvider.GOOGLE, IntegrationProvider.MICROSOFT].includes(row.provider)
       )
         throw new Error('Mailbox unavailable');
       rows.push(row);

@@ -79,4 +79,18 @@ describe('Composio read-only SDK boundary', () => {
     expect(sdk.tools.execute).toHaveBeenCalledTimes(3);
     jest.useRealTimers();
   });
+  it('pins Outlook separately and rejects cross-provider and write tools', async () => {
+    process.env.COMPOSIO_OUTLOOK_AUTH_CONFIG_ID = 'ac-ms';
+    process.env.COMPOSIO_OUTLOOK_TOOLKIT_VERSION = '20261123_00';
+    const microsoft = { ...active, toolkit: {slug:'outlook'}, authConfig:{...active.authConfig,id:'ac-ms'} };
+    (sdk.connectedAccounts.list as jest.Mock).mockResolvedValue({items:[microsoft]});
+    const msAccount = {...account,toolkit:'outlook' as const};
+    await service.execute(msAccount,'OUTLOOK_GET_PROFILE',{user_id:'someone-else'});
+    expect(sdk.tools.execute).toHaveBeenCalledWith('OUTLOOK_GET_PROFILE',expect.objectContaining({version:'20261123_00',arguments:{user_id:'me'}}),expect.anything());
+    await expect(service.execute(msAccount,'GMAIL_FETCH_EMAILS',{})).rejects.toMatchObject({category:'AUTH'});
+    await expect(service.execute(msAccount,'OUTLOOK_SEND_EMAIL' as any,{})).rejects.toMatchObject({category:'AUTH'});
+    (sdk.connectedAccounts.list as jest.Mock).mockResolvedValue({items:[active]});
+    await expect(service.assertAccount(msAccount)).rejects.toMatchObject({category:'AUTH'});
+  });
+
 });

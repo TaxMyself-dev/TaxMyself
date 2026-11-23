@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
 import {
   IntegrationProvider,
@@ -232,7 +232,7 @@ export class UserIntegrationsService {
   async findGmailSyncCandidates(): Promise<UserIntegration[]> {
     return this.userIntegrationRepo.find({
       where: {
-        provider: IntegrationProvider.GOOGLE,
+        provider: In([IntegrationProvider.GOOGLE, IntegrationProvider.MICROSOFT]),
         status: IntegrationStatus.ACTIVE,
         initialImportCompletedAt: Not(IsNull()),
       },

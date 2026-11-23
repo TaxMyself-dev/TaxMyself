@@ -54,6 +54,35 @@ export class IntegrationsController {
     return user.firebaseId;
   }
 
+  @Get('outlook/connect')
+  @UseGuards(FirebaseAuthGuard)
+  async connectOutlook(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string) {
+    const owner = this.ownerId(request);
+    const id = integrationId === undefined ? undefined : Number(integrationId);
+    if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) throw new NotFoundException('Integration not found');
+    return this.emailConnectionsService.connect(owner, id, IntegrationProvider.MICROSOFT);
+  }
+
+  @Get('outlook/callback')
+  async outlookCallback(@Res() res: Response, @Query('connected_account_id') id?: string, @Query('status') status?: string, @Query('state') state?: string, @Query('error') error?: string) {
+    const url = new URL(process.env.OUTLOOK_FRONTEND_URL || process.env.GMAIL_FRONTEND_URL || 'http://localhost:4200/settings?tab=permissions');
+    try {
+      await this.emailConnectionsService.complete(state || '', id || '', error ? 'failed' : status || '', IntegrationProvider.MICROSOFT);
+      url.searchParams.set('outlookIntegration', 'success');
+    } catch (err) {
+      url.searchParams.set('outlookIntegration', 'error');
+      url.searchParams.set('reason', err instanceof ConflictException ? 'account_conflict' : 'callback_failed');
+    }
+    return res.redirect(url.toString());
+  }
+
+  @Delete('email/:integrationId')
+  @UseGuards(FirebaseAuthGuard)
+  async disconnectEmail(@Req() request: AuthenticatedRequest, @Param('integrationId', ParseIntPipe) id: number) {
+    await this.emailConnectionsService.disconnect(this.ownerId(request), id);
+    return { id, connected: false, status: IntegrationStatus.REVOKED };
+  }
+
   /** Returns the Google consent-screen URL the frontend should navigate to. */
   @Get('google/connect')
   @UseGuards(FirebaseAuthGuard)
@@ -269,6 +298,8 @@ export class IntegrationsController {
     const firebaseId = this.ownerId(request);
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
+    const row = await this.userIntegrationsService.findOwnedByIdOrThrow(integrationId, firebaseId);
+    if (row.provider !== IntegrationProvider.GOOGLE) throw new NotFoundException('Integration not found');
     await this.emailConnectionsService.disconnect(firebaseId, integrationId);
 
     return {

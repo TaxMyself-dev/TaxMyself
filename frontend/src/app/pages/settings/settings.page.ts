@@ -460,7 +460,7 @@ export class SettingsPage implements OnInit {
   private handleReturnFromGoogleOauth(): void {
     const params = this.route.snapshot.queryParams;
     const tab = params['tab'];
-    const googleIntegration = params['googleIntegration'];
+    const googleIntegration = params['googleIntegration'] || params['outlookIntegration'];
     const reason = params['reason'];
     if (!tab && !googleIntegration) return;
 
@@ -471,7 +471,7 @@ export class SettingsPage implements OnInit {
     if (googleIntegration === 'success') {
       this.messageService.add({
         severity: 'info',
-        summary: 'חזרה מחיבור Gmail',
+        summary: 'חזרה מחיבור מייל',
         detail: 'מצב החשבונות מתעדכן לפי החיבור שאומת בשרת.',
         life: 4000,
         key: 'br',
@@ -489,7 +489,7 @@ export class SettingsPage implements OnInit {
     // Remove only the OAuth-return params, keeping the rest of the URL intact.
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { tab: null, googleIntegration: null, reason: null },
+      queryParams: { tab: null, googleIntegration: null, outlookIntegration: null, reason: null },
       queryParamsHandling: 'merge',
       replaceUrl: true,
     });
@@ -499,14 +499,14 @@ export class SettingsPage implements OnInit {
   private googleOauthErrorDetail(reason: string | undefined): string {
     switch (reason) {
       case 'access_denied':
-        return 'החיבור בוטל. לא ניתנה הרשאה לחשבון Google.';
+        return 'החיבור בוטל. לא ניתנה הרשאה לחשבון המייל.';
       case 'account_conflict':
         return 'החשבון מחובר למשתמש אחר, נבחרה תיבה שונה או שמתבצע סנכרון. בדוק ונסה שוב.';
       case 'missing_code':
       case 'callback_failed':
-        return 'חיבור חשבון Google נכשל. נסה שוב.';
+        return 'חיבור חשבון המייל נכשל. נסה שוב.';
       default:
-        return 'חיבור חשבון Google נכשל. נסה שוב.';
+        return 'חיבור חשבון המייל נכשל. נסה שוב.';
     }
   }
 

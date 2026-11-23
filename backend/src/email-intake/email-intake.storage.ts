@@ -105,7 +105,7 @@ export class EmailIntakeStorage {
       filename: item.filename,
       mime_type: item.mime_type,
       size: bytes.length,
-      gmail_message_id: item.message_id,
+      gmail_message_id: item.message_id?.slice(0, 64) || null,
       gmail_thread_id: metadata.gmailThreadId?.slice(0, 64) || null,
       gmail_subject: metadata.gmailSubject?.slice(0, 998) || null,
       gmail_from: metadata.gmailFrom?.slice(0, 512) || null,

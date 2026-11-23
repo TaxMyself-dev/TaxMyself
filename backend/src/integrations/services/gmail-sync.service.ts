@@ -57,6 +57,7 @@ interface GmailSyncRunContext {
 
 /** Per-connected-mailbox sync state, one entry per Google integration row. */
 export interface GmailAccountSyncStatus {
+  provider?: IntegrationProvider;
   passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
@@ -127,10 +128,12 @@ export class GmailSyncService {
   async getSyncStatus(firebaseId: string): Promise<GmailSyncStatusResponse> {
     // Visible accounts only: a REVOKED (user-disconnected) mailbox must not
     // reappear in the UI. EXPIRED accounts stay so the user can reconnect.
-    const integrations = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
+    const google = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
       firebaseId,
       IntegrationProvider.GOOGLE,
     );
+    const microsoft = await this.userIntegrationsService.findAllVisibleByUserAndProvider(firebaseId, IntegrationProvider.MICROSOFT);
+    const integrations = [...google, ...microsoft.filter(row => row.provider === IntegrationProvider.MICROSOFT)].sort((a, b) => a.id - b.id);
 
     const passwordCounts = this.protectedPdf?.enabled()
       ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
@@ -140,6 +143,7 @@ export class GmailSyncService {
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
         id: integration.id,
+        provider: integration.provider,
         passwordRequiredCount: passwordCounts.get(integration.id) || 0,
         accountEmail: integration.accountEmail,
         status: integration.status,
@@ -206,7 +210,7 @@ export class GmailSyncService {
       integrationId,
       firebaseId,
     );
-    if (integration.provider !== IntegrationProvider.GOOGLE) {
+    if (![IntegrationProvider.GOOGLE, IntegrationProvider.MICROSOFT].includes(integration.provider)) {
       throw new BadRequestException('Integration is not a Google account.');
     }
     if (integration.status !== IntegrationStatus.ACTIVE) {

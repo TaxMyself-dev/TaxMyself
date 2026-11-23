@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { EmailAccountContext, EmailPart, EmailProvider } from '../providers/email-provider';
 import { EmailProviderError } from '../providers/email-provider.error';
 import { UserIntegration } from '../entities/user-integration.entity';
-import { IntegrationStatus } from '../enums/integrations.enums';
+import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
 import { matchesAccountingDocumentKeyword } from '../utils/accounting-document-keywords.util';
 import {
   GmailKeywordMatchSource,
@@ -339,7 +339,7 @@ export class GmailReaderService {
   }
 
   private accountContext(integration: UserIntegration): EmailAccountContext {
-    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
+    return { ...(integration.provider === IntegrationProvider.MICROSOFT ? { toolkit: 'outlook' as const } : {}), firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
   }
 
   private async listMessagesPage(account: EmailAccountContext, query: string, maxResults: number, pageToken?: string): Promise<{ ids: string[]; nextPageToken?: string }> {

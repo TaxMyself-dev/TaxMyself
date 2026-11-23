@@ -62,7 +62,7 @@ export class GmailSyncStateService {
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא ניתן לטעון את מצב חיבור ה-Gmail',
+          detail: 'לא ניתן לטעון את מצב חיבור המייל',
           life: 4000,
           key: 'br',
         });
@@ -80,7 +80,7 @@ export class GmailSyncStateService {
         this.messageService.add({
           severity: 'info',
           summary: 'הייבוא התחיל',
-          detail: 'ייבוא ההודעות מ-Gmail רץ ברקע — נעדכן כשיסתיים',
+          detail: 'ייבוא ההודעות מהמייל רץ ברקע — נעדכן כשיסתיים',
           life: 5000,
           key: 'br',
         });

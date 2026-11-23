@@ -19,13 +19,17 @@ describe('Gmail connection controls', () => {
     refresh = jasmine.createSpy();
     TestBed.configureTestingModule({ providers: [
       { provide: AuthService, useValue: { isViewingAsClient: () => viewingAsClient } },
-      { provide: IntegrationsService, useValue: { getGoogleConnectUrl: connect, disconnectGoogleIntegration: () => throwError(() => new Error('remote failure')) } },
+      { provide: IntegrationsService, useValue: { getOutlookConnectUrl: connect, getGoogleConnectUrl: connect, disconnectGoogleIntegration: () => throwError(() => new Error('remote failure')) } },
       { provide: GmailSyncStateService, useValue: { refresh, accounts: signal([]), status: signal(null) } },
       { provide: GenericService, useValue: { isMobile: signal(false) } },
       { provide: MessageService, useValue: { add: jasmine.createSpy() } },
       { provide: ConfirmationService, useValue: {} },
     ] });
     component = TestBed.runInInjectionContext(() => new GmailIntegrationComponent());
+  });
+  it('passes the selected Outlook row when reconnecting', () => {
+    component.connectGmail(43, 'MICROSOFT');
+    expect(connect).toHaveBeenCalledOnceWith(43);
   });
   it('passes the selected row when reconnecting', () => {
     component.connectGmail(42);

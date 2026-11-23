@@ -126,10 +126,13 @@ export class GmailIntegrationComponent implements OnInit {
   }
 
   /** מפנה למסך ההסכמה של Google לחיבור חשבון (נוסף); החזרה נוחתת בהגדרות. */
-  connectGmail(integrationId?: number): void {
+  connectGmail(integrationId?: number, provider: 'GOOGLE' | 'MICROSOFT' = 'GOOGLE'): void {
     if (this.connecting() || this.authService.isViewingAsClient()) return;
     this.connecting.set(true);
-    this.integrationsService.getGoogleConnectUrl(integrationId).subscribe({
+    const request = provider === 'MICROSOFT'
+      ? this.integrationsService.getOutlookConnectUrl(integrationId)
+      : this.integrationsService.getGoogleConnectUrl(integrationId);
+    request.subscribe({
       next: ({ url }) => {
         window.location.href = url;
       },
@@ -138,7 +141,7 @@ export class GmailIntegrationComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא ניתן להתחיל את חיבור חשבון Google. נסה שוב.',
+          detail: 'לא ניתן להתחיל את חיבור חשבון המייל. נסה שוב.',
           life: 4000,
           key: 'br',
         });
@@ -273,25 +276,26 @@ export class GmailIntegrationComponent implements OnInit {
   confirmDisconnectGmail(account: GmailAccountSyncStatus): void {
     if (this.isDisconnecting(account.id)) return;
     this.confirmationService.confirm({
-      header: 'ניתוק הרשאת Gmail',
-      message: `האם לנתק את חשבון ${account.accountEmail ?? 'ה-Gmail'}? לאחר הניתוק לא נוכל למשוך מסמכים חדשים ממנו.`,
+      header: 'ניתוק הרשאת מייל',
+      message: `האם לנתק את חשבון ${account.accountEmail ?? 'המייל'}? לאחר הניתוק לא נוכל למשוך מסמכים חדשים ממנו.`,
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'נתק הרשאה',
       rejectLabel: 'ביטול',
-      accept: () => this.disconnectGmail(account.id),
+      accept: () => this.disconnectGmail(account.id, account.provider),
     });
   }
 
-  private disconnectGmail(integrationId: number): void {
+  private disconnectGmail(integrationId: number, provider: 'GOOGLE' | 'MICROSOFT' = 'GOOGLE'): void {
     this.setDisconnecting(integrationId, true);
-    this.integrationsService.disconnectGoogleIntegration(integrationId).subscribe({
+    const request = provider === 'MICROSOFT' ? this.integrationsService.disconnectEmailIntegration(integrationId) : this.integrationsService.disconnectGoogleIntegration(integrationId);
+    request.subscribe({
       next: () => {
         this.setDisconnecting(integrationId, false);
         this.syncState.refresh();
         this.messageService.add({
           severity: 'success',
           summary: 'הצלחה',
-          detail: 'הרשאת Gmail נותקה בהצלחה',
+          detail: 'הרשאת המייל נותקה בהצלחה',
           life: 4000,
           key: 'br',
         });
@@ -302,7 +306,7 @@ export class GmailIntegrationComponent implements OnInit {
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא הצלחנו לנתק את הרשאת Gmail. נסה שוב.',
+          detail: 'לא הצלחנו לנתק את הרשאת המייל. נסה שוב.',
           life: 4000,
           key: 'br',
         });
