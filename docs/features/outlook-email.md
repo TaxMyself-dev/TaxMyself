@@ -86,14 +86,13 @@ settings locally. Auth-config metadata reads still return HTTP 403 under the
 current key, so scopes/managed status cannot be independently confirmed yet.
 No auth-config credentials or scopes were changed through the API.
 
-Local app return configuration: backend Outlook callback on localhost:3002,
-frontend return on localhost:4202. These are feature-worktree destinations, not
-changes to main. No app servers were started or frontend API destination changed.
-The ignored .local-ai-dev/ports.json now aligns both canonical local launchers:
-frontend 4202, backend 3002, frontend API 127.0.0.1:3002. Ignored backend/.env
-PORT is also 3002. The configuration helper resolves return URLs from those actual
-local ports instead of writing fixed feature ports independently. No servers were
-started for this correction. A complete app callback validates/consumes state and
+Local launch and return destinations are stored only in ignored backend/.env and
+.local-ai-dev/ports.json. The user-selected frontend return port and canonical
+frontend launcher are aligned; the backend callback remains on its separate
+feature port. The configuration helper resolves URLs from the effective local
+settings. Main configuration and the existing frontend process are preserved.
+No servers were started or restarted for this adjustment.
+A complete app callback validates/consumes state and
 then redirects to the frontend Settings URL; status=success in the incoming query
 alone is not persisted connection verification. Old/expired attempts must be
 restarted through the application after the correct feature servers are running.

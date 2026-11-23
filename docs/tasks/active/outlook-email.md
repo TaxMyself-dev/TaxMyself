@@ -190,3 +190,17 @@ approved and OAuth/live fixture acceptance is still pending.
 Focused frontend command: `$env:CHROME_BIN='C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'; npm test -- --watch=false --browsers=ChromeHeadless --karma-config=karma.email-icons.conf.cjs --ts-config=tsconfig.email-icons-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --include=src/app/pages/settings-new/email-provider-icons.spec.ts --progress=false`: exit 0, 13/13 passed (10 existing component tests + 3 rendered CSS-cascade regressions), Edge 158 headless.
 Production command: `$env:CI='true'; npm run build -- --configuration production --progress=false`; final result below. No unrelated frontend or repository-wide backend suites rerun.
 Final production build: exit 0, hash 447bf620a1cbb4b4, 180081 ms. Existing unchanged CSS/CommonJS/initial-bundle warnings. Emitted Outlook SVG equals the Microsoft source asset. Final offline consistency assertion confirms ignored runtime ports match configured Outlook URLs; no server started. git diff --check passed. Application source verification is complete for these corrections; live callback remains pending correct server startup and a fresh consent attempt.
+
+## Requested frontend return-port adjustment — 2026-11-23
+
+Updated both providers' frontend return URLs and ignored local frontend launch
+port to Elazar's explicitly requested destination, preserving backend port and
+callback URLs. Found an existing frontend listener and left it running unchanged.
+Machine-specific destinations remain only in ignored local configuration.
+
+Offline Node assertions passed: both return URL ports match the requested port,
+Outlook helper output agrees with the ignored launch settings, backend PORT and
+callback are preserved. Canonical frontend and backend --print-config commands
+passed and both local configuration files remain ignored. No application code
+changed, so no repeated application tests/builds; prior passing evidence applies.
+git diff --check passed. No main integration, push, DB/provider call or server boot.
