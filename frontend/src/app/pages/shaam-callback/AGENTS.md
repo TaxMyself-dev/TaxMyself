@@ -13,6 +13,10 @@ Safe OAuth result page. The backend has already exchanged and stored the token; 
   `/uniform-file`; settings shows only a return to
   `/settings?tab=permissions`; absent/unknown origins retain the legacy
   document/home actions. Never accept a free-form callback redirect URL.
+- The document return action navigates directly to `/doc-create`; the route
+  guards load and await authoritative billing/module access after the full-page
+  OAuth round trip. Do not add a synchronous feature-access pre-check that can
+  silently discard the first click while billing state is still loading.
 - Error/missing result: safe error state; no provider response body is exposed.
 - Retry returns home, where a business-scoped authenticated flow can be started.
 

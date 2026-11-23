@@ -273,7 +273,10 @@ export class DocumentsService {
     // -------------------------------
     const query = this.documentsRepo
       .createQueryBuilder('doc')
-      .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber });
+      .where('doc.issuerBusinessNumber = :issuerBusinessNumber', { issuerBusinessNumber })
+      .andWhere('doc.docStatus != :draftStatus', {
+        draftStatus: DocumentStatusType.DRAFT,
+      });
 
     // docType filter
     if (docType) {
@@ -354,6 +357,34 @@ export class DocumentsService {
       },
       order: { lineNumber: 'ASC' },
     });
+  }
+
+  /**
+   * A receipt or tax-invoice-receipt issued for a transaction invoice closes
+   * that parent only when the child is actually finalized. Callers pass their
+   * transaction-scoped repository so the child and parent lifecycle changes
+   * commit or roll back together.
+   */
+  private async closeLinkedTransactionInvoiceParent(
+    doc: Pick<Documents, 'issuerBusinessNumber' | 'docType' | 'parentDocType' | 'parentDocNumber'>,
+    documentsRepo: Repository<Documents>,
+  ): Promise<void> {
+    const closesTransactionInvoice =
+      doc.parentDocType === DocumentType.TRANSACTION_INVOICE
+      && Boolean(doc.parentDocNumber)
+      && [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT].includes(doc.docType);
+
+    if (!closesTransactionInvoice) return;
+
+    await documentsRepo.update(
+      {
+        issuerBusinessNumber: doc.issuerBusinessNumber,
+        docType: DocumentType.TRANSACTION_INVOICE,
+        docNumber: doc.parentDocNumber,
+        docStatus: DocumentStatusType.OPEN,
+      },
+      { docStatus: DocumentStatusType.CLOSE },
+    );
   }
 
 
@@ -1336,25 +1367,7 @@ export class DocumentsService {
           pdfTimings.mark('FILE_PATHS_SAVE');
 
           // 10. Update parent document status to CLOSE if this is a closing document (RECEIPT or TAX_INVOICE_RECEIPT) for TRANSACTION_INVOICE
-          if (data.docData.parentDocType && data.docData.parentDocNumber) {
-            const closingDocTypes = [DocumentType.RECEIPT, DocumentType.TAX_INVOICE_RECEIPT];
-            // Only update status if closing a TRANSACTION_INVOICE (חשבון עסקה)
-            if (closingDocTypes.includes(data.docData.docType) && data.docData.parentDocType === DocumentType.TRANSACTION_INVOICE) {
-              const parentDoc = await documentsRepo.findOne({
-                where: {
-                  issuerBusinessNumber: data.docData.issuerBusinessNumber,
-                  docType: data.docData.parentDocType,
-                  docNumber: data.docData.parentDocNumber,
-                }
-              });
-
-              if (parentDoc && parentDoc.docStatus === DocumentStatusType.OPEN) {
-                parentDoc.docStatus = DocumentStatusType.CLOSE;
-                await documentsRepo.save(parentDoc);
-                console.log(new Date().toLocaleTimeString(), "Step 10 complete - Parent document status updated to CLOSE");
-              }
-            }
-          }
+          await this.closeLinkedTransactionInvoiceParent(data.docData, documentsRepo);
 
           pdfTimings.mark('PARENT_STATUS_UPDATE');
           // 11. Send email to recipient if requested
@@ -1683,6 +1696,7 @@ ${finalOwnerName}`;
           : DocumentStatusType.OPEN;
       }
       await docsRepo.save(doc);
+      await this.closeLinkedTransactionInvoiceParent(doc, docsRepo);
 
       // Current pending documents post their journal entry when their final
       // number is reserved, so they participate in reports before the
