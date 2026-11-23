@@ -1,6 +1,6 @@
 # KT-125 - Restore deterministic release installs
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt125\taxmyself-dev`
@@ -42,5 +42,5 @@ The guarded production release can complete clean dependency installation for bo
 - Reviewed by: Codex primary integration manager; full lockfile diff and unintended-file review passed.
 - Integrated commit: `7f783539` on `codex/integration-kt125`, based on current `origin/main` `ee9a43ec`.
 - Combined verification: backend and frontend `npm ci --no-audit --no-fund` passed from separate clean installs; backend and frontend `npm run build` passed. Required main local-port check reported frontend 4200, backend 3000, API `http://localhost:3000/`, no process or local port override.
-- `origin/main` verification: Pending delivery.
+- `origin/main` verification: Local `main`, tracking `origin/main`, remote `main` and remote `codex/integration-kt125` all verified at `0c9aceac27381fc31269bb03e72f03c1dec3b7be`.
 - User-visible run instructions: After source delivery, the authorized operator reruns `.\scripts\deploy`. Codex does not execute or inspect the production deployment.
