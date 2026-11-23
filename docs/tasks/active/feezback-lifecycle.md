@@ -66,3 +66,21 @@ Risk tier: backend domain/controller/persistence and frontend component behavior
   Main's unrelated backend/journey-timings.local was preserved.
 - Documentation: docs/features/feezback-lifecycle.md, schema/cutover SQL and nearest
   Feezback/admin-panel AGENTS.md files. No shared governance files changed.
+
+## Authorized development setup follow-up (2026-11-23)
+
+- User explicitly requested applying the table to dev and configuring this worktree
+  for frontend 4200/backend 3002 without launching servers.
+- Applied the prepared CREATE TABLE to verified `keepintax-dev` only. The table was
+  absent and is now permanent, with all 13 expected columns, PRIMARY(firebase_id)
+  and ix_feezback_lifecycle_due(next_check_at). Verified row count: zero.
+- Set ignored `.local-ai-dev/ports.json` to frontendPort=4200/backendPort=3002;
+  aligned ignored backend/.env PORT=3002 and generated ignored environment.worktree.ts
+  with API URL http://127.0.0.1:3002/. Existing tracked startup scripts consume this config.
+- Both startup scripts' `--print-config` modes confirm effective ports/API without
+  starting services; Git ignore checks cover all three local configuration files.
+- No production changes, server launches, lifecycle flag changes, provider calls,
+  main integration or pushes. Earlier schema-not-applied statements describe the
+  initial implementation delivery; this explicitly authorized follow-up applies it to dev.
+- Schema/local configuration verification only; application suites/builds were not
+  repeated because no executable source changed.

@@ -84,11 +84,13 @@ user-facing disconnect endpoints are unchanged.
 Disable automatic termination independently by clearing its flag. Disable the entire
 feature by clearing ENABLED; the new table is then unused, and old billing operations
 do not depend on it. Already terminated consents require new owner consent to reconnect.
-No permanent schema or production changes are performed by the tests or this delivery.
+Tests do not make permanent schema changes. Separately authorized environment
+setup is recorded in the task evidence; production has not been changed.
 
-Feature worktree backend port: 3018 in ignored backend/.env. Use frontend port 4218
-and point its ignored local runtime configuration at http://localhost:3018/ when
-running both together. Main's ports and environment are unchanged.
+Worktree ports and API URL are configured in ignored `.local-ai-dev/ports.json`
+and backend/.env. Verify effective settings without starting services using
+`node frontend/scripts/start-local.js --print-config` and
+`node backend/scripts/start-watch.js --print-config`. Main's configuration is unchanged.
 
 ## Verification
 
