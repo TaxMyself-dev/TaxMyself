@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-125 deterministic release installs — 2026-11-23
+
+The Stage 4 release failure was caused by a backend `package-lock.json` that
+did not contain the nested `google-auth-library@11.3.4` graph required by the
+current manifest under npm 10.9.7. The backend lockfile is synchronized without
+changing application code, package manifests, schema, deployment configuration
+or production data; the user's current frontend lockfile is preserved.
+Integration `7f783539` passed independent clean `npm ci` installs for backend
+(1,177 packages) and frontend (1,492 packages), followed by both production
+builds. The required main local-port check confirmed frontend 4200, backend
+3000 and `http://localhost:3000/`, with no process or local port override.
+Existing engine/deprecation and Angular budget/CommonJS warnings remain
+non-fatal. Production deployment remains an authorized-operator action under
+`PRODUCTION_POLICY.md`.
+
 ## KT-124 SHAAM draft completion — 2026-11-23
 
 OAuth recovery drafts are excluded from issued-document listings, the SHAAM

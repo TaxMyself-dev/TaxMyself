@@ -1,6 +1,6 @@
 # KT-125 - Restore deterministic release installs
 
-- Status: `WORKER_COMPLETE`
+- Status: `VERIFIED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt125\taxmyself-dev`
@@ -29,7 +29,7 @@ The guarded production release can complete clean dependency installation for bo
 ## Handoff
 
 - Result: Synchronized the backend npm lockfile with the dependency graph expected by the release runner. The previously missing nested `google-auth-library@11.3.4` resolution is now locked.
-- Commit hash(es): Pending local commit.
+- Commit hash(es): Worker `45959790`; integration `7f783539`.
 - Changed files: `backend/package-lock.json`; this task file.
 - Tests and exact results: backend `npm ci --no-audit --no-fund` passed; frontend `npm ci --no-audit --no-fund` passed; backend `npm run build` passed; frontend `npm run build` passed.
 - Known pre-existing failures: None. Existing npm engine/deprecation notices and Angular style/bundle/CommonJS warnings remain non-fatal. The release host currently runs Node `22.22.2`, while backend declares `>=22.22.3`.
@@ -39,8 +39,8 @@ The guarded production release can complete clean dependency installation for bo
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full lockfile diff and unintended-file review passed.
+- Integrated commit: `7f783539` on `codex/integration-kt125`, based on current `origin/main` `ee9a43ec`.
+- Combined verification: backend and frontend `npm ci --no-audit --no-fund` passed from separate clean installs; backend and frontend `npm run build` passed. Required main local-port check reported frontend 4200, backend 3000, API `http://localhost:3000/`, no process or local port override.
+- `origin/main` verification: Pending delivery.
+- User-visible run instructions: After source delivery, the authorized operator reruns `.\scripts\deploy`. Codex does not execute or inspect the production deployment.
