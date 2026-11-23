@@ -8,6 +8,10 @@ record externally confirmed non-acceptance or a verified allocation number,
 together with a bounded evidence reference.
 
 ## Key entities/files
+- `admin-feezback.component.*` — Feezback tab with all local users, saved consent
+  evidence per primary/spouse identity, own entitlement, expected 0–2 billing units,
+  global filters, month-end warning and queued admin checks/disconnections.
+  See ../../../../../docs/features/feezback-lifecycle.md for activation and limits.
 - `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown.
 - `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`).
 - `admin-panel-routing.module.ts` — single root route rendering `AdminPanelPage`.

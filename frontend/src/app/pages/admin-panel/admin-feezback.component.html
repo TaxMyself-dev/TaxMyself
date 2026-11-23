@@ -1,0 +1,231 @@
+<section dir="rtl" class="feezback-control">
+  <header>
+    <div>
+      <h2>פיזבק</h2>
+      <p>בקרה על הרשאות וזכאות לבנקאות פתוחה</p>
+    </div>
+    <button type="button" (click)="reload()" [disabled]="loading()">
+      {{ loading() ? "טוען…" : "רענון הטבלה" }}
+    </button>
+  </header>
+  <p *ngIf="error()" role="alert" class="alert">{{ error() }}</p>
+  <p *ngIf="message()" role="status">{{ message() }}</p>
+  <p *ngIf="!loading() && !enabled()">בקרת פיזבק טרם הופעלה.</p>
+  <ng-container *ngIf="enabled()">
+    <div class="summary">
+      <span>{{ rows().length }} משתמשים</span
+      ><span>{{ units() }} יחידות חיוב ידועות ועדכניות</span>
+      <span>{{ mismatches() }} משתמשים עם הרשאה ללא זכאות</span
+      ><span>{{ unknown() }} משתמשים לבדיקה</span>
+    </div>
+    <p>
+      מצב עבודה:
+      {{
+        automatic() ? "ניתוק אוטומטי פעיל" : "בקרה בלבד — ללא ניתוק אוטומטי"
+      }}.
+    </p>
+    <p class="note">
+      הצפי מבוסס על הבדיקה האחרונה. משתמש ובן/בת זוג נספרים בנפרד, עד שתי יחידות
+      חיוב; כמה הסכמות לאותה זהות נספרות פעם אחת. נתונים חסרים אינם נחשבים לאפס.
+    </p>
+    <p *ngIf="monthEndWarning()" role="alert" class="alert">
+      סוף החודש מתקרב: נשארו משתמשים עם הרשאות ללא זכאות. יש להשלים טיפול ואימות
+      ניתוק לפני סוף החודש.
+    </p>
+    <div class="filters">
+      <label
+        >חיפוש משתמש<input
+          type="search"
+          [ngModel]="search()"
+          (ngModelChange)="setSearch($event)"
+          placeholder="שם, דוא״ל או מזהה"
+      /></label>
+      <label
+        >הצגה<select [ngModel]="filter()" (ngModelChange)="setFilter($event)">
+          <option value="all">כל המשתמשים</option>
+          <option value="mismatch">הרשאה ללא זכאות</option>
+          <option value="pending">פעולות ממתינות</option>
+          <option value="failed">שגיאות</option>
+          <option value="unknown">בדיקה חסרה או ישנה</option>
+        </select></label
+      >
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>משתמש</th>
+            <th>מנוי וזכאות</th>
+            <th>משתמש ראשי</th>
+            <th>בן/בת זוג</th>
+            <th>צפי יחידות חיוב</th>
+            <th>בקרה</th>
+            <th>פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of visible()" [class.mismatch]="row.mismatch">
+            <td>
+              {{ row.name || "ללא שם" }}<small dir="ltr">{{ row.email }}</small
+              ><small dir="ltr">{{ row.firebaseId }}</small>
+            </td>
+            <td>
+              {{ row.entitlement.plan || "ללא תוכנית"
+              }}<small>{{
+                row.entitlement.subscriptionStatus || "ללא מנוי"
+              }}</small
+              ><small>{{ reason(row.entitlement.reason) }}</small
+              ><small *ngIf="row.entitlement.until"
+                >מועד זכאות / תקופה:
+                {{ row.entitlement.until | date : "dd/MM/yyyy HH:mm" }}</small
+              ><small
+                >חיבור מקומי: {{ row.hasOpenBanking ? "כן" : "לא" }}</small
+              >
+            </td>
+            <td>
+              {{ unitsLabel(row.primaryUnits)
+              }}<small
+                >בדיקה:
+                {{
+                  (row.evidence.primary.checkedAt
+                    | date : "dd/MM/yyyy HH:mm") || "טרם נבדק"
+                }}</small
+              ><small *ngIf="row.evidence.primary.error">בדיקה נכשלה</small>
+            </td>
+            <td>
+              {{ unitsLabel(row.spouseUnits)
+              }}<small
+                >בדיקה:
+                {{
+                  (row.evidence.spouse.checkedAt | date : "dd/MM/yyyy HH:mm") ||
+                    "טרם נבדק"
+                }}</small
+              ><small *ngIf="row.evidence.spouse.error">בדיקה נכשלה</small>
+            </td>
+            <td>
+              {{ row.synthetic ? "לא נכלל" : unitsLabel(row.expectedUnits)
+              }}<small *ngIf="row.stale">הנתונים אינם עדכניים</small>
+            </td>
+            <td>
+              {{ status(row) }}<small *ngIf="row.pending">בתור לבדיקה</small
+              ><small *ngIf="row.lastError">{{
+                errorLabel(row.lastError)
+              }}</small>
+            </td>
+            <td>
+              <div class="actions">
+                <button type="button" (click)="selected.set(row)">
+                  פרטי הסכמות</button
+                ><button
+                  type="button"
+                  (click)="action(row)"
+                  [disabled]="!!busy() || row.synthetic"
+                >
+                  בדיקה מול פיזבק</button
+                ><button
+                  type="button"
+                  (click)="confirmDisconnect.set(row)"
+                  [disabled]="
+                    !!busy() || row.synthetic || row.disconnectRequested
+                  "
+                >
+                  {{
+                    row.lastAction === "DISCONNECT_PENDING"
+                      ? "ניסיון ניתוק חוזר"
+                      : "ניתוק כל ההרשאות"
+                  }}
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="!filtered().length">
+            <td colspan="7">לא נמצאו משתמשים לתצוגה זו.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <nav aria-label="עמודי משתמשים">
+      <button
+        type="button"
+        (click)="page.set(page() - 1)"
+        [disabled]="page() === 0"
+      >
+        הקודם</button
+      ><span>{{ page() + 1 }} · {{ filtered().length }} משתמשים</span
+      ><button
+        type="button"
+        (click)="page.set(page() + 1)"
+        [disabled]="(page() + 1) * 50 >= filtered().length"
+      >
+        הבא
+      </button>
+    </nav>
+  </ng-container>
+  <p-dialog
+    header="פרטי הסכמות"
+    [visible]="!!selected()"
+    [modal]="true"
+    [draggable]="false"
+    [style]="{ width: 'min(640px,95vw)' }"
+    (onHide)="selected.set(null)"
+    ><section *ngIf="selected() as row" dir="rtl">
+      <h3>הסכמות — {{ row.name }}</h3>
+      <ng-container *ngFor="let role of ['primary', 'spouse']"
+        ><h4>{{ role === "primary" ? "משתמש ראשי" : "בן/בת זוג" }}</h4>
+        <p *ngIf="!row.evidence[role].checkedAt">טרם נבדק</p>
+        <p *ngIf="row.evidence[role].error">
+          הבדיקה האחרונה נכשלה. מוצגות התוצאות האחרונות שנשמרו.
+        </p>
+        <ul>
+          <li *ngFor="let consent of row.evidence[role].consents">
+            <bdi>{{ consent.id }}</bdi> — <bdi>{{ consent.status }}</bdi
+            ><span *ngIf="consent.validUntil">
+              · בתוקף עד
+              {{ consent.validUntil | date : "dd/MM/yyyy HH:mm" }}</span
+            >
+          </li>
+        </ul>
+        <p
+          *ngIf="
+            row.evidence[role].checkedAt && !row.evidence[role].consents.length
+          "
+        >
+          לא נמצאו הסכמות בבדיקה האחרונה.
+        </p></ng-container
+      >
+      <button type="button" (click)="selected.set(null)">סגירה</button>
+    </section></p-dialog
+  >
+  <p-dialog
+    header="ניתוק הרשאות פיזבק"
+    [visible]="!!confirmDisconnect()"
+    [modal]="true"
+    [draggable]="false"
+    [style]="{ width: 'min(520px,95vw)' }"
+    (onHide)="confirmDisconnect.set(null)"
+    ><section *ngIf="confirmDisconnect() as row" dir="rtl">
+      <p>
+        לנתק את כל ההרשאות של {{ row.name }} ושל בן/בת הזוג? משיכת מידע חדש
+        תיפסק. חיבור מחדש ידרוש אישור מחודש.
+      </p>
+      <p *ngIf="row.entitlement.eligible">
+        למשתמש יש כרגע זכאות לבנקאות פתוחה.
+      </p>
+      <div class="actions">
+        <button
+          type="button"
+          (click)="confirmDisconnect.set(null)"
+          [disabled]="!!busy()"
+        >
+          ביטול</button
+        ><button
+          type="button"
+          (click)="action(row, true)"
+          [disabled]="!!busy()"
+        >
+          אישור ניתוק
+        </button>
+      </div>
+    </section></p-dialog
+  >
+</section>

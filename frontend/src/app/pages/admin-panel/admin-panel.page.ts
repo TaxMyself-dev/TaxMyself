@@ -20,6 +20,7 @@ import { SharedModule } from '../../shared/shared.module';
 import { AdminTaxFileComponent } from './admin-tax-file.component';
 import { AdminContentComponent } from './admin-content.component';
 import { AdminShaamAllocationsComponent } from './admin-shaam-allocations.component';
+import { AdminFeezbackComponent } from './admin-feezback.component';
 import {
   DEV_AGENT_FROM_ADMIN,
   DEV_AGENT_PATH,
@@ -55,6 +56,7 @@ export const aiChatTabs = (routeEnabled: boolean) =>
       AdminContentComponent,
       AdminTaxFileComponent,
       AdminShaamAllocationsComponent,
+      AdminFeezbackComponent,
     ],
     providers: [ConfirmationService],
 })
@@ -69,6 +71,7 @@ export class AdminPanelPage implements OnInit {
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
+    { label: 'פיזבק', value: 'feezback', component: AdminFeezbackComponent },
     { label: 'תוכן', value: 'content', component: AdminContentComponent },
     { label: 'דוקומנטציה', value: 'documentation', component: AdminDocumentationComponent },
     { label: 'היכרות עם הסוכן', value: ONBOARDING_TAB },

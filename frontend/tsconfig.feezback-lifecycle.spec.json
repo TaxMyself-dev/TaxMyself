@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": { "types": ["jasmine", "node"] },
+  "include": ["src/app/pages/admin-panel/admin-feezback.component.spec.ts", "src/app/pages/admin-panel/admin-panel.page.spec.ts", "src/**/*.d.ts"]
+}

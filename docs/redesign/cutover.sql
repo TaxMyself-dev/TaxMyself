@@ -3109,3 +3109,21 @@ ALTER TABLE classified_transactions ADD COLUMN createdBySource varchar(10) NULL,
 ALTER TABLE slim_transactions ADD COLUMN classificationSource varchar(10) NULL;
 
 ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) NULL;
+
+-- Feezback lifecycle (opt-in; apply before enabling the feature).
+CREATE TABLE IF NOT EXISTS feezback_lifecycle (
+ firebase_id varchar(255) NOT NULL PRIMARY KEY,
+ evidence json NULL,
+ entitlement_key varchar(500) NULL,
+ next_check_at datetime NOT NULL,
+ generation int NOT NULL DEFAULT 0,
+ lease_token varchar(36) NULL,
+ lease_until datetime NULL,
+ attempts int NOT NULL DEFAULT 0,
+ disconnect_requested tinyint NOT NULL DEFAULT 0,
+ last_action varchar(40) NULL,
+ last_error varchar(80) NULL,
+ requested_by varchar(255) NULL,
+ requested_at datetime NULL,
+ KEY ix_feezback_lifecycle_due (next_check_at)
+) ENGINE=InnoDB;

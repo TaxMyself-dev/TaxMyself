@@ -7,6 +7,7 @@ import { FeezbackWebhookEventBody } from './dto/feezback-webhook.dto';
 import { computeFeezbackEventHash } from '../utils/feezback-event.utils';
 import { extractFirebaseIdFromContext, parseFeezbackUserIdentifier } from '../utils/feezback-user.utils';
 import { FeezbackService } from '../feezback.service';
+import { enqueueLifecycle } from '../lifecycle/feezback-lifecycle.service';
 
 @Injectable()
 export class FeezbackWebhookService {
@@ -69,6 +70,12 @@ export class FeezbackWebhookService {
   }
 
   private async processEvent(event: FeezbackWebhookEvent, body: FeezbackWebhookEventBody): Promise<void> {
+    if (['ConsentStatusChanged', 'UserDataIsAvailable', 'DataRefreshComplete'].includes(event.eventType)) {
+      const payload = body?.payload as Record<string, any>;
+      const firebaseId = parseFeezbackUserIdentifier(payload?.user, payload?.tpp).firebaseId
+        ?? (typeof payload?.context === 'string' ? extractFirebaseIdFromContext(payload.context) : null);
+      if (firebaseId) await enqueueLifecycle(this.webhookRepository.manager, firebaseId);
+    }
     switch (event.eventType) {
       case 'ConsentStatusChanged':
         await this.handleConsentStatusChanged(body);

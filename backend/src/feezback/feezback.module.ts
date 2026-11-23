@@ -23,6 +23,10 @@ import { FeezbackWebhookRouterModule } from './router/feezback-webhook-router.mo
 import { TransactionsModule } from '../transactions/transactions.module';
 import { BillingModule } from '../billing/billing.module';
 import { MailModule } from '../mail/mail.module';
+import { FeezbackLifecycle } from './lifecycle/feezback-lifecycle.entity';
+import { FeezbackLifecycleService } from './lifecycle/feezback-lifecycle.service';
+import { FeezbackLifecycleController } from './lifecycle/feezback-lifecycle.controller';
+import { FeezbackLifecycleSubscriber } from './lifecycle/feezback-lifecycle.subscriber';
 
 @Module({
   imports: [
@@ -30,15 +34,17 @@ import { MailModule } from '../mail/mail.module';
       timeout: 90000, // 90 seconds timeout for all requests
       maxRedirects: 5,
     }),
-    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments, Source]),
+    TypeOrmModule.forFeature([Delegation, User, Child, Expense, Business, SettingDocuments, Source, FeezbackLifecycle]),
     forwardRef(() => UsersModule),
     FeezbackWebhookRouterModule,
     forwardRef(() => TransactionsModule),
     forwardRef(() => BillingModule),
     MailModule,
   ],
-  controllers: [FeezbackController],
+  controllers: [FeezbackController, FeezbackLifecycleController],
   providers: [
+    FeezbackLifecycleService,
+    FeezbackLifecycleSubscriber,
     FeezbackCacheCleanupService,
     FeezbackDisconnectionService,
     FeezbackService,
@@ -49,6 +55,6 @@ import { MailModule } from '../mail/mail.module';
     FeezbackConsentApiService,
     SharedService,
   ],
-  exports: [FeezbackService, FeezbackApiService],
+  exports: [FeezbackService, FeezbackApiService, FeezbackLifecycleService],
 })
 export class FeezbackModule { }

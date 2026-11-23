@@ -39,8 +39,12 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   referral-basic to referral-open-banking mutation is removed. Only the
   existing explicitly approved trial enrollment receives connectionVerified;
   paid plan changes use the shared billing preview/confirmation mechanism.
-- Pending provider work: when a paid downgrade to a plan without OPEN_BANKING
-  becomes effective, or subscription cancellation takes effect, revoke provider consents through the explicit owner/admin disconnection flow. Automatic subscription-triggered provider cancellation is not implemented; stopping local access does not stop provider cost.
+- Lifecycle control is opt-in: the admin Feezback tab and durable worker compare
+  own entitlement to consent evidence for primary and spouse identities. Billing
+  transaction subscribers and webhooks enqueue checks; natural expiry is repaired
+  every ten minutes. Initial rollout observes only. Automatic all-consent revocation
+  requires a separate flag, final eligibility recheck, and provider verification.
+  Apply the prepared schema before enabling; see ../../../docs/features/feezback-lifecycle.md.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.
 - Webhook processing (`FeezbackWebhookService.handleWebhook`) — `UserDataIsAvailable`/`DataRefreshComplete` refresh saved consent/source metadata; transaction pulls remain explicit or login-triggered; `ConsentStatusChanged` clears stale consent IDs on terminal states.

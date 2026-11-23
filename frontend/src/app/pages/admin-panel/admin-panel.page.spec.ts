@@ -30,6 +30,11 @@ describe('AdminPanelPage', () => {
   it('includes the educational content tab', () => {
     expect(component.tabs.map((tab) => tab.value)).toContain('content');
   });
+  it('includes Feezback as a tab in the existing admin panel', () => {
+    expect(component.tabs.map(tab => tab.value)).toContain('feezback');
+    component.onTabChange('feezback');
+    expect(component.selectedTab).toBe('feezback');
+  });
 
   it('includes the admin-only tax file tab', () => {
     expect(component.tabs.map((tab) => tab.value)).toContain('tax-file');
