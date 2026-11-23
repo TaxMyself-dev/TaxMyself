@@ -1,6 +1,6 @@
 # KT-124 - Complete SHAAM draft issuance reliably
 
-- Status: `INTEGRATED` — push approved; pending remote delivery verification
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt124\taxmyself-dev`
@@ -47,5 +47,5 @@ An invoice sent through the SHAAM OAuth and allocation flow resumes reliably, ap
 - Reviewed by: Codex primary integration manager; full diff and `git show --check` passed.
 - Integrated commit: `4d6669b6` before manager delivery documentation.
 - Combined verification: on the clean integration tree, backend Jest passed 1 suite / 4 tests, frontend Karma passed 4 tests, and both Nest and Angular production builds passed. The Angular build emitted the existing style-budget, initial-bundle and CommonJS warnings. Required pre-integration local-port verification passed on main: `frontend/scripts/start-local.js --print-config` reported frontend `4200`, backend `3000`, API URL `http://localhost:3000/`, source `main defaults`; `backend/.env` sets `PORT=3000`; no process-level `PORT`, `NODE_ENV` or `DOTENV_CONFIG_PATH` override was present; no `.local-ai-dev/ports.json` override exists. Deployment-provided backend `PORT` and production API URL remain unchanged.
-- `origin/main` verification:
-- User-visible run instructions:
+- `origin/main` verification: code/integration delivery `4ca92d16` was pushed to both `origin/main` and `origin/codex/integration-kt124`; a fresh remote verification follows the final tracking commit.
+- User-visible run instructions: production deployment was not performed by Codex because `PRODUCTION_POLICY.md` requires an authorized operator. From a clean `main` matching `origin/main`, run `\.\scripts\deploy` for the guarded full production release. Existing production transaction invoice 40000 still requires an explicitly approved manual data correction; the code fix prevents recurrence after deployment.

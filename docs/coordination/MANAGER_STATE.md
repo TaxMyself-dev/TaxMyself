@@ -13,6 +13,8 @@ port check confirmed frontend 4200, backend 3000 and
 external SHAAM contract or production-data change was made. Existing production
 parent 40000 is not repaired retroactively. Production deployment remains an
 authorized-operator action under `PRODUCTION_POLICY.md`.
+Source delivery `4ca92d16` was pushed to `origin/main` and
+`origin/codex/integration-kt124`; the final task-status tracking commit follows.
 
 ## KT-116/KT-117 Allocation button borders and risk-based gates — 2026-11-19
 
