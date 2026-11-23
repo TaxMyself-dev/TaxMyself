@@ -1,6 +1,6 @@
 # Precommitted Lychee business choices
 
-- Status: IMPLEMENTED_AWAITING_LIVE_TEST
+- Status: COMPLETE_IN_FEATURE_WORKTREE
 - Worktree: TaxMyself-whatsapp; branch codex/whatsapp-integration
 - Base: 663214389036b05a7ddf2816dfd3cbd25bee2c24
 - Authorization: Elazar requested implementation and a live development test to his designated test number on 2026-11-23. No production deployment, main integration or push.
@@ -30,7 +30,7 @@
 - Read-only development MySQL verification: actual database keepintax-dev;
   JSON_CONTAINS object-in-array matching works; one account/two owned businesses
   for the authorized phone; both have Drive folders; no pending intake/outbox work.
-- Live test is NOT executed and no live test message has been sent. Existing ngrok
+- Initial live-test prerequisite (subsequently resolved below): existing ngrok
   target is `http://3000backend:80`, not localhost:3000; latest genuine test-phone
   routing command is still ROUTE_COMMAND_PROD. User was asked to run `ngrok http 3000`
   and send `בדיקות` before a test document. Do not fabricate inbound provider IDs.
@@ -42,3 +42,26 @@
   or performed. An old deployed proxy may still require a saved quoted mapping.
 - No schema, production data, accounting, credentials, main integration or push.
   API compatibility change is limited to the vendor-confirmed optional custom ID.
+
+## Live development acceptance (2026-11-23)
+
+- Tested executable revision: 7ff47d04. User corrected ngrok to localhost:3000 and
+  sent the genuine `בדיקות` command; ROUTE_COMMAND_DEV persisted at 09:10:10Z.
+- User sent a real document and clicked `2. שובל`. Document event
+  `c510abdf-c50b-4307-9243-d21f1d7af702`; reply event
+  `ee9e8c9a-940f-440a-a6a2-a547d3764844`.
+- Local log timeline (Israel time): document/choices committed 11:11:14; question
+  HTTP accepted 11:11:18; quote mapping complete 11:11:19; click processed 11:11:27;
+  Drive upload/import completed 11:11:33; result notification accepted 11:11:36.
+- Read-only dev verification confirmed the incoming `button_id` exactly equals
+  one saved choice ID; selected business is Shoval; document IMPORTED; reply
+  BUSINESS_SELECTED; exactly one imported_documents row for the resulting Drive
+  file; result outbox NOTICE_SENT (provider acceptance, not proof of phone delivery).
+- This real click also carried a quote and occurred after receipt linking. It
+  validates custom-ID round-trip and real import, not a live reproduction of the
+  early-click race. The automated send-in-progress test covers that interleaving.
+- Shared cloud proxy was not deployed. Production release and main integration
+  remain separate approval gates. Test phone remains in development routing;
+  send `סיום בדיקות` from that phone when finished. No extra resend/replay was run.
+- Documentation-only evidence update: git diff --check; no repeat application
+  tests needed because executable source is unchanged from tested revision.
