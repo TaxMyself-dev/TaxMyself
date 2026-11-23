@@ -1,6 +1,6 @@
 # KT-124 - Complete SHAAM draft issuance reliably
 
-- Status: `WORKER_COMPLETE` — manager-reviewed; awaiting explicit main integration approval
+- Status: `INTEGRATED` — push approved; pending remote delivery verification
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt124\taxmyself-dev`
@@ -45,7 +45,7 @@ An invoice sent through the SHAAM OAuth and allocation flow resumes reliably, ap
 ## Integration
 
 - Reviewed by: Codex primary integration manager; full diff and `git show --check` passed.
-- Integrated commit:
-- Combined verification: focused backend/frontend tests and both production builds passed on the isolated commit. Required pre-integration local-port verification passed on main: `frontend/scripts/start-local.js --print-config` reported frontend `4200`, backend `3000`, API URL `http://localhost:3000/`, source `main defaults`; `backend/.env` sets `PORT=3000`; no process-level `PORT`, `NODE_ENV` or `DOTENV_CONFIG_PATH` override was present; no `.local-ai-dev/ports.json` override exists. Deployment-provided backend `PORT` and production API URL remain unchanged.
+- Integrated commit: `4d6669b6` before manager delivery documentation.
+- Combined verification: on the clean integration tree, backend Jest passed 1 suite / 4 tests, frontend Karma passed 4 tests, and both Nest and Angular production builds passed. The Angular build emitted the existing style-budget, initial-bundle and CommonJS warnings. Required pre-integration local-port verification passed on main: `frontend/scripts/start-local.js --print-config` reported frontend `4200`, backend `3000`, API URL `http://localhost:3000/`, source `main defaults`; `backend/.env` sets `PORT=3000`; no process-level `PORT`, `NODE_ENV` or `DOTENV_CONFIG_PATH` override was present; no `.local-ai-dev/ports.json` override exists. Deployment-provided backend `PORT` and production API URL remain unchanged.
 - `origin/main` verification:
 - User-visible run instructions:

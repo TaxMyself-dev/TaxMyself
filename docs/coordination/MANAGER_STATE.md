@@ -1,5 +1,19 @@
 # Primary manager state
 
+## KT-124 SHAAM draft completion — 2026-11-23
+
+OAuth recovery drafts are excluded from issued-document listings, the SHAAM
+success page delegates return navigation to the guarded `/doc-create` route so
+the first click waits for authoritative access state, and allocation
+finalization closes a linked open transaction-invoice parent in the same
+database transaction. Integration tip `4d6669b6` passed 4 focused backend and
+4 focused frontend tests plus both production builds; the required main local
+port check confirmed frontend 4200, backend 3000 and
+`http://localhost:3000/`. No schema, journal-value, authorization-policy,
+external SHAAM contract or production-data change was made. Existing production
+parent 40000 is not repaired retroactively. Production deployment remains an
+authorized-operator action under `PRODUCTION_POLICY.md`.
+
 ## KT-116/KT-117 Allocation button borders and risk-based gates — 2026-11-19
 
 All white actions in the document-allocation decision and completion dialogs
