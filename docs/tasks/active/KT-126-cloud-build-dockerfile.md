@@ -1,6 +1,6 @@
 # KT-126 - Cloud Build Dockerfile compatibility
 
-- Status: `VERIFIED`
+- Status: `PUSHED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt126\taxmyself-dev`
@@ -39,5 +39,5 @@ The guarded release can parse and build the backend Dockerfile through Cloud Run
 - Reviewed by: Codex primary integration manager; full diff, parser evidence, safety boundary and unintended-file review passed.
 - Integrated commit: `443eb431` on `codex/integration-kt126`, based directly on current `origin/main` `23a13c1f`.
 - Combined verification: Exact source commit passed 5/5 focused image-probe tests on both worker and integration branches, npm 11.6.2 clean install (1,177 packages), backend production build and `git diff --check`. Required main port check reported frontend 4200, backend 3000 and API `http://localhost:3000/`, with no process or local override.
-- `origin/main` verification: Pending delivery.
+- `origin/main` verification: Source delivery verified at `d65bf3cc6bc0c711f40b96f8ddcbe5384c1ef280` on local `main`, tracking `origin/main`, remote `main` and remote `codex/integration-kt126`.
 - User-visible run instructions: After delivery, rerun `.\scripts\deploy`. Stage 8 must parse/build the portable Dockerfile and keep the candidate at zero traffic until later guarded checks pass.
