@@ -213,3 +213,12 @@
     min-width: 0;
   }
 }
+
+// Local brand icon rendered through the existing PrimeNG button icon input.
+:host ::ng-deep .gmail-integration .outlook-brand-icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  background: url('/assets/icons/outlook.svg') center / contain no-repeat;
+}

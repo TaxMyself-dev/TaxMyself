@@ -4,7 +4,10 @@ Implementation branch: `codex/outlook-email`, based on `7b63265d`.
 
 ## Behavior
 
-Both Settings screens reuse the email component. Owners can add Outlook accounts,
+Both Settings screens reuse the email component. The section heading is
+"חבר את תיבת המייל שלך לטובת משיכת מסמכים". Both Outlook add-account buttons
+show the local decorative Outlook SVG through the existing button icon input.
+Owners can add Outlook accounts,
 reconnect the exact selected Microsoft account, disconnect and retry remote revocation.
 The callback success flag only triggers a refresh; backend-verified state is authoritative.
 Google and Microsoft remain distinct persisted providers. Delegation and admin

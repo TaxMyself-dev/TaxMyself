@@ -2,7 +2,7 @@
   <p class="gmail-muted">חיבור לתיבת מייל וניהולה זמינים לבעל החשבון בלבד.</p>
 } @else {
 <div class="gmail-integration">
-  <h3 class="subsection-title">חיבור Gmail ו־Outlook לקליטת מסמכים</h3>
+  <h3 class="subsection-title">חבר את תיבת המייל שלך לטובת משיכת מסמכים</h3>
   <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
   @for (run of syncState.status()?.runs ?? []; track run.id) {
@@ -34,7 +34,7 @@
       <app-p-button [buttonText]="'חבר חשבון Gmail'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
-      <app-p-button [buttonText]="'חבר חשבון Outlook'" [buttonColor]="buttonColor.BLACK"
+      <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 
@@ -185,7 +185,7 @@
       <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail()"></app-p-button>
-      <app-p-button [buttonText]="'חבר חשבון Outlook'" [buttonColor]="buttonColor.BLACK"
+      <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
         [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 

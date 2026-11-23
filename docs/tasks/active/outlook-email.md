@@ -121,3 +121,26 @@ No main integration, push, deployment or production access. Remaining live accep
 user Microsoft consent, verified callback/identity and (only under separately agreed
 fixture scope) attachment/import checks. Current scripts do not authorize such reads.
 Final frontend focused run: same recorded CHROME_BIN and npm test command passed all 14 tests in Edge 158, exit 0. Final node --check passed for all three new operational helpers; git diff --check passed. New helper tests cover only offline schema guards. Local environment remains ignored and is not committed.
+
+## Requested local presentation update — 2026-11-23
+
+Changed the section heading exactly to "חבר את תיבת המייל שלך לטובת משיכת מסמכים".
+Added a local Outlook SVG asset and scoped 20px background-icon styling using the
+existing ButtonComponent icon input, on both empty-state and existing-account
+Outlook connect buttons. No shared button component, handlers, visibility or
+connection behavior changed. No schema/provider operation or main integration.
+
+Risk tier: local presentation only. Static Node assertions passed for the exact
+heading and both icon bindings; sharp successfully rendered the SVG at 20px and
+its enlarged black-background preview was visually inspected. This checks icon
+legibility, not a claimed full live Settings browser session. Focused component
+command and frontend production build results are recorded below. Backend tests
+and builds are reused unchanged; no backend code was edited for this request.
+
+UI verification commands/results (frontend directory unless noted):
+
+- `$env:CHROME_BIN='C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'; npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`: exit 0, exactly 10 component tests passed. Edge launcher warned while cleaning up after successful execution; no unrelated service suites ran.
+- `npm run build -- --configuration production --progress=false`: exit 1, ENOSPC in Angular Babel/webpack loader. No code/type error was reported; this attempt is not a passing build.
+- Removed only this task's generated frontend/.angular and frontend/dist after the failed build. 2,465,488,896 free bytes afterward. No source/dependencies or other worktrees removed.
+- Retrying `$env:CI='true'; npm run build -- --configuration production --progress=false`. Installed Angular normalize-cache.js confirms that CI=true disables its default local-only disk cache without editing angular.json. Result below.
+- Final cache-disabled production build: exit 0, hash eda7748066c74f4f, 133648 ms. Existing unchanged CSS/CommonJS/initial-bundle warnings only. No angular.json/configuration source change. Production asset bytes equal the source SVG and the icon binding is present in emitted chunks. Final git diff --check passed. No main integration or push.
