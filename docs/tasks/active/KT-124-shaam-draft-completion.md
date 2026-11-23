@@ -1,6 +1,6 @@
 # KT-124 - Complete SHAAM draft issuance reliably
 
-- Status: `WORKER_COMPLETE`
+- Status: `WORKER_COMPLETE` — manager-reviewed; awaiting explicit main integration approval
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt124\taxmyself-dev`
@@ -30,7 +30,7 @@ An invoice sent through the SHAAM OAuth and allocation flow resumes reliably, ap
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending local commit
+- Commit hash(es): `3dd0151750d3b72ad8c9b9b5629f62f40900d71a`
 - Changed files: documents service/test/docs; SHAAM callback page/test/docs; this task file.
 - Tests and exact results:
   - Backend focused Jest: 1 suite, 4 tests passed, exit 0.
@@ -44,8 +44,8 @@ An invoice sent through the SHAAM OAuth and allocation flow resumes reliably, ap
 
 ## Integration
 
-- Reviewed by:
+- Reviewed by: Codex primary integration manager; full diff and `git show --check` passed.
 - Integrated commit:
-- Combined verification:
+- Combined verification: focused backend/frontend tests and both production builds passed on the isolated commit. Required pre-integration local-port verification passed on main: `frontend/scripts/start-local.js --print-config` reported frontend `4200`, backend `3000`, API URL `http://localhost:3000/`, source `main defaults`; `backend/.env` sets `PORT=3000`; no process-level `PORT`, `NODE_ENV` or `DOTENV_CONFIG_PATH` override was present; no `.local-ai-dev/ports.json` override exists. Deployment-provided backend `PORT` and production API URL remain unchanged.
 - `origin/main` verification:
 - User-visible run instructions:
