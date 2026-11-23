@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-126 Cloud Build Dockerfile compatibility — 2026-11-23
+
+The production source build stopped safely before creating a Cloud Run
+revision because its legacy Dockerfile parser rejected the BuildKit-only
+`RUN --network=none` flag on the final agent image probe. The Dockerfile now
+uses portable `RUN node scripts/check-agent-image.cjs`, retaining the mandatory
+filesystem/export/disposal contract check. A focused regression prevents
+reintroducing BuildKit-only RUN network flags. Source/integration `443eb431`
+passed 5/5 focused tests, a clean npm 11.6.2 backend install and the Nest
+production build. Main's required local ports remain frontend 4200, backend
+3000 and API `http://localhost:3000/`. No application behavior, dependency,
+schema, production data, environment, traffic or deployment action changed.
+The operator must rerun the guarded release; the failed Cloud Build created no
+candidate revision and changed no production traffic.
+
 ## KT-125 deterministic release installs — 2026-11-23
 
 The Stage 4 release failure was caused by a backend `package-lock.json` that

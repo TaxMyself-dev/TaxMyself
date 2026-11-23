@@ -1,6 +1,6 @@
 # KT-126 - Cloud Build Dockerfile compatibility
 
-- Status: `WORKER_COMPLETE`
+- Status: `VERIFIED`
 - Task manager: Codex primary integration manager
 - Worker: Codex primary agent
 - Worktree: `C:\Users\harel\.codex\worktrees\kt126\taxmyself-dev`
@@ -28,7 +28,7 @@ The guarded release can parse and build the backend Dockerfile through Cloud Run
 ## Handoff
 
 - Result: Replaced the BuildKit-only final probe instruction with legacy-Docker-compatible `RUN node scripts/check-agent-image.cjs`; the image contract probe remains mandatory.
-- Commit hash(es): Pending local commit.
+- Commit hash(es): Source and integration `443eb431` (direct descendant of current main).
 - Changed files: `backend/Dockerfile`; `backend/scripts/check-agent-image.test.cjs`; `docs/operations/agent-image-packaging.md`; this task file.
 - Tests and exact results: `node --test scripts/check-agent-image.test.cjs` passed 5/5; backend `npm ci` with npm 11.6.2 passed (1,177 packages); backend `npm run build` passed; `git diff --check` passed.
 - Risks and manual checks: Docker is unavailable locally, so the Cloud Build parser is not executed locally. The operator must rerun the guarded release; Stage 8 must parse the Dockerfile and the retained image probe must pass before any candidate can become ready. No traffic was changed by the failed build.
@@ -36,8 +36,8 @@ The guarded release can parse and build the backend Dockerfile through Cloud Run
 
 ## Integration
 
-- Reviewed by:
-- Integrated commit:
-- Combined verification:
-- `origin/main` verification:
-- User-visible run instructions:
+- Reviewed by: Codex primary integration manager; full diff, parser evidence, safety boundary and unintended-file review passed.
+- Integrated commit: `443eb431` on `codex/integration-kt126`, based directly on current `origin/main` `23a13c1f`.
+- Combined verification: Exact source commit passed 5/5 focused image-probe tests on both worker and integration branches, npm 11.6.2 clean install (1,177 packages), backend production build and `git diff --check`. Required main port check reported frontend 4200, backend 3000 and API `http://localhost:3000/`, with no process or local override.
+- `origin/main` verification: Pending delivery.
+- User-visible run instructions: After delivery, rerun `.\scripts\deploy`. Stage 8 must parse/build the portable Dockerfile and keep the candidate at zero traffic until later guarded checks pass.
