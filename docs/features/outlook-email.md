@@ -47,38 +47,55 @@ Existing Google URLs remain compatible. Shared status/import URLs retain their h
 New URLs: GET outlook/connect, GET outlook/callback, DELETE email/:integrationId,
 under `/integrations`.
 
-## Prepared schema — application not authorized
+## DEV schema applied; production unchanged
 
-On 2026-11-23 Elazar approved preparation only. The standalone script is
-`docs/features/outlook-email.sql`; the same statement is appended to cutover.sql
-for the repository schema record. Do not execute the cumulative cutover file.
-No database was contacted or changed.
+Elazar approved DEV-only application on 2026-11-23 after preparation approval.
+`node scripts/apply-outlook-dev-schema.cjs` inspected fixed local DEV settings,
+runtime DATABASE(), data encoding/length, full unique index and InnoDB row format.
+`node scripts/apply-outlook-dev-schema.cjs --apply` applied exactly one ALTER on
+keepintax-dev (MySQL 8.0.37-google). Before/after count: 408 rows; no non-ASCII or
+overlength IDs. Verified message_id VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin
+NOT NULL, full unique index retained, 1296-byte maximum string key payload, plan [].
+A later read-only inspection also returned plan [] with 410 rows: DEV has concurrent
+activity. The schema helper performed no INSERT/UPDATE/DELETE or application boot.
 
-The existing durable queue defines email_import_items.message_id as VARCHAR(128).
-The prepared ALTER expands it to VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin,
-preserving complete, case-sensitive Gmail/Outlook message IDs. The existing
-ux_email_item(run_id,message_id,part_path) unique index remains intact without
-prefix truncation. Assuming utf8mb4 for the other two fields, its maximum string
-payload is 36*4 + 512 + 160*4 = 1296 bytes, below modern InnoDB's 3072-byte limit.
-No source-document metadata, accounting schema or application code changed.
+Standalone SQL: docs/features/outlook-email.sql. The cumulative cutover copy is a
+record only, not an application command. PROD application remains unauthorized.
+The helper defaults to inspection, hardcodes keepintax-dev, checks live metadata and
+data before conversion, uses a maintenance lock and bounded metadata-lock wait,
+and checks post-application state. Six offline guard tests cover identity refusal,
+lossless conversion preconditions, index shape and idempotency.
 
-Before separately authorized application, inspect the target table's SHOW CREATE
-TABLE, column definitions, row format and full unique index. Verify zero existing
-message IDs contain non-ASCII characters or exceed 512 characters. This is a
-precondition for conversion; no assumption about live data has been verified.
-Review deployment locking/DDL behavior for the actual MySQL version. Keep the
-original durable CREATE script as the historical baseline and apply the standalone
-ALTER afterward on either existing or newly provisioned databases.
+## DEV Composio configuration and connection test
 
-Preparation approval does not authorize application in DEV or PROD, live Outlook
-intake, main integration, push or deployment. The failed frontend production build
-and live provider verification remain outstanding.
+The user-supplied Outlook auth config is saved only in this worktree's ignored
+backend/.env. The five allowlisted tool schemas all resolved to pinned version
+20261120_00 using the application's existing Composio DEV key.
+`node scripts/configure-outlook-dev.cjs --auth-config-id=ac_<id>` validates the
+config when management access is available and writes only the four Outlook
+settings locally. Auth-config metadata reads still return HTTP 403 under the
+current key, so scopes/managed status cannot be independently confirmed yet.
+No auth-config credentials or scopes were changed through the API.
+
+Local app return configuration: backend Outlook callback on localhost:3002,
+frontend return on localhost:4202. These are feature-worktree destinations, not
+changes to main. No app servers were started or frontend API destination changed.
+Configure the feature frontend to use its own backend before a full manual UI run.
+
+`node scripts/test-outlook-dev-connection.cjs` starts an isolated loopback listener
+on 127.0.0.1:4318, overriding the callback only in that diagnostic process. It
+creates an OAuth attempt under a new technical DEV owner, loads only integration
+repositories/services, disables synchronize/migrations and blocks every SDK tool
+except OUTLOOK_GET_PROFILE. Connection deletion is also blocked. The provider
+accepted creation of a hosted link for the supplied auth config. Microsoft consent
+and a successful callback remain pending; link creation is not active connection
+verification. No messages, attachments, imports, AI or schedulers were executed.
 
 ## Verification and live limits
 
 Contracts were discovered using Composio tool schemas without reading any mailbox.
 Live Microsoft OAuth, personal/organization account behavior, managed scopes, pinned
 toolkit responses, download hosts and long-ID persistence still require dedicated DEV
-verification after configuration and the approved schema change. No Nest app boot,
-database access, mailbox read, AI run, main integration, push or deployment occurred.
+verification after user consent. DEV schema/configuration operations above are approved.
+No Nest app boot, mailbox read, AI run, main integration, push or deployment occurred.
 Exact automated commands and results are recorded in docs/tasks/active/outlook-email.md.

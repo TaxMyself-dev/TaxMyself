@@ -1,6 +1,6 @@
 # Outlook email through Composio
 
-Status: SCHEMA_PREPARED_NOT_APPLIED
+Status: DEV_CONFIGURED_AWAITING_MICROSOFT_CONSENT
 Base: 7b63265d; main and origin/main verified equal on 2026-11-23.
 
 Acceptance: owner can connect/reconnect/disconnect Outlook in Settings; Microsoft identity is verified and stored separately from Google; existing manual/initial/nightly durable intake reads Outlook files with fixed date ranges and pagination; Gmail remains compatible.
@@ -62,3 +62,62 @@ Verification result: offline Node assertions passed (exit 0): exactly one scoped
 exact standalone/cutover statement parity, unchanged historical CREATE and full index,
 1296-byte index arithmetic and valid documentation file targets. No SQL execution.
 Git diff --check passed (exit 0). Application tests/builds skipped as unchanged.
+
+
+## Approved DEV application, configuration and final automated checks — 2026-11-23
+
+Elazar explicitly approved applying the schema to DEV only, continuing Outlook
+configuration/checks, without main integration or push. He has no application
+user for the test; an isolated technical DEV owner is used for identity-only OAuth.
+The user supplied an Outlook Auth Config ID; it stays only in ignored local .env.
+
+### Database evidence
+
+- `node scripts/apply-outlook-dev-schema.cjs`: default read-only inspection first
+  failed EACCES in sandbox, then passed with scoped escalation. Runtime DB
+  keepintax-dev, MySQL 8.0.37-google, Dynamic row format, 408 rows, zero non-ASCII
+  and overlength IDs, full expected unique index, calculated key payload 1296 bytes.
+- `node scripts/apply-outlook-dev-schema.cjs --apply`: exit 0; exactly one ALTER
+  applied; verified length 512, ASCII/ascii_bin, 408 before/after rows and plan [].
+- Subsequent `node scripts/apply-outlook-dev-schema.cjs`: exit 0, plan [], 410 rows
+  under concurrent DEV activity. No DML, backfill, PROD connection or Nest boot.
+- `node --test backend/scripts/apply-outlook-dev-schema.test.cjs` from root:
+  6 passed, 0 failed, exit 0 (763.4311 ms); offline mocks, no DB access.
+
+### Application verification on unchanged application sources from 420401b3
+
+- Backend `npm ci --no-audit --no-fund --prefer-offline`: exit 0, 1176 packages,
+  independent local install; Node 24.13.0 / npm 11.6.2.
+- Backend `npm test -- --runInBand --silent --testPathPattern='src.integrations|src.email-intake'`:
+  exit 0; all 23 suites / 242 tests passed on one application revision, 164.122 s.
+  This supersedes the earlier mixed-revision backend evidence.
+- Backend `npm run build`: exit 0.
+- Frontend `npm ci --ignore-scripts --no-audit --no-fund --prefer-offline`: exit 0,
+  1512 packages; warning for existing frontend Node ^20.11.1 declaration.
+- Frontend `npm run build -- --configuration production --progress=false`: exit 0,
+  hash 83f103aa921cc7d6, 416222 ms. Unchanged stylesheet budget, CommonJS and initial
+  bundle budget warnings. This supersedes the prior ENOSPC build failure.
+- Frontend final focused email test command is the same CHROME_BIN/tsconfig/includes
+  recorded earlier; latest result recorded below. No unrelated full-suite reruns.
+
+### Composio and OAuth evidence
+
+- Read-only management inspection returned HTTP 403 for the configured Gmail
+  baseline and separately for the user-supplied Outlook auth config. Metadata and
+  scopes are therefore unverified; no attempt was made to widen the API key.
+- `node scripts/configure-outlook-dev.cjs` resolved all five Outlook allowlisted
+  tools to 20261120_00 and wrote only Outlook local DEV settings. The helper now
+  accepts --auth-config-id or the existing local setting; no ID/key is hardcoded.
+- Syntax checks passed for the schema, configuration and connection helper scripts.
+- `node scripts/test-outlook-dev-connection.cjs`: provider accepted a hosted auth
+  link using the supplied config. Only OAuth state under a technical DEV owner was
+  created. Loopback callback listener on 4318 runs for 10 minutes. User Microsoft
+  consent/callback verification is still pending. All email tools except profile
+  identity are blocked; no import, AI, scheduler, account deletion or message read.
+- Computer Use inspection previously stopped because it could not confidently
+  determine the browser URL; no browser changes were made through that attempt.
+
+No main integration, push, deployment or production access. Remaining live acceptance:
+user Microsoft consent, verified callback/identity and (only under separately agreed
+fixture scope) attachment/import checks. Current scripts do not authorize such reads.
+Final frontend focused run: same recorded CHROME_BIN and npm test command passed all 14 tests in Edge 158, exit 0. Final node --check passed for all three new operational helpers; git diff --check passed. New helper tests cover only offline schema guards. Local environment remains ignored and is not committed.

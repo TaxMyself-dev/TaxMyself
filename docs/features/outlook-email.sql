@@ -1,6 +1,6 @@
--- Outlook message IDs: PREPARED ONLY on 2026-11-23.
--- Elazar approved preparing this change only; application to any DB is NOT authorized.
--- Apply only this standalone statement after separate approval and live preflight.
+-- Outlook message IDs: prepared and applied to DEV only on 2026-11-23.
+-- Elazar explicitly approved keepintax-dev application; PROD is NOT authorized.
+-- DEV application verified with the guarded helper; repeat only after live preflight.
 -- Requires the existing durable intake schema; do not run the cumulative cutover file.
 -- Preflight: verify message_id contains only ASCII, every value fits 512 characters,
 -- and the table uses an InnoDB row format supporting a 3072-byte index key.
