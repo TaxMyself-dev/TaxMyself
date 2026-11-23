@@ -1,4 +1,72 @@
+## Admin plan and personal pricing (2026-11-05)
+
+Subscription supports LIVE/FROZEN base policy plus permanent/dated final personal
+net price. PricingService resolves CUSTOM > same-plan FROZEN > catalog, then applies
+legacy discounts only without CUSTOM. Jerusalem DATE boundaries apply. Plan modules
+always stay live (explicit [] grants none). Actual plan transitions atomically
+reset frozen base via frozenPricePlanPatch; debt recovery preserves current plan
+and frozen terms. Fresh reservations validate pricingFingerprint under the subscription
+lock; original obligations, attempts and banking agreements never reprice.
+
+Admin /pricing context/mutations and catalog impact/delete remain behind the real
+admin gate. Price/catalog mutations persist actor/before/after events transactionally.
+Inactive plans stop new admission only, preserving saved commitments and members.
+Soft-delete rejects all current/pending references; historical reads use withDeleted.
+Zero-price periods advance locally without provider/receipt/accounting, with durable
+ZERO_PRICE_PERIOD_V1 evidence for subsequent upgrades. Approved zero banking first
+periods validate their ACTIVATE event rather than current catalog pricing.
+
+Apply the prepared subscription_pricing SQL manually before app startup; no live
+DB or provider work was performed. Full rules/migration/manual checks:
+`docs/features/admin-subscription-pricing.md`. Main integration and any GitHub push
+remain subject to the user approval boundaries recorded in the task.
+
 ## Purpose
+KT-105 billing reliability (2026-11-09): payment-required access now carries an
+explicit reason, including overdue ACTIVE rows, so guards open payment recovery
+instead of the plan-upgrade dialog. A definitive token decline gets two durable
+Cloud Tasks retries thirty minutes apart; UNKNOWN is read-only reconciliation
+and is never resubmitted. The charge queue is independently opt-in with
+`BILLING_CHARGE_TASKS_ENABLED=true`, a dedicated queue/target/audience and a
+repair endpoint that only republishes DB-authoritative schedules.
+
+Every charge attempt freezes a versioned payer profile. Hosted checkout sends
+visible payer fields and requires the locally saved name, identity number,
+email, phone and business number before creating a payable page. Verified
+CardCom UI values update the profile; owner settings edits affect future
+attempts only. Provider logs distinguish prepared, HTTP dispatch, response,
+definite not-sent and ambiguous outcomes without token/card/payer data.
+
+Hosted debt recovery persists the exact CardCom LowProfile URL on the canonical
+attempt before returning it to the browser. `POST /billing/checkout/continue`
+first performs a read-only `GetLpResult` lookup: verified capture continues
+completion, a provider-proven final decline releases the old attempt and may
+open one fresh page, and an unknown/pending result returns the same saved URL.
+Time, a missing transaction, a transport error, or an unavailable provider is
+never treated as proof that a new charge is safe. Only HTTPS URLs on
+`secure.cardcom.solutions` are stored or returned.
+
+Initial TRIAL/TRIAL_EXPIRED purchases apply the same safety rule directly on a
+repeated `POST /billing/checkout`. If an earlier canonical CHECKOUT has a saved
+LowProfile and safe hosted URL, the backend performs the existing read-only
+CardCom inspection. UNKNOWN/pending state returns that same page, verified
+capture returns processing/completed without another page, and only a
+provider-proven final decline releases the attempt and permits one replacement.
+Missing or unsafe durable checkout identity fails closed for support review.
+The subscription-wide reservation scan must return that exact blocking hosted
+CHECKOUT to the caller before deriving a new date, plan or obligation key; it
+must not throw the generic duplicate-payment conflict first. Other obligation
+kinds, malformed attempt ownership and multiple blocking initial checkouts stay
+fail-closed.
+
+Admin manual money actions are separate. Debt settlement is PAST_DUE-only,
+shows all frozen unpaid periods and their VAT-inclusive total, tries the saved
+card exactly once, and activates only after verified capture plus completion.
+The independent MANUAL_ONE_OFF obligation requires a VAT-inclusive amount,
+description, consent evidence and UUID request key, produces its own receipt,
+and never changes subscription status, dates, plan or renewal counters.
+CANCELED subscriptions are never reactivated by either path.
+
 Captured completion transport (2026-11-02): Cloud Tasks replaces the minute
 PDF/email recovery cron. BillingTasksService is opt-in (BILLING_TASKS_ENABLED=true)
 and validates explicit queue/project/HTTPS audience/service-account/database binding
@@ -164,6 +232,11 @@ lookup and newer-card protection. Receipt/link/finalization and admin recovery
 reuse existing attempt leases. No new schema. Old attempt-less callbacks retain
 their legacy path; ACTIVE plan changes now use KT-049 below.
 
+Leaving the initial CardCom page does not require an operator to find or cancel
+the session. A later plan submission reuses the blocking canonical attempt and
+its stored page after a read-only provider check. It never assumes that an old,
+missing or unreachable page proves no charge occurred.
+
 ### Prorated plan changes (KT-051)
 
 New ACTIVE plan changes use BillingPlanChangeService. Owner preview returns a
@@ -234,8 +307,8 @@ accrual. Stored debts remain intact; no new payment/debt is opened while exempt.
 Elazar approved immediate direct module blocking on 2026-10-06: PAST_DUE
 always resolves to no modules, even with a future stored gracePeriodEndsAt.
 access.gracePeriodActive is always false. The first two confirmed renewal
-declines keep the existing +3/+7-day retries; the third enters PAST_DUE and
-blocks immediately. Existing local unusable-card transitions to PAST_DUE are
+declines schedule retries thirty minutes after the preceding decline; the third
+enters PAST_DUE and blocks immediately. Existing local unusable-card transitions to PAST_DUE are
 unchanged and also block by status. Verified delegation/admin impersonation
 overrides remain intact. Legacy grace dates are retained for compatibility,
 not access. Auth-only owner billing checkout/card-change routes stay reachable;
@@ -258,6 +331,10 @@ I/O. Unresolved reservations block another checkout. One ChargeAndCreateToken
 collects the total; verified card storage follows existing best-effort behavior
 and protects a newer card. A definite decline releases all reservations but
 keeps membership history; UNKNOWN never permits a replay.
+When a hosted reservation is already active, the typed pending response may
+include its LowProfile id. The customer UI uses it only to match a tab-local
+URL previously returned by CardCom and resume that exact page; it never derives
+a provider URL or opens another attempt from the identifier.
 
 Captured completion issues one existing invoice/receipt with one line per
 frozen period and atomically satisfies all members after document completion.
@@ -514,7 +591,7 @@ and `MANUAL_REVIEW` never enter it and are never replayed.
   locally recovered one (`BillingHostedCompletionService.activateSubscription`)
   and the live webhook's (`CardcomWebhookService.processVerifiedSuccess`) — set
   `renewalAttempts` to 0 in the same locked `PAST_DUE` -> `ACTIVE` update, so
-  the next cycle starts a fresh 3-day / 7-day / `PAST_DUE` sequence. The
+  the next cycle starts a fresh 30-minute / 30-minute / `PAST_DUE` sequence. The
   webhook resets only when the row it locked was `PAST_DUE`.
 ### Read-only reconciliation (KT-038 Task 5A2)
 
@@ -550,7 +627,7 @@ a hosted attempt via `getLowProfileResult` with its persisted LowProfile id.
   `applyPreSubmissionFailure` applies one atomic transition (sanitized
   `LOCAL_<REASON>` category, no token/key/raw error stored or logged):
   customer action (no payment method, no token, missing/expired expiry) ends the
-  attempt `DECLINED` without the 3/7-day policy (`renewalAttempts` untouched)
+  attempt `DECLINED` without the 30-minute retry policy (`renewalAttempts` untouched)
   and moves an ACTIVE subscription to `PAST_DUE` with the legacy grace date (no access under KT-041),
   so hosted recovery/change-payment-method can collect; system action (token
   decryption failure) ends `MANUAL_REVIEW` with the subscription unchanged and
@@ -721,3 +798,61 @@ Controlled dev PDF/mail retry acceptance passed on existing invoice 30000 on
 2026-11-02. Optional BILLING_DEV_RECOVERY_PROBE_CONFIG installs strictly scoped
 local adapters only in the isolated dev profile; normal startup installs none.
 See docs/features/billing-cloud-tasks.md for boundaries, restoration and replay.
+
+## Billing reliability and manual collection (KT-105)
+
+The additive payer-profile/provider-diagnostics schema in the KT-105 section of
+`docs/redesign/cutover.sql` was applied and verified on `keepintax-dev` on
+2026-11-10, including the durable hosted-payment URL. Production execution is
+not authorized. The dedicated raw-mysql
+runner `scripts/migrations/2026-11-09_apply-billing-reliability-dev.js` refuses
+any database other than `keepintax-dev` and supports explicit review/apply modes.
+
+An `ACTIVE_OVERDUE` owner must call `POST /billing/overdue/prepare` before
+opening recovery. The endpoint locks the subscription, freezes the first unpaid
+period as one `RECURRING_PERIOD` obligation, records `OVERDUE_DEBT_CREATED`, and
+changes only `ACTIVE` to `PAST_DUE`. It creates no billing attempt and makes no
+CardCom call; the existing recovery flow performs the later customer-approved
+payment. Repeated calls return the existing open debt.
+
+Recovery preview and atomic reservation must select the identical set of open
+`RECURRING_PERIOD` obligations. Historical `CHECKOUT` obligations and independent
+`MANUAL_ONE_OFF` charges are not subscription debt and must never enter the
+recovery quote, collection membership or amount.
+
+### Hosted checkout resolution gate (KT-113)
+
+`GET /billing/checkout/status` is an authenticated direct-owner endpoint for
+resolving an already-created hosted CardCom checkout. It accepts an optional
+LowProfile identifier, scopes it to the owner's subscription and canonical
+`CHECKOUT`/`RECOVERY` attempt, and performs only the existing read-only provider
+inspection. It never reserves an obligation, creates a LowProfile page or
+submits a charge. A verified capture is passed to the existing idempotent
+`BillingHostedCompletionService`; only `COMPLETED` is reported as completed.
+Provider-proven decline/cancel/expiry is retryable, while unknown, transport
+failure, concurrent processing, missing provider identity and manual review
+remain blocking.
+
+`GET /billing/me` exposes `pendingCheckout` for the direct owner when the
+canonical obligation still points to an unresolved hosted attempt. This durable
+projection is the re-entry source after refresh, browser close or a later login;
+browser storage is never authoritative. Delegated and admin-impersonated reads
+do not expose this owner checkout projection. No schema, amount, VAT, receipt,
+accounting, credential or CardCom URL change is part of this gate.
+
+KT-114 narrows the terminal non-success case using CardCom's documented
+`GetLpResult` contract. A non-zero top-level `ResponseCode` may release the
+hosted attempt only when the response echoes the exact LowProfile id, terminal
+and JSON ReturnValue for that owner/subscription/plan/attempt, contains no
+transaction id and contains no successful nested transaction. Credential,
+transport, malformed, foreign and conflicting results remain `UNKNOWN` or
+`MANUAL_REVIEW`; they never authorize another checkout. Unknown results persist
+the bounded, sanitized provider response code and description when supplied.
+Reconciliation logs one request and one normalized outcome using the existing
+token-free provider envelope (attempt/subscription/obligation identifiers,
+trigger/mode, opaque provider keys, amount/currency, response code and failure
+category); no card, token or payer data is logged. A correlated terminal
+non-success follows the existing atomic `DECLINED` transition, which releases
+the active obligation and lets the status page return the owner to the matching
+plans/recovery flow. This adds no provider write, schema, amount, VAT, receipt or
+accounting change.

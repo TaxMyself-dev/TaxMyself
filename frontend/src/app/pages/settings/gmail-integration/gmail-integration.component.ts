@@ -1,3 +1,4 @@
+import { environment } from 'src/environments/environment';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -8,6 +9,7 @@ import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
 import { GenericService } from 'src/app/services/generic.service';
+import { AuthService } from 'src/app/services/auth.service';
 import { GmailSyncStateService } from 'src/app/services/gmail-sync-state.service';
 import {
   GmailAccountSyncStatus,
@@ -39,6 +41,7 @@ import { inputsSize } from 'src/app/shared/enums';
   ],
 })
 export class GmailIntegrationComponent implements OnInit {
+  readonly authService = inject(AuthService);
   readonly syncState = inject(GmailSyncStateService);
   private readonly integrationsService = inject(IntegrationsService);
   private readonly messageService = inject(MessageService);
@@ -46,11 +49,14 @@ export class GmailIntegrationComponent implements OnInit {
   private readonly genericService = inject(GenericService);
   private readonly fb = inject(FormBuilder);
 
+  readonly showRunDiagnostics = environment.enableDevTools;
   readonly buttonSize = ButtonSize;
   readonly buttonColor = ButtonColor;
   readonly inputsSize = inputsSize;
   readonly isMobile = computed(() => this.genericService.isMobile());
 
+  durableState(value:string):string {return ({READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
+  runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
   readonly connecting = signal(false);
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
   readonly importing = signal(false);
@@ -59,6 +65,19 @@ export class GmailIntegrationComponent implements OnInit {
 
   /** דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני. */
   readonly importDialogVisible = signal(false);
+  readonly manualImportForm = this.fb.group({
+    fromDate: this.fb.control<Date | null>(null, Validators.required),
+    toDate: this.fb.control<Date | null>(null, Validators.required),
+  });
+
+  manualRangeValid(): boolean {
+    const { fromDate, toDate } = this.manualImportForm.getRawValue();
+    const min = this.minFromDate();
+    const max = this.maxToDate();
+    return this.manualImportForm.valid && !!fromDate && !!toDate && !!min && !!max
+      && Number.isFinite(fromDate.getTime()) && Number.isFinite(toDate.getTime())
+      && fromDate >= min && toDate <= max && fromDate <= toDate;
+  }
   /** מזהי החשבונות המסומנים בדיאלוג; מאותחל מחדש בכל פתיחה. */
   readonly selectedImportIds = signal<ReadonlySet<number>>(new Set());
 
@@ -80,7 +99,7 @@ export class GmailIntegrationComponent implements OnInit {
 
   ngOnInit(): void {
     // רענון בכל כניסה למסך; אם ייבוא רץ — השירות ממשיך/מחדש את ה-polling.
-    this.syncState.refresh();
+    if (!this.authService.isViewingAsClient()) this.syncState.refresh();
   }
 
   isDisconnecting(integrationId: number): boolean {
@@ -107,10 +126,10 @@ export class GmailIntegrationComponent implements OnInit {
   }
 
   /** מפנה למסך ההסכמה של Google לחיבור חשבון (נוסף); החזרה נוחתת בהגדרות. */
-  connectGmail(): void {
-    if (this.connecting()) return;
+  connectGmail(integrationId?: number): void {
+    if (this.connecting() || this.authService.isViewingAsClient()) return;
     this.connecting.set(true);
-    this.integrationsService.getGoogleConnectUrl().subscribe({
+    this.integrationsService.getGoogleConnectUrl(integrationId).subscribe({
       next: ({ url }) => {
         window.location.href = url;
       },
@@ -136,6 +155,7 @@ export class GmailIntegrationComponent implements OnInit {
   openImportDialog(): void {
     if (this.importing()) return;
     this.selectedImportIds.set(new Set(this.selectableAccounts().map((a) => a.id)));
+    this.manualImportForm.reset();
     this.importDialogVisible.set(true);
   }
 
@@ -169,18 +189,37 @@ export class GmailIntegrationComponent implements OnInit {
 
   /** ייבוא מהחשבונות שנבחרו בדיאלוג (כפתור האישור). */
   importSelected(): void {
-    if (this.importing() || !this.hasImportSelection()) return;
+    if (this.importing() || !this.hasImportSelection() || !this.manualRangeValid()) {
+      this.manualImportForm.markAllAsTouched();
+      return;
+    }
+    const { fromDate, toDate } = this.manualImportForm.getRawValue();
     this.importing.set(true);
-    this.integrationsService.importGmail([...this.selectedImportIds()]).subscribe({
+    this.manualImportForm.disable();
+    this.integrationsService.importGmail(
+      [...this.selectedImportIds()], this.dateToApiString(fromDate), this.dateToApiString(toDate),
+    ).subscribe({
       next: (result) => {
         this.importing.set(false);
+        this.manualImportForm.enable();
         this.importDialogVisible.set(false);
+        if(result.started){
+          this.messageService.add({severity:'info',summary:'המשיכה התחילה',detail:'המשיכה והעיבוד ממשיכים בהדרגה. ההתקדמות תוצג במסך זה.',key:'br'});
+          this.syncState.refresh(); return;
+        }
         const failed = result.perAccount.filter((a) => a.error);
+        const reviewRequired = result.perAccount.reduce((total, account) => total + (account.reviewRequired || 0), 0);
+        const passwordRequired = result.perAccount.reduce((total, account) => total + (account.passwordRequired || 0), 0);
+        const filtered = result.perAccount.reduce((total, account) => total + (account.filteredAttachments || 0), 0);
         this.messageService.add({
           severity: failed.length > 0 ? 'warn' : 'success',
           summary: 'ייבוא הושלם',
           detail:
             `יובאו ${result.totalImported} מסמכים חדשים` +
+            (passwordRequired ? `; ${passwordRequired} מסמכים דורשים סיסמה ונשמרו לטיפול במסמכי העסק` : '') +
+            `; ${result.totalAlreadyImported} כבר קיימים; ${result.totalSkipped} דולגו בעת קליטה` +
+            `; ${filtered} סוננו לפני קליטה` +
+            (reviewRequired ? `; ${reviewRequired} קבצים דורשים בדיקה ולא סומנו כלא רלוונטיים` : '') +
             (failed.length > 0
               ? ` (נכשלו: ${failed.map((a) => a.accountEmail ?? `חשבון ${a.integrationId}`).join(', ')})`
               : ''),
@@ -193,6 +232,7 @@ export class GmailIntegrationComponent implements OnInit {
         // הדיאלוג נשאר פתוח לניסיון חוזר; רענון תופס רשימת חשבונות לא עדכנית
         // (למשל חשבון שנבחר והפך EXPIRED בינתיים — השרת מחזיר 404).
         this.importing.set(false);
+        this.manualImportForm.enable();
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
@@ -258,6 +298,7 @@ export class GmailIntegrationComponent implements OnInit {
       },
       error: () => {
         this.setDisconnecting(integrationId, false);
+        this.syncState.refresh();
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',

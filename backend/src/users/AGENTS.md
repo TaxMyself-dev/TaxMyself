@@ -1,4 +1,9 @@
 ## Purpose
+
+Direct-card notice: directCardNoticeDismissed defaults false and is written only
+by the owner-only transactions/direct-card-notice endpoint. Generic profile updates
+strip this field and the cashflow preference. The existing lastLoginAt supplies
+the real-login token for browser-local temporary notice suppression.
 Owns the user account entity/lifecycle (signup, signin, profile update, children), Firebase-auth integration, and per-user Google Drive folder provisioning.
 
 ## Key entities/files
@@ -45,3 +50,31 @@ Apply the appended user-column SQL in docs/redesign/cutover.sql before deploymen
 UsersService uses BillingService.ensureTrialSubscriptionRecord for persistence only, within the caller transaction. BillingService.ensureTrialSubscription retains the full billing API response outside that transaction. Do not build billing/enrollment presentation state during user creation. Missing enrollment subscription is an internal error (500).
 
 Banking login work is dispatched before awaiting Drive diagnostics. A slow/failed Drive check must not delay or prevent banking synchronization; synthetic-demo skip behavior is unchanged.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Referral signup locks the selected active plan for reading inside the signup
+transaction, so concurrent administrative soft deletion cannot leave a new user
+assigned to a deleted plan. Existing missing/inactive referral fallback is unchanged.
+
+## Banking login activity attribution
+
+The signin handler uses FeezbackUserActivityInterceptor after authentication.
+Only the verified owner's session can carry an IP into its immediate async
+banking sync; admin/delegated sessions and independent background work cannot.
+No IP is persisted on User. See
+[Feezback activity](../../../docs/features/feezback-user-activity.md).

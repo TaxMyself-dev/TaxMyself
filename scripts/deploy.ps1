@@ -35,6 +35,7 @@ param(
   [ValidateSet('Full', 'Backend', 'Frontend')]
   [string]$Target = 'Full',
   [switch]$SkipLocalTests,
+  [switch]$Rebuild,
   [Alias('h')]
   [switch]$Help,
   [string]$Project = 'taxmyself-prod',
@@ -52,7 +53,7 @@ if ($Help) {
 KeepInTax production deployment
 
 Usage:
-  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests]
+  .\scripts\deploy [full|backend|frontend] [-SkipLocalTests] [-Rebuild]
   .\scripts\deploy -Help
 
 Target (optional; default: full):
@@ -63,6 +64,7 @@ Target (optional; default: full):
 Options:
   -SkipLocalTests  Skip local backend Jest and smoke configuration tests.
                    Builds and all production safety checks still run.
+  -Rebuild         Ignore recorded builds and rebuild locally and in the cloud.
   -Help, -h        Show this help without starting a deployment.
 
 Examples:
@@ -89,7 +91,7 @@ $script:CandidateImage = $null
 $script:PreviewUrl = $null
 $script:ReleaseDirectory = $null
 $script:ReleaseId = $null
-$script:BackupChannel = 'production-rollback'
+$script:BackupChannel = $null
 $script:GitCommand = $null
 $script:GcloudCommand = $null
 $script:FirebaseCommand = $null
@@ -98,6 +100,11 @@ $script:PowerShellCommand = $null
 $script:QuietConsole = $false
 $script:LogWriter = $null
 $script:LogPath = $null
+$script:BuildCacheKey = $null
+$script:BuildCacheDirectory = $null
+$script:ReusableBackendImage = $null
+$script:FrontendBuildHash = $null
+. (Join-Path $PSScriptRoot 'deploy-build-cache.ps1')
 
 function Write-ReleaseLog([object]$Record) {
   if ($null -eq $script:LogWriter) { return }
@@ -254,6 +261,25 @@ function Initialize-DeploymentSessions {
     }
   }
 }
+function New-FrontendBackup {
+  # Create before cloning: reusing a stale channel can fail with "channel expired".
+  # Keep this channel after success or rollback; Firebase expires it after 3 days.
+  Invoke-Native $script:FirebaseCommand @(
+    'hosting:channel:create', $script:BackupChannel,
+    '--site', $HostingSite,
+    '--expires', '3d',
+    "--project=$Project",
+    '--non-interactive'
+  )
+  Invoke-Native $script:FirebaseCommand @(
+    'hosting:clone', "${HostingSite}:live", "${HostingSite}:$($script:BackupChannel)",
+    "--project=$Project",
+    '--non-interactive'
+  )
+  $script:FrontendBackupCreated = $true
+  Write-ReleaseLog "Frontend backup channel: $($script:BackupChannel) (expires in 3 days)"
+}
+
 function Get-CommandName([string]$Name) {
   $windowsName = "$Name.cmd"
   if ($env:OS -eq 'Windows_NT' -and (Get-Command $windowsName -ErrorAction SilentlyContinue)) {
@@ -572,6 +598,7 @@ try {
     $sequence = [int](Get-NextReleaseSequence $revisionNames)
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $script:ReleaseId = "r$timestamp-$($sequence.ToString('D4'))"
+    $script:BackupChannel = "rollback-$($script:ReleaseId)"
 
     $activeTraffic = @($serviceState.status.traffic | Where-Object { (Get-TrafficPercent $_) -gt 0 })
     if ($activeTraffic.Count -ne 1 -or
@@ -601,7 +628,7 @@ try {
     $plannedStages.Add('Install smoke dependencies and run the selected local verification')
     if ($deployFrontend) {
       $plannedStages.Add('Deploy the frontend to a Firebase preview channel and run read-only browser smoke')
-      $plannedStages.Add('Clone the current Firebase live release to the production-rollback channel')
+      $plannedStages.Add('Clone the current Firebase live release to a per-release rollback channel retained for 3 days')
       $plannedStages.Add('Promote the exact tested preview version to Firebase live')
     }
     $plannedStages.Add('Run the full production signup/login/cleanup smoke suite')
@@ -609,12 +636,22 @@ try {
     Write-ReleaseLog "Target: $Target"
     Write-ReleaseLog "Local tests: $(if ($SkipLocalTests) { 'skipped; builds and production gates remain required' } else { 'required' })"
     Write-ReleaseLog "Fixture release: $($script:ReleaseId)"
+    Write-ReleaseLog "Fixture backup channel: $($script:BackupChannel) (expires in 3 days)"
     return
   }
 
   # Install exactly the locked backend dependencies, run the full Jest suite,
   # and prove the Nest production bundle compiles before touching the cloud.
+  $script:BuildCacheDirectory = Join-Path $logDirectory 'build-cache'
+  $script:BuildCacheKey = Get-BuildInputKey
+
   if ($deployBackend) { Invoke-Stage 'Backend dependencies, tests, and production build' {
+    $output = Join-Path $backendDirectory 'dist'
+    if (Test-CachedBuild 'backend' $output) {
+      Write-Host 'REUSE: backend dependencies, tests and build already completed for these inputs.'
+      return
+    }
+    Clear-CachedBuild 'backend'
     Push-Location $backendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
@@ -624,12 +661,20 @@ try {
         Invoke-Native $script:NpmCommand @('test', '--', '--runInBand')
       }
       Invoke-Native $script:NpmCommand @('run', 'build')
+      Save-CompletedBuild 'backend' $output
     } finally { Pop-Location }
   } }
 
   # Build the Angular production output that will later be uploaded to a
   # preview channel and, only after browser verification, cloned to live.
   if ($deployFrontend) { Invoke-Stage 'Frontend dependencies and production build' {
+    $output = Join-Path $frontendDirectory 'dist/app'
+    if ((Test-Path -LiteralPath (Join-Path $output 'index.html')) -and (Test-CachedBuild 'frontend' $output)) {
+      $script:FrontendBuildHash = Get-BuildTreeHash $output
+      Write-Host 'REUSE: frontend production build already completed for these inputs.'
+      return
+    }
+    Clear-CachedBuild 'frontend'
     Push-Location $frontendDirectory
     try {
       Invoke-Native $script:NpmCommand @('ci')
@@ -637,6 +682,8 @@ try {
       if (!(Test-Path -LiteralPath (Join-Path $frontendDirectory 'dist/app/index.html'))) {
         throw 'Frontend production build did not create dist/app/index.html'
       }
+      Save-CompletedBuild 'frontend' $output
+      $script:FrontendBuildHash = Get-BuildTreeHash $output
     } finally { Pop-Location }
   } }
 
@@ -657,6 +704,12 @@ try {
   # Package backend source from the verified Git commit, never from mutable
   # working-tree files. Secrets, dependencies, and build output are excluded.
   if ($deployBackend) { Invoke-Stage 'Create clean backend source snapshot' {
+    Assert-BuildInputsUnchanged
+    $script:ReusableBackendImage = Get-ReusableBackendImage
+    if ($script:ReusableBackendImage) {
+      Write-Host 'REUSE: immutable backend image is available; source packaging and cloud build are unnecessary.'
+      return
+    }
     Set-Location $repositoryRoot
     $dirty = Invoke-NativeCapture $script:GitCommand @('status', '--porcelain')
     if ($dirty.Trim()) { throw 'Working tree changed during verification; refusing to deploy' }
@@ -677,12 +730,18 @@ try {
   # Build/deploy a new immutable Cloud Run revision with a direct tag URL but
   # keep all public production traffic on the previously serving revision.
   if ($deployBackend) { Invoke-Stage 'Deploy backend candidate with zero traffic' {
-    $source = Join-Path $script:ReleaseDirectory 'backend-source'
+    Assert-BuildInputsUnchanged
+    if ($script:ReusableBackendImage) {
+      $deploymentInput = "--image=$($script:ReusableBackendImage)"
+    } else {
+      $source = Join-Path $script:ReleaseDirectory 'backend-source'
+      $deploymentInput = "--source=$source"
+    }
     $expectedRevision = "$BackendService-$($script:ReleaseId)"
     try {
       Invoke-Native $script:GcloudCommand @(
         'run', 'deploy', $BackendService,
-        "--source=$source",
+        $deploymentInput,
         "--project=$Project",
         "--region=$Region",
         "--revision-suffix=$($script:ReleaseId)",
@@ -729,6 +788,10 @@ try {
       $script:BackendPromoted = $true
       throw 'The zero-traffic deployment unexpectedly changed production traffic'
     }
+    if ($script:ReusableBackendImage -and $script:CandidateImage -ne $script:ReusableBackendImage) {
+      throw 'Candidate image differs from the verified cached image'
+    }
+    Write-BuildCache 'image' @{ image = $script:CandidateImage }
     Write-ReleaseStatus 'INFO' "Candidate revision: $($script:CandidateRevision)" DarkGray
     Write-ReleaseStatus 'INFO' "Candidate URL: $($script:CandidateUrl)" DarkGray
   } }
@@ -783,6 +846,10 @@ try {
   # Upload the already-built frontend to an expiring preview channel. Live
   # users still receive the old Firebase Hosting version at this point.
   if ($deployFrontend) { Invoke-Stage 'Deploy Firebase frontend preview' {
+    Assert-BuildInputsUnchanged
+    if ((Get-BuildTreeHash (Join-Path $frontendDirectory 'dist/app')) -ne $script:FrontendBuildHash) {
+      throw 'Frontend build output changed after verification; refusing to deploy'
+    }
     Set-Location $repositoryRoot
     $previewOutput = Invoke-NativeCapture $script:FirebaseCommand @(
       'hosting:channel:deploy', $script:ReleaseId,
@@ -821,15 +888,10 @@ try {
     }
   } }
 
-  # Preserve the exact currently-live Hosting version in a fixed rollback
+  # Preserve the exact currently-live Hosting version in a per-release rollback
   # channel immediately before changing the live frontend.
   if ($deployFrontend) { Invoke-Stage 'Back up current Firebase live release' {
-    Invoke-Native $script:FirebaseCommand @(
-      'hosting:clone', "${HostingSite}:live", "${HostingSite}:$($script:BackupChannel)",
-      "--project=$Project",
-      '--non-interactive'
-    )
-    $script:FrontendBackupCreated = $true
+    New-FrontendBackup
   } }
 
   # Promote by cloning the exact preview version that passed browser smoke;

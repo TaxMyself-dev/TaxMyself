@@ -3,7 +3,11 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
-    "types": ["node"]
+    "types": ["node"],
+    // Libraries' declaration files are not type-checked (Angular's default):
+    // the AI SDK's (the agent's dev page, pages/dev-agent) need TypeScript
+    // 5.7+, and this app is on 5.5. The app's own code is checked as before.
+    "skipLibCheck": true
   },
   "files": [
     "src/main.ts",

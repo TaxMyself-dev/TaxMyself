@@ -33,6 +33,7 @@ import { BusinessStatus, TransactionsOutcomesColumns } from 'src/app/shared/enum
 import { IMobileCardConfig, IItemNavigate, IRowDataTable, ISelectItem, ITransactionData, IUserData } from 'src/app/shared/interface';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { buildTransactionColumns } from 'src/app/shared/transaction-columns.config';
+import { AgentConsentComponent } from '../../components/my-agent/agent-consent.component';
 import { TransactionsService } from '../transactions/transactions.page.service';
 import { OpenBankingNavigationService } from 'src/app/services/open-banking-navigation.service';
 import { FeezbackService } from 'src/app/services/feezback.service';
@@ -43,13 +44,14 @@ import { AccessService, FeatureState } from 'src/app/services/access.service';
 import { AccessHandlerService } from 'src/app/services/access-handler.service';
 import { AppFeature } from 'src/app/shared/access-control';
 import { AdminPanelService } from 'src/app/services/admin-panel.service';
+import { DirectCardNoticeComponent } from 'src/app/components/direct-card-notice/direct-card-notice.component';
 
 @Component({
   selector: 'app-my-account',
   templateUrl: './my-account.page.html',
   styleUrls: ['./my-account.page.scss'],
   standalone: true,
-  imports: [AccountImageComponent, OpenBankingErrorComponent,
+  imports: [AgentConsentComponent, AccountImageComponent, OpenBankingErrorComponent, DirectCardNoticeComponent,
     CommonModule,
     FormsModule,
     IonicModule,
@@ -69,7 +71,35 @@ import { AdminPanelService } from 'src/app/services/admin-panel.service';
   providers: [DialogService]
 })
 export class MyAccountPage implements OnInit {
+  // Root uses Angular router-outlet; Ionic entry hooks are not guaranteed.
+  readonly directNoticeActive = signal(true);
+  readonly agentConsentReturn=signal(false);
+  readonly directNoticeRefresh = signal(0);
   readonly bankingError = signal<BankingSupportError | null>(null);
+  private readonly fullSyncRetryStarting=signal(false);
+  readonly bankingFullSyncRetry={
+    enabled:()=>this.hasOpenBanking()===true && !this.isDelegatedClientView(),
+    busy:()=>this.fullSyncRetryStarting() || this.syncProcessStatus()==='running',
+    run:()=>this.retryBankingSync(),
+  };
+
+  retryBankingSync():void {
+    if(!this.bankingFullSyncRetry.enabled() || this.bankingFullSyncRetry.busy())return;
+    this.fullSyncRetryStarting.set(true);
+    this.syncProcessStatus.set('running');
+    this.restartPolling$.next();
+    this.syncStatusService.triggerFreshFullSync(()=>this.bankingFullSyncRetry.enabled()).pipe(
+      take(1),takeUntilDestroyed(this.destroyRef),
+      finalize(()=>{this.fullSyncRetryStarting.set(false);if(!this.bankingFullSyncRetry.enabled())this.syncProcessStatus.set(null);}),
+    ).subscribe({
+      next:({previousRunId})=>{if(this.bankingFullSyncRetry.enabled())this.startSyncStatusPolling(true,0,previousRunId);},
+      error:error=>{
+        if(!this.bankingFullSyncRetry.enabled())return;
+        this.syncProcessStatus.set('failed');
+        this.bankingError.set(bankingRequestError(error,'OB-03'));
+      },
+    });
+  }
 
   transactionService = inject(TransactionsService);
   genericService = inject(GenericService);
@@ -519,10 +549,16 @@ export class MyAccountPage implements OnInit {
   }
 
   ionViewWillEnter(): void {
+    this.directNoticeActive.set(true);
+    this.directNoticeRefresh.update(value => value + 1);
     // Ionic may retain this page while Settings updates the owner's profile.
     const profile = this.authService.getUserDataFromLocalStorage();
     if (profile) { this.userData = profile; this.hasOpenBanking.set(!!profile.hasOpenBanking); }
     if (this.transToClassify) this.getTransToClassify();
+  }
+
+  ionViewWillLeave(): void {
+    this.directNoticeActive.set(false);
   }
 
   ngOnInit() {
@@ -840,6 +876,7 @@ export class MyAccountPage implements OnInit {
                 next: user => {
                   this.hasOpenBanking.set(!!user?.hasOpenBanking);
                   this.feezbackDialogStatus.set(user?.hasOpenBanking ? 'prompt' : 'failure');
+                  if(user?.hasOpenBanking && !this.isDelegatedClientView())this.agentConsentReturn.set(true);
                   if (!user?.hasOpenBanking) this.feezbackDialogTitle.set('לא נמצא חיבור פעיל לבנקאות הפתוחה.');
                 },
                 error: () => {

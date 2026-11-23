@@ -16,7 +16,11 @@ import { BookingAccount } from './account.entity';
 @Unique('uq_sub_category_owner_category_name', ['chartOwnerKey', 'categoryId', 'name'])
 @Index('idx_sub_category_categoryId', ['categoryId'])
 @Index('idx_sub_category_accountId', ['accountId'])
+@Index('UQ_sub_category_system_key', ['systemKey'], { unique: true })
 export class SubCategory {
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  systemKey: string | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 

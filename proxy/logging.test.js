@@ -23,7 +23,7 @@ for (const endpoint of ['/tpp/v1/users/test/cards', '/token', '/link']) {
     });
     const token = 'eyJhbGciOiJSU0EtT0FFUC0yNTYi.encrypted-key.iv.ciphertext.tag';
     const signed = 'private-signed-body-token';
-    const headers = { authorization: 'Bearer ' + token, cookie: 'private-cookie', 'x-api-key': 'private-api-key' };
+    const headers = { authorization: 'Bearer ' + token, cookie: 'private-cookie', 'x-api-key': 'private-api-key', 'x-psu-ip-address': '203.0.113.72' };
     const written = [];
     const outgoing = {
       getHeaders: () => ({ ...headers }),
@@ -34,18 +34,21 @@ for (const endpoint of ['/tpp/v1/users/test/cards', '/token', '/link']) {
     };
     const req = { path: endpoint, url: endpoint, originalUrl: '/proxy/feezback' + endpoint,
       method: endpoint.endsWith('/cards') ? 'GET' : 'POST',
-      headers: { authorization: 'Bearer ' + token },
+      headers: { authorization: 'Bearer ' + token, 'x-psu-ip-address': '203.0.113.72' },
       body: endpoint.endsWith('/cards') ? undefined : { token: signed },
     };
+    const decorated = options.proxyReqOptDecorator({ headers: { ...headers } }, req);
+    if (endpoint.startsWith('/tpp/')) assert.equal(decorated.headers['x-psu-ip-address'], '203.0.113.72');
     options.router(req);
     options.on.proxyReq(outgoing, req, {});
     const output = logs.join('\n');
-    for (const secret of [token, token.slice(0, 30), signed, 'private-cookie', 'private-api-key']) {
+    for (const secret of [token, token.slice(0, 30), signed, 'private-cookie', 'private-api-key', '203.0.113.72']) {
       assert.equal(output.includes(secret), false, 'credential leaked in diagnostics');
     }
     assert.ok(output.includes('[REDACTED]'));
     assert.ok(output.includes('CURL COMMAND'));
     assert.equal(headers.authorization, 'Bearer ' + token);
+    assert.equal(headers['x-psu-ip-address'], endpoint.startsWith('/tpp/') ? '203.0.113.72' : undefined);
     if (req.body) assert.equal(written.join(''), JSON.stringify(req.body));
     else assert.equal(written.length, 0);
   });

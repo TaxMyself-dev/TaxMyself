@@ -1,4 +1,12 @@
 ## Purpose
+KT-105 replaces the ambiguous “manual charge” row action with two explicit
+flows. “Debt settlement” appears only for PAST_DUE subscriptions with a saved
+card, previews every unpaid period and a VAT-inclusive total, and performs one
+server-authorized attempt. “One-off additional charge” is available only for
+ACTIVE/PAST_DUE paying subscriptions with a saved card and requires a
+VAT-inclusive amount, receipt description and non-secret consent evidence.
+UNKNOWN results warn against retrying. Neither action accepts raw card details.
+
 Refund history offers PDF view/download for linked credit documents through an
 authenticated admin endpoint. Missing PDFs show an actionable completion message;
 view/download never triggers credit creation or money operations.
@@ -31,7 +39,18 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 - Plans: list/create/edit pricing plans and their included modules.
 - Complimentary access grant/revoke requires confirmation, is saved separately
   from ordinary plan edits, and hides manual-charge actions.
-- Subscriptions: list non-demo subscriptions, including each user's current open-banking connection flag and latest application login timestamp; filter locally by all, active, trial, or expired-trial status; edit plan/trial end/discounts; and run renewal batches. The two accountant-referral plans are labeled from their canonical slugs (`referral-basic` and `referral-open-banking`), so they stay visibly distinct even if stored names match; other plan names are preserved. The drawer save action uses the shared `ButtonColor.BLACK` configuration. After save the list reloads, including a backend-restored `TRIAL` status when an admin extends an expired trial into the future.
+- Subscriptions: list non-demo subscriptions plus the dedicated `billing-qa`
+  profile, including each user's current open-banking connection flag and latest
+  application login timestamp; all other demo profiles remain excluded. The QA
+  exception exists specifically to exercise debt settlement and one-off admin
+  charges against the test terminal. Filter locally by all, active, trial, or
+  expired-trial status; edit plan/trial end/discounts; and run renewal batches.
+  The two accountant-referral plans are labeled from their canonical slugs
+  (`referral-basic` and `referral-open-banking`), so they stay visibly distinct
+  even if stored names match; other plan names are preserved. The drawer save
+  action uses the shared `ButtonColor.BLACK` configuration. After save the list
+  reloads, including a backend-restored `TRIAL` status when an admin extends an
+  expired trial into the future.
 - Billing exceptions (KT-038 Task 5B, read-only): a subscription with an unresolved `UNKNOWN`/`MANUAL_REVIEW` attempt gets a small warning icon (tooltip: count + most severe status) inside the existing status cell; other rows are unchanged. Opening the existing drawer lazily calls `AdminBillingService.getUnresolvedBillingAttempts(id)` and renders a "חריגות חיוב" section (loading/empty/error states, newest first) with Hebrew status, charge mode, amount, timestamps, reconciliation counts, failure category, CardCom ids, token-recovered flag and whether the customer or an internal reviewer must act. The section has no actions and the API never carries tokens or raw provider data. Karma compiles every spec in the project, so run this area in isolation with a temporary `tsconfig.spec` whose `include` lists only `subscriptions/*.spec.ts` (`ng test --ts-config=… --include=…`).
 
 ## Payment exception resolution (KT-045, supersedes the read-only section above)
@@ -67,3 +86,45 @@ It never calls generate; missing documents retain only the generation action.
 Only sent=true produces the success toast; failed/busy delivery shows a warning.
 Requests suppress overlapping clicks and refresh the pending list afterwards.
 Isolated checks: tsconfig.receipt-email.spec.json.
+
+## Admin subscription pricing (2026-11-05)
+
+Plan editor supports base/licensed-dealer net monthly prices, a support display checkbox (preserving other saved feature keys),
+badge, recommendation, notes and all capability modules including EXPENSES.
+Trial duration is configured application-wide. The plan list and editor omit
+the legacy per-plan trial-days field and plan saves do not send it.
+A price change requires a successful impact read and explicit confirmation with
+live/frozen/custom subscriber counts. The form is locked while that confirmation
+is pending. Deactivation is presented as stopping new enrollment, preserving
+existing members. Delete is separately confirmed and relies on the server's
+subscription/pending-dependency guard; historical billing is preserved.
+
+The subscription drawer lazily loads its authoritative pricing context separately
+from payment exceptions and cancels old requests when switching/closing drawers.
+It exposes LIVE/FROZEN price policy and an optional final custom net monthly
+price, including zero, with date-only start and optional inclusive Israel-time
+end date. Custom prices override discounts and survive plan changes. Existing
+plan, trial, access-mode and discount controls remain. The summary distinguishes
+saved current/next amounts and source from unsaved requested changes. Pricing
+load failure blocks ordinary save and offers retry. Access-mode confirmation is
+still independent. Plan/trial/discount writes finish before changed pricing is
+saved. Those endpoints are separate transactions: failures explicitly report
+possible partial saves, close stale drawer state and reload the list before retry.
+Search covers user name, email and business name.
+
+Isolated checks: npm test -- --watch=false --browsers=ChromeHeadless --progress=false
+--karma-config=karma.admin-subscription-pricing.cjs
+--ts-config=tsconfig.admin-subscription-pricing.spec.json
+--include=src/app/shared/admin-billing/subscriptions/billing-subscriptions*.spec.ts
+--include=src/app/shared/admin-billing/plans/billing-plans.component.spec.ts
+--include=src/app/services/admin-billing.pricing.spec.ts
+--include=src/app/pages/billing/billing-plans.page.spec.ts
+(Karma uses port 9881). Production application validation: npm run build --
+--configuration production --progress=false. No live charge is needed for UI tests.
+
+Focused feature verification passed 33/33 tests in Chrome Headless 156 on
+2026-11-05. Coverage includes zero-price initial activation without redirect,
+pricing request sequencing, load failure, partial-save failure, stale drawer
+requests, date/zero validation, impact confirmation/cancellation, safe deletion,
+SUPPORT mapping and API request contracts. Production build is verified separately
+by the task integration manager against the final combined feature revision.

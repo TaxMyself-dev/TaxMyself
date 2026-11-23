@@ -116,6 +116,7 @@ export enum ClientsTableHebrewColumns {
 }
 
 export enum TransactionsOutcomesColumns {
+  CLASSIFICATION_SOURCE = 'classificationSourceLabel',
   BUSINESS_NAME = 'businessName',
   BUSINESS_NUMBER = 'businessNumber',
   TAX_PERCENT = 'taxPercent',
@@ -147,6 +148,7 @@ export enum BusinessStatus {
 }
 
 export enum TransactionsOutcomesHebrewColumns {
+  classificationSource = 'סווג על ידי',
   id = 'מספר עסקה',
   businessNumber = 'שייך לעסק',
   paymentIdentifier = 'אמצעי תשלום',
@@ -400,6 +402,8 @@ export enum ICellRenderer {
   /** Colored lifecycle-status pill. Reads the translated value from the
    * column and the semantic color key from row.status. */
   STATUS_BADGE = 'statusBadge',
+  /** Intake source with a compact channel icon and translated label. */
+  SOURCE_BADGE = 'sourceBadge',
   /** Plain ILS amount with " ש״ח" suffix. Lighter than AMOUNT_WITH_PERCENT
    *  (no percent line, no two-line layout) — used for report-summary cells
    *  where the row is already known to be in ILS and the percent context

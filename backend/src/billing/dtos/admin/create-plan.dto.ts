@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   Min,
 } from 'class-validator';
 import { ModuleName } from 'src/enum';
@@ -26,7 +27,23 @@ export class CreatePlanDto {
   /** Price in agorot (integer). ₪54.00 = 5400. */
   @IsInt()
   @Min(0)
+  @Max(100000000)
   priceMonthlyAgorot: number;
+
+  @IsOptional() @IsInt() @Min(0) @Max(100000000)
+  licensedDealerPriceMonthlyAgorot?: number | null;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  features?: string[] | null;
+
+  @IsOptional() @IsString() @MaxLength(100)
+  badge?: string | null;
+
+  @IsOptional() @IsBoolean()
+  recommended?: boolean;
+
+  @IsOptional() @IsString()
+  notes?: string | null;
 
   @IsOptional()
   @IsString()
@@ -41,6 +58,7 @@ export class CreatePlanDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(100000000)
   trialDays?: number;
 
   @IsOptional()

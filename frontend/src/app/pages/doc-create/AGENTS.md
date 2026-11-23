@@ -26,8 +26,18 @@ UI states, not retry prompts.
   recalculate the payment total before the restored document can be issued.
 - An allocation request is never sent for a mutable draft. The page first
   creates a `PENDING_ALLOCATION` document and receives its reserved final
-  number; it then sends only that persisted identity to the backend. The
-  backend saves the allocation before completing PDF/journal issuance.
+  number and journal entry; it then sends only that persisted identity to the
+  backend. The backend saves the allocation before completing PDF issuance.
+  Choosing "הפק מספר הקצאה מאוחר יותר" records that pending document and
+journal now, without generating a PDF. White actions in the allocation decision
+dialog use the shared `WHITE_BORDER` variant and therefore have a black outline.
+  Choosing "הפק מספר הקצאה באופן ידני" persists the same pending document,
+  then navigates to the incomes page with `autoOpenAllocationFor` so the existing
+  populated manual dialog opens immediately.
+  Automatic allocation immediately shows a continuous loading dialog. Its
+  first phase says the Tax Authority connection is being checked; after a usable
+  connection is confirmed it switches to allocation issuance and remains open
+  while the pending document is saved and the SHAAM request completes.
 - Select document type and issuing business; auto-fill/select recipient client (create/update/delete clients).
 - Build line items with VAT/discount calculation, running totals.
 - Configure payment details per method (bank transfer, credit card, check, cash, app). The desktop selector uses the current PrimeNG `Tabs` API; do not reintroduce deprecated `TabMenu`, whose PrimeNG 19 dynamic styles conflict with `Tabs`/legacy `TabView` based on load order.
@@ -37,6 +47,9 @@ UI states, not retry prompts.
   Preview rendering is platform-split: desktop browsers open a normal browser tab
   (`FilesService.previewFile3`), while mobile viewports and installed PWAs render
   the same Blob in-app via `components/pdf-preview-dialog` (pdf.js → canvas),
+  with explicit `dir="ltr"` on each PDF canvas while the surrounding dialog stays
+  RTL. Inherited RTL canvas direction corrupts glyph placement, including Hebrew,
+  Latin, dates and amounts; PDF coordinates already define the text positions.
   because Chrome on Android never displays an embedded PDF inline.
   Desktop preview does not request a fixed-size popup. It uses the available
   browser window area; browser full-screen/F11 remains user-controlled.

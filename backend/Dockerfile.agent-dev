@@ -1,0 +1,36 @@
+# Dedicated dev-cloud image; the production release Dockerfile is unchanged.
+FROM node:24-bookworm-slim AS base
+# Match the verified worktree toolchain instead of inheriting npm resolver changes.
+RUN npm install --global npm@11.6.2 --no-audit --no-fund
+
+FROM base AS agent-build
+WORKDIR /usr/src/app/agent
+COPY agent/ ./
+# Shared compile-time model config used by both backend packages.
+COPY src/agent-harness/agent-model.config.ts /usr/src/app/src/agent-harness/agent-model.config.ts
+RUN npm ci --no-audit --no-fund && npm run build
+
+FROM base AS agent-runtime-deps
+WORKDIR /usr/src/app/agent
+COPY agent/package.json agent/package-lock.json ./
+# Runtime dependencies only; build/postinstall/prepare ran in agent-build.
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+
+FROM base AS backend-build
+WORKDIR /usr/src/app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+FROM base AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends chromium && apt-get clean
+WORKDIR /usr/src/app
+COPY --from=backend-build /usr/src/app/node_modules ./node_modules
+COPY --from=backend-build /usr/src/app/dist ./dist
+COPY --from=backend-build /usr/src/app/assets ./assets
+COPY --from=agent-build /usr/src/app/agent/dist ./agent/dist
+COPY --from=agent-runtime-deps /usr/src/app/agent/package.json ./agent/package.json
+COPY --from=agent-runtime-deps /usr/src/app/agent/node_modules ./agent/node_modules
+ENV DISABLE_SYNCHRONIZE=true
+CMD ["node", "dist/main.js"]

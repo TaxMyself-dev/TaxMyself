@@ -102,7 +102,7 @@ export class UsersService {
 
     const referralPlan = await manager
       .getRepository(SubscriptionPlan)
-      .findOne({ where: { slug: 'referral-basic', isActive: true } });
+      .findOne({ where: { slug: 'referral-basic', isActive: true }, lock: { mode: 'pessimistic_read' } });
 
     if (!referralPlan) {
       this.logger.error(
@@ -436,11 +436,28 @@ export class UsersService {
     delete processedUserData.hasSpouseFeezbackIdentity;
     delete processedUserData.profileImagePath;
     delete processedUserData.logoPath;
+    // Dedicated narrow preference write avoids replaying stale profile state.
+    delete processedUserData.excludeDirectCardBankTransactionsFromCashflow;
+    delete processedUserData.directCardNoticeDismissed;
 
     // Assign updated fields to the user entity
     Object.assign(user, processedUserData);
     return this.user_repo.save(user);
 
+  }
+
+  async setDirectCardCashflowPreference(userId: string, value: boolean): Promise<void> {
+    if (typeof value !== 'boolean') throw new BadRequestException('נדרש ערך בוליאני להגדרת התזרים');
+    const result = await this.user_repo.update(
+      { firebaseId: userId },
+      { excludeDirectCardBankTransactionsFromCashflow: value },
+    );
+    if (!result.affected) throw new NotFoundException('User not found');
+  }
+
+  async dismissDirectCardNotice(userId: string): Promise<void> {
+    const result = await this.user_repo.update({ firebaseId: userId }, { directCardNoticeDismissed: true });
+    if (!result.affected) throw new NotFoundException('User not found');
   }
 
 

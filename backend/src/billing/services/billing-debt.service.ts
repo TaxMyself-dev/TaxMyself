@@ -4,8 +4,9 @@ import { billingBoundary, billingDate, nextBillingPeriod } from '../domain/billi
 import { renewalPeriodStart } from '../domain/billing-renewal-policy';
 import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { BillingObligation } from '../entities/billing-obligation.entity';
+import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { Subscription } from '../entities/subscription.entity';
-import { BillingAccessMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { BillingAccessMode, BillingChargeMode, BillingObligationKind, BillingObligationStatus, SubscriptionStatus } from '../enums/billing.enums';
 import { assertBillingOwnerMutation, BillingMutationActorContext } from './billing-attempt-orchestration.service';
 
 @Injectable()
@@ -74,9 +75,17 @@ export class BillingDebtService {
     if (!sub || sub.firebaseId !== actor.subjectFirebaseId) throw new ForbiddenException('Subscription owner mismatch');
     const debts = await this.accrue(subscriptionId);
     if (!debts.length) throw new ConflictException('No outstanding subscription debt');
-    if (debts.some(debt => debt.activeAttemptId != null || debt.currency !== 'ILS')) {
+    if (debts.some(debt => debt.currency !== 'ILS')) {
+      throw new ConflictException('Debt currency requires support review');
+    }
+    const activeAttemptIds = [...new Set(debts.flatMap(debt => debt.activeAttemptId == null ? [] : [debt.activeAttemptId]))];
+    if (activeAttemptIds.length) {
+      const activeAttempt = activeAttemptIds.length === 1
+        ? await this.dataSource.manager.findOne(BillingAttempt, { where: { id: activeAttemptIds[0] } })
+        : null;
       throw new ConflictException({ code: 'BILLING_PAYMENT_PENDING',
-        message: 'קיים ניסיון תשלום שממתין להשלמה או לבדיקת התמיכה. אין לשלם שוב עד שהבדיקה תסתיים. אפשר לפנות לתמיכה לבירור מצב התשלום.' });
+        message: 'כבר נפתח עבורך עמוד תשלום. אפשר להמשיך בו מבלי ליצור ניסיון חיוב נוסף.',
+        canResume: Boolean(activeAttempt?.cardcomLowProfileId && activeAttempt?.hostedPaymentUrl) });
     }
     const quote = billingDebtQuote(debts);
     return {
@@ -88,6 +97,24 @@ export class BillingDebtService {
       periods: [...debts].sort((a,b) => a.periodStart.localeCompare(b.periodStart))
         .map(debt => ({ periodStart: debt.periodStart, periodEnd: debt.periodEnd, amountAgorot: debt.amountAgorot })),
     };
+  }
+
+  async findPendingRecoveryAttempt(
+    actor: BillingMutationActorContext,
+    subscriptionId: number,
+  ): Promise<BillingAttempt | null> {
+    assertBillingOwnerMutation(actor);
+    const sub = await this.dataSource.manager.findOne(Subscription, { where: { id: subscriptionId } });
+    if (!sub || sub.firebaseId !== actor.subjectFirebaseId) throw new ForbiddenException('Subscription owner mismatch');
+    const debts = await this.accrue(subscriptionId);
+    const activeAttemptIds = [...new Set(debts.flatMap(debt => debt.activeAttemptId == null ? [] : [debt.activeAttemptId]))];
+    if (!activeAttemptIds.length) return null;
+    if (activeAttemptIds.length !== 1) throw new ConflictException('Multiple active debt attempts require review');
+    const attempt = await this.dataSource.manager.findOne(BillingAttempt, { where: { id: activeAttemptIds[0] } });
+    if (!attempt || attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED) {
+      throw new ConflictException('Active debt attempt requires review');
+    }
+    return attempt;
   }
 
   async accruePastDue(now = new Date()): Promise<void> {

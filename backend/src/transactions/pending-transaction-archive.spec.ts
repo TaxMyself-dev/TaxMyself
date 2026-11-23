@@ -1,3 +1,4 @@
+import { FullTransactionCache } from './full-transaction-cache.entity';
 import { IsNull } from 'typeorm';
 import { ArchiveItemStatus, ExpenseReportScope, RecordSource } from '../enum';
 import { DocumentsService } from '../documents/documents.service';
@@ -26,6 +27,7 @@ describe('pending classified transaction archive', () => {
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const fakeThis = {
+      expensesService: { effectiveTransactionClassification: jest.fn().mockResolvedValue({}) },
       cacheRepo,
       slimRepo: { findOne: jest.fn().mockResolvedValue(null) },
       resolveStampPeriod: jest.fn().mockResolvedValue('9-10/2026'),
@@ -92,6 +94,8 @@ describe('pending classified transaction archive', () => {
       slimTransactionRepo: slimRepo,
       assertBusinessOwnership: (DocumentsService.prototype as any).assertBusinessOwnership,
     };
+    const slimQuery = { ...queryBuilder, getMany: slimRepo.find };
+    (slimRepo as any).createQueryBuilder = jest.fn().mockReturnValue(slimQuery);
 
     const result = await DocumentsService.prototype.getArchivedForUser.call(
       fakeThis as any,
@@ -100,15 +104,9 @@ describe('pending classified transaction archive', () => {
       false,
     );
 
-    expect(slimRepo.find).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        userId: 'owner-1',
-        businessNumber: '515151515',
-        isRecognized: true,
-        confirmed: false,
-        matchedDocumentId: IsNull(),
-      }),
-    }));
+    expect((slimRepo as any).createQueryBuilder).toHaveBeenCalledWith('slim');
+    expect(slimQuery.where).toHaveBeenCalledWith(expect.any(String), { uid: 'owner-1', bn: '515151515' });
+    expect(slimQuery.andWhere).toHaveBeenCalledWith(expect.stringContaining('DIRECT_CARD_BANK_PAYMENT'));
     expect(result).toEqual([
       expect.objectContaining({
         id: 71,
@@ -152,7 +150,12 @@ describe('pending classified transaction archive', () => {
       ilsAmountSnapshot: 452.25,
     };
     const fakeThis = {
-      slimRepo: { findOne: jest.fn().mockResolvedValue(slim) },
+      slimRepo: {
+        findOne: jest.fn().mockResolvedValue(slim),
+        createQueryBuilder: () => ({
+          where() { return this; }, andWhere() { return this; }, getCount: async () => 0,
+        }),
+      },
       cacheRepo: { findOne: jest.fn().mockResolvedValue(null) },
     };
 
@@ -187,10 +190,13 @@ describe('pending classified transaction archive', () => {
     const cache = { ...CACHE_ROW, currency: 'ILS', ilsAmount: null };
     const expenseUpdate = jest.fn().mockResolvedValue({ affected: 1 });
     const slimUpdate = jest.fn().mockResolvedValue({ affected: 1 });
+    // Archived payments may have no live cache row; approval must still work.
+    const cacheUpdate = jest.fn().mockResolvedValue({ affected: 0 });
     const manager = {
       getRepository: jest.fn((entity) => {
         if (entity === Expense) return { update: expenseUpdate };
         if (entity === SlimTransaction) return { update: slimUpdate };
+        if (entity === FullTransactionCache) return { update: cacheUpdate };
         throw new Error('Unexpected repository');
       }),
     };
@@ -217,6 +223,10 @@ describe('pending classified transaction archive', () => {
     );
     expect(slimUpdate).toHaveBeenCalledWith(
       { id: 71 },
+      { confirmed: true, vatReportingDate: '9-10/2026' },
+    );
+    expect(cacheUpdate).toHaveBeenCalledWith(
+      { userId: 'owner-1', externalTransactionId: 'tx-1' },
       { confirmed: true, vatReportingDate: '9-10/2026' },
     );
   });

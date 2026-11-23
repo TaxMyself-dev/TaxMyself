@@ -41,3 +41,19 @@ Manages business expenses (and legacy incomes), the category/sub-category taxono
 - shared (`SharedModule` — date parsing helpers used by controller)
 - cloud (queries `Expense` directly for the "my cloud" search endpoint)
 - demo-data (depends on this module: `ExpensesService.addExpense` used to seed demo expenses)
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

@@ -1,0 +1,253 @@
+<div class="dev-agent">
+  <header class="bar">
+    <div>
+      <h1>AI agent — dev test</h1>
+      <div class="meta">
+        <span>agent user: <code>{{ agentUserId() ?? '…' }}</code></span>
+        @if (clientId) {
+          <span>acting for client: <code>{{ clientId }}</code></span>
+        }
+        <span>API: <code>{{ apiUrl }}</code></span>
+      </div>
+    </div>
+    <div class="actions">
+      @if (fromAdminPanel) {
+        <button type="button" class="back" dir="rtl" (click)="backToAdminPanel()">→ חזרה לפאנל הניהול</button>
+      }
+      <button type="button" [class.on]="locale() === 'he'" (click)="setLocale('he')">עברית</button>
+      <button type="button" [class.on]="locale() === 'en'" (click)="setLocale('en')">English</button>
+      <button type="button" (click)="newChat()" [disabled]="!agentUserId()">New chat</button>
+    </div>
+  </header>
+
+  @if (setupError(); as error) {
+    <div class="setup-error">{{ error }}</div>
+  }
+
+  @if (contextChanged) {
+    <div class="setup-error context-changed">
+      The app switched client since this chat started. This chat stays with
+      <code>{{ clientId ?? 'your own account' }}</code> and cannot continue under the new client.
+      <button type="button" (click)="startSession()">Start a chat for the current client</button>
+    </div>
+  }
+
+  @if (conversations().length > 0) {
+    <details class="conversations">
+      <summary>Recent chats ({{ conversations().length }})</summary>
+      @for (row of conversations(); track row.id) {
+        <button type="button" class="chip" dir="auto" [class.on]="chat()?.id === row.id" (click)="openChat(row.id)">
+          {{ row.name ?? row.id.slice(0, 8) }}
+        </button>
+      }
+    </details>
+  }
+
+  @if (loading(); as stage) {
+    <div class="messages loading" role="status" aria-live="polite" dir="rtl">
+      <p>{{ stage === 'session' ? 'מתחבר לצ׳אט…' : 'טוען את השיחה…' }}</p>
+      <p>אפשר כבר לכתוב הודעה. השליחה תתאפשר כשהצ׳אט יהיה מוכן.</p>
+    </div>
+  }
+
+  @if (chat(); as c) {
+    <div class="messages" #scroller>
+      @if (c.messages.length === 0) {
+        <div class="empty">
+          <p>Try one of these, or write your own:</p>
+          @for (prompt of examplePrompts; track prompt) {
+            <button type="button" class="chip" dir="rtl" (click)="send(prompt)">{{ prompt }}</button>
+          }
+        </div>
+      }
+
+      @for (message of c.messages; track message.id) {
+        <div class="message" [class.user]="message.role === 'user'" [class.assistant]="message.role === 'assistant'">
+          <div class="role">{{ message.role }}</div>
+          @for (part of message.parts; track $index) {
+            @if (part.type === 'text') {
+              <div class="text" dir="auto">{{ text(part) }}</div>
+            } @else if (part.type === 'reasoning') {
+              @if (text(part)) {
+                <details class="reasoning">
+                  <summary>reasoning</summary>
+                  <div dir="auto">{{ text(part) }}</div>
+                </details>
+              }
+            } @else if (isTool(part)) {
+              <!-- askUserQuestion: buttons from the stored part (Phase 3.1) -->
+              @if (question(part); as q) {
+                <div class="question" dir="auto" [class.closed]="q.status !== 'open'">
+                  <div class="question-text">{{ q.question }}</div>
+                  <div class="question-options">
+                    @for (option of q.options; track option.value) {
+                      <button
+                        type="button"
+                        class="chip"
+                        dir="auto"
+                        [class.on]="q.answeredLabel === option.label"
+                        [disabled]="q.status !== 'open' || isBusy(c) || contextChanged"
+                        (click)="answerQuestion(q, option)"
+                      >
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                  @switch (q.status) {
+                    @case ('answered') {
+                      <div class="question-status">Answered: {{ q.answeredLabel }}</div>
+                    }
+                    @case ('superseded') {
+                      <div class="question-status">Replaced by a newer message</div>
+                    }
+                    @case ('legacy') {
+                      <div class="question-status">Answered (asked before buttons carried values)</div>
+                    }
+                    @case ('streaming') {
+                      <div class="question-status">…</div>
+                    }
+                  }
+                </div>
+              } @else {
+                @let tool = toolView(part);
+                <details class="tool" [class.error]="tool.state === 'output-error'" [open]="!!tool.approvalId">
+                  <summary>
+                    🔧 <b>{{ tool.name }}</b>
+                    <span class="state">{{ tool.state }}</span>
+                  </summary>
+                  <h5>input</h5>
+                  <pre>{{ json(tool.input) }}</pre>
+                  @if (tool.errorText) {
+                    <h5>error</h5>
+                    <pre class="error-text">{{ tool.errorText }}</pre>
+                  } @else if (tool.state === 'output-available') {
+                    <h5>output</h5>
+                    <pre>{{ json(tool.output) }}</pre>
+                  }
+                </details>
+                @if (savedMemory(part); as memory) {
+                  <div class="saved-memory" dir="auto">
+                    @if (undoneMemories().has(memory.memoryId)) {
+                      <span>Undone: no longer remembered.</span>
+                    } @else {
+                      <span>Saved{{ memory.kind === 'business_fact' ? ' (business fact)' : '' }}: {{ memory.content }}</span>
+                      <button type="button" (click)="undoMemory(memory)">Undo</button>
+                    }
+                  </div>
+                }
+                @if (approvalView(part, message, c); as approval) {
+                  @let approvalId = approval.id;
+                  <div class="approval">
+                      @if (classificationCard(part, c.messages); as card) {
+                        <div dir="rtl">
+                          <b>אישור סיווג תנועה</b>
+                          <p>{{ card.businessName }} · {{ card.businessNumber }}</p>
+                          <p>{{ card.date | date:'dd/MM/yyyy' }} · {{ card.merchant }} · {{ card.amount | number:'1.2-2' }} {{ card.currency }}</p>
+                          <p>סיווג נוכחי: {{ card.currentCategory || 'ללא סיווג' }} / {{ card.currentSubCategory || '—' }}</p>
+                          <p>סיווג מבוקש: {{ card.category }} / {{ card.subCategory }}</p>
+                          <p>אחוז מע״מ: {{ card.vatPercent }}% · אחוז הכרה למס: {{ card.taxPercent }}%</p>
+                          <p>מוכר למס: {{ card.isRecognized === undefined ? 'לא זמין' : card.isRecognized ? 'כן' : 'לא' }} · ציוד: {{ card.isEquipment === undefined ? 'לא זמין' : card.isEquipment ? 'כן' : 'לא' }} · פחת: {{ card.reductionPercent === undefined ? 'לא זמין' : card.reductionPercent + '%' }}</p>
+                          <label>
+                            <input type="checkbox" [checked]="classificationSingle(approvalId, card)" [disabled]="!card.modeChoice || !approval.active || isBusy(c) || contextChanged" (change)="setClassificationSingle(approvalId, $any($event.target).checked)" />
+                            סיווג חד־פעמי
+                          </label>
+                          @if (classificationSingle(approvalId, card)) {
+                            <p>השינוי יחול על התנועה הזו בלבד, ללא יצירת כלל קבוע.</p>
+                          } @else {
+                            <p>סיווג קבוע: ייווצר או יעודכן כלל לשם ״{{ card.merchant }}״ בחשבון ״{{ card.account }}״. הכלל יחול על תנועות חדשות תואמות, ועשוי לעדכן גם תנועות קיימות בעסק הזה החל מ־{{ card.backfillFrom | date:'dd/MM/yyyy' }}.</p>
+                            <p>תנועות שהועברו להוצאה, תנועות נעולות וסיווגים חד־פעמיים אחרים לא ישתנו.</p>
+                            @if (card.replacesOneTime) { <p>הסיווג החד־פעמי הקיים של התנועה הנבחרת יוחלף בכלל הקבוע.</p> }
+                            @if (card.replacesRule) { <p>קיים כלל תואם; האישור יחליף את הסיווג שלו בסיווג המבוקש.</p> }
+                          }
+                          <p>הפעולה אינה מאשרת הוצאה.</p>
+                        </div>
+                      } @else {
+                        <span>The agent asks to run <b>{{ tool.name }}</b>.</span>
+                      }
+                    @if (approval.active) {
+                      <button type="button" class="approve" [disabled]="isBusy(c) || contextChanged || (tool.name === 'classifyTransaction' && !classificationCard(part, c.messages))" (click)="answerApproval(approvalId, true, classificationCard(part, c.messages), message.id)">Approve</button>
+                      <button type="button" class="deny" [disabled]="isBusy(c) || contextChanged" (click)="answerApproval(approvalId, false, null, message.id)">Deny</button>
+                    } @else {
+                      <p dir="rtl">כרטיס האישור הזה כבר אינו פעיל כי השיחה המשיכה. לא ניתן לבצע ממנו פעולה.</p>
+                      @if (classificationCard(part, c.messages); as card) {
+                        <button type="button" [disabled]="isBusy(c) || contextChanged" (click)="requestFreshClassification(card, classificationSingle(approvalId, card))">הצג כרטיס אישור עדכני</button>
+                      }
+                    }
+                  </div>
+                }
+              }
+            } @else if (part.type === 'data-followUps') {
+              @if (isLastMessage(c, message)) {
+                <div class="follow-ups">
+                  @for (question of followUps(part); track question) {
+                    <button type="button" class="chip" dir="auto" [disabled]="isBusy(c) || contextChanged" (click)="sendFollowUp(question)">{{ question }}</button>
+                  }
+                </div>
+              }
+            } @else if (part.type === 'data-turnOrigin' || part.type === 'data-userContext') {
+              <!-- server-written records, never shown -->
+            } @else if (part.type !== 'step-start') {
+              <details class="data">
+                <summary>{{ part.type }}</summary>
+                <pre>{{ json(part) }}</pre>
+              </details>
+            }
+          }
+        </div>
+      }
+
+      @if (c.status === 'submitted') {
+        <div class="thinking">The agent is working…</div>
+      }
+      @if (c.error; as error) {
+        <div class="chat-error">
+          {{ error.message }}
+          <button type="button" (click)="c.clearError()">Dismiss</button>
+          <button type="button" (click)="reloadChat()">Reload conversation</button>
+        </div>
+      }
+    </div>
+
+    <div class="status">status: {{ c.status }} · chat <code>{{ c.id }}</code></div>
+  }
+
+  @if (voice.error(); as error) {
+    <div class="voice-error" role="alert" dir="rtl">{{ error }}</div>
+  }
+  <footer class="composer">
+    @if (voice.active) {
+      <div class="voice-status" role="status" aria-live="polite" dir="rtl">
+        @switch (voice.state()) {
+          @case ('connecting') { <span>מכין הקלטה…</span> }
+          @case ('recording') { <span class="recording-dot" aria-hidden="true"></span><span>מקליט</span> }
+          @case ('processing') { <span>מעבד הקלטה…</span> }
+        }
+        <span class="voice-time" aria-live="off">{{ voice.minutes }}:{{ voice.seconds() % 60 | number:'2.0-0' }}</span>
+      </div>
+      <button type="button" class="voice-icon voice-discard" aria-label="ביטול ומחיקת ההקלטה" title="ביטול ומחיקת ההקלטה" (click)="voice.cancel()"><i class="pi pi-trash" aria-hidden="true"></i></button>
+      <button type="button" class="voice-icon voice-send" aria-label="סיום ושליחת ההקלטה" title="סיום ושליחת ההקלטה" [disabled]="voice.state() !== 'recording'" (click)="voice.finish()"><i class="pi pi-arrow-up" aria-hidden="true"></i></button>
+    } @else {
+
+    <textarea
+      [(ngModel)]="draft"
+      (keydown)="onComposerKey($event)"
+      [dir]="locale() === 'he' ? 'rtl' : 'ltr'"
+      rows="2"
+      [disabled]="contextChanged"
+      placeholder="Message the agent (Enter sends, Shift+Enter is a new line)"
+    ></textarea>
+    @if (chat(); as c) {
+      @if (isBusy(c)) {
+        <button type="button" class="stop" (click)="stop()">Stop</button>
+      } @else {
+        <button type="button" (click)="send()" [disabled]="!draft.trim() || contextChanged">Send</button>
+      }
+    } @else {
+      <button type="button" disabled>Send</button>
+    }
+    @if (chat(); as c) {
+      <button type="button" class="voice-icon voice-start" aria-label="הקלטת הודעה קולית" title="הקלטת הודעה קולית" [disabled]="isBusy(c) || contextChanged || !!loading()" (click)="startVoice()"><i class="pi pi-microphone" aria-hidden="true"></i></button>
+    }
+    }
+  </footer>
+</div>

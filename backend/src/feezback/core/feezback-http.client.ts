@@ -7,6 +7,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { FeezbackAuthService } from './feezback-auth.service';
 import { FeezbackHttpError, toFeezbackHttpError } from './feezback-errors';
 import { feeZbackErrorDiagnostic } from './feezback-error-diagnostic';
+import { feeZbackPsuIp, PSU_IP_HEADER } from './feezback-user-activity';
+import { feezbackDiagnosticContext } from './feezback-diagnostic-context';
 import {
   FEEZBACK_RETRY,
   calcBackoffMs,
@@ -83,6 +85,12 @@ export class FeezbackHttpClient {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       // Rebuild auth headers on every attempt so a fresh token is used after long back-offs.
       const headers = await this.buildHeaders(options);
+      // Only the verified request context may supply an activity header.
+      for (const name of Object.keys(headers)) {
+        if (name.toLowerCase() === PSU_IP_HEADER.toLowerCase()) delete headers[name];
+      }
+      const psuIp = feeZbackPsuIp(method, url, this.baseUrl, options.sub);
+      if (psuIp) headers[PSU_IP_HEADER] = psuIp;
       const config: AxiosRequestConfig = {
         headers,
         params: options.params,
@@ -120,13 +128,14 @@ export class FeezbackHttpClient {
         traceEntry.durationMs = failedAt - sentAt;
         traceEntry.status = mapped.status;
 
-        // Record each failed transaction or card-list attempt, including failures recovered by retry.
-        if (method === 'DELETE' || (method === 'GET' && /\/(transactions|cards)\/?$/.test(new URL(url).pathname))) {
+        // Record failed discovery and transaction attempts, including failures recovered by retry.
+        if (method === 'DELETE' || (method === 'GET' && /\/(transactions|cards|accounts|consents)\/?$/.test(new URL(url).pathname))) {
           const credentials = Object.entries(headers)
-            .filter(([name]) => /authorization|token|api[-_]?key|cookie/i.test(name))
+            .filter(([name]) => /authorization|token|api[-_]?key|cookie|x-psu-ip-address/i.test(name))
             .flatMap(([, value]) => [value, value.replace(/^Bearer\s+/i, '')]);
           this.logger.error('[FeezbackResponse] ' + feeZbackErrorDiagnostic(mapped,
             [...credentials, options.sub ?? ''], {
+              ...feezbackDiagnosticContext.getStore(),
               attempt: attempt + 1, maxAttempts: maxRetries + 1, durationMs: failedAt - sentAt,
             }));
         }
@@ -191,7 +200,7 @@ export class FeezbackHttpClient {
     body: unknown,
   ): string {
     const quote = (value: string): string => `'${value.replace(/'/g, `'"'"'`)}'`;
-    const sensitiveHeader = /authorization|token|api[-_]?key|cookie/i;
+    const sensitiveHeader = /authorization|token|api[-_]?key|cookie|x-psu-ip-address/i;
     const parts = [`curl --request ${method}`, `--url ${quote(url)}`];
 
     for (const [name, value] of Object.entries(headers)) {

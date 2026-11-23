@@ -6,6 +6,19 @@ Container page + tab shell for day-to-day bookkeeping: issued documents (incomes
 The incomes page reads the sanitized allocation status before acting. It never
 calls customer-side recovery. `PROCESSING` and `UNKNOWN_OUTCOME` block resend
 and finalization without an allocation; a stored allocation resumes local work.
+Pending documents already have their journal entry and participate in reports,
+but have no PDF until allocation is completed or the user explicitly finalizes
+without one. The allocation action opens one choice: automatic SHAAM allocation
+(or navigation to the connection settings when disconnected) or the manual
+document-details, Tax Authority link and allocation-number entry flow. Every
+white action button in this allocation-completion flow uses the shared
+`WHITE_BORDER` variant so it retains a visible black outline. The manual dialog
+shows the portal-ready request type, reference number, customer identifier,
+date, pre-VAT amount, VAT amount and line descriptions as selectable read-only
+fields, so the user does not need to open the pending document/PDF.
+The method-choice dialog's `onHide` must preserve `pendingFinalizeRow` while
+the manual allocation dialog is open; PrimeNG also emits that event for the
+programmatic hide that occurs during the transition.
 
 ## Key entities/files
 - `book-keeping.page.ts` — `BookKeepingPage`; renders the current PrimeNG `Tabs` navigation for child routes, filtered by feature access (`AccessService.getFeatureState` for `DOCUMENTS_LIST_TAB` / `EXPENSES_LIST_TAB`), and tracks the active tab from the current URL. Do not reintroduce deprecated `TabMenu`: in PrimeNG 19 it collides with legacy `TabView` dynamic styles under the shared `tabs` style key.
@@ -32,6 +45,11 @@ and finalization without an allocation; a stored allocation resumes local work.
 - Expenses: list/filter expenses, split between regular and annual-report-only.
 - Clients/Suppliers: simple CRUD lists backing invoice/expense creation elsewhere.
 - Archive: filter/preview Drive documents, pending classified transactions and transaction-only expenses; approve authorized pending transactions, or soft-delete/restore Drive documents without deleting their retained file.
+- Archive source cells distinguish transactions, Drive, email, WhatsApp and
+  manual expenses with a compact, source-colored icon plus label on desktop
+  and mobile. The archive filter bar includes an independent source selector
+  whose default is all sources. The open page refreshes quietly while
+  background intake creates new review rows.
 - Client tasks (when enabled): confirm data upload to accountant, self-mark VAT/advance-tax/annual reports as filed, view stored report PDFs.
 
 - Expense edit/delete/file actions follow server-provided

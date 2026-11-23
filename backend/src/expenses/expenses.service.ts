@@ -1,3 +1,4 @@
+import { transactionClassification } from '../bookkeeping/pending-classification';
 //General
 import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException, UnauthorizedException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -331,6 +332,7 @@ export class ExpensesService {
     async reclassifyExpenseFromNames(
         expense: Expense,
         input: {
+            subCategoryId?: number;
             category: string;
             subCategory: string;
             vatPercent?: number;
@@ -356,7 +358,7 @@ export class ExpensesService {
         if (input.vatReportingDate != null) expense.vatReportingDate = input.vatReportingDate as any;
 
         const rc = await this.resolveExpenseClassification(
-            { category: input.category, subCategory: input.subCategory },
+            { category: input.category, subCategory: input.subCategory, subCategoryId: input.subCategoryId },
             expense.businessNumber,
             expense.userId,
         );
@@ -648,11 +650,15 @@ export class ExpensesService {
         // DTO-explicit percents/isEquipment act as one-off snapshot overrides
         // over the card's law (transition rule until Phase 6). Unresolvable
         // input → 400: the silent 60000 fallback is dead (Elazar, Session 8).
+        const classification = newExpense.externalTransactionId
+            ? await this.effectiveTransactionClassification(userId, businessNumber, {
+                subCategoryId: expense.subCategoryId, category: expense.category, subCategory: expense.subCategory,
+            }) : expense;
         const rc = await this.resolveExpenseClassification(
             {
-                subCategoryId: expense.subCategoryId,
-                category: expense.category,
-                subCategory: expense.subCategory,
+                subCategoryId: classification.subCategoryId,
+                category: classification.category,
+                subCategory: classification.subCategory,
             },
             businessNumber,
             userId,
@@ -661,10 +667,14 @@ export class ExpensesService {
             newExpense,
             rc,
             {
-                vatPercent: expense.vatPercent,
-                taxPercent: expense.taxPercent,
-                reductionPercent: expense.reductionPercent,
-                isEquipment: typeof (expense as any).isEquipment === 'boolean' ? (expense as any).isEquipment : undefined,
+                // Bank classification fields are cached catalog law, never a
+                // one-off override. An old browser tab cannot freeze old law.
+                ...(!newExpense.externalTransactionId ? {
+                    vatPercent: expense.vatPercent,
+                    taxPercent: expense.taxPercent,
+                    reductionPercent: expense.reductionPercent,
+                    isEquipment: typeof (expense as any).isEquipment === 'boolean' ? (expense as any).isEquipment : undefined,
+                } : {}),
             },
             actorUserId,
             doc,
@@ -1271,6 +1281,7 @@ export class ExpensesService {
         return {
             id: sub.id,
             subCategoryName: sub.name,
+            systemKey: sub.systemKey ?? null,
             categoryName: sub.category?.name,
             firebaseId: sub.userId ?? sub.accountantId ?? null,
             businessNumber: sub.businessNumber ?? null,
@@ -1516,6 +1527,32 @@ export class ExpensesService {
     }
 
 
+
+    async refreshPendingTransactionClassifications(userId: string): Promise<void> {
+        await this.catalogService.refreshPendingClassifications({ userId });
+    }
+
+    async effectiveTransactionClassification(
+        userId: string, businessNumber: string | null,
+        input: { subCategoryId?: number | null; category: string; subCategory: string },
+    ) {
+        const ctx = await this.catalogContextService.forUser(userId, businessNumber);
+        // Validate the supplied pointer before resolving its same-named override.
+        if (input.subCategoryId != null)
+            await this.resolveTransactionSubCategory(userId, businessNumber, input.category, input.subCategory, input.subCategoryId);
+        const resolved = await this.catalogService.resolveByName(input.category, input.subCategory, ctx);
+        if (!resolved) throw new BadRequestException('תת־הקטגוריה אינה זמינה בקטלוג העסק');
+        return transactionClassification(resolved);
+    }
+
+    async resolveTransactionSubCategory(userId: string, businessNumber: string | null, category: string, name: string, id: number): Promise<SubCategory> {
+        const ctx = await this.catalogContextService.forUser(userId, businessNumber);
+        const resolved = await this.catalogService.resolveSubCategory(id, ctx);
+        if (!resolved || resolved.subCategory.name !== name || resolved.subCategory.category?.name !== category) {
+            throw new BadRequestException('תת־הקטגוריה אינה תואמת לסיווג שנבחר');
+        }
+        return resolved.subCategory;
+    }
 
     async getSubCategories(
         firebaseId: string | null,

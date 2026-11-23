@@ -1,0 +1,604 @@
+import { Injectable, ForbiddenException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Business } from 'src/business/business.entity';
+import { BusinessService } from 'src/business/business.service';
+import { Delegation, DelegationStatus } from 'src/delegation/delegation.entity';
+import { ExpenseApprovalStatus, UserRole } from 'src/enum';
+import { Expense } from 'src/expenses/expenses.entity';
+import { ExpensesService } from 'src/expenses/expenses.service';
+import { User } from 'src/users/user.entity';
+import type { AgentHarnessUser } from './agent-harness.service';
+import {
+  AgentExpensesDomain,
+  BusinessDirectory,
+  ExpenseQueryAnswer,
+  ExpensesAcrossBusinessesResult,
+  ExpenseGrouping,
+  ExpenseQuery,
+  ExpenseQueryResult,
+  ExpenseRow,
+  ExpenseTotals,
+} from './agent-domain.types';
+
+// The most expense rows one answer carries; totals always cover every match.
+const maxExpenseRows = 50;
+// The most groups one answer lists; the rest are summed as groupsOmitted.
+const maxExpenseGroups = 40;
+// The most categories a result lists when nothing matched.
+const maxCategoriesListed = 60;
+// The most classifications a result names for its matches.
+const maxClassificationsListed = 30;
+const maxRangeYears = 10;
+
+const isoDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A failure the agent's model reads: its message starts with a CODE: that
+ * backend/agent's agent-tool-error-next-step.ts gives a next step.
+ */
+export class AgentDomainError extends Error {
+  constructor(
+    readonly code: string,
+    detail: string,
+  ) {
+    super(`${code}: ${detail}`);
+    this.name = 'AgentDomainError';
+  }
+}
+
+// A day as UTC midnight: the database connection runs in UTC (timezone 'Z'),
+// so the expense's DATE compares with the same calendar day.
+const utcDay = (value: string, field: string) => {
+  const match = isoDatePattern.exec(value);
+  const date = match
+    ? new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+    : null;
+
+  if (!date || date.toISOString().slice(0, 10) !== value) {
+    throw new AgentDomainError('EXPENSE_RANGE_INVALID', `${field} is not a date (YYYY-MM-DD): ${value}`);
+  }
+
+  return date;
+};
+
+const dayText = (value: Date | string) =>
+  value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+
+// An amount in agorot: the columns are DECIMAL(…, 2), which TypeORM reads as
+// text; summing whole agorot keeps every total exact, so groups add up to
+// the totals and nothing drifts with floating point.
+const agorot = (value: unknown) => {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+};
+
+const shekels = (amountInAgorot: number) => amountInAgorot / 100;
+
+const totalsOf = (expenses: readonly Expense[]): ExpenseTotals => {
+  let sum = 0;
+  let vat = 0;
+  let tax = 0;
+
+  for (const expense of expenses) {
+    sum += agorot(expense.sum);
+    vat += agorot(expense.totalVatPayable);
+    tax += agorot(expense.totalTaxPayable);
+  }
+
+  return {
+    count: expenses.length,
+    sum: shekels(sum),
+    vatRecognized: shekels(vat),
+    taxRecognized: shekels(tax),
+  };
+};
+
+const groupKey = (expense: Expense, groupBy: ExpenseGrouping) => {
+  switch (groupBy) {
+    case 'category':
+      return expense.category || '—';
+    case 'subCategory':
+      return expense.subCategory || '—';
+    case 'supplier':
+      return expense.supplier || '—';
+    case 'month':
+      return dayText(expense.date).slice(0, 7);
+  }
+};
+
+const normalized = (text: string | null | undefined) => (text ?? '').trim().toLowerCase();
+
+// Every one of the user's words, in the category, sub-category, supplier or
+// note ("דלק" finds the "רכב — דלק" sub-category). Every word, not any: a
+// second word narrows the match and never adds unrelated expenses to the
+// total ("ציוד משרדי" is not every "ציוד" plus every "משרד").
+const matchesSearch = (expense: Expense, search: string) => {
+  const haystack = [expense.category, expense.subCategory, expense.supplier, expense.note]
+    .map(normalized)
+    .join(' ');
+
+  return normalized(search)
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word));
+};
+
+const matchesQuery = (expense: Expense, query: ExpenseQuery) =>
+  (!query.search || matchesSearch(expense, query.search)) &&
+  (!query.category || normalized(expense.category) === normalized(query.category)) &&
+  (!query.subCategory || normalized(expense.subCategory) === normalized(query.subCategory)) &&
+  (!query.supplier || normalized(expense.supplier).includes(normalized(query.supplier)));
+
+const expenseRow = (expense: Expense): ExpenseRow => ({
+  id: expense.id,
+  date: dayText(expense.date),
+  supplier: expense.supplier,
+  category: expense.category,
+  subCategory: expense.subCategory,
+  sum: shekels(agorot(expense.sum)),
+  originalCurrency: expense.originalCurrency ?? null,
+  originalSum:
+    expense.originalSum === null || expense.originalSum === undefined
+      ? null
+      : shekels(agorot(expense.originalSum)),
+  note: expense.note ?? null,
+});
+
+const businessView = (business: { businessNumber: string | null; businessName: string | null }) => ({
+  number: business.businessNumber ?? '',
+  name: business.businessName ?? business.businessNumber ?? '',
+});
+
+// The owner's businesses the agent can query: those with a number. The
+// expenses service reads every business when it gets no number, so a
+// number-less business is never passed to it.
+const numberedBusinesses = <B extends { businessNumber: string | null }>(businesses: B[]) =>
+  businesses.filter(
+    (business): business is B & { businessNumber: string } =>
+      typeof business.businessNumber === 'string' && business.businessNumber.trim() !== '',
+  );
+
+// How the expenses service's approval statuses count (master plan D5/D6):
+// - counted: APPROVED and booked to an account, as journaled for the reports;
+// - outside the books: APPROVED with no account (a private expense, D5);
+// - pending: waiting for review or for an accounting mapping;
+// - excluded: rejected, or filed as not an expense.
+type ExpenseStanding = 'counted' | 'outsideBooks' | 'pending' | 'excluded';
+
+const standingOf = (expense: Expense): ExpenseStanding => {
+  switch (expense.approvalStatus) {
+    case ExpenseApprovalStatus.APPROVED:
+      return expense.accountIdSnapshot === null || expense.accountIdSnapshot === undefined
+        ? 'outsideBooks'
+        : 'counted';
+    case ExpenseApprovalStatus.REJECTED:
+    case ExpenseApprovalStatus.NOT_AN_EXPENSE:
+      return 'excluded';
+    default:
+      return 'pending';
+  }
+};
+
+const pendingStatusOf = (expense: Expense) =>
+  expense.approvalStatus === ExpenseApprovalStatus.MISSING_ACCOUNTING_MAPPING
+    ? 'MISSING_ACCOUNTING_MAPPING'
+    : expense.approvalStatus === ExpenseApprovalStatus.PENDING
+      ? 'PENDING'
+      : 'NO_STATUS';
+
+// A range of whole days, inclusive, at most ten years.
+const validRange = (query: ExpenseQuery) => {
+  const from = utcDay(query.from, 'from');
+  const to = utcDay(query.to, 'to');
+
+  if (from > to) {
+    throw new AgentDomainError('EXPENSE_RANGE_INVALID', `from (${query.from}) is after to (${query.to})`);
+  }
+
+  const latest = new Date(from);
+  latest.setUTCFullYear(latest.getUTCFullYear() + maxRangeYears);
+  if (to > latest) {
+    throw new AgentDomainError('EXPENSE_RANGE_INVALID', `the range is longer than ${maxRangeYears} years`);
+  }
+
+  return { from, to };
+};
+
+const filtersOf = (query: ExpenseQuery) => ({
+  search: query.search ?? null,
+  category: query.category ?? null,
+  subCategory: query.subCategory ?? null,
+  supplier: query.supplier ?? null,
+});
+
+// Totals added in agorot: each part is already a whole number of agorot, so
+// the sum is exact.
+const addTotals = (parts: readonly ExpenseTotals[]): ExpenseTotals => {
+  let count = 0;
+  let sum = 0;
+  let vat = 0;
+  let tax = 0;
+
+  for (const part of parts) {
+    count += part.count;
+    sum += Math.round(part.sum * 100);
+    vat += Math.round(part.vatRecognized * 100);
+    tax += Math.round(part.taxRecognized * 100);
+  }
+
+  return { count, sum: shekels(sum), vatRecognized: shekels(vat), taxRecognized: shekels(tax) };
+};
+
+const classificationOf = (expense: Expense) =>
+  [expense.category, expense.subCategory].filter(Boolean).join(' / ') || '—';
+
+/**
+ * KeepInTax's domain for the agent's tools (backend/agent keepintax-ports.ts),
+ * bound per request to the user FirebaseAuthGuard verified: every read is the
+ * data owner's (`firebaseId`, the client when an accountant acts for one)
+ * through the same services the app's pages use, and a business is used only
+ * when it is one of the owner's.
+ */
+@Injectable()
+export class AgentDomainService {
+  constructor(
+    private readonly expensesService: ExpensesService,
+    private readonly businessService: BusinessService,
+    @InjectRepository(Delegation)
+    private readonly delegationRepository: Repository<Delegation>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  async assertOnboardingAdmin(user: AgentHarnessUser): Promise<void> {
+    return this.assertAiAdmin(user);
+  }
+  async assertAiAdmin(user: Pick<AgentHarnessUser, 'actorFirebaseId'>): Promise<void> {
+    if (!user.actorFirebaseId) throw new ForbiddenException('Admin access required');
+    const actor = await this.userRepository.findOne({ where: { firebaseId: user.actorFirebaseId } });
+    if (!actor?.role?.includes(UserRole.ADMIN)) throw new ForbiddenException('Admin access required');
+  }
+
+  forUser(user: AgentHarnessUser): AgentExpensesDomain {
+    return {
+      queryExpenses: (query) => this.queryExpenses(user, query),
+      listBusinesses: () => this.listBusinesses(user),
+    };
+  }
+
+  /**
+   * The data owner's numbered businesses (name and number), the directory
+   * the chat resolves a business the user names against. Read on the server
+   * for the verified user, after the access check and once more before it
+   * returns; the page sends no names or numbers the agent trusts.
+   */
+  async listBusinesses(user: AgentHarnessUser): Promise<BusinessDirectory> {
+    const businesses = await this.ownerBusinesses(user);
+    await this.assertAccessStillHolds(user);
+    return { businesses: businesses.map(businessView) };
+  }
+
+  /**
+   * For the other domain reads (AgentBooksService): checks the access still
+   * holds, then picks one of the data owner's numbered businesses the same
+   * way queryExpenses does — the one asked for, else the request's active
+   * one, else the owner's only one (BUSINESS_REQUIRED / BUSINESS_NOT_FOUND
+   * otherwise).
+   */
+  async resolveBusiness(
+    user: AgentHarnessUser,
+    asked: string | undefined,
+  ): Promise<{ business: Business & { businessNumber: string }; businesses: (Business & { businessNumber: string })[] }> {
+    const businesses = await this.ownerBusinesses(user);
+    return { business: this.chooseBusiness(user, businesses, asked), businesses };
+  }
+
+  /** The data owner's numbered businesses, after the access check. */
+  async ownerBusinesses(user: AgentHarnessUser): Promise<(Business & { businessNumber: string })[]> {
+    await this.assertAccessStillHolds(user);
+    return numberedBusinesses(await this.businessService.getUserBusinesses(user.firebaseId));
+  }
+
+  /**
+   * The business an agent request acts in, from the app's businessnumber
+   * header, which FirebaseAuthGuard passes on unchecked: it must be one of
+   * the data owner's numbered businesses. Without one, the owner's only
+   * numbered business, or null when they have none or several (the tools
+   * then ask which one).
+   *
+   * @throws AgentDomainError AGENT_BUSINESS_FORBIDDEN for any other number.
+   */
+  async requestBusiness(ownerFirebaseId: string, header: string | null | undefined): Promise<string | null> {
+    const businesses = numberedBusinesses(await this.businessService.getUserBusinesses(ownerFirebaseId));
+    const wanted = header?.trim();
+
+    if (wanted) {
+      if (!businesses.some((business) => business.businessNumber === wanted)) {
+        throw new AgentDomainError('AGENT_BUSINESS_FORBIDDEN', 'the business is not one of the data owner\'s');
+      }
+      return wanted;
+    }
+
+    return businesses.length === 1 ? businesses[0].businessNumber : null;
+  }
+
+  /**
+   * Whether the request's access still holds now, not only when its request
+   * started: an answer runs for minutes, and a tool call during it must not
+   * read a client whose delegation was revoked, or as an admin who no longer
+   * is one, since. The guard checked the same when the request arrived.
+   *
+   * @throws AgentDomainError ACCESS_REVOKED when it no longer holds.
+   */
+  async assertAccessStillHolds(user: AgentHarnessUser): Promise<void> {
+    if (user.isAdminImpersonation) {
+      const actor = await this.userRepository.findOne({ where: { firebaseId: user.actorFirebaseId } });
+      if (!actor?.role?.includes(UserRole.ADMIN)) {
+        throw new AgentDomainError('ACCESS_REVOKED', 'the acting user is no longer an admin');
+      }
+      return;
+    }
+
+    if (user.actorFirebaseId === user.firebaseId) {
+      return;
+    }
+
+    const delegation = await this.delegationRepository.findOne({
+      where: {
+        userId: user.firebaseId,
+        agentId: user.actorFirebaseId,
+        status: DelegationStatus.ACTIVE,
+      },
+    });
+
+    if (!delegation) {
+      throw new AgentDomainError('ACCESS_REVOKED', 'the access to this client\'s data was revoked');
+    }
+  }
+
+  /**
+   * The user's expenses for a range: in one business (the one asked for,
+   * else the request's active one, else the owner's only one), or — with
+   * businessNumbers or allBusinesses — the same query in each of several of
+   * the owner's businesses, with their combined total.
+   */
+  async queryExpenses(user: AgentHarnessUser, query: ExpenseQuery): Promise<ExpenseQueryAnswer> {
+    const range = validRange(query);
+    const several = query.allBusinesses === true || query.businessNumbers !== undefined;
+
+    if (several && query.businessNumber !== undefined) {
+      throw new AgentDomainError(
+        'EXPENSE_SCOPE_INVALID',
+        'give businessNumber for one business, or businessNumbers/allBusinesses for several, not both',
+      );
+    }
+    if (query.allBusinesses === true && query.businessNumbers !== undefined) {
+      throw new AgentDomainError('EXPENSE_SCOPE_INVALID', 'give businessNumbers or allBusinesses, not both');
+    }
+
+    await this.assertAccessStillHolds(user);
+
+    const businesses = numberedBusinesses(await this.businessService.getUserBusinesses(user.firebaseId));
+
+    if (several) {
+      return await this.queryAcrossBusinesses(user, query, range, businesses);
+    }
+
+    const business = this.chooseBusiness(user, businesses, query.businessNumber);
+    return await this.queryOneBusiness(user, query, range, business, businesses);
+  }
+
+  // The same query in each requested business, one after another. Every
+  // number must be one of the owner's, or nothing is read (a foreign number
+  // is refused, never reported as a failed part). A business that fails is
+  // listed in failed, and then there is no combined total: a sum of the
+  // others would read as complete. A revoked access ends the whole query.
+  private async queryAcrossBusinesses(
+    user: AgentHarnessUser,
+    query: ExpenseQuery,
+    range: { from: Date; to: Date },
+    businesses: (Business & { businessNumber: string })[],
+  ): Promise<ExpensesAcrossBusinessesResult> {
+    const requested = query.allBusinesses === true ? 'all' : [...new Set(query.businessNumbers ?? [])];
+
+    if (requested !== 'all') {
+      if (requested.length === 0) {
+        throw new AgentDomainError('EXPENSE_SCOPE_INVALID', 'businessNumbers is empty');
+      }
+      const foreign = requested.filter((number) => !businesses.some((business) => business.businessNumber === number));
+      if (foreign.length > 0) {
+        throw new AgentDomainError(
+          'BUSINESS_NOT_FOUND',
+          `not the user's businesses: ${foreign.join(', ')}`,
+        );
+      }
+    }
+    if (businesses.length === 0) {
+      throw new AgentDomainError('BUSINESS_NOT_FOUND', 'the user has no business with a number yet');
+    }
+
+    const targets =
+      requested === 'all'
+        ? businesses
+        : businesses.filter((business) => requested.includes(business.businessNumber));
+
+    const answered: ExpenseQueryResult[] = [];
+    const failed: ExpensesAcrossBusinessesResult['failed'] = [];
+
+    for (const business of targets) {
+      try {
+        // Checked again before each business: an answer may run long.
+        await this.assertAccessStillHolds(user);
+        answered.push(await this.queryOneBusiness(user, query, range, business, businesses));
+      } catch (error) {
+        if (error instanceof AgentDomainError && error.code === 'ACCESS_REVOKED') {
+          throw error;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        const code = error instanceof AgentDomainError ? error.code : 'BOOKS_UNAVAILABLE';
+        failed.push({ business: businessView(business), code, message: message.replace(/^[A-Z_]+: /, '') });
+      }
+    }
+
+    const complete = failed.length === 0;
+    const sumOf = (pick: (result: ExpenseQueryResult) => ExpenseTotals) => addTotals(answered.map(pick));
+
+    return {
+      scope: 'businesses',
+      requested,
+      from: query.from,
+      to: query.to,
+      filters: filtersOf(query),
+      businesses: answered,
+      failed,
+      complete,
+      combined: complete
+        ? {
+            totals: sumOf((result) => result.totals),
+            pending: sumOf((result) => result.pending),
+            approvedOutsideBooks: sumOf((result) => result.approvedOutsideBooks),
+            excluded: { count: answered.reduce((count, result) => count + result.excluded.count, 0) },
+          }
+        : null,
+    };
+  }
+
+  private async queryOneBusiness(
+    user: AgentHarnessUser,
+    query: ExpenseQuery,
+    { from, to }: { from: Date; to: Date },
+    business: Business & { businessNumber: string },
+    businesses: (Business & { businessNumber: string })[],
+  ): Promise<ExpenseQueryResult> {
+    const lastMoment = new Date(to.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+    const expenses = await this.expensesService.getExpensesByUserID(
+      user.firebaseId,
+      from,
+      lastMoment,
+      business.businessNumber,
+    );
+
+    // The service filters by the business; a row from another one would be
+    // a broken invariant, never something to add to this business's totals.
+    const inBusiness = expenses.filter((expense) => expense.businessNumber === business.businessNumber);
+    const matching = inBusiness.filter((expense) => matchesQuery(expense, query));
+    const byStanding = (standing: ExpenseStanding) =>
+      matching.filter((expense) => standingOf(expense) === standing);
+
+    const counted = byStanding('counted');
+    const pending = byStanding('pending');
+
+    const pendingByStatus = { PENDING: 0, MISSING_ACCOUNTING_MAPPING: 0, NO_STATUS: 0 };
+    for (const expense of pending) {
+      pendingByStatus[pendingStatusOf(expense)] += 1;
+    }
+
+    const { groups, groupsOmitted } = query.groupBy
+      ? this.groupTotals(counted, query.groupBy)
+      : { groups: [], groupsOmitted: null };
+
+    const newestFirst = [...counted].sort(
+      (a, b) => dayText(b.date).localeCompare(dayText(a.date)) || b.id - a.id,
+    );
+    const rows = query.includeRows ? newestFirst.slice(0, maxExpenseRows).map(expenseRow) : [];
+
+    const categoriesInRange =
+      matching.length === 0
+        ? [
+            ...new Set(
+              inBusiness.flatMap((expense) => [expense.category, expense.subCategory].filter(Boolean)),
+            ),
+          ]
+            .sort()
+            .slice(0, maxCategoriesListed)
+        : [];
+
+    return {
+      scope: 'business',
+      business: businessView(business),
+      otherBusinesses: businesses
+        .filter((other) => other.businessNumber !== business.businessNumber)
+        .map(businessView),
+      from: query.from,
+      to: query.to,
+      filters: filtersOf(query),
+      totals: totalsOf(counted),
+      groups,
+      groupsOmitted,
+      rows,
+      rowsOmitted: query.includeRows ? counted.length - rows.length : 0,
+      matchedClassifications: [...new Set(matching.map(classificationOf))]
+        .sort()
+        .slice(0, maxClassificationsListed),
+      pending: totalsOf(pending),
+      pendingByStatus,
+      approvedOutsideBooks: totalsOf(byStanding('outsideBooks')),
+      excluded: { count: byStanding('excluded').length },
+      categoriesInRange,
+    };
+  }
+
+  // The business asked for, else the owner's only one — always one of the
+  // owner's. The page's businessnumber header is never a default here
+  // (2026-11-15, business selection): it is whatever another screen left
+  // behind, so with several businesses and none asked for the read fails
+  // with BUSINESS_REQUIRED and the chat asks. The agent passes the
+  // conversation's own business as `asked` (agent-conversation-business.ts).
+  private chooseBusiness<B extends { businessNumber: string; businessName: string | null }>(
+    user: AgentHarnessUser,
+    businesses: B[],
+    asked: string | undefined,
+  ): B {
+    const wanted = asked;
+
+    if (wanted !== undefined) {
+      const found = businesses.find((business) => business.businessNumber === wanted);
+      if (!found) {
+        throw new AgentDomainError('BUSINESS_NOT_FOUND', `business ${wanted} is not one of the user's businesses`);
+      }
+      return found;
+    }
+
+    if (businesses.length === 1) {
+      return businesses[0];
+    }
+    if (businesses.length === 0) {
+      throw new AgentDomainError('BUSINESS_NOT_FOUND', 'the user has no business with a number yet');
+    }
+
+    throw new AgentDomainError(
+      'BUSINESS_REQUIRED',
+      `the user has ${businesses.length} businesses: ${businesses
+        .map((business) => `${business.businessNumber} (${business.businessName ?? 'no name'})`)
+        .join(', ')}`,
+    );
+  }
+
+  private groupTotals(expenses: Expense[], groupBy: ExpenseGrouping) {
+    const byKey = new Map<string, Expense[]>();
+
+    for (const expense of expenses) {
+      const key = groupKey(expense, groupBy);
+      byKey.set(key, [...(byKey.get(key) ?? []), expense]);
+    }
+
+    const all = [...byKey.entries()].map(([key, grouped]) => ({ key, grouped, totals: totalsOf(grouped) }));
+
+    // The largest groups (by amount) are listed; months are listed in order.
+    const largestFirst = [...all].sort((a, b) => b.totals.sum - a.totals.sum || a.key.localeCompare(b.key));
+    const listed = largestFirst.slice(0, maxExpenseGroups);
+    const omitted = largestFirst.slice(maxExpenseGroups);
+
+    const ordered = groupBy === 'month' ? [...listed].sort((a, b) => a.key.localeCompare(b.key)) : listed;
+
+    return {
+      groups: ordered.map(({ key, totals }) => ({ key, ...totals })),
+      groupsOmitted:
+        omitted.length === 0
+          ? null
+          : { groups: omitted.length, ...totalsOf(omitted.flatMap(({ grouped }) => grouped)) },
+    };
+  }
+}

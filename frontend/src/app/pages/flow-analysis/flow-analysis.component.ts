@@ -386,6 +386,9 @@ export class FlowAnalysisComponent {
 
   constructor() {
     this.transactionService.ensureAccountsLoaded();
+    this.transactionService.cashflowPreferencesChanged$.pipe(takeUntilDestroyed()).subscribe(() => {
+      if (this.canSubmit()) this.submit$.next();
+    });
 
     // period → date range
     effect(() => {

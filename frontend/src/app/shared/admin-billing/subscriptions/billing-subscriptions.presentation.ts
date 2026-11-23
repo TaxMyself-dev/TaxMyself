@@ -56,6 +56,7 @@ export const BILLING_FAILURE_CATEGORY_LABELS: Record<AdminBillingExceptionFailur
   TOKEN_DECRYPTION_FAILED: 'כשל בפענוח אמצעי התשלום השמור — נדרשת בדיקה פנימית',
   RECONCILIATION_EXHAUSTED: 'בדיקות ההתאמה מול הספק מוצו — נדרשת בדיקה ידנית',
   PROVIDER_OUTCOME_UNKNOWN: 'תוצאת החיוב אצל הספק עדיין נבדקת',
+  PROVIDER_DECLINED: 'קארדקום דחה את החיוב — יש לעדכן אמצעי תשלום',
 };
 
 export const BILLING_ACTION_MESSAGES: Record<AdminBillingExceptionAction, string> = {

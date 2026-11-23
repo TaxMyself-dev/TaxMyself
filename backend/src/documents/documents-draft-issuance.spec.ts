@@ -3,7 +3,10 @@ import { DocumentsService } from './documents.service';
 
 describe('DocumentsService draft issuance', () => {
   it('removes the saved draft transactionally before inserting the reserved document number', async () => {
-    const manager = {};
+    const updateDocument = jest.fn().mockResolvedValue(undefined);
+    const manager = {
+      getRepository: jest.fn(() => ({ update: updateDocument })),
+    };
     const queryRunner = {
       manager,
       connect: jest.fn().mockResolvedValue(undefined),
@@ -20,6 +23,23 @@ describe('DocumentsService draft issuance', () => {
     service.saveDocInfo = jest.fn().mockResolvedValue({ id: 72 });
     service.saveLinesInfo = jest.fn().mockResolvedValue(undefined);
     service.savePaymentsInfo = jest.fn().mockResolvedValue(undefined);
+    service.businessService = {
+      getBusinessByNumber: jest.fn().mockResolvedValue({
+        businessType: 'LICENSED',
+        vatReportingType: 'MONTHLY',
+      }),
+    };
+    service.sharedService = {
+      normalizeToMySqlDate: jest.fn().mockReturnValue('2026-11-17'),
+      buildReportPeriodLabel: jest.fn().mockReturnValue('11/2026'),
+    };
+    service.bookkeepingService = {
+      createJournalEntry: jest.fn().mockResolvedValue({
+        id: 81,
+        entryNumber: 700081,
+      }),
+    };
+    service.generatePdfPair = jest.fn();
 
     const payload = {
       docData: {
@@ -28,6 +48,10 @@ describe('DocumentsService draft issuance', () => {
         docNumber: '20002',
         docStatus: DocumentStatusType.PENDING_ALLOCATION,
         allocationNum: null,
+        docDate: '2026-11-17',
+        recipientName: 'Pending customer',
+        sumAftDisBefVAT: 100,
+        vatSum: 18,
       },
       linesData: [],
       paymentData: [],
@@ -49,6 +73,69 @@ describe('DocumentsService draft issuance', () => {
     );
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
     expect(queryRunner.rollbackTransaction).not.toHaveBeenCalled();
+    expect(service.bookkeepingService.createJournalEntry).toHaveBeenCalledTimes(1);
+    expect(updateDocument).toHaveBeenCalledWith(72, {
+      journalEntryNumber: 700081,
+      journalEntryId: 81,
+    });
+    expect(service.generatePdfPair).not.toHaveBeenCalled();
+  });
+
+  it('finalizes a current pending document without posting a duplicate journal entry', async () => {
+    const documentRepo = { save: jest.fn().mockResolvedValue(undefined) };
+    const queryRunner = {
+      manager: { getRepository: jest.fn(() => documentRepo) },
+      connect: jest.fn().mockResolvedValue(undefined),
+      startTransaction: jest.fn().mockResolvedValue(undefined),
+      commitTransaction: jest.fn().mockResolvedValue(undefined),
+      rollbackTransaction: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
+    };
+    const service = Object.create(DocumentsService.prototype) as any;
+    service.documentsRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 72,
+        issuerBusinessNumber: '777777715',
+        docNumber: '20002',
+        generalDocIndex: '700001',
+        docType: DocumentType.TAX_INVOICE,
+        docStatus: DocumentStatusType.PENDING_ALLOCATION,
+        allocationNum: null,
+        journalEntryId: 81,
+        journalEntryNumber: 700081,
+        docDate: '2026-11-17',
+        recipientName: 'Pending customer',
+        sumAftDisBefVAT: 100,
+        vatSum: 18,
+      }),
+    };
+    service.shaamAllocationAttemptRepo = { findOne: jest.fn().mockResolvedValue(null) };
+    service.docLinesRepo = { find: jest.fn().mockResolvedValue([]) };
+    service.docPaymentsRepo = { find: jest.fn().mockResolvedValue([]) };
+    service.businessService = {
+      getBusinessByNumber: jest.fn().mockResolvedValue({ businessType: 'LICENSED' }),
+    };
+    service.dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
+    service.generatePDF = jest.fn().mockResolvedValue(Buffer.from('signed-pdf'));
+    service.uploadToFirebase = jest.fn()
+      .mockResolvedValueOnce('original-path')
+      .mockResolvedValueOnce('copy-path');
+    service.deleteFromFirebase = jest.fn();
+    service.bookkeepingService = { createJournalEntry: jest.fn() };
+
+    await expect(service.finalizeAllocation('owner', {
+      issuerBusinessNumber: '777777715',
+      docNumber: '20002',
+      docType: DocumentType.TAX_INVOICE,
+      allocationNum: '123456789',
+    })).resolves.toEqual(expect.objectContaining({
+      allocationNum: '123456789',
+      file: 'original-path',
+      copyFile: 'copy-path',
+    }));
+
+    expect(service.bookkeepingService.createJournalEntry).not.toHaveBeenCalled();
+    expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
   });
   it('rolls back issuance after a partial upload failure and removes the successful file', async () => {
     const runner = {

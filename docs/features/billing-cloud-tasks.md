@@ -72,7 +72,28 @@ BILLING_TASKS_TARGET_URL=https://YOUR_DEV_BACKEND/internal/billing/completion
 BILLING_TASKS_AUDIENCE=https://YOUR_DEV_BACKEND
 BILLING_TASKS_SERVICE_ACCOUNT=billing-worker@YOUR_DEV_PROJECT_ID.iam.gserviceaccount.com
 BILLING_TASKS_EXPECTED_DATABASE=keepintax-dev
+BILLING_CHARGE_TASKS_ENABLED=false
+BILLING_CHARGE_TASKS_QUEUE=billing-charge-dev
+BILLING_CHARGE_TASKS_TARGET_URL=https://YOUR_DEV_BACKEND/internal/billing/charge
+BILLING_CHARGE_TASKS_AUDIENCE=https://YOUR_DEV_BACKEND
 ```
+
+The charge queue is a separate, explicit opt-in. When enabled, a definitive
+renewal decline commits its next attempt time first and then enqueues exactly
+one task for that subscription and DB generation, scheduled thirty minutes
+later. The worker reloads the subscription and rechecks status, attempt count,
+period and due time before any provider call. The initial attempt plus two
+thirty-minute retries is the maximum; UNKNOWN and MANUAL_REVIEW are never charge
+tasks.
+
+Configure Cloud Scheduler to POST `/internal/billing/charge-repair` every five
+minutes with the charge audience/identity. It only republishes missing due tasks
+for ACTIVE/STANDARD subscriptions with renewalAttempts 1–2; it never calls
+CardCom. Configure a separate five-minute POST to `/internal/billing/reconcile`
+with the completion audience/identity. Reconciliation performs read-only
+CardCom lookups, including hosted checkouts stale for one hour. These schedules
+are required to repair DB-commit/enqueue gaps and ambiguous provider outcomes;
+they do not broaden the three-attempt limit.
 
 When enabled, incomplete configuration, HTTP URLs, a wrong completion path or a
 mismatched actual database fail startup. For Cloud Run IAM, audience normally uses
@@ -221,3 +242,38 @@ and leaves queue/Scheduler paused for normal-worker restart and explicit resume.
 Keep the private snapshot until restoration succeeds; never commit it. The
 fixture intentionally supports only the verified existing dev records and fails
 closed when their prerequisites differ. It is not a legacy data migration.
+
+## Production charge-retry rollout (2026-11-10)
+
+The following resources were provisioned in project `taxmyself-prod` as a
+fail-closed release prerequisite and activated only after schema, deployment
+and readiness verification:
+
+- Cloud Tasks queue `billing-charge-prod` in `europe-west1`, state `RUNNING`,
+  with at most 2 concurrent dispatches and 1 dispatch per second. Its retry
+  policy is 100 attempts over 7 days with 60-second minimum and 3600-second
+  maximum backoff.
+- The Cloud Run runtime service account has queue-scoped
+  `roles/cloudtasks.enqueuer` on that queue.
+- Scheduler jobs `billing-charge-repair-prod` and
+  `billing-reconciliation-prod`, both state `ENABLED`, scheduled for minute 10
+  of every hour in `Asia/Jerusalem`. They target
+  `/internal/billing/charge-repair` and `/internal/billing/reconcile`
+  respectively, using the existing billing worker OIDC identity and the Cloud
+  Run service URL as audience.
+
+After a fresh operator-managed backup, the additive KT-105 schema was applied
+and verified on `keepintax-prod`: all payer-profile and attempt columns exist
+and all four enum additions are present. The 11 subscriptions with a stored
+payment method were backfilled with version-1 unverified payer profiles; all
+are covered, one lacks a source phone number, and no value was fabricated.
+
+Guarded release `r20261110-183344-0017` passed the full signup/login/cleanup
+smoke. The charge environment was then added on a separate zero-traffic
+revision, candidate readiness passed, and revision
+`taxmys16elf-prod-00334-xzq` was promoted to 100%. Public readiness passed,
+there were no ERROR logs, and the empty queue plus both hourly Scheduler jobs
+were activated. No task was dispatched and no CardCom request, payment,
+receipt or subscription transition occurred during provisioning or activation.
+The existing completion queue and its daily repair Scheduler remained unchanged
+and were re-verified separately.

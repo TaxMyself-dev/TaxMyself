@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/auto-classification-spec",
+    "types": [
+      "jasmine",
+      "node"
+    ],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/app/components/my-agent/*.spec.ts",
+    "src/app/pages/settings-new/settings-navigation.spec.ts",
+    "src/polyfills.ts",
+    "src/app/components/topNav/topNav.component.spec.ts"
+  ],
+  "files": [
+    "src/test.ts"
+  ]
+}

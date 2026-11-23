@@ -93,6 +93,28 @@
   color: #2e7d32;
 }
 
+.mrc__source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.mrc__source-icon,
+.mrc__source-image {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  object-fit: contain;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mrc__source-icon.pi-whatsapp { color: #25d366; }
+.mrc__source-icon.pi-envelope { color: #2563eb; }
+.mrc__source-icon.pi-arrow-right-arrow-left { color: #7c3aed; }
+.mrc__source-icon.pi-pencil { color: #f59e0b; }
+
 // ─── Detail rows (summary + expanded) ────────────────────────────────────────
 
 .mrc__fields {
@@ -144,6 +166,8 @@
   white-space: nowrap;
   line-height: 1.6;
 
+  &--NO_INVOICE_FOUND { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  &--PASSWORD_REQUIRED { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
   &--PENDING  { background: #fef3c7; color: #b45309; }
   &--APPROVED { background: #dcfce7; color: #15803d; }
   &--REJECTED { background: #fee2e2; color: #b91c1c; }

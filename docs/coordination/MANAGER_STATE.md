@@ -1,5 +1,67 @@
 # Primary manager state
 
+## KT-116/KT-117 Allocation button borders and risk-based gates — 2026-11-19
+
+All white actions in the document-allocation decision and completion dialogs
+now use the existing `WHITE_BORDER` variant, preserving a visible black outline
+without changing the global white-button style. The repository quality gates
+now classify changes by risk: local presentation-only edits use a direct
+template/component assertion plus the frontend build and visual check, while
+behavioral, shared, service, backend and infrastructure changes retain broader
+targeted verification. The original focused runs passed 52/52 allocation/table
+tests and 27/27 doc-create tests; after reconciliation with the newer remote
+main, static allocation-style checks and the Angular production build passed.
+Feature commit `aa549003` and governance commit `362ec52b` were pushed through
+delivery `362ec52b`. No backend, database, accounting, external-service,
+production, or deployment action occurred.
+
+## KT-114 Hosted checkout terminal result — 2026-11-15
+
+CardCom `GetLpResult` non-success responses now release a hosted checkout only
+when they echo the exact LowProfile, terminal and ReturnValue identity and carry
+no successful or transaction-bearing signal. Credential, transport, malformed,
+foreign and conflicting results remain fail-closed. Bounded provider response
+code/description persist for admin diagnosis, later transport failures no longer
+erase the last provider diagnostic, and token-free request/outcome logs make the
+read-only CardCom check visible. Integration commit `7aa60eb6`; three focused
+Jest suites / 76 tests and the Nest production build passed on the isolated
+integration tree. No schema, production data/access, credential, provider-write,
+amount, VAT, receipt, accounting or deployment operation occurred.
+Delivery `57150ad6` was pushed and verified on `origin/main` and
+`origin/codex/integration-kt114`; production still requires a normal backend
+deployment.
+
+## KT-107 Drive OCR at-most-once — 2026-11-10
+
+Drive-backed OCR now persists a unique `PROCESSING` claim before Claude is
+called. Every live row and content checksum is a permanent automatic-processing
+claim, including provider/parser failures and rejected documents; same-batch
+duplicates are claimed before the first result is known. Failed files move to
+`processed/` and cron, report navigation, immediate upload, WhatsApp and email
+intake cannot call Claude for them again. The explicit stateless form-prefill
+OCR endpoint is unchanged. Integrated commit `6ba1c4af`; focused verification
+on integrated `main` passed 4 suites / 19 tests and the Nest build. No schema,
+production, authentication, accounting or external-provider operation was
+performed; normal backend deployment is still required for production effect.
+Delivery `97451bff` was pushed to `origin/main` and
+`origin/codex/integration-kt107`; the final task-state commit records remote
+verification only.
+
+## Direct-card cashflow — local main integration, 2026-11-05
+
+Elazar authorized local integration for personal main testing and explicitly
+forbade pushing. Merged main 99e604b0 into codex/direct-card-cashflow at 3880d3bf,
+preserving permanent source-ID handling, consent-aware sync and full-sync retry.
+Included his final copy edits. Approved Direct-card imports replace old skip
+expectations; bank exclusion remains owner opt-in by stable SYSTEM subcategory.
+Combined checks: 23 backend suites / 277 tests and six frontend suites / 59 tests
+passed; isolated-output Nest build and Angular production build passed (existing
+budget/CommonJS warnings). No production, provider or DB operation during merge;
+the approved dev schema was already applied. Deliver verified descendant to local
+main only. Retain feature worktree; no push until Elazar personally tests the
+current main revision and explicitly approves. See
+[task evidence](../tasks/active/direct-card-cashflow.md).
+
 ## Billing existing-invoice recovery — local main integration, 2026-11-03
 
 Elazar authorized local main integration after review and combined checks, with
@@ -413,3 +475,124 @@ focused backend suite (14 tests), focused frontend suite (7 tests), Nest build,
 and Angular production build before reaching `origin/main`. No schema,
 production data, CardCom/provider call, authorization, accounting, deployment,
 or runtime restart occurred.
+
+## KT-108 recurring debt recovery isolation — 2026-11-14
+
+Production evidence showed that a legacy open CHECKOUT obligation could enter
+the atomic recovery reservation even though preview displayed only the true
+RECURRING_PERIOD debt, producing a safe pre-provider quote conflict. The
+reservation query now locks only open recurring obligations, matching preview;
+historical checkout and independent one-off records remain untouched. Commit
+`0ac04249` passed the focused orchestration suite (56 tests) and Nest build on
+the integrated tree. Local main, tracking origin/main and the remote main ref
+were verified at that commit. No schema, CardCom/provider call, accounting,
+authorization or deployment action was part of the code delivery.
+
+## KT-113 hosted checkout resolution gate — 2026-11-15
+
+Canonical CardCom returns now enter an authenticated payment-status route that
+uses owner-scoped, read-only provider inspection and the existing idempotent
+hosted-completion path. Durable `pendingCheckout` state blocks dashboard,
+plans and recovery re-entry across refresh/close/login, and only backend
+`COMPLETED` plus refreshed non-blocking billing state unlocks the dashboard.
+Provider uncertainty never creates another charge; a verified decline returns
+to the matching payment flow. The old 90-second infinite-spinner race and a
+method-level recovery duplicate-submit gap were closed. Source commit
+`c6ff86bb` passed 6 backend suites / 140 tests, 35 focused frontend tests, Nest
+build and Angular production build. Integrated main additionally passed 23
+focused backend tests; its Chrome rerun was blocked before spec loading by a
+local Windows GPU/cache crash, while the identical source had already passed
+35/35 in the isolated worker. No schema, data, amount/VAT, receipt/accounting,
+credential, provider-write, production or deployment action occurred.
+
+## KT-118 manual allocation portal details — 2026-11-19
+
+The pending-allocation manual flow now shows selectable, read-only values for
+the Tax Authority request type, document reference, customer identifier, date,
+pre-VAT amount, VAT amount and item/service descriptions loaded from the
+document lines. A line-loading failure remains non-blocking and preserves the
+general document description as a fallback. Feature commit `9d2d7688` and its
+worker handoff reached `origin/main` at `2c2c3b6b`. The integrated tree passed
+the isolated allocation-flow Karma spec (7 tests) and Angular production build;
+no unrelated suites were run under the component-behavior tier. No schema,
+database, accounting, authorization, Tax Authority write, production change or
+deployment occurred.
+
+## KT-119 manual allocation dialog state — 2026-11-19
+
+Fixed the PrimeNG dialog transition that cleared `pendingFinalizeRow` after the
+user chose manual allocation, leaving only the Tax Authority link and
+allocation-number input visible. The method-choice `onHide` now preserves the
+row while the manual dialog is open, so all copyable portal fields remain in
+that same popup; explicit dismissal still clears state. Fix commit `06f9f3cd`
+reached `origin/main` at `38326e0e`. Only the focused allocation-flow Karma
+spec ran (8 tests), followed by the Angular production build; both passed. No
+backend, schema, database, accounting, authorization, Tax Authority write,
+production change or deployment occurred.
+
+## KT-120 manual allocation during document creation — 2026-11-19
+
+The mandatory allocation decision on the document-creation page now includes a
+bordered white "הפק מספר הקצאה באופן ידני" action. It persists the numbered
+`PENDING_ALLOCATION` document and journal entry, then navigates with the saved
+document snapshot so the existing populated manual-allocation dialog opens on
+the incomes page. Feature commit `903318c9` reached `origin/main` at
+`9dde9e6b`. Verification was intentionally minimal: one isolated Karma test and
+the Angular production build passed; no other suites ran. No backend, schema,
+database, accounting-rule, authorization, Tax Authority write, production
+change or deployment occurred.
+
+## KT-121 SHAAM connection-check loading — 2026-11-19
+
+Automatic allocation on document creation now gives immediate and continuous
+feedback. The existing modal first displays "בודק חיבור לרשות המסים", then
+switches to "מפיק מספר הקצאה" after a usable connection is confirmed and stays
+visible while the pending document and allocation request complete. It closes
+before disconnected/error feedback is shown. Fix commit `1fe8a9cc` reached
+`origin/main` at `5a2729d6`. Verification was intentionally narrow: two isolated
+Karma tests and the Angular production build passed; no other suites ran. No
+backend, provider-contract, schema, database, accounting, authorization,
+production change or deployment occurred.
+
+## KT-122 report-period defaults — 2026-11-19
+
+VAT report entry now keeps the selected business's configured monthly or
+bimonthly cadence while selecting the most recently completed reporting
+period; in November/December a bimonthly business opens on September-October,
+including correct previous-year rollover. Annual-report entry now defaults to
+the current calendar year while preserving an explicit `taxYear` query
+parameter. Feature commit `0897fa3c` reached `origin/main`. Verification was
+intentionally narrow: four isolated Karma tests and the Angular production
+build passed; unrelated suites did not run. No backend, schema, database,
+report-total, accounting, authorization, production change or deployment
+occurred.
+
+## KT-123 P&L annual default — 2026-11-19
+
+Clarified that the requested annual default belongs to the profit-and-loss
+report filter, not the annual-report preparation wizard. P&L now opens in
+annual mode for the current calendar year, while review-return parameters
+still restore their explicit period. The unrelated annual-report wizard was
+returned to its prior completed-tax-year default. Feature commit `451b18af`
+reached `origin/main`. Per the user's explicit request, verification was limited
+to `git diff --check` and targeted static assertions; no Karma suite or Angular
+build ran. No backend, schema, database, report-total, accounting,
+authorization, production change or deployment occurred.
+
+
+## Document Scheduler local-main integration — 2026-11-22
+
+Elazar explicitly approved local integration of codex/scheduler-background-round,
+with no push or deployment. Starting clean main: 17961d37. Feature commits
+2f1bd4f5 and 1db6ad4f were combined with that main without conflicts; executable
+candidate 9ee58c5f retains the already-integrated remote reconciliation and agent
+packaging fix. Selected backend/Drive regression tier passed 215 tests in 24
+suites; seven offline agent loader/image-contract checks passed. Nest build:
+passed, exit 0 (full TypeScript checking; command: $env:NODE_OPTIONS='--max-old-space-size=2048'; npm run build). Main startup print-config and existing listeners verify
+4200/3000 with http://localhost:3000/ and no active worktree port override.
+Full commands, warnings, skipped checks and safety boundaries are in
+docs/tasks/active/document-ai-scheduler.md. Only documentation follows the
+tested executable candidate before the conditional clean-main fast-forward.
+No remote push, deployment, cloud config, schema, provider or user-data action.
+Manual testing of the delivered current main and separate explicit push approval
+are still required before any future push. Feature worktree is retained.

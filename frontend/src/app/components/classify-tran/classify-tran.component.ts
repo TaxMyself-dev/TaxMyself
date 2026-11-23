@@ -193,6 +193,7 @@ export class ClassifyTranComponent implements OnInit {
       billName: this.rowData().billName,
       category: raw.categoryName,
       subCategory: raw.subCategoryName,
+      subCategoryId: this.selectedSubCategory()?.id,
       isSingleUpdate: isSingle,
       businessNumber: raw.businessNumber ?? null,
     };

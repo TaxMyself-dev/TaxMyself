@@ -41,6 +41,9 @@ import {
 export class MenuButtonComponent {
   /** Menu rows. Leave empty to project custom content via `<ng-content>`. */
   readonly items = input<MenuButtonItem[]>([]);
+  /** Keep the same trigger appearance while allowing a direct action instead of a popup. */
+  readonly menuEnabled = input(true);
+  readonly triggered = output<void>();
 
   // ── Trigger appearance (defaults mirror the Expense-Analysis filter button) ──
   readonly icon = input<string>('pi pi-filter-fill');
@@ -84,11 +87,14 @@ export class MenuButtonComponent {
   readonly ButtonSize = ButtonSize;
 
   toggle(): void {
+    if (this.disabled()) return;
+    this.triggered.emit();
+    if (!this.menuEnabled()) return;
     this.open() ? this.close() : this.openMenu();
   }
 
   openMenu(): void {
-    if (this.disabled() || this.open()) return;
+    if (this.disabled() || !this.menuEnabled() || this.open()) return;
     this.open.set(true);
     this.opened.emit();
   }

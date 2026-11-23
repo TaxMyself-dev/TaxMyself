@@ -54,6 +54,20 @@ and promotion, live compatibility smoke, and frontend rollback.
   and Git Credential Manager sessions. Every release begins by checking the
   sessions required by its target; open interactive login directly in the terminal only when a check fails, then verify project access again. Never accept passwords as script parameters
   or store credentials in the repository.
+- Each frontend release creates its own `rollback-<release-id>` Hosting channel
+  with `--expires 3d` before cloning live into it. Record backup success only
+  after cloning succeeds; rollback must use that same channel. Retain it after
+  success or rollback until automatic expiry. Backend-only runs create none.
+- Completed local builds and backend image digests may be reused only with
+  matching commit, runtime, test policy, deployment context and hashed local
+  environment/configuration. Verify local output hashes and remote image
+  availability; missing, corrupt or mismatched records rebuild. `-Rebuild`
+  bypasses all reuse. Never infer completion from old logs or adopt unrecorded
+  artifacts. Keep cache records under ignored `deployment-logs/build-cache/`.
+- Every retry rechecks clean main and cloud access, deploys a fresh zero-traffic
+  revision (using `--image` for a verified cached digest), and reruns readiness,
+  private-job setup, browser/live smoke and rollback protection. Never resume
+  promotion from a remembered stage number or skip production checks.
 - Every stage reports START and COMPLETE, or FAILED with its stage and reason.
 - A failed zero-traffic Cloud Run deployment queries only ERROR entries for the
   exact expected revision whose message prefix is explicitly allowlisted. The
@@ -77,3 +91,42 @@ and promotion, live compatibility smoke, and frontend rollback.
 
 - `smoke-tests/AGENTS.md` — candidate and post-deployment smoke entrypoints.
 - `docs/operations/production-smoke.md` — operator release and rollback policy.
+
+## Local AI development (not deployment)
+
+- Root start-ai.cmd calls start-ai-dev.cjs for local Docker Desktop/Langfuse only.
+- --check is read-only; --infrastructure-only is an alias for default startup.
+- Never start/build/check frontend or backend, read backend/.env, install
+  dependencies, generate keys, apply SQL, or stop an existing process.
+- Use existing local Langfuse compose configuration; refuse remote Docker.
+- Verify with node --test scripts/start-ai-dev.test.cjs, --help and --check.
+
+## Shared test deployment
+
+- `deploy-test.cmd` / `deploy-test.ps1` deploy Full, Backend or Frontend from any
+  clean `test` branch exactly matching freshly fetched `origin/test`. `-Plan` and `-Help` have no side effects.
+- Cloud Run is fixed to `taxmyself-prod/me-west1/taxmys16elf-dev`; Firebase is
+  fixed to `taxmyself-5d8a0`, `hosting:app`, using `build:dev`. Do not replace
+  these with production targets or reuse production smoke jobs.
+- All selected installs/tests/builds finish before deploying. Backend source is
+  archived from the verified commit with local env/secrets excluded. Existing
+  backend runtime settings are preserved. Recheck branch, cleanliness, initial
+  commit and fresh remote equality before each cloud write. No stale-ref fallback
+  on fetch failure; missing origin/test blocks deployment. Never auto-push or merge.
+- Integration into `test` and pushing `test` each require Elazar's explicit
+  approval. Test pushes do not require personal testing of main. The separate
+  main integration/push approval gates continue to apply to main.
+- Native errors fail by exit code. Failures name the stage and stop; there is
+  no automatic rollback for this shared test environment.
+- `tests/deploy-test.Tests.ps1` verifies plans and mocked orchestration offline.
+- Operator instructions: [test deployment](../docs/operations/test-deployment.md).
+
+- Test deployment supports Windows PowerShell 5.1 and PowerShell 7. Detect Windows
+  through env:OS instead of the PowerShell-7-only IsWindows variable. The CMD
+  launcher uses built-in powershell.exe. Run focused tests under both shells.
+
+- Test preflight checks existing target access and opens interactive gcloud auth
+  login or Firebase login --reauth only after that provider's check fails.
+  Invoke login directly in the terminal without capture/pipelines; recheck the
+  exact service/Hosting access once before builds. Cancellation or persistent
+  failure stops; no retry loop, credential storage, or unrelated-provider login.

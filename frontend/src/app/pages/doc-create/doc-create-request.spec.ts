@@ -19,6 +19,8 @@ describe('document preview and create request coordination', () => {
     page.createPDFIsLoading = signal(false);
     page.createPreviewPDFIsLoading = signal(false);
     page.allocationNumberLoading = signal(false);
+    page.allocationFlowLoading = signal(false);
+    page.allocationConnectionCheckLoading = signal(false);
     page.documentRequestBusy = computed(() => page.createPDFIsLoading() || page.createPreviewPDFIsLoading() || page.allocationNumberLoading());
     page.allocationNumber = signal(null);
     page.pdfPreviewBlob = signal(null); page.pdfPreviewVisible = signal(false);
@@ -127,6 +129,19 @@ describe('document preview and create request coordination', () => {
 
 describe('voluntary SHAAM allocation', () => {
   const docDate = '2026-10-19';
+
+  it('defers PDF issuance while persisting the pending document', () => {
+    const page = Object.create(DocCreatePage.prototype) as any;
+    page.showAllocationDecisionDialog = signal(true);
+    page.createPendingAllocationDoc = jasmine.createSpy('createPendingAllocationDoc');
+
+    page.onDeferAllocationDecision();
+
+    expect(page.showAllocationDecisionDialog()).toBeFalse();
+    expect(page.createPendingAllocationDoc).toHaveBeenCalledOnceWith({
+      requestAllocation: false,
+    });
+  });
 
   it('keeps 4,999 and exactly 5,000 optional, and 5,000.01 mandatory', () => {
     expect(requiresAllocationNumberFor(DocumentType.TAX_INVOICE, 4999, docDate)).toBeFalse();
@@ -311,6 +326,8 @@ describe('SHAAM connection pre-flight', () => {
   function createPage(connectionResult: any): any {
     const page = Object.create(DocCreatePage.prototype);
     page.selectedBusinessNumber = '777777715';
+    page.allocationFlowLoading = signal(false);
+    page.allocationConnectionCheckLoading = signal(false);
     page.shaamService = {
       getConnectionStatus: jasmine.createSpy().and.returnValue(connectionResult),
     };

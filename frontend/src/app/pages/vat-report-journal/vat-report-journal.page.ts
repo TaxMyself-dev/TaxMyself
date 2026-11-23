@@ -25,6 +25,7 @@ import { FilterField } from 'src/app/components/filter-tab/filter-fields-model.c
 import { resolveVatReportBusinessNumber } from 'src/app/shared/vat-report-eligibility';
 import { ExpenseDataService } from 'src/app/services/expense-data.service';
 import { reportFilterQueryFromFormValue, reportPeriodDefaultsFromQuery } from 'src/app/shared/report-filter-navigation';
+import { getPreviousVatPeriodDefault } from 'src/app/shared/report-period-defaults';
 
 
 @Component({
@@ -203,19 +204,18 @@ export class VatReportJournalPage implements OnInit {
       this.getVatReportData(start, end, bn);
     }
 
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
     const selectedBusiness = eligibleBusinesses.find(
       business => business.businessNumber === this.businessNumber(),
     ) ?? eligibleBusinesses[0];
     const initialPeriodMode = selectedBusiness.vatReportingType === VATReportingType.MONTHLY_REPORT
       ? ReportingPeriodType.MONTHLY
       : ReportingPeriodType.BIMONTHLY;
-    const defaultMonthValue = this.gs.getDefaultMonthValue(currentMonth, initialPeriodMode);
+    const previousPeriod = getPreviousVatPeriodDefault(new Date(), initialPeriodMode);
     const defaultPeriodConfig = this.gs.getDefaultPeriodConfig({
       periodMode: initialPeriodMode,
-      year: currentYear,
-      month: defaultMonthValue,
+      year: previousPeriod.year,
+      month: previousPeriod.month,
+      bimonthlyDefaultMonth: previousPeriod.month,
     });
 
     const businessFilter: FilterField[] = eligibleBusinesses.length > 1 ? [{
@@ -512,7 +512,7 @@ export class VatReportJournalPage implements OnInit {
       .subscribe({
         next: result => {
           if (this.inboxProcessingBusinessNumber !== businessNumber) return;
-          if (result.alreadyProcessing) {
+          if (result.alreadyProcessing || (result.queued ?? 0) > 0) {
             this.pollInboxProcessing(businessNumber);
             return;
           }

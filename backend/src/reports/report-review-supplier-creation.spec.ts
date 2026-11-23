@@ -1,3 +1,5 @@
+import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
+import { SlimTransaction } from '../transactions/slim-transaction.entity';
 /**
  * Unit tests: ReportReviewService approve-* — supplier creation is never a
  * side effect of approving an expense (product decision, 2026-08-21).
@@ -34,7 +36,16 @@ function makeService(addExpenseResult: any = { id: 999 }) {
   const svc: any = Object.create(ReportReviewService.prototype);
   svc.logger = { log: jest.fn(), error: jest.fn(), warn: jest.fn() };
   svc.docRepo = { findOne: jest.fn() };
-  svc.slimRepo = { findOne: jest.fn() };
+  // These supplier-creation scenarios use transactions included in cashflow.
+  const cashflowQuery = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getCount: jest.fn().mockResolvedValue(0),
+  };
+  svc.slimRepo = {
+    findOne: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(cashflowQuery),
+  };
   svc.cacheRepo = { findOne: jest.fn() };
   svc.userRepo = { findOne: jest.fn().mockResolvedValue({ index: 42 }) };
   svc.businessRepo = { findOne: jest.fn().mockResolvedValue({ businessType: 'LICENSED', vatReportingType: 'MONTHLY_REPORT' }) };
@@ -140,5 +151,38 @@ describe('ReportReviewService — approval never auto-creates a Supplier', () =>
 
     const call = svc.expensesService.addExpense.mock.calls[0];
     expect(call[3]).toBe(false);
+  });
+});
+
+
+describe('review approval keeps cache confirmation atomic with slim', () => {
+  it.each(['approveMatched', 'approveTxNoDoc'])('%s mirrors confirmation and period in the same transaction', async method => {
+    const svc = makeService();
+    svc.docRepo.findOne.mockResolvedValue({...baseDoc});
+    svc.slimRepo.findOne.mockResolvedValue({...baseSlim});
+    svc.cacheRepo.findOne.mockResolvedValue({...baseCache});
+    const updates = new Map<any, any>();
+    const manager = {getRepository: (entity: any) => {
+      if (!updates.has(entity)) updates.set(entity, {update: jest.fn().mockResolvedValue({affected: 1})});
+      return updates.get(entity);
+    }};
+    svc.dataSource.transaction.mockImplementation(async cb => cb(manager));
+    if (method === 'approveMatched') await svc.approveMatched(FIREBASE_ID, BUSINESS_NUMBER, 1, 5);
+    else await svc.approveTxNoDoc(FIREBASE_ID, BUSINESS_NUMBER, 5);
+    expect(updates.get(SlimTransaction).update).toHaveBeenCalledWith({id: 5}, {confirmed: true, vatReportingDate: '1/2026'});
+    expect(updates.get(FullTransactionCache).update).toHaveBeenCalledWith(
+      {userId: FIREBASE_ID, externalTransactionId: 'ext-1'}, {confirmed: true, vatReportingDate: '1/2026'});
+    expect(svc.expensesService.addExpense.mock.calls[0][4]).toBe(manager);
+  });
+  it.each(['approveMatched', 'approveTxNoDoc'])('%s does not swallow a cache write failure', async method => {
+    const svc = makeService();
+    svc.docRepo.findOne.mockResolvedValue({...baseDoc});
+    svc.slimRepo.findOne.mockResolvedValue({...baseSlim});
+    svc.cacheRepo.findOne.mockResolvedValue({...baseCache});
+    svc.dataSource.transaction.mockImplementation(async cb => cb({getRepository: entity => ({
+      update: entity === FullTransactionCache ? jest.fn().mockRejectedValue(new Error('cache write failed')) : jest.fn().mockResolvedValue({affected: 1})
+    })}));
+    const result = method === 'approveMatched' ? svc.approveMatched(FIREBASE_ID, BUSINESS_NUMBER, 1, 5) : svc.approveTxNoDoc(FIREBASE_ID, BUSINESS_NUMBER, 5);
+    await expect(result).rejects.toThrow('cache write failed');
   });
 });

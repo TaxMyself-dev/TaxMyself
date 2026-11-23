@@ -269,7 +269,7 @@ describe('AdminBillingService.findAllSubscriptions', () => {
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
   });
 
-  it('excludes registered demo-profile users from the subscription list', async () => {
+  it('excludes ordinary demo users but includes the dedicated billing QA profile', async () => {
     const subscriptionQuery = queryBuilder([
       {
         subscriptionId: 41,
@@ -291,6 +291,16 @@ describe('AdminBillingService.findAllSubscriptions', () => {
         createdAt: new Date('2026-09-02T00:00:00.000Z'),
         cardLast4: null,
       },
+      {
+        subscriptionId: 43,
+        firebaseId: 'billing-qa-client',
+        status: SubscriptionStatus.ACTIVE,
+        billingAccessMode: BillingAccessMode.STANDARD,
+        planId: null,
+        nextBillingDate: null,
+        createdAt: new Date('2026-09-03T00:00:00.000Z'),
+        cardLast4: '1234',
+      },
     ]);
     const userQuery = queryBuilder([
       {
@@ -300,6 +310,10 @@ describe('AdminBillingService.findAllSubscriptions', () => {
       {
         firebaseId: 'demo-client', userId: 8, fName: 'Demo', lName: 'User',
         email: 'demo+single-licensed@taxmyself.local', hasOpenBanking: 0, lastLoginAt: null,
+      },
+      {
+        firebaseId: 'billing-qa-client', userId: 9, fName: 'Billing', lName: 'QA',
+        email: 'demo+billing-qa@taxmyself.local', hasOpenBanking: 0, lastLoginAt: null,
       },
     ]);
     const businessQuery = queryBuilder([]);
@@ -315,7 +329,10 @@ describe('AdminBillingService.findAllSubscriptions', () => {
 
     const result = await service.findAllSubscriptions();
 
-    expect(result.map(subscription => subscription.firebaseId)).toEqual(['real-client']);
+    expect(result.map(subscription => subscription.firebaseId)).toEqual([
+      'real-client',
+      'billing-qa-client',
+    ]);
   });
 });
 
@@ -397,12 +414,13 @@ describe('AdminBillingService unresolved billing attempts (read-only)', () => {
     const attemptsQuery = builders.find(b => b.entity === BillingAttempt) as (typeof builders)[number];
     expect(attemptsQuery.wheres[0]).toEqual(["a.operation = 'CHARGE' AND o.subscriptionId = :subscriptionId", { subscriptionId: 42 }]);
     expect(attemptsQuery.wheres).toHaveLength(1); // history includes resolved attempts, scoped to this subscription
-    expect(attemptsQuery.selects.join(' ')).not.toMatch(/token|response|leaseOwner|ExternalUniq|cardNumber/i);
+    expect(attemptsQuery.selects.join(' ')).not.toMatch(/token|leaseOwner|ExternalUniq|cardNumber|rawResponse/i);
     expect(result.map(a => a.attemptId)).toEqual([11, 9]);
     expect(result[0]).toEqual({
       attemptId: 11, stateVersion: 0, status: 'MANUAL_REVIEW', chargeMode: 'TOKEN_TRANSACTION', amountAgorot: 11700, currency: 'ILS',
       createdAt: new Date('2026-09-01T00:00:00.000Z'), capturedAt: null, unknownSince: null,
       reconciliationAttempts: 5, lastReconciledAt: null, nextActionAt: null,
+      providerResponseCode: 500, providerDescription: null,
       failureCategory: 'RECONCILIATION_EXHAUSTED', requiredAction: 'INTERNAL_REVIEW',
       cardcomTransactionId: 'TX-11', cardcomLowProfileId: null, cardTokenRecovered: true,
     });

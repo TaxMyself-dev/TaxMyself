@@ -1,5 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { buildGmailExtractionPrompt } from './gmail-document-policy';
+import { BadRequestException, Injectable, Logger, Optional } from '@nestjs/common';
+import { PdfInspectionService } from '../protected-pdf/pdf-inspection.service';
 import Anthropic from '@anthropic-ai/sdk';
+import { EmailAiDecision, parseEmailAiOutcome } from './email-ai-outcome';
+import { AnalysisUsage } from '../document-ai/document-ai.types';
 
 const MODEL = 'claude-sonnet-4-6';
 
@@ -196,6 +200,7 @@ export interface ExtractedFields {
 }
 
 export interface ProcessOutcome {
+  intakeDecision?: EmailAiDecision;
   // Null when Claude's output couldn't be parsed as the expected shape.
   // Empty array when Claude ran but found no invoices in the file.
   invoices: ExtractedFields[] | null;
@@ -204,6 +209,7 @@ export interface ProcessOutcome {
 
 @Injectable()
 export class DocumentProcessorService {
+  constructor(@Optional() private readonly pdfInspection?: PdfInspectionService) {}
   private readonly logger = new Logger(DocumentProcessorService.name);
   private client: Anthropic | null = null;
 
@@ -221,11 +227,23 @@ export class DocumentProcessorService {
     return mimeType === 'application/pdf' || SUPPORTED_IMAGE_TYPES.has(mimeType);
   }
 
+  estimatePromptTokens(catalog:CatalogEntry[],gmailPolicy:boolean):number {
+    const prompt=gmailPolicy?buildGmailExtractionPrompt(STATIC_EXTRACTION_PROMPT):STATIC_EXTRACTION_PROMPT;
+    // Conservative text estimate; document/image estimates are measured separately per provider/model.
+    return Math.ceil((prompt.length+buildCatalogBlock(catalog).length+USER_TRAILER.length)/2);
+  }
   async extract(
     fileBuffer: Buffer,
     mimeType: string,
     catalog: CatalogEntry[] = [],
+    emailIntakeReview = false,
+    options?: {model:string;onUsage?:(usage:AnalysisUsage)=>void;onHeaders?:(headers:{get(name:string):string|null})=>void;bounded?:boolean;signal?:AbortSignal},
   ): Promise<ProcessOutcome> {
+    if (mimeType === 'application/pdf') {
+      if (!this.pdfInspection) throw new Error('PDF validation service unavailable');
+      const result = await this.pdfInspection.inspect(fileBuffer);
+      if (result.kind !== 'readable') throw new BadRequestException({ code: result.kind === 'password_required' ? 'PASSWORD_REQUIRED' : result.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF cannot be sent for processing' });
+    }
     const client = this.getClient();
     const base64 = fileBuffer.toString('base64');
     const catalogBlock = buildCatalogBlock(catalog);
@@ -241,10 +259,10 @@ export class DocumentProcessorService {
             source: { type: 'base64' as const, media_type: mimeType as any, data: base64 },
           };
 
-    this.logger.log(`Calling Claude (${MODEL}) | mimeType=${mimeType} | size=${fileBuffer.length}B`);
+    this.logger.log(`Calling document AI (${options?.model || MODEL}) | mimeType=${mimeType} | size=${fileBuffer.length}B`);
 
-    const response = await client.messages.create({
-      model: MODEL,
+    const request = client.messages.create({
+      model: options?.model || MODEL,
       // Bumped from 1024 — multi-invoice statements (e.g. monthly fuel with
       // 12+ rows) can exceed 1024 tokens of structured JSON and get truncated,
       // which leaves the closing ``` missing and the JSON unparseable.
@@ -262,7 +280,7 @@ export class DocumentProcessorService {
       //       Across batches: read hits while the catalog stays unchanged for
       //       this business and the 5-min TTL hasn't elapsed.
       system: [
-        { type: 'text', text: STATIC_EXTRACTION_PROMPT },
+        { type: 'text', text: (emailIntakeReview ? buildGmailExtractionPrompt(STATIC_EXTRACTION_PROMPT) : STATIC_EXTRACTION_PROMPT) },
         {
           type: 'text',
           text: catalogBlock,
@@ -272,10 +290,18 @@ export class DocumentProcessorService {
       messages: [
         {
           role: 'user',
-          content: [fileBlock as any, { type: 'text', text: USER_TRAILER }],
+          content: [fileBlock as any, { type: 'text', text: emailIntakeReview ? 'Classify and extract every relevant document from the attached file in the same JSON response.' : USER_TRAILER }],
         },
       ],
-    });
+    }, emailIntakeReview || options?.bounded ? { timeout: 45_000, maxRetries: 0, signal: options?.signal } : undefined);
+    const wrapped=options?.onHeaders&&typeof (request as any).withResponse==='function'?await (request as any).withResponse():null;
+    const response:Anthropic.Message=wrapped?wrapped.data:await request;
+    if(wrapped?.response?.headers)options.onHeaders(wrapped.response.headers);
+    if(options?.onUsage&&response.usage&&Number.isFinite(response.usage.input_tokens)&&Number.isFinite(response.usage.output_tokens)&&response.usage.input_tokens>=0&&response.usage.output_tokens>=0){
+      const usage:any=response.usage;
+      const count=(value:any)=>Number.isSafeInteger(value)&&value>=0?value:0;
+      options.onUsage({input:count(usage.input_tokens),output:count(usage.output_tokens),cacheRead:count(usage.cache_read_input_tokens),cacheWrite:count(usage.cache_creation_input_tokens)});
+    }
 
     // Cache telemetry — surfaces whether the rewrite is actually paying off.
     // If `cache_read_input_tokens` stays at 0 across repeated calls in the
@@ -301,6 +327,16 @@ export class DocumentProcessorService {
 
     let invoices: ExtractedFields[] | null = null;
     const stripped = this.stripJsonFence(rawResponse);
+    if (emailIntakeReview) {
+      if (response.stop_reason !== 'end_turn') {
+        return { invoices: null, rawResponse, intakeDecision: 'uncertain' };
+      }
+      const decision = parseEmailAiOutcome(rawResponse, true);
+      return { invoices: decision.invoices, rawResponse, intakeDecision: decision.decision };
+    }
+    if (response.stop_reason && response.stop_reason !== 'end_turn') {
+      return { invoices: null, rawResponse };
+    }
     try {
       const parsed = JSON.parse(stripped);
       // Expected shape: { invoices: [...] }. Be defensive about Claude

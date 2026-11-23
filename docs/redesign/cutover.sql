@@ -1991,6 +1991,7 @@ CREATE TABLE IF NOT EXISTS `billing_attempt` (
   `payment_method_id` int NULL DEFAULT NULL,
   `cardcom_external_uniq_tran_id` varchar(25) NOT NULL,
   `cardcom_low_profile_id` varchar(255) NULL DEFAULT NULL,
+  `hosted_payment_url` varchar(2048) NULL DEFAULT NULL,
   `provider_terminal_ref` varchar(100) NULL DEFAULT NULL,
   `cardcom_transaction_id` varchar(128) NULL DEFAULT NULL,
   `provider_response_code` int NULL DEFAULT NULL,
@@ -2747,3 +2748,364 @@ PREPARE ob_stmt FROM @ob_ddl; EXECUTE ob_stmt; DEALLOCATE PREPARE ob_stmt;
 SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='user_sync_state' AND COLUMN_NAME='fullRunId')
  OR (TABLE_NAME='user_source_sync_state' AND COLUMN_NAME='resultRunId'));
+
+
+-- 2026-11-04 Direct-card cashflow (manual, opt-in)
+-- Direct-card cashflow preference. MANUAL application before starting this version.
+-- No deletion of transactions, expenses, rules, documents or journal entries.
+-- MySQL: run in the selected application database. Rerunnable.
+DELIMITER $$
+DROP PROCEDURE IF EXISTS kt_direct_card_cashflow$$
+CREATE PROCEDURE kt_direct_card_cashflow()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='excludeDirectCardBankTransactionsFromCashflow') THEN
+    ALTER TABLE `user` ADD COLUMN excludeDirectCardBankTransactionsFromCashflow tinyint NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user' AND COLUMN_NAME='directCardNoticeDismissed') THEN
+    ALTER TABLE `user` ADD COLUMN directCardNoticeDismissed tinyint NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sub_category' AND COLUMN_NAME='systemKey') THEN
+    ALTER TABLE sub_category ADD COLUMN systemKey varchar(64) NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sub_category' AND INDEX_NAME='UQ_sub_category_system_key') THEN
+    ALTER TABLE sub_category ADD UNIQUE INDEX UQ_sub_category_system_key (systemKey);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='full_transactions_cache' AND COLUMN_NAME='sub_category_id') THEN
+    ALTER TABLE full_transactions_cache ADD COLUMN sub_category_id int NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='slim_transactions' AND COLUMN_NAME='sourceRecordId') THEN
+    ALTER TABLE slim_transactions ADD COLUMN sourceRecordId int NULL;
+  END IF;
+
+  -- Do not silently repurpose an existing accounting/private classification.
+  IF EXISTS (
+    SELECT 1 FROM sub_category s INNER JOIN category c ON c.id=s.categoryId
+    WHERE s.chartOwnerKey='SYSTEM' AND c.chartOwnerKey='SYSTEM'
+      AND c.name='בנק, אשראי ותנועות' AND s.name='כרטיס דיירקט'
+      AND (s.systemKey IS NULL OR s.systemKey<>'DIRECT_CARD_BANK_PAYMENT')
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Existing system Direct label needs manual catalog review';
+  END IF;
+
+  INSERT INTO category (name, type, ownerType, chartOwnerKey, visibilityScope, isDefault, isActive)
+  SELECT 'בנק, אשראי ותנועות', 'EXPENSE', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 1, 1
+  WHERE NOT EXISTS (SELECT 1 FROM category WHERE chartOwnerKey='SYSTEM' AND name='בנק, אשראי ותנועות' AND type='EXPENSE');
+
+  INSERT INTO sub_category
+    (categoryId, name, systemKey, isPrivate, accountId, necessity, ownerType, chartOwnerKey, visibilityScope, approvalStatus, isDefault, isActive)
+  SELECT c.id, 'כרטיס דיירקט', 'DIRECT_CARD_BANK_PAYMENT', 1, NULL, 'IMPORTANT', 'SYSTEM', 'SYSTEM', 'SYSTEM_DEFAULT', 'APPROVED', 1, 1
+  FROM category c
+  WHERE c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
+    AND NOT EXISTS (SELECT 1 FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT');
+
+  -- Preserve the stable sub-category ID when upgrading an already-applied version.
+  UPDATE sub_category s INNER JOIN category c
+    ON c.chartOwnerKey='SYSTEM' AND c.name='בנק, אשראי ותנועות' AND c.type='EXPENSE'
+  SET s.categoryId=c.id
+  WHERE s.systemKey='DIRECT_CARD_BANK_PAYMENT' AND s.chartOwnerKey='SYSTEM';
+
+  -- Copy only existing stable classification IDs/provenance; never guess by merchant name.
+  UPDATE full_transactions_cache c INNER JOIN slim_transactions s
+    ON s.userId=c.userId AND s.externalTransactionId=c.externalTransactionId
+  SET c.sub_category_id=s.sub_category_id;
+  UPDATE slim_transactions s INNER JOIN full_transactions_cache c
+    ON s.userId=c.userId AND s.externalTransactionId=c.externalTransactionId
+  SET s.sourceRecordId=c.sourceRecordId
+  WHERE s.sourceRecordId IS NULL;
+
+  -- Linked legacy Direct cards must participate in the next normal retry.
+  UPDATE user_source_sync_state
+  SET status='not_synced', transactionCount=0, error=NULL
+  WHERE type='card' AND status='skipped_direct';
+END$$
+CALL kt_direct_card_cashflow()$$
+DROP PROCEDURE kt_direct_card_cashflow$$
+DELIMITER ;
+
+SELECT id, categoryId, name, systemKey, isPrivate, accountId, isActive
+FROM sub_category WHERE systemKey='DIRECT_CARD_BANK_PAYMENT';
+SELECT COUNT(*) AS opted_in_users FROM `user`
+WHERE excludeDirectCardBankTransactionsFromCashflow=1;
+
+
+-- KT-105 billing payer identity and provider diagnostics (2026-11-09)
+-- Additive and rerunnable. No charges, status transitions or data backfill.
+CREATE TABLE IF NOT EXISTS `billing_payer_profile` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `subscription_id` int NOT NULL,
+  `full_name` varchar(255) NULL,
+  `identity_number` varchar(32) NULL,
+  `email` varchar(255) NULL,
+  `phone` varchar(32) NULL,
+  `business_number` varchar(32) NULL,
+  `version` int NOT NULL DEFAULT 1,
+  `verified_at` datetime NULL,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_billing_payer_profile_subscription` (`subscription_id`),
+  CONSTRAINT `fk_billing_payer_profile_subscription`
+    FOREIGN KEY (`subscription_id`) REFERENCES `subscription` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='provider_description')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN provider_description varchar(500) NULL AFTER provider_response_code',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='payer_profile_version')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN payer_profile_version int NULL AFTER provider_description',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='payer_profile_snapshot')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN payer_profile_snapshot json NULL AFTER payer_profile_version',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SET @kt105_sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt'
+    AND COLUMN_NAME='hosted_payment_url')=0,
+  'ALTER TABLE billing_attempt ADD COLUMN hosted_payment_url varchar(2048) NULL AFTER cardcom_low_profile_id',
+  'SELECT 1');
+PREPARE kt105_stmt FROM @kt105_sql; EXECUTE kt105_stmt; DEALLOCATE PREPARE kt105_stmt;
+
+SELECT TABLE_NAME,COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA=DATABASE() AND
+ ((TABLE_NAME='billing_payer_profile' AND COLUMN_NAME IN
+   ('subscription_id','full_name','identity_number','email','phone','business_number','version','verified_at'))
+  OR (TABLE_NAME='billing_attempt' AND COLUMN_NAME IN
+   ('provider_description','payer_profile_version','payer_profile_snapshot','hosted_payment_url')))
+ORDER BY TABLE_NAME,COLUMN_NAME;
+
+-- KT-105 explicit one-off admin charge enum values (additive, rerunnable).
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_obligation' AND COLUMN_NAME='kind');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_ONE_OFF'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_obligation MODIFY COLUMN kind ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_ONE_OFF'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('OVERDUE_DEBT_CREATED'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_event MODIFY COLUMN event_type ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''OVERDUE_DEBT_CREATED'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_attempt' AND COLUMN_NAME='trigger');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_ONE_OFF'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_attempt MODIFY COLUMN `trigger` ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_ONE_OFF'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+SET @kt105_enum_type = (SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='billing_event' AND COLUMN_NAME='event_type');
+SET @kt105_enum_sql = IF(LOCATE(QUOTE('MANUAL_CHARGE_REQUESTED'), @kt105_enum_type)>0, 'SELECT 1',
+ CONCAT('ALTER TABLE billing_event MODIFY COLUMN event_type ',
+ LEFT(@kt105_enum_type, CHAR_LENGTH(@kt105_enum_type)-1), ',''MANUAL_CHARGE_REQUESTED'') NOT NULL'));
+PREPARE kt105_enum_stmt FROM @kt105_enum_sql; EXECUTE kt105_enum_stmt; DEALLOCATE PREPARE kt105_enum_stmt;
+-- 2026-11-05: Admin subscription price policies
+-- Apply only this new section once after its standalone preflight and backup.
+-- Do not run the complete historical cutover file. Use this section OR the standalone apply, never both.
+-- Run manually on the explicitly selected, backed-up database before starting this version.
+-- Additive only: existing users default to LIVE; legacy discounts and stored debts are untouched.
+ALTER TABLE subscription
+  ADD COLUMN price_policy VARCHAR(10) NOT NULL DEFAULT 'LIVE',
+  ADD COLUMN frozen_plan_id INT NULL DEFAULT NULL,
+  ADD COLUMN frozen_monthly_price_agorot INT NULL DEFAULT NULL,
+  ADD COLUMN custom_monthly_price_agorot INT NULL DEFAULT NULL,
+  ADD COLUMN custom_price_start_date DATE NULL DEFAULT NULL,
+  ADD COLUMN custom_price_end_date DATE NULL DEFAULT NULL,
+  ADD CONSTRAINT ck_subscription_price_policy CHECK (price_policy IN ('LIVE', 'FROZEN')),
+  ADD CONSTRAINT ck_subscription_frozen_price CHECK (frozen_monthly_price_agorot IS NULL OR frozen_monthly_price_agorot BETWEEN 0 AND 100000000),
+  ADD CONSTRAINT ck_subscription_custom_price CHECK (custom_monthly_price_agorot IS NULL OR custom_monthly_price_agorot BETWEEN 0 AND 100000000),
+  ADD CONSTRAINT ck_subscription_custom_window CHECK (custom_price_start_date IS NULL OR custom_price_end_date IS NULL OR custom_price_start_date <= custom_price_end_date);
+
+-- Composio managed Gmail: applied to DEV only with explicit approval on 2026-11-17.
+-- PROD has not been modified. Preserve legacy columns; no data deletion.
+-- For DEV reruns use backend/scripts/apply-composio-dev-schema.cjs; raw ALTER statements are not idempotent.
+ALTER TABLE user_integrations
+  ADD COLUMN connection_backend VARCHAR(32) NULL,
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN connection_verified_at DATETIME NULL,
+  ADD COLUMN remote_disconnect_pending TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN retired_connected_account_ids JSON NULL,
+  ADD UNIQUE INDEX ux_user_integrations_connected_account (connected_account_id);
+
+ALTER TABLE oauth_states
+  ADD COLUMN connected_account_id VARCHAR(255) NULL,
+  ADD COLUMN target_integration_id INT NULL;
+
+-- Protected PDF lifecycle: PREPARED ONLY, separate execution approval required (2026-11-19).
+-- Prepared only. DO NOT apply without explicit DEV schema approval.
+-- No ALTER of existing columns: sidecar tables keep disabled application paths compatible.
+CREATE TABLE protected_documents (
+ id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ original_import_id INT NULL,
+ original_drive_id VARCHAR(255) NULL,
+ filename VARCHAR(512) NOT NULL,
+ source VARCHAR(32) NOT NULL,
+ metadata_json JSON NOT NULL,
+ integration_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'IMPORTING',
+ current_operation_id CHAR(36) NULL,
+ version INT NOT NULL DEFAULT 0,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ recovery_attempts INT NOT NULL DEFAULT 0,
+ recovery_next_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_protected_owner_content(firebase_id,business_number,content_hash),
+ UNIQUE KEY ux_protected_original_import(original_import_id),
+ KEY ix_protected_business(firebase_id,business_number,status),
+ KEY ix_protected_integration(firebase_id,integration_id,status),
+ CONSTRAINT fk_protected_original_import FOREIGN KEY(original_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE document_replacement_operations (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ protected_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL,
+ actor_id VARCHAR(255) NOT NULL,
+ idempotency_key VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ content_hash CHAR(64) NOT NULL,
+ filename VARCHAR(512) NOT NULL,
+ size INT NOT NULL,
+ candidate_drive_id VARCHAR(255) NULL,
+ replacement_import_id INT NULL,
+ status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',
+ processing_status VARCHAR(32) NOT NULL DEFAULT 'NOT_STARTED',
+ expected_version INT NOT NULL,
+ lease_token CHAR(36) NULL,
+ lease_expires_at DATETIME(3) NULL,
+ attempts INT NOT NULL DEFAULT 0,
+ next_attempt_at DATETIME(3) NULL,
+ error_code VARCHAR(64) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_replacement_request(protected_id,idempotency_key),
+ UNIQUE KEY ux_replacement_import(replacement_import_id),
+ KEY ix_replacement_outbox(status,next_attempt_at,lease_expires_at),
+ KEY ix_replacement_processing(status,processing_status,updated_at),
+ CONSTRAINT fk_replacement_protected FOREIGN KEY(protected_id) REFERENCES protected_documents(id),
+ CONSTRAINT fk_replacement_import FOREIGN KEY(replacement_import_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+CREATE TABLE protected_pdf_import_runs (
+ id CHAR(36) NOT NULL PRIMARY KEY,
+ integration_id INT NOT NULL,
+ firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ summary_json JSON NOT NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ KEY ix_protected_run_owner(firebase_id,integration_id,created_at)
+) ENGINE=InnoDB;
+
+
+-- Gmail durable intake: PREPARED ONLY; separate schema approval required.
+-- PREPARED ONLY. Requires separate approval before applying to any database.
+CREATE TABLE email_import_runs (
+ id CHAR(36) PRIMARY KEY, firebase_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+ business_number VARCHAR(255) NOT NULL, integration_id INT NOT NULL, sync_type VARCHAR(16) NOT NULL,
+ query_text TEXT NOT NULL, from_date DATE NULL, to_date DATE NULL,
+ scan_state VARCHAR(24) NOT NULL DEFAULT 'READY', pull_state VARCHAR(24) NOT NULL DEFAULT 'RUNNING',
+ processing_state VARCHAR(24) NOT NULL DEFAULT 'WAITING', page_token TEXT NULL, page_history_json JSON NULL, scan_generation INT NOT NULL DEFAULT 0,
+ lease_token CHAR(36) NULL, lease_expires_at DATETIME(3) NULL, next_attempt_at DATETIME(3) NULL,
+ attempts INT NOT NULL DEFAULT 0, error_code VARCHAR(64) NULL, summary_json JSON NULL,
+ started_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), pull_finished_at DATETIME(3) NULL,
+ processing_finished_at DATETIME(3) NULL, integration_finalized_at DATETIME(3) NULL, updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ KEY ix_email_runs_owner(firebase_id,integration_id), KEY ix_email_runs_due(pull_state,next_attempt_at,lease_expires_at)
+) ENGINE=InnoDB;
+CREATE TABLE email_import_items (
+ id CHAR(36) PRIMARY KEY, run_id CHAR(36) NOT NULL, message_id VARCHAR(128) NOT NULL,
+ part_path VARCHAR(160) NOT NULL, state VARCHAR(24) NOT NULL DEFAULT 'DISCOVERED', filename VARCHAR(512) NULL,
+ mime_type VARCHAR(128) NULL, source_metadata_json JSON NULL, imported_document_id INT NULL, error_code VARCHAR(64) NULL,
+ attempts INT NOT NULL DEFAULT 0, next_attempt_at DATETIME(3) NULL,
+ created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+ UNIQUE KEY ux_email_item(run_id,message_id,part_path), KEY ix_email_items_work(run_id,state,next_attempt_at),
+ CONSTRAINT fk_email_item_run FOREIGN KEY(run_id) REFERENCES email_import_runs(id),
+ CONSTRAINT fk_email_item_import FOREIGN KEY(imported_document_id) REFERENCES imported_documents(id)
+) ENGINE=InnoDB;
+ALTER TABLE imported_documents
+ MODIFY drive_file_id VARCHAR(255) NULL, MODIFY drive_file_name VARCHAR(512) NULL, MODIFY drive_folder_id VARCHAR(255) NULL,
+ ADD email_work_state VARCHAR(32) NOT NULL DEFAULT 'LEGACY', ADD email_decision VARCHAR(24) NULL,
+ ADD email_policy_version VARCHAR(32) NULL, ADD email_decided_at DATETIME(3) NULL, ADD email_run_id CHAR(36) NULL,
+ ADD email_lease_token CHAR(36) NULL, ADD email_lease_expires_at DATETIME(3) NULL,
+ ADD email_next_at DATETIME(3) NULL, ADD email_attempts INT NOT NULL DEFAULT 0,
+ ADD email_ai_attempt_id CHAR(36) NULL, ADD email_ai_state VARCHAR(24) NOT NULL DEFAULT 'NOT_SENT',
+ ADD email_result_json JSON NULL, ADD email_claim_id INT NULL, ADD email_error_code VARCHAR(64) NULL,
+ ADD email_upload_tag CHAR(36) NULL, ADD email_deleted_at DATETIME(3) NULL,
+ ADD KEY ix_email_import_work(email_work_state,email_next_at,email_lease_expires_at);
+-- extracted_document.document_type is VARCHAR(32) in the checked-in entity.
+-- Verify the actual target column before applying; if ENUM, prepare a separate
+-- explicit extension preserving every existing value. No automatic backfill/job.
+
+-- Shared document AI queue (prepared only; separate authorization required)
+-- PREPARED ONLY. Requires separate schema authorization. No backfill or existing-work migration.
+CREATE TABLE IF NOT EXISTS document_processing_jobs (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  sequence BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  identity_key CHAR(64) NOT NULL,
+  owner VARCHAR(255) NOT NULL, business VARCHAR(255) NOT NULL, actor VARCHAR(255) NOT NULL,
+  purpose VARCHAR(32) NOT NULL, source VARCHAR(32) NOT NULL, state VARCHAR(32) NOT NULL,
+  content_hash CHAR(64) NOT NULL, filename VARCHAR(512) NOT NULL, mime_type VARCHAR(255) NOT NULL, size BIGINT NOT NULL,
+  drive_file_id VARCHAR(255) NULL, drive_folder_id VARCHAR(255) NULL,
+  provider VARCHAR(32) NOT NULL, model VARCHAR(100) NOT NULL, policy_version VARCHAR(100) NOT NULL, capacity_key VARCHAR(120) NOT NULL,
+  interactive TINYINT NOT NULL DEFAULT 0, context_json JSON NULL, result_json JSON NULL, completion_json JSON NULL,
+  claim_id INT NULL, attempt_id CHAR(36) NULL, lease_token CHAR(36) NULL, lease_expires_at DATETIME(3) NULL,
+  attempts INT NOT NULL DEFAULT 0, completion_attempts INT NOT NULL DEFAULT 0, reserved_input BIGINT NOT NULL DEFAULT 0, reserved_output BIGINT NOT NULL DEFAULT 0,
+  usage_json JSON NULL, timings_json JSON NULL, error_code VARCHAR(100) NULL,
+  cleanup_state VARCHAR(16) NOT NULL DEFAULT 'PENDING', cleanup_attempts INT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  started_at DATETIME(3) NULL, ai_started_at DATETIME(3) NULL, finished_at DATETIME(3) NULL, next_at DATETIME(3) NULL, expires_at DATETIME(3) NULL,
+  UNIQUE KEY ux_document_job_sequence (sequence), UNIQUE KEY ux_document_job_identity (identity_key),
+  KEY ix_document_job_dispatch (capacity_key,state,next_at,sequence),
+  KEY ix_document_job_tenant (owner,business,state,interactive,sequence), KEY ix_document_job_lease (state,lease_expires_at),
+  KEY ix_document_job_cleanup (purpose,expires_at,cleanup_state)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS document_ai_capacity (
+  capacity_key VARCHAR(120) NOT NULL PRIMARY KEY, state_json JSON NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB;
+
+-- 2026-11-19: Automatic classification. Standalone guarded activation: backend/scripts/auto-classification-schema.cjs.
+-- Do not execute this historic cumulative file to activate the feature.
+-- Apply only after onboarding schema, first to an explicitly authorized isolated development DB.
+-- Do not run the historic cumulative cutover script. No schema is applied on boot.
+CREATE TABLE IF NOT EXISTS agent_auto_preferences (
+ owner_uid varchar(128) PRIMARY KEY, enabled boolean NOT NULL DEFAULT false,
+ version int NOT NULL DEFAULT 0, consent_version int NOT NULL DEFAULT 1,
+ changed_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ scan_cursor bigint NOT NULL DEFAULT 0, next_scan_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ last_error varchar(100) NULL, notice_seen boolean NOT NULL DEFAULT false,
+ INDEX idx_auto_due(enabled,next_scan_at)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS agent_auto_items (
+ id varchar(36) PRIMARY KEY, owner_uid varchar(128) NOT NULL,
+ external_id varchar(255) NOT NULL, business_number varchar(100) NOT NULL,
+ state varchar(20) NOT NULL DEFAULT 'pending', attempts int NOT NULL DEFAULT 0,
+ reason text NULL, question text NULL, answer text NULL, display_json json NOT NULL,
+ rule_id int NULL, category varchar(255) NULL, sub_category varchar(255) NULL,
+ retry_at datetime(3) NULL, read_at datetime(3) NULL,
+ created_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ updated_at datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+ UNIQUE KEY uq_auto_owner_tx(owner_uid,external_id),
+ INDEX idx_auto_unread(owner_uid,read_at,state), INDEX idx_auto_inbox(owner_uid,updated_at,id), INDEX idx_auto_state(owner_uid,state,retry_at)
+) ENGINE=InnoDB;
+-- Explicit columns: NULL means historical source is unknown; never infer USER.
+ALTER TABLE classified_transactions ADD COLUMN createdBySource varchar(10) NULL,
+ ADD COLUMN updatedBySource varchar(10) NULL;
+ALTER TABLE slim_transactions ADD COLUMN classificationSource varchar(10) NULL;
+
+ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) NULL;

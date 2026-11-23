@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { BillingStateService } from './billing-state.service';
-import { Subject } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
 describe('BillingStateService professional-access override', () => {
   let service: BillingStateService;
@@ -46,8 +46,10 @@ describe('BillingStateService professional-access override', () => {
     const get = jasmine.createSpy('get').and.returnValue(response);
     TestBed.configureTestingModule({ providers: [BillingStateService, { provide: HttpClient, useValue: { get } }] });
     const billing = TestBed.inject(BillingStateService);
+    expect(billing.hasCheckoutReturnContext()).toBeFalse();
     billing.billingState.set({ subscription: { status: 'TRIAL_EXPIRED' }, billingPaymentResult: { paymentStatus: 'SUCCESS' } } as any);
     billing.setCheckoutReturnContext('lp-current');
+    expect(billing.hasCheckoutReturnContext()).toBeTrue();
     expect(billing.billingPaymentResult()).toBeNull();
     const refresh = billing.refreshBillingState();
     expect(billing.isLoading()).toBeFalse();
@@ -56,5 +58,25 @@ describe('BillingStateService professional-access override', () => {
     response.complete();
     await refresh;
     expect(billing.billingState()?.subscription?.status).toBe('ACTIVE');
+    billing.setCheckoutReturnContext(null);
+    expect(billing.hasCheckoutReturnContext()).toBeFalse();
+  });
+
+  it('prepares overdue debt and refreshes billing state before recovery navigation', async () => {
+    TestBed.resetTestingModule();
+    const post = jasmine.createSpy('post').and.returnValue(of({ providerCalled: false }));
+    const get = jasmine.createSpy('get').and.returnValue(of({
+      subscription: { status: 'PAST_DUE' },
+      access: { isPaymentRequired: true, paymentBlockReason: 'PAST_DUE' },
+    }));
+    TestBed.configureTestingModule({
+      providers: [BillingStateService, { provide: HttpClient, useValue: { post, get } }],
+    });
+    const billing = TestBed.inject(BillingStateService);
+
+    await expectAsync(billing.prepareOverdueRecovery()).toBeResolvedTo({ prepared: true });
+    expect(post.calls.mostRecent().args[0]).toContain('billing/overdue/prepare');
+    expect(get).toHaveBeenCalled();
+    expect(billing.billingState()?.subscription?.status).toBe('PAST_DUE');
   });
 });

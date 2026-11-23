@@ -8,12 +8,22 @@
 }
 
 .top-nav-buttons {
-    width: 192px;
+    min-width: 0;
+    gap: 4px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
 
-    app-p-button:last-child {
-        margin-inline-start: auto;
-    }
+    direction: rtl;
+}
+// Keep the settings icon neutral, including the shared text-button hover state.
+:host ::ng-deep .top-nav-buttons app-menu-button .p-button {
+    width:44px; height:44px; color:#363636 !important;
+}
+:host ::ng-deep .top-nav-buttons app-menu-button .p-button:hover,
+:host ::ng-deep .top-nav-buttons app-menu-button .p-button:focus {
+    color:#363636 !important;
+}
+:host ::ng-deep .top-nav-buttons app-menu-button .p-button .pi {
+    font-size:24px; color:inherit !important;
 }

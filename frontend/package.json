@@ -6,7 +6,7 @@
   "scripts": {
     "ng": "ng",
     "mobile": "ng serve --configuration mobile --host 0.0.0.0 --port 4200 -o",
-    "start": "ng serve -o",
+    "start": "node scripts/start-local.js",
     "start:billing": "ng serve --port 4200 -o",
     "build": "ng build",
     "build:dev": "ng build --configuration dev",
@@ -16,6 +16,7 @@
   },
   "private": true,
   "dependencies": {
+    "@ai-sdk/angular": "3.0.148",
     "@angular/animations": "^19.2.2",
     "@angular/cdk": "^19.2.3",
     "@angular/common": "^19.2.2",
@@ -31,6 +32,7 @@
     "@ionic/angular": "^7.7.3",
     "@ionic/core": "^7.7.3",
     "@primeng/themes": "^19.0.10",
+    "@soniox/client": "2.5.0",
     "axios": "^1.4.0",
     "bootstrap": "^5.3.1",
     "date-fns": "^2.30.0",

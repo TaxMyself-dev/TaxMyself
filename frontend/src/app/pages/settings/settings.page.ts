@@ -261,7 +261,7 @@ export class SettingsPage implements OnInit {
       // Direct cards never expose a pull button — their transactions are
       // intentionally received via the bank-account feed, and the backend
       // refuses the pull anyway (skipped_direct).
-      showWhen: (row) => row!['hasConsent'] === true && this.deletingSourceId() === null && row!['isDirect'] !== true &&
+      showWhen: (row) => row!['hasConsent'] === true && this.deletingSourceId() === null &&
         (!this.retryingSourceId() || this.retryingSourceId() === String(row!['sourceRecordId'] ?? row!['sourceName'])),
       isLoading: () => this.bankingActionLoading(),
       action: (_, row) => {
@@ -470,9 +470,9 @@ export class SettingsPage implements OnInit {
 
     if (googleIntegration === 'success') {
       this.messageService.add({
-        severity: 'success',
-        summary: 'חשבון Google חובר',
-        detail: 'חשבון ה-Gmail חובר בהצלחה.',
+        severity: 'info',
+        summary: 'חזרה מחיבור Gmail',
+        detail: 'מצב החשבונות מתעדכן לפי החיבור שאומת בשרת.',
         life: 4000,
         key: 'br',
       });
@@ -500,8 +500,8 @@ export class SettingsPage implements OnInit {
     switch (reason) {
       case 'access_denied':
         return 'החיבור בוטל. לא ניתנה הרשאה לחשבון Google.';
-      case 'no_refresh_token':
-        return 'החיבור נכשל: לא התקבלה הרשאה מתמשכת מ-Google. נסה שוב.';
+      case 'account_conflict':
+        return 'החשבון מחובר למשתמש אחר, נבחרה תיבה שונה או שמתבצע סנכרון. בדוק ונסה שוב.';
       case 'missing_code':
       case 'callback_failed':
         return 'חיבור חשבון Google נכשל. נסה שוב.';
@@ -547,14 +547,6 @@ export class SettingsPage implements OnInit {
   onPullSource(s: { hasConsent: boolean; sourceRecordId?: number; sourceName: string; sourceType: paymentIdentifierType; isDirect?: boolean | null }): void {
     this.bankingError.set(null);
     if (!s.hasConsent || this.bankingActionLoading()) return; // one operation at a time
-    if (s.isDirect === true) {
-      // Direct card — nothing to pull from the card feed (bank feed covers it).
-      this.messageService.add({
-        severity: 'info', summary: 'כרטיס דיירקט',
-        detail: 'כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק', life: 5000, key: 'banking',
-      });
-      return;
-    }
     const type: 'bank' | 'card' =
       s.sourceType === paymentIdentifierType.CREDIT_CARD ? 'card' : 'bank';
     this.retryingSourceId.set(String(s.sourceRecordId ?? s.sourceName));
@@ -578,7 +570,7 @@ export class SettingsPage implements OnInit {
           // Backend re-detected the card as Direct mid-pull — not a failure.
           this.messageService.add({
             severity: 'info', summary: 'כרטיס דיירקט',
-            detail: `${s.sourceName}: כרטיס דיירקט — התנועות נמשכות דרך חשבון הבנק`, life: 6000, key: 'banking',
+            detail: `${s.sourceName}: יש למשוך מחדש את עסקאות כרטיס הדיירקט`, life: 6000, key: 'banking',
           });
           this.fetchAccountSources();
           return;

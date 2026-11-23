@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
@@ -33,20 +33,65 @@ describe('GenericTable unified row actions', () => {
     fixture.detectChanges();
   });
 
+  it('keeps opted-in hover actions inside a narrow table and aligned with its row', fakeAsync(() => {
+    fixture.componentRef.setInput('rowActionsWithinTable', true);
+    fixture.detectChanges();
+    const table: HTMLElement = fixture.nativeElement.querySelector('.table');
+    table.style.width='320px';table.style.marginLeft='180px';
+    const tr: HTMLElement = table.querySelector('tbody tr')!;
+    component.onRowEnter(0,row,{currentTarget:tr} as unknown as MouseEvent);
+    tick(100);fixture.detectChanges();tick(500);fixture.detectChanges();
+    const actions: HTMLElement=table.querySelector('.floating-buttons')!;
+    const bounds=table.getBoundingClientRect(),buttons=actions.getBoundingClientRect(),rowBounds=tr.getBoundingClientRect();
+    expect(getComputedStyle(actions).position).toBe('absolute');
+    expect(buttons.left).toBeGreaterThanOrEqual(bounds.left-1);
+    expect(buttons.right).toBeLessThanOrEqual(bounds.right+1);
+    expect(Math.abs(buttons.top-rowBounds.top)).toBeLessThan(2);
+    actions.querySelector('button')!.click();
+    expect(callback).toHaveBeenCalledOnceWith(null,row);
+    component.onRowLeave();tick(400);fixture.detectChanges();
+  }));
+  it('retains viewport positioning for consumers that do not opt in', fakeAsync(() => {
+    const tr=fixture.nativeElement.querySelector('tbody tr');
+    component.onRowEnter(0,row,{currentTarget:tr} as unknown as MouseEvent);
+    tick(100);fixture.detectChanges();tick(500);
+    expect(component.rowActionsWithinTable()).toBeFalse();
+    expect(getComputedStyle(fixture.nativeElement.querySelector('.floating-buttons')).position).toBe('fixed');
+    component.onRowLeave();tick(400);
+  }));
+
   for (const mobileView of [false,true]) {
-    it(`keeps existing banking rows visible during running and failed refreshes (mobile=${mobileView})`, () => {
+    it(`shows the loader for a new pull with retained rows, then restores rows on failure (mobile=${mobileView})`, () => {
       mobile.set(mobileView);
       if (mobileView) fixture.componentRef.setInput('mobileCardConfig',{primaryFields:['name']});
       fixture.componentRef.setInput('useSyncState',true);
       fixture.componentRef.setInput('preserveRowsDuringSync',true);
       fixture.componentRef.setInput('processStatus','running');
       fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeTrue();
+      expect(component.dataTable()).toEqual([row]);
+      expect(fixture.nativeElement.querySelector('.pi-spinner-dotted')).not.toBeNull();
+      expect(fixture.nativeElement.textContent).toContain('נתונים נמשכים מהבנק');
+      expect(fixture.nativeElement.querySelector('.table-container').getAttribute('aria-busy')).toBe('true');
+      fixture.componentRef.setInput('processStatus','failed');fixture.detectChanges();
       expect(component.effectiveIsLoading()).toBeFalse();
       expect(fixture.nativeElement.textContent).toContain('מסמך');
-      expect(fixture.nativeElement.textContent).toContain('הנתונים הקיימים');
-      fixture.componentRef.setInput('processStatus','failed');fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('מסמך');
       expect(fixture.nativeElement.querySelector('.sync-error-text')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.pi-spinner-dotted')).toBeNull();
+    });
+    it(`keeps the loader until refreshed table data finishes loading (mobile=${mobileView})`, () => {
+      mobile.set(mobileView);
+      if (mobileView) fixture.componentRef.setInput('mobileCardConfig',{primaryFields:['name']});
+      fixture.componentRef.setInput('useSyncState',true);
+      fixture.componentRef.setInput('preserveRowsDuringSync',true);
+      fixture.componentRef.setInput('processStatus','completed');
+      fixture.componentRef.setInput('isLoadingState',true);fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeTrue();
+      expect(component.dataTable()).toEqual([row]);
+      fixture.componentRef.setInput('isLoadingState',false);fixture.detectChanges();
+      expect(component.effectiveIsLoading()).toBeFalse();
+      expect(fixture.nativeElement.textContent).toContain('מסמך');
+      expect(fixture.nativeElement.querySelector('.table-container').getAttribute('aria-busy')).toBe('false');
     });
   }
 
@@ -228,4 +273,28 @@ describe('GenericTable unified row actions', () => {
     expect(component.showAttachButton({ id: 7, sourceDocumentId: 42 })).toBeFalse();
     expect(component.getActionsForRow({ id: 7, sourceDocumentId: 42 }).map(a => a.name)).toEqual(['preview']);
   });
+
+  it('keeps unchanged action inputs stable without caching mutable row visibility', () => {
+    const mutableRow = { id: 80, allowed: true };
+    const conditional = { ...action, fileRequirement: undefined, showWhen: (target: IRowDataTable) => !!target['allowed'] };
+    fixture.componentRef.setInput('actions', [conditional]);
+    const first = component.getActionsForRow(mutableRow);
+    expect(component.getActionsForRow(mutableRow)).toBe(first);
+    fixture.componentRef.setInput('dataTable', [mutableRow]);
+    const refreshed = component.getActionsForRow(mutableRow);
+    expect(refreshed).not.toBe(first);
+    expect(component.getActionsForRow(mutableRow)).toBe(refreshed);
+    mutableRow.allowed = false;
+    expect(component.getActionsForRow(mutableRow)).toEqual([]);
+    component.executeAction(conditional, mutableRow);
+    expect(callback).not.toHaveBeenCalled();
+    mutableRow.allowed = true;
+    expect(component.getActionsForRow(mutableRow)).toEqual([conditional]);
+    const replacement = { ...conditional, action: jasmine.createSpy('replacement') };
+    fixture.componentRef.setInput('actions', [replacement]);
+    expect(component.getActionsForRow(mutableRow)[0]).toBe(replacement);
+    component.executeAction(conditional, mutableRow);
+    expect(replacement.action).toHaveBeenCalledOnceWith(null, mutableRow);
+  });
+
 });

@@ -73,6 +73,7 @@ export function buildTransactionColumns(
     cols = cols.filter(c => !omit.has(c.name));
   }
 
+  if(!options.incomeTable && !options.myAccountUnclassified)cols.push({name:TransactionsOutcomesColumns.CLASSIFICATION_SOURCE,value:TransactionsOutcomesHebrewColumns.classificationSource,type:FormTypes.TEXT});
   if (options.incomeTable) {
     cols = cols.filter(c => c.name !== TransactionsOutcomesColumns.MONTH_REPORT);
   }

@@ -10,10 +10,12 @@ import { BillingProviderRuntimeService } from './billing-provider-runtime.servic
 
 /** At most this many attempts of each kind are handled per sweep, serially. */
 export const RECONCILIATION_SWEEP_BATCH = 20;
+export const HOSTED_CHECKOUT_TIMEOUT_MS = 60 * 60_000;
 
 export interface ReconciliationSweepSummary {
   /** Expired PROCESSING leases moved to UNKNOWN by this sweep. */
   expired: number;
+  staleHosted: number;
   /** UNKNOWN attempts that were due for a lookup. */
   due: number;
   captured: number;
@@ -59,6 +61,7 @@ export class BillingReconciliationService {
   ): Promise<ReconciliationSweepSummary> {
     const summary: ReconciliationSweepSummary = {
       expired: 0,
+      staleHosted: 0,
       due: 0,
       captured: 0,
       declined: 0,
@@ -69,6 +72,24 @@ export class BillingReconciliationService {
     };
 
     try {
+      const cutoff = new Date(now.getTime() - HOSTED_CHECKOUT_TIMEOUT_MS);
+      const staleHosted = await this.orchestration.findStaleHostedCheckouts(
+        cutoff,
+        limit,
+      );
+      for (const candidate of staleHosted) {
+        try {
+          await this.orchestration.markStaleHostedCheckoutUnknown(
+            candidate.attemptId,
+            cutoff,
+            now,
+          );
+          summary.staleHosted += 1;
+        } catch (error) {
+          this.recordError(summary, candidate.attemptId, error);
+        }
+      }
+
       const expired = await this.orchestration.findExpiredProcessingAttempts(
         now,
         limit,

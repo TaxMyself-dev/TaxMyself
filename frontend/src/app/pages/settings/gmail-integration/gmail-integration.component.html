@@ -1,6 +1,26 @@
+@if (authService.isViewingAsClient()) {
+  <p class="gmail-muted">חיבור לתיבת מייל וניהולה זמינים לבעל החשבון בלבד.</p>
+} @else {
 <div class="gmail-integration">
   <h3 class="subsection-title">חיבור Gmail לקליטת מסמכים</h3>
+  <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
+  @for (run of syncState.status()?.runs ?? []; track run.id) {
+    <section class="gmail-card" aria-label="התקדמות משיכת מסמכים">
+      <p>סטטוס משיכה: {{durableState(run.pull_state)}}</p>
+      <p>סטטוס עיבוד: {{durableState(run.processing_state)}}</p>
+      <p>קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}}</p>
+      @if (showRunDiagnostics) {
+        <details>
+          <summary>פרטי ריצה לפיתוח</summary>
+      <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
+      <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
+      <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
+      <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
+        </details>
+      }
+    </section>
+  }
   @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
   } @else if (syncState.accounts().length === 0) {
@@ -21,6 +41,9 @@
     <!-- רשימת חשבונות מחוברים -->
     @for (account of syncState.accounts(); track account.id) {
       <div class="gmail-card">
+        @if (account.passwordRequiredCount) {
+          <p role="status">{{ account.passwordRequiredCount }} מסמכים דורשים סיסמה. ניתן להעלות עותק פתוח מתוך רשימת מסמכי העסק.</p>
+        }
         <p class="gmail-account">
           @if (account.connected) {
             חשבון מחובר: <strong>{{ account.accountEmail }}</strong>
@@ -29,7 +52,12 @@
           }
         </p>
 
-        @if (!account.connected) {
+        @if (account.remoteDisconnectPending) {
+          <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
+          <app-p-button [buttonText]="'נסה שוב לנתק'" [severity]="'danger'" [variant]="'outlined'"
+            [disabled]="isDisconnecting(account.id)" [isLoading]="isDisconnecting(account.id)"
+            (onButtonClicked)="confirmDisconnectGmail(account)"></app-p-button>
+        } @else if (!account.connected) {
 
           <!-- הרשאה פגה / אבדה (EXPIRED) — יש לחבר מחדש -->
           <div class="gmail-error">
@@ -42,7 +70,7 @@
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
               [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
-              (onButtonClicked)="connectGmail()"></app-p-button>
+              (onButtonClicked)="connectGmail(account.id)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
               [isLoading]="isDisconnecting(account.id)"
@@ -68,6 +96,9 @@
 
         } @else if (account.initialImportCompleted) {
 
+          @if (account.syncErrorPredatesConnection) {
+            <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; טרם בוצע ייבוא נוסף.</p>
+          }
           <!-- ייבוא ראשוני הושלם -->
           <div class="gmail-success">
             <i class="pi pi-check-circle"></i>
@@ -78,7 +109,7 @@
               סנכרון אחרון: {{ account.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
             </p>
           }
-          @if (account.lastSyncStatus === 'ERROR') {
+          @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
@@ -99,8 +130,11 @@
 
         } @else {
 
+          @if (account.syncErrorPredatesConnection) {
+            <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; ניתן להתחיל ייבוא.</p>
+          }
           <!-- מחובר, ייבוא ראשוני טרם בוצע (וגם מצב שגיאה → ניסיון חוזר) -->
-          @if (account.lastSyncStatus === 'ERROR') {
+          @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">
               <i class="pi pi-exclamation-triangle"></i>
               <span>
@@ -156,13 +190,30 @@
 </div>
 
 <!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
-<p-dialog header="בחירת חשבונות למשיכת מסמכים" [visible]="importDialogVisible()"
+<p-dialog header="משיכת מסמכים לפי תאריכים" [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"
   [style]="{ width: 'min(440px, 95vw)' }"
   [contentStyle]="{ 'max-height': '60vh', 'overflow-y': 'auto' }"
   (onHide)="importDialogVisible.set(false)">
   <div class="gmail-import-dialog">
-    <p class="gmail-import-description">בחר מאילו חשבונות Gmail למשוך מסמכים כעת.</p>
+    <p class="gmail-import-description">בחר טווח תאריכים ואת חשבונות Gmail שמהם יימשכו המסמכים. ניתן לבחור מתחילת השנה הקודמת ועד היום.</p>
+    <div class="gmail-date-range">
+      <div class="gmail-date-field">
+        <app-input-date [parentForm]="manualImportForm" [controlName]="'fromDate'"
+          [labelText]="'מתאריך'" [placeholder]="'dd/mm/yyyy'"
+          [minDate]="minFromDate()" [maxDate]="maxToDate()"
+          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+      </div>
+      <div class="gmail-date-field">
+        <app-input-date [parentForm]="manualImportForm" [controlName]="'toDate'"
+          [labelText]="'עד תאריך'" [placeholder]="'dd/mm/yyyy'"
+          [minDate]="manualImportForm.controls.fromDate.value || minFromDate()" [maxDate]="maxToDate()"
+          [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-date>
+      </div>
+    </div>
+    @if (manualImportForm.controls.fromDate.value && manualImportForm.controls.toDate.value && !manualRangeValid() && !importing()) {
+      <p class="gmail-muted" role="alert">יש לבחור טווח תקין מתחילת השנה הקודמת ועד היום, כשהתאריך הראשון אינו מאוחר מהאחרון.</p>
+    }
 
     @if (selectableAccounts().length === 0) {
       <p class="gmail-muted">
@@ -195,7 +246,7 @@
                 ההרשאה פגה או בוטלה — לא ניתן למשוך מחשבון זה עד שיחובר מחדש.
               </span>
               <button type="button" class="gmail-link-button" [disabled]="connecting() || importing()"
-                (click)="connectGmail()">חבר מחדש</button>
+                (click)="connectGmail(account.id)">חבר מחדש</button>
             } @else if (!account.initialImportCompleted) {
               <span class="gmail-import-account-note">
                 <i class="pi pi-info-circle"></i>
@@ -213,8 +264,9 @@
         [buttonSize]="buttonSize.SMALL" [disabled]="importing()"
         (onButtonClicked)="closeImportDialog()"></app-p-button>
       <app-p-button [buttonText]="'משוך מסמכים'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="importing() || !hasImportSelection() || !manualRangeValid()"
         [isLoading]="importing()" (onButtonClicked)="importSelected()"></app-p-button>
     </div>
   </ng-template>
 </p-dialog>
+}

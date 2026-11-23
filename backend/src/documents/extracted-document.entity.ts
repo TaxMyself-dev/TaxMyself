@@ -9,6 +9,10 @@ import {
 import { DocumentKind, ReportPeriodLabel, RecordSource } from 'src/enum';
 
 export enum ExtractedDocStatus {
+  /** Durable at-most-once claim written before the first Claude call. If the
+   *  process dies mid-call, future inbox sweeps treat this row as handled and
+   *  move the file to processed/ without calling Claude again. */
+  PROCESSING = 'processing',
   /** OCR succeeded, awaiting user review in the report-page modal. */
   PENDING_REVIEW = 'pending_review',
   /** User confirmed the row → became an Expense; file already in processed/. */
@@ -28,8 +32,11 @@ export enum ExtractedDocStatus {
    *  status filter. When the primary is approved/archived/rejected, the
    *  cascade also updates this row to match. Unpair reverts both halves. */
   PAIRED = 'paired',
-  /** OCR failed on the file; row exists for diagnostics, file stays in inbox/. */
+  /** OCR failed on the file; row exists for diagnostics and the file is moved
+   *  to processed/ so automatic intake can never parse it again. */
   ERROR = 'error',
+  /** Valid completed extraction with no identified invoice; retain for review. */
+  NO_INVOICE_FOUND = 'no_invoice_found',
   /** D8 (Phase 4.3): terminal state of the "תייק" flow — an ANNUAL_DOCUMENT
    *  (טופס 106, אישור מס, תרומה) filed for the annual report. Never becomes
    *  an Expense, never journaled. Distinct from ARCHIVED ("chose not to
@@ -53,6 +60,8 @@ export enum ExtractedDocStatus {
 export enum ExtractedDocumentType {
   INVOICE = 'invoice',
   RECEIPT = 'receipt',
+  INSURANCE_POLICY = 'insurance_policy',
+  LICENSE_FEE = 'license_fee',
   TAX_INVOICE_RECEIPT = 'tax_invoice_receipt',
   /** חשבונית זיכוי — credit/refund invoice. Negative-amount invoice
    *  issued to reverse a prior charge. Claude returns this when the doc

@@ -26,3 +26,14 @@ Verification: 18 suites / 259 mocked tests passed. Cases cover both senders with
 one/two businesses, spouse question/result delivery, normalization, cross-account
 collision cancellation and existing receipt/dedup behavior. Backend build and
 diff check passed. No live messages, cloud/data changes, deployment or push.
+
+## Authorized local main integration — 2026-11-04
+
+User approved integrating both spouse-phone support and rejection notices into
+main, with no deployment or push. Clean main ffcafc16 contained newer billing
+recovery changes. Merge 66321438 preserves those changes and adds only the
+16 reviewed WhatsApp source/test/documentation files. No conflicts. All 19
+suites / 264 mocked tests passed on integrated main (259 WhatsApp + 5 billing
+completion-mode tests). Backend build result recorded below.
+
+Integrated-main npm run build passed. Diff check passed. No live messages, data/cloud changes, deployment or GitHub push.

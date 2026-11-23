@@ -29,3 +29,6 @@ account lookup for phone-only failures and unchanged success ownership checks.
 Diff check and backend build passed. The sandboxed build session did not report
 completion clearly; the repeated elevated local npm run build exited 0.
 No live messages, database/cloud changes, deployment or push were performed.
+
+Subsequent user-approved main integration on 2026-11-04 is recorded in
+docs/tasks/active/lychee-spouse-phone.md. The no-deploy/no-push boundary remains.

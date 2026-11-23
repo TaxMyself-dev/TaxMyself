@@ -1,3 +1,6 @@
+import { Optional } from '@nestjs/common';
+import { EmailIntakeStore } from '../email-intake/email-intake.store';
+import { cashflowExcludedSql } from '../transactions/cashflow-exclusion';
 import {
   Injectable,
   Logger,
@@ -176,6 +179,7 @@ export class ReportReviewService {
     private readonly catalogService: CatalogService,
     private readonly catalogContextService: CatalogContextService,
     private readonly dataSource: DataSource,
+    @Optional() private readonly emailStore?: EmailIntakeStore,
   ) {}
 
   // ====================================================================
@@ -311,6 +315,7 @@ export class ReportReviewService {
         .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
         .andWhere('slim.isRecognized = true')
         .andWhere('slim.confirmed = false')
+        .andWhere('NOT (' + cashflowExcludedSql('slim') + ')')
         .andWhere('cache.transactionDate <= :to', { to: periodEnd })
         .getCount();
       hasUnconfirmedExpenses = count > 0;
@@ -329,11 +334,18 @@ export class ReportReviewService {
     firebaseId: string,
     businessNumber: string,
     range: { from: Date; to: Date },
-    options: { focusDocumentId?: number } = {},
+    // readOnly (the AI agent's readiness read): skip steps 1, 1.5 and 2 —
+    // the inbox processing, invoice/receipt pairing and matcher that write —
+    // and only load and classify the rows as they already stand. The review
+    // screen never passes it, so its behavior is unchanged.
+    options: { focusDocumentId?: number; readOnly?: boolean } = {},
   ): Promise<ReportPreviewResponse> {
     const user = await this.userRepo.findOne({ where: { firebaseId } });
     if (!user) throw new NotFoundException(`User not found for firebaseId`);
     await this.assertBusinessOwnership(firebaseId, businessNumber);
+    if (options.readOnly !== true)
+      await this.catalogService.refreshPendingClassifications({ userId: firebaseId, businessNumber });
+    const runsWritingSteps = options.focusDocumentId == null && options.readOnly !== true;
 
     // Step 1 — pull anything new from inbox/. Failures here don't sink the
     // preview; the inbox processor logs per-file errors and the user can
@@ -345,7 +357,7 @@ export class ReportReviewService {
     // enter the review table; they're skipped before OCR).
     let duplicatesSkipped = 0;
     let deletedDocumentsRestored = 0;
-    if (options.focusDocumentId == null) {
+    if (runsWritingSteps) {
       try {
         const inboxResult = await this.documentsService.processInboxForUser(firebaseId, businessNumber);
         duplicatesSkipped = inboxResult?.duplicates ?? 0;
@@ -363,7 +375,7 @@ export class ReportReviewService {
     // as a single candidate, not as two siblings fighting each other.
     // Best-effort: a pairing failure shows up as extra unpaired doc_only
     // rows, which the user can still link manually.
-    if (options.focusDocumentId == null) {
+    if (runsWritingSteps) {
       try {
         if (user.index != null) {
           await this.documentPairingService
@@ -381,7 +393,7 @@ export class ReportReviewService {
       ? 'with_banking'
       : 'documents_only';
 
-    if (mode === 'with_banking' && options.focusDocumentId == null) {
+    if (mode === 'with_banking' && runsWritingSteps) {
       try {
         await this.matchingService.matchDocumentsForBusiness(
           firebaseId,
@@ -741,6 +753,7 @@ export class ReportReviewService {
     const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date(cache.transactionDate as any));
 
     return this.dataSource.transaction(async manager => {
+      await this.emailStore?.assertRetained(doc.driveFileId,manager);
       // Phase 4.1: addExpense JOINS this transaction via `manager` (it used
       // to open its own nested one) — expense + journal + doc/slim flips are
       // now genuinely atomic. subCategoryId (override > slim-side backfill,
@@ -861,6 +874,13 @@ export class ReportReviewService {
         { id: slim.id },
         { confirmed: true, vatReportingDate: slimPeriod as any },
       );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
+        { confirmed: true, vatReportingDate: slimPeriod as any },
+      );
 
       this.logger.log(
         `approveMatched: doc=${doc.id} + tx=${slim.id} → expense=${expense.id} (biz=${businessNumber})`,
@@ -909,12 +929,15 @@ export class ReportReviewService {
     // override here has always been unambiguously safe — nothing for it
     // to diverge from. FX docs keep their derived sum (see
     // buildExpenseAmountFromDoc + the ReviewOverrides.amount doc comment).
-    const finalDate = overrides.date ? new Date(overrides.date) : (doc.date ? new Date(doc.date) : new Date());
+    const dateInput=overrides.date||doc.date;
+    if(!dateInput||!/^\d{4}-\d{2}-\d{2}$/.test(String(dateInput).slice(0,10))||(!Number.isFinite(new Date(dateInput).getTime()) || new Date(dateInput).toISOString().slice(0,10)!==String(dateInput).slice(0,10)))throw new BadRequestException('יש להשלים תאריך תקין לפני האישור');
+    const finalDate = new Date(dateInput);
 
     const amounts = this.buildExpenseAmountFromDoc(doc, overrides);
     const finalSum = amounts.sum;
 
     return this.dataSource.transaction(async manager => {
+      await this.emailStore?.assertRetained(doc.driveFileId,manager);
       // Phase 4.1: joins this transaction (see approveMatched).
       const expense = await this.expensesService.addExpense(
         {
@@ -1099,6 +1122,13 @@ export class ReportReviewService {
         { id: slim.id },
         { confirmed: true, vatReportingDate: reportPeriod as any },
       );
+      // The transactions page reads the cache, not slim. Persist the same
+      // confirmation in this transaction so an approved payment cannot appear
+      // pending until the next provider refresh. Missing cache is valid (archive).
+      await manager.getRepository(FullTransactionCache).update(
+        { userId: firebaseId, externalTransactionId: slim.externalTransactionId },
+        { confirmed: true, vatReportingDate: reportPeriod as any },
+      );
 
       this.logger.log(
         `approveTxNoDoc: tx=${slim.id} → expense=${expense.id} (biz=${businessNumber})`,
@@ -1207,81 +1237,13 @@ export class ReportReviewService {
     await this.documentPairingService.unpair(documentId);
     return { ok: true };
   }
-
-  // ====================================================================
-  // UPLOAD + LINK — "העלה מסמך" on a tx_only row
-  // ====================================================================
-
-  /**
-   * User picked a PDF/image off their machine and wants to OCR it as the
-   * source doc for a pending bank transaction. End-to-end:
-   *   1. Validate the slim transaction belongs to the caller's business
-   *      AND isn't already linked to a doc (defensive — prevents double-
-   *      linking when the user double-clicks the upload button).
-   *   2. Hand the file to DocumentsService.uploadAndOcrDoc, which uploads
-   *      to Drive inbox/, runs Claude, persists one extracted_document
-   *      row per invoice, and returns the FIRST row.
-   *   3. linkDocToTx that first row to the slim — symmetric pointers so
-   *      the next preview pass surfaces it as a `matched` row.
-   *
-   * Multi-invoice PDFs are common (monthly fuel statements, bundled
-   * receipts). We link only sub_index=0 here — the siblings appear as
-   * fresh doc_only rows on the next preview and the user can resolve
-   * each one separately (link / approve / archive / reject). If we tried
-   * to auto-match each sibling here, we'd be doing matcher-class work
-   * (date/amount tolerance over all unmatched slim rows for the user)
-   * inline behind a single user click, which doesn't pay off versus
-   * letting the regular matcher do it on the next refresh.
-   */
-  async uploadDocAndLinkToTx(
-    firebaseId: string,
-    businessNumber: string,
-    slimTransactionId: number,
-    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
-  ): Promise<{
-    ok: true;
-    documentId: number;
-    driveFileId: string;
-    driveFileName: string;
-    invoiceNumber: string | null;
-    allocationNumber: string | null;
-    documentType: string | null;
-  }> {
-    const { slim } = await this.loadTxPair(firebaseId, businessNumber, slimTransactionId);
-    if (slim.matchedDocumentId) {
-      throw new BadRequestException(
-        `Transaction ${slimTransactionId} is already linked to document ${slim.matchedDocumentId}`,
-      );
-    }
-
-    const newDoc = await this.documentsService.uploadAndOcrDoc(
-      firebaseId,
-      businessNumber,
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-    );
-
-    await this.matchingService.linkDocToTx(
-      firebaseId,
-      businessNumber,
-      newDoc.id,
-      slimTransactionId,
-    );
-
-    this.logger.log(
-      `uploadDocAndLinkToTx: doc=${newDoc.id} ↔ tx=${slimTransactionId} (biz=${businessNumber}, file="${file.originalname}", size=${file.size}B)`,
-    );
-    return {
-      ok: true,
-      documentId: newDoc.id,
-      driveFileId: newDoc.driveFileId,
-      driveFileName: newDoc.driveFileName,
-      invoiceNumber: newDoc.invoiceNumber,
-      allocationNumber: newDoc.allocationNumber,
-      documentType: newDoc.documentType,
-    };
+  /** Validate immediately; queued completion rechecks and links atomically after the AI wait. */
+  async uploadDocAndLinkToTx(firebaseId:string,businessNumber:string,slimTransactionId:number,file:{buffer:Buffer;originalname:string;mimetype:string;size:number},actor=firebaseId):Promise<any>{
+    const {slim}=await this.loadTxPair(firebaseId,businessNumber,slimTransactionId);
+    if(slim.matchedDocumentId)throw new BadRequestException('Transaction is already linked');
+    return this.documentsService.uploadAndOcrDoc(firebaseId,businessNumber,file.buffer,file.originalname,file.mimetype,slimTransactionId,actor);
   }
+
 
   // ====================================================================
   // DELETE — same shape as archive, different terminal status
@@ -1388,6 +1350,7 @@ export class ReportReviewService {
       .andWhere('slim.businessNumber = :bn', { bn: businessNumber })
       .andWhere('slim.isRecognized = true')
       .andWhere('slim.confirmed = false')
+      .andWhere('NOT (' + cashflowExcludedSql('slim') + ')')
       .andWhere('cache.transactionDate <= :to', { to: range.to })
       .orderBy('cache.transactionDate', 'ASC')
       .getMany();
@@ -1442,6 +1405,10 @@ export class ReportReviewService {
     if (slim.businessNumber !== businessNumber) {
       throw new ForbiddenException(`Transaction ${slimTransactionId} is not in business ${businessNumber}`);
     }
+    const excluded = await this.slimRepo.createQueryBuilder('slim')
+      .where('slim.id = :id AND slim.userId = :uid', { id: slim.id, uid: slim.userId })
+      .andWhere(cashflowExcludedSql('slim')).getCount();
+    if (excluded) throw new BadRequestException('התנועה מוחרגת מהתזרים ולא ניתן לאשרה כהוצאה');
     if (slim.confirmed) {
       throw new BadRequestException(`Transaction ${slimTransactionId} is already confirmed`);
     }
@@ -1708,6 +1675,7 @@ export class ReportReviewService {
       isEquipment: slim.isEquipment,
       originalAmount: isNonIls ? Math.abs(Number(cache.amount)) : null,
       originalCurrency: isNonIls ? cache.currency : null,
+      ilsConversionRecorded: !isNonIls || cache.ilsAmount != null,
       matchedSupplierKnown: knownSupplierByName
         ? knownSupplierByName.has(normalizeSupplierName(cache.merchantName))
         : false,
@@ -1737,7 +1705,9 @@ export class ReportReviewService {
     originalCurrency: string | null;
     originalSum: number | null;
   } {
-    const rawAmount = Number(overrides.amount ?? doc.amount ?? 0);
+    const candidate=overrides.amount ?? doc.amount;
+    if(candidate==null||String(candidate).trim()===''||!Number.isFinite(Number(candidate)))throw new BadRequestException('יש להשלים סכום לפני האישור');
+    const rawAmount = Number(candidate);
     const currency = this.normalizeReviewCurrency(overrides.currency ?? doc.currency ?? 'ILS');
     if (currency !== 'ILS') {
       return {

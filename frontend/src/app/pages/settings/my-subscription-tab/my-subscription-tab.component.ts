@@ -1,6 +1,7 @@
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MessageService } from 'primeng/api';
 import { ButtonComponent } from 'src/app/components/button/button.component';
@@ -10,6 +11,7 @@ import { GenericTableComponent } from 'src/app/components/generic-table/generic-
 import { FilesService } from 'src/app/services/files.service';
 import {
   BillingStateService,
+  BillingPayerProfileUpdate,
   PaymentHistoryRow,
 } from 'src/app/services/billing-state.service';
 import {
@@ -35,6 +37,7 @@ const STATUS_LABELS: Record<string, string> = {
     GenericTableComponent,
     ButtonComponent,
     ChangePaymentMethodDialogComponent,
+    FormsModule,
   ],
   templateUrl: './my-subscription-tab.component.html',
   styleUrls: ['./my-subscription-tab.component.scss'],
@@ -60,6 +63,56 @@ export class MySubscriptionTabComponent implements OnInit {
   readonly changingPaymentMethod = signal(false);
   /** Open Fields dialog visibility (feature-flagged embedded flow). */
   readonly changePmDialogOpen = signal(false);
+  readonly payerProfileLoading = signal(false);
+  readonly payerProfileSaving = signal(false);
+  readonly payerProfile = signal<BillingPayerProfileUpdate>({
+    fullName: '', identityNumber: '', email: '', phone: '', businessNumber: '',
+  });
+
+  async loadPayerProfile(): Promise<void> {
+    if (this.billingStateService.hasBillingOverride()) return;
+    this.payerProfileLoading.set(true);
+    try {
+      const profile = await this.billingStateService.getPayerProfile();
+      this.payerProfile.set({
+        fullName: profile.fullName ?? '',
+        identityNumber: profile.identityNumber ?? '',
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+        businessNumber: profile.businessNumber ?? '',
+      });
+    } catch {
+      this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לטעון את פרטי המשלם' });
+    } finally {
+      this.payerProfileLoading.set(false);
+    }
+  }
+
+  updatePayerField(field: keyof BillingPayerProfileUpdate, value: string): void {
+    this.payerProfile.update(profile => ({ ...profile, [field]: value }));
+  }
+
+  async savePayerProfile(): Promise<void> {
+    if (this.payerProfileSaving() || this.billingStateService.hasBillingOverride()) return;
+    const payload = Object.fromEntries(Object.entries(this.payerProfile()).map(([key, value]) =>
+      [key, value.trim()])) as BillingPayerProfileUpdate;
+    if (Object.values(payload).some(value => !value)) {
+      this.messageService.add({ key: 'br', severity: 'warn', summary: 'יש למלא את כל פרטי המשלם' });
+      return;
+    }
+    this.payerProfileSaving.set(true);
+    try {
+      await this.billingStateService.updatePayerProfile(payload);
+      this.payerProfile.set(payload);
+      this.messageService.add({ key: 'br', severity: 'success', summary: 'פרטי המשלם נשמרו',
+        detail: 'הפרטים ישמשו בחיובים עתידיים בלבד.' });
+    } catch (err: any) {
+      this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לשמור את פרטי המשלם',
+        detail: err?.error?.message ?? 'יש לבדוק את הפרטים ולנסות שוב.' });
+    } finally {
+      this.payerProfileSaving.set(false);
+    }
+  }
 
   /**
    * Whether replacing the saved card is allowed — only for ACTIVE / PAST_DUE
@@ -278,6 +331,7 @@ export class MySubscriptionTabComponent implements OnInit {
     // Billing state is normally already loaded app-wide; this is a no-op if so.
     this.billingStateService.loadBillingState();
     this.loadPaymentHistory();
+    void this.loadPayerProfile();
   }
 
   private loadPaymentHistory(): void {

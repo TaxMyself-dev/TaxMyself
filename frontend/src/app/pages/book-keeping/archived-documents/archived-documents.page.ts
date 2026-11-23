@@ -1,7 +1,9 @@
+import { ProtectedPdfUploadFlow } from 'src/app/services/protected-pdf-upload';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
-import { Component, OnInit, computed, signal, inject } from '@angular/core';
-import { of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { Component, DestroyRef, OnInit, computed, signal, inject } from '@angular/core';
+import { of, timer } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ArchiveDocumentClassification, DriveDocsService, ArchivedItem, RecordSource, ArchiveItemStatus } from 'src/app/services/drive-docs.service';
 import { GenericService } from 'src/app/services/generic.service';
 import { IColumnDataTable, IMobileCardConfig, IRowDataTable, IUserData, ISelectItem } from 'src/app/shared/interface';
@@ -18,6 +20,8 @@ import { ReportReviewService } from 'src/app/services/report-review.service';
 
 /** Hebrew labels for `ArchiveItemStatus` (see backend `src/enum.ts`). */
 export const ARCHIVE_STATUS_LABELS: Record<ArchiveItemStatus, string> = {
+  PASSWORD_REQUIRED: 'נדרשת סיסמה',
+  NO_INVOICE_FOUND: 'לא זוהה מסמך חשבונאי',
   DELETED: 'נמחק',
   PENDING: 'ממתין לאישור',
   APPROVED: 'אושר',
@@ -32,14 +36,24 @@ export const RECORD_SOURCE_LABELS: Record<RecordSource, string> = {
   DRIVE: 'דרייב',
   EMAIL: 'מייל',
   MANUAL: 'ידני',
-  OPEN_BANKING: 'בנקאות פתוחה',
-  WHATSAPP: 'ווטסאפ',
+  OPEN_BANKING: 'תנועה',
+  WHATSAPP: 'וואטסאפ',
+};
+
+export const RECORD_SOURCE_ICONS: Record<RecordSource, { iconClass?: string; iconUrl?: string }> = {
+  DRIVE: { iconUrl: 'assets/google-drive-mark.svg' },
+  EMAIL: { iconClass: 'pi pi-envelope' },
+  MANUAL: { iconClass: 'pi pi-pencil' },
+  OPEN_BANKING: { iconClass: 'pi pi-arrow-right-arrow-left' },
+  WHATSAPP: { iconClass: 'pi pi-whatsapp' },
 };
 
 /** Hebrew labels for `ExtractedDocumentType` (see backend `extracted-document.entity.ts`). */
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   invoice: 'חשבונית',
   receipt: 'קבלה',
+  insurance_policy: 'פוליסת ביטוח',
+  license_fee: 'אגרות רישוי',
   tax_invoice_receipt: 'חשבונית מס קבלה',
   credit_invoice: 'חשבונית זיכוי',
   invoice_receipt_pair: 'חשבונית + קבלה',
@@ -62,6 +76,48 @@ const TRANSACTION_TYPE_LABEL = 'הוצאה';
   standalone: false
 })
 export class ArchivedDocumentsPage implements OnInit {
+  readonly replacementFlow = new ProtectedPdfUploadFlow();
+  readonly protectedReplacement = this.replacementFlow.document;
+  readonly replacementBusy = this.replacementFlow.busy;
+  readonly protectedHistory = signal<any | null>(null);
+  get replacementFile(): File | null { return this.replacementFlow.file; }
+  get replacementConfirmed(): boolean { return this.replacementFlow.confirmed; }
+  set replacementConfirmed(value: boolean) { this.replacementFlow.confirmed = value; }
+  get replacementError(): string { return this.replacementFlow.error; }
+
+  protectedOperationLabel(upload?: string, processing?: string): string {
+    if (processing === 'NO_INVOICE_FOUND') return 'העיבוד הסתיים; לא זוהה מסמך חשבונאי בעותק הפתוח';
+    if (processing === 'SUCCEEDED') return 'העיבוד הושלם';
+    if (processing === 'FAILED') return 'העותק נשמר, אך עיבודו נכשל';
+    if (upload === 'DELIVERY_FAILED') return 'העותק נשמר; העברתו לעיבוד לא הושלמה';
+    if (upload === 'QUEUED') return 'העותק נשמר וממתין לעיבוד';
+    if (upload === 'UPLOAD_FAILED') return 'ההעלאה לא הושלמה; המקור נשמר';
+    if (upload === 'RESERVED') return 'העלאת העותק טרם הושלמה';
+    return 'העותק נשמר וממתין להעברה לעיבוד';
+  }
+
+  openProtectedReplacement(row: ArchivedItem): void {
+    this.replacementFlow.open(row, this.selectedBusinessNumber());
+  }
+  selectOpenCopy(event: Event): void {
+    this.replacementFlow.select((event.target as HTMLInputElement).files?.[0]);
+  }
+  submitOpenCopy(): void {
+    this.replacementFlow.submit(request => this.driveDocsService.replaceProtectedPdf(request.documentId, request.businessNumber, request.file, request.key, request.confirmed), () => {
+      this.messageService.add({ severity: 'success', summary: 'העותק נשמר', detail: 'העותק הפתוח נשמר וממתין לעיבוד. המקור נשמר בהיסטוריה.', key: 'br' });
+      this.fetchArchivedItems(this.selectedBusinessNumber());
+    });
+  }
+  showProtectedHistory(row: ArchivedItem): void {
+    if (!row.protectedDocumentId) return;
+    this.driveDocsService.protectedPdfHistory(row.protectedDocumentId, this.selectedBusinessNumber())
+      .subscribe({ next: history => this.protectedHistory.set(history), error: () => this.messageService.add({ severity: 'error', summary: 'לא ניתן להציג היסטוריה', key: 'br' }) });
+  }
+  retryProtectedDelivery(row: ArchivedItem): void {
+    if (!row.protectedDocumentId || !row.canRetryDelivery) return;
+    this.driveDocsService.retryProtectedDelivery(row.protectedDocumentId, this.selectedBusinessNumber())
+      .subscribe({ next: () => this.fetchArchivedItems(this.selectedBusinessNumber()), error: () => this.messageService.add({ severity: 'error', summary: 'לא ניתן לחדש את ההעברה לעיבוד', key: 'br' }) });
+  }
 
   // ===========================
   // Inject services
@@ -76,6 +132,7 @@ export class ArchivedDocumentsPage implements OnInit {
   private dialogService = inject(DialogService);
   private expenseDataService = inject(ExpenseDataService);
   private reportReviewService = inject(ReportReviewService);
+  private destroyRef = inject(DestroyRef);
 
   // ===========================
   // Global state
@@ -93,6 +150,7 @@ export class ArchivedDocumentsPage implements OnInit {
   rawItems = signal<ArchivedItem[]>([]);
   selectedStatus = signal<string>('ACTIVE');
   selectedDocumentType = signal<string>('');
+  selectedSource = signal<string>('');
   fileActions = signal<IGenericTableAction[]>([]);
   approvalDialogItem = signal<ArchivedItem | null>(null);
   classificationDialogItem = signal<ArchivedItem | null>(null);
@@ -119,7 +177,7 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'statusLabel', value: 'סטטוס', type: FormTypes.TEXT, cellRenderer: ICellRenderer.STATUS_BADGE },
     { name: 'documentDate', value: 'תאריך מסמך', type: FormTypes.DATE },
     { name: 'uploadDate', value: 'תאריך העלאה', type: FormTypes.DATE },
-    { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT },
+    { name: 'sourceLabel', value: 'מקור העלאה', type: FormTypes.TEXT, cellRenderer: ICellRenderer.SOURCE_BADGE },
   ]);
 
   readonly archiveSearchColumns = [
@@ -137,6 +195,7 @@ export class ArchivedDocumentsPage implements OnInit {
   readonly filteredItems = computed(() => {
     const status = this.selectedStatus();
     const docType = this.selectedDocumentType();
+    const source = this.selectedSource();
     const selectedBusiness = this.gs.businesses().find(
       business => business.businessNumber === this.selectedBusinessNumber(),
     );
@@ -155,16 +214,35 @@ export class ArchivedDocumentsPage implements OnInit {
         if (item.status === 'DELETED') return false;
         return status === 'ACTIVE' || item.status === status;
       })
-      .filter(item => !docType || (item.documentType ?? TRANSACTION_TYPE_VALUE) === docType)
-      .map(item => ({
-        ...item,
+      .filter(item => !docType || (
+        item.documentType
+          ?? (item.itemType === 'DOCUMENT' ? 'unknown' : TRANSACTION_TYPE_VALUE)
+      ) === docType)
+      .filter(item => !source || item.source === source)
+      .map(item => {
+        const sourceIcon = RECORD_SOURCE_ICONS[item.source];
+        return {
+          ...item,
         documentTypeLabel: item.documentType
           ? (DOCUMENT_TYPE_LABELS[item.documentType] ?? item.documentType)
-          : TRANSACTION_TYPE_LABEL,
+            : item.itemType === 'DOCUMENT'
+              ? DOCUMENT_TYPE_LABELS.unknown
+              : TRANSACTION_TYPE_LABEL,
         sourceLabel: this.recordSourceLabels[item.source] ?? item.source,
-        statusLabel: this.archiveStatusLabels[item.status] ?? item.status,
-        statusDetail: item.status === 'REJECTED'
+        sourceIconClass: sourceIcon?.iconClass ?? null,
+        sourceIconUrl: sourceIcon?.iconUrl ?? null,
+        statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
+          ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
+        statusDetail: item.status === 'NO_INVOICE_FOUND'
+          ? 'העיבוד הסתיים ללא מסמך חשבונאי מזוהה. המסמך נשמר לבדיקה; זו אינה שגיאה טכנית.'
+          : item.status === 'PASSWORD_REQUIRED'
+          ? 'נדרש עותק PDF שניתן לפתוח ללא סיסמה. המקור נשמר.'
+          : item.protectedDocumentId && item.replacementUploadStatus
+          ? this.protectedOperationLabel(item.replacementUploadStatus, item.replacementProcessingStatus)
+          : item.status === 'REJECTED'
           ? (item.rejectionReason?.trim() || 'לא הוזנה סיבת דחייה')
+          : item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
+            ? 'ה־AI לא הצליח להכריע אם זהו מסמך חשבונאי. הקובץ נשמר לבדיקה.'
           : item.status === 'APPROVED'
             ? [
                 vatPeriodIsRelevant && item.vatReportPeriod
@@ -175,7 +253,8 @@ export class ArchivedDocumentsPage implements OnInit {
             : null,
         documentDate: item.documentDate ? item.documentDate.slice(0, 10) : '-',
         uploadDate: item.uploadDate ? item.uploadDate.slice(0, 10) : '-',
-      }));
+        };
+      });
   });
 
   // ===========================
@@ -185,6 +264,8 @@ export class ArchivedDocumentsPage implements OnInit {
   filterConfig: FilterField[] = [];
 
   private readonly statusOptions: ISelectItem[] = [
+    { name: ARCHIVE_STATUS_LABELS.PASSWORD_REQUIRED, value: 'PASSWORD_REQUIRED' },
+    { name: ARCHIVE_STATUS_LABELS.NO_INVOICE_FOUND, value: 'NO_INVOICE_FOUND' },
     { name: 'הכל', value: 'ACTIVE' },
     { name: ARCHIVE_STATUS_LABELS.APPROVED, value: 'APPROVED' },
     { name: ARCHIVE_STATUS_LABELS.FILED_ANNUAL, value: 'FILED_ANNUAL' },
@@ -199,6 +280,15 @@ export class ArchivedDocumentsPage implements OnInit {
     { name: 'הכל', value: '' },
     ...Object.entries(DOCUMENT_TYPE_LABELS).map(([value, name]) => ({ name, value })),
     { name: TRANSACTION_TYPE_LABEL, value: TRANSACTION_TYPE_VALUE },
+  ];
+
+  private readonly sourceOptions: ISelectItem[] = [
+    { name: 'הכל', value: '' },
+    { name: RECORD_SOURCE_LABELS.OPEN_BANKING, value: 'OPEN_BANKING' },
+    { name: RECORD_SOURCE_LABELS.DRIVE, value: 'DRIVE' },
+    { name: RECORD_SOURCE_LABELS.EMAIL, value: 'EMAIL' },
+    { name: RECORD_SOURCE_LABELS.WHATSAPP, value: 'WHATSAPP' },
+    { name: RECORD_SOURCE_LABELS.MANUAL, value: 'MANUAL' },
   ];
 
   // ===========================
@@ -228,6 +318,7 @@ export class ArchivedDocumentsPage implements OnInit {
       businessNumber: [this.selectedBusinessNumber()],
       status: ['ACTIVE'],
       documentType: [''],
+      source: [''],
     });
 
     this.form.get('businessNumber')?.valueChanges.subscribe(businessNumber => {
@@ -245,6 +336,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.form.get('status')?.valueChanges.subscribe(value => this.selectedStatus.set(value ?? 'ACTIVE'));
     this.form.get('documentType')?.valueChanges.subscribe(value => this.selectedDocumentType.set(value ?? ''));
+    this.form.get('source')?.valueChanges.subscribe(value => this.selectedSource.set(value ?? ''));
 
     this.filterConfig = [
       ...(this.businessOptions.length > 1 ? [{
@@ -269,9 +361,28 @@ export class ArchivedDocumentsPage implements OnInit {
         options: this.documentTypeOptions,
         defaultValue: '',
       },
+      {
+        type: 'select',
+        controlName: 'source',
+        label: 'מקור העלאה',
+        options: this.sourceOptions,
+        defaultValue: '',
+      },
     ];
 
     this.fetchArchivedItems(this.selectedBusinessNumber());
+    // Keep an already-open archive in sync with background Drive/WhatsApp OCR
+    // without showing a full-table loading state on every refresh.
+    timer(10000, 10000)
+      .pipe(
+        switchMap(() => this.driveDocsService
+          .getArchivedItems(this.selectedBusinessNumber())
+          .pipe(catchError(() => of(null)))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(items => {
+        if (items) this.rawItems.set(items);
+      });
   }
 
   // ===========================
@@ -291,6 +402,7 @@ export class ArchivedDocumentsPage implements OnInit {
 
     this.selectedStatus.set(formValues.status ?? 'ACTIVE');
     this.selectedDocumentType.set(formValues.documentType ?? '');
+    this.selectedSource.set(formValues.source ?? '');
   }
 
   // ===========================
@@ -313,6 +425,15 @@ export class ArchivedDocumentsPage implements OnInit {
 
   private setFileActions(): void {
     this.fileActions.set([
+      { name: 'upload-open-copy', desktopDisplay: 'icon', icon: 'pi pi-lock-open', title: 'העלה עותק ללא הגנה',
+        showWhen: row => !!(row as any).canUploadOpenCopy,
+        action: (_event, row) => this.openProtectedReplacement(row as unknown as ArchivedItem) },
+      { name: 'protected-history', desktopDisplay: 'icon', icon: 'pi pi-history', title: 'היסטוריית גרסאות',
+        showWhen: row => !!(row as any).protectedDocumentId && !!(row as any).canManageExpenses,
+        action: (_event, row) => this.showProtectedHistory(row as unknown as ArchivedItem) },
+      { name: 'retry-protected-delivery', desktopDisplay: 'icon', icon: 'pi pi-refresh', title: 'נסה שוב להעביר לעיבוד',
+        showWhen: row => !!(row as any).canRetryDelivery,
+        action: (_event, row) => this.retryProtectedDelivery(row as unknown as ArchivedItem) },
       {
         name: 'approve-expense',
         desktopDisplay: 'icon',
@@ -364,6 +485,7 @@ export class ArchivedDocumentsPage implements OnInit {
           (row as any).itemType === 'DOCUMENT'
           && (row as any).status !== 'DELETED'
           && (row as any).status !== 'APPROVED'
+          && !((row as any).protectedDocumentId && Number(row.id) < 0)
           && !!(row as any).canManageExpenses
           && !!(row as any).driveFileId,
         action: (event: any, row: IRowDataTable) => {

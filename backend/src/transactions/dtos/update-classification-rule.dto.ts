@@ -18,6 +18,8 @@ import { ExpenseReportScope } from 'src/enum';
  * that reference this rule (skipping locked rows).
  */
 export class UpdateClassificationRuleDto {
+  @IsOptional() @IsInt() @Min(1) subCategoryId?: number;
+
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsString() subCategory?: string;
 

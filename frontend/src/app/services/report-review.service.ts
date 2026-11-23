@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
+import { DocumentAnalysisService, AnalysisReceipt } from './document-analysis.service';
 import { environment } from 'src/environments/environment';
 
 /**
@@ -250,7 +251,8 @@ export interface ReportPreviewCheck {
 
 @Injectable({ providedIn: 'root' })
 export class ReportReviewService {
-  constructor(private http: HttpClient) {}
+  private readonly analysis:DocumentAnalysisService;
+  constructor(private http: HttpClient,analysis?:DocumentAnalysisService) {this.analysis=analysis||new DocumentAnalysisService(http);}
 
   /** Pre-flight call from the VAT/P&L report page — kicks off inbox
    *  processing + auto-matching, returns the unified review rows. */
@@ -473,8 +475,8 @@ export class ReportReviewService {
   }
 
   /** Upload a new PDF/image as the source doc for a tx_only row and let
-   *  the backend OCR + auto-link it. multipart/form-data — synchronous on
-   *  the backend (Claude call inline), so the UI must show a spinner. */
+   *  the shared queue analyze and link it. Polling waits for a durable
+   *  completion; the backend revalidates both targets after analysis. */
   uploadDocToTx(
     businessNumber: string,
     transactionId: number,
@@ -483,10 +485,10 @@ export class ReportReviewService {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('businessNumber', businessNumber);
-    return this.http.post<UploadDocToTxResponse>(
+    return this.http.post<AnalysisReceipt>(
       `${environment.apiUrl}reports/me/review/upload-doc-to-tx/${transactionId}`,
       fd,
-    );
+    ).pipe(switchMap(receipt=>this.analysis.waitFor<UploadDocToTxResponse>(receipt,businessNumber)));
   }
 }
 

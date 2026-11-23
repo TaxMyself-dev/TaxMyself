@@ -12,6 +12,7 @@ import { ReferralConsentGuard } from './shared/guard/referral-consent.guard';
 import { AdminRouteGuard } from './shared/guard/admin-route.guard';
 import { AccountantRouteGuard } from './shared/guard/accountant-route.guard';
 import { AppRoute } from './shared/access-control';
+import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agent.route';
 
 /**
  * In-app routes that require connectivity for deliberate navigation while a
@@ -20,6 +21,19 @@ import { AppRoute } from './shared/access-control';
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
+  {path:'agent/chat',canActivate:[AuthGuard,AdminRouteGuard,BillingGuard],loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
+  {path:'agent/onboarding',canActivate:[AuthGuard, AdminRouteGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
+  {path:'dev/agent/onboarding',redirectTo:'agent/onboarding',pathMatch:'full'},
+  // The AI agent's test page (backend/agent), only where the environment
+  // turns it on (local development and dev-cloud); never in production builds.
+  // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
+  ...(devAgentRouteEnabled()
+    ? [{
+        path: DEV_AGENT_PATH,
+        canActivate: [AuthGuard, AdminRouteGuard],
+        loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),
+      }]
+    : []),
   {
     path: 'billing/open-banking/manage',
     canActivate: [AuthGuard],
@@ -48,6 +62,11 @@ const appRoutes: Routes = [
   {
     path: 'my-account',
     loadComponent: () => import('./pages/my-account/my-account.page').then(m => m.MyAccountPage),
+    canActivate: [AuthGuard, BillingGuard]
+  },
+  {
+    path: 'settings-new',
+    loadComponent: () => import('./pages/settings-new/settings-new.page').then(m => m.SettingsNewPage),
     canActivate: [AuthGuard, BillingGuard]
   },
   {
@@ -143,6 +162,10 @@ const appRoutes: Routes = [
       {
         path: 'recovery',
         loadComponent: () => import('./pages/billing/billing-recovery.page').then(m => m.BillingRecoveryPage),
+      },
+      {
+        path: 'payment-status',
+        loadComponent: () => import('./pages/billing/billing-payment-status.page').then(m => m.BillingPaymentStatusPage),
       },
       {
         path: 'plans',

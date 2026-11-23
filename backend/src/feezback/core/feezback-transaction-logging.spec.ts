@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { FeezbackHttpClient } from './feezback-http.client';
+import { feezbackDiagnosticContext } from './feezback-diagnostic-context';
 
 jest.mock('./feezback-retry.utils', () => ({
   ...jest.requireActual('./feezback-retry.utils'), sleep: jest.fn().mockResolvedValue(undefined),
@@ -100,7 +101,30 @@ describe('transaction failure response logging', () => {
   });
   it('does not add transaction logs to unrelated reads', async () => {
     http.get.mockReturnValue(failed(403));
-    await expect(client.get('/accounts')).rejects.toMatchObject({ status: 403 });
+    await expect(client.get('/unrelated')).rejects.toMatchObject({ status: 403 });
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('account and consent discovery response diagnostics', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it.each(['accounts', 'consents'])('logs the actual %s 401 provider body with safe correlation IDs', async endpoint => {
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const body = { error: { code: 'INSUFFICIENT_CONSENT', message: 'Missing ACCOUNTS basket' },
+      iban: 'private-iban', maskedPan: 'private-pan', authorization: 'opaque-secret' };
+    const http: any = { get: jest.fn().mockReturnValue(throwError(() => ({ isAxiosError: true,
+      message: 'Denied', code: 'ERR_BAD_REQUEST', response: { status: 401, data: body } }))) };
+    const client = new FeezbackHttpClient(http, { getTppApiUrl: () => 'https://provider.test',
+      getAuthHeaders: async () => ({ Authorization: 'Bearer opaque-secret' }) } as any);
+    await expect(feezbackDiagnosticContext.run({ syncRunId: 'run-safe', connectionRole: 'spouse',
+      sourceRecordId: 42, operation: 'bank_retry' }, () => client.get('/tpp/v1/users/owner-sub@tpp/' + endpoint,
+      { sub: 'owner-sub' }))).rejects.toMatchObject({ status: 401, responseBody: body });
+    expect(http.get).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledTimes(1);
+    const output = String(log.mock.calls[0][0]);
+    expect(JSON.parse(output.slice('[FeezbackResponse] '.length))).toMatchObject({ status: 401,
+      providerCode: 'INSUFFICIENT_CONSENT', syncRunId: 'run-safe', connectionRole: 'spouse', sourceRecordId: 42,
+      responseBody: { error: { code: 'INSUFFICIENT_CONSENT', message: 'Missing ACCOUNTS basket' } } });
+    for (const secret of ['private-iban', 'private-pan', 'opaque-secret', 'owner-sub']) expect(output).not.toContain(secret);
   });
 });

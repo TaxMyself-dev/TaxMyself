@@ -459,6 +459,8 @@ export enum RecordSource {
  * resolution actions only for genuinely pending documents.
  */
 export enum ArchiveItemStatus {
+  PASSWORD_REQUIRED = 'PASSWORD_REQUIRED',
+  NO_INVOICE_FOUND = 'NO_INVOICE_FOUND',
   PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   FILED_ANNUAL = 'FILED_ANNUAL',

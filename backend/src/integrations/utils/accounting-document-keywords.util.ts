@@ -122,8 +122,8 @@ export function normalizeForKeywordMatch(text: string | null | undefined): {
 interface KeywordMatcher {
   /** Boundary-aware pattern tested against the normalized `spaced` text. */
   spacedPattern: RegExp;
-  /** Space-free form, tested as a plain substring; null for single-word keywords. */
-  compact: string | null;
+  /** Glued spelling with the same outer word guards; never a substring. */
+  compactPattern: RegExp | null;
 }
 
 /**
@@ -154,7 +154,7 @@ function buildMatcher(keyword: string): KeywordMatcher | null {
     // Single-word keywords are already covered by the boundary-aware pattern;
     // giving them an unguarded substring form would reintroduce exactly the
     // false positives the boundaries exist to prevent.
-    compact: compact === spaced ? null : compact,
+    compactPattern: compact === spaced ? null : new RegExp(`${prefix}${compact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${suffix}`, 'u'),
   };
 }
 
@@ -170,11 +170,13 @@ const KEYWORD_MATCHERS: KeywordMatcher[] = ACCOUNTING_DOCUMENT_KEYWORDS.map(
 export function matchesAccountingDocumentKeyword(
   text: string | null | undefined,
 ): boolean {
-  const { spaced, compact } = normalizeForKeywordMatch(text);
+  const { spaced } = normalizeForKeywordMatch(text);
   if (!spaced) return false;
   return KEYWORD_MATCHERS.some(
     (matcher) =>
       matcher.spacedPattern.test(spaced) ||
-      (matcher.compact !== null && compact.includes(matcher.compact)),
+      // Glued spellings need the SAME outer word boundaries. Plain substring
+      // matching incorrectly accepted חשבון מסחר as חשבון מס.
+      (matcher.compactPattern !== null && matcher.compactPattern.test(spaced)),
   );
 }

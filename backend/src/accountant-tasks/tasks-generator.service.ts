@@ -199,6 +199,39 @@ export class TasksGeneratorService {
     return result;
   }
 
+  /**
+   * The VAT and advance-tax periods the generator would track for one
+   * business — every ended period in the same lookback window, plus the
+   * period still running today — computed only: nothing is inserted and no
+   * notification is sent. For the AI agent's read of upcoming reports.
+   * Uses the same period enumeration and due-date rule (the 15th of the
+   * month after the period) as generation.
+   */
+  expectedReportPeriods(
+    business: Business,
+    today: Date = new Date(),
+  ): { type: ReportWorkflowType; periodStart: Date; periodEnd: Date; dueDate: Date; label: string }[] {
+    if (!business.businessNumber) return [];
+    const todayUtc = this.toUtcDate(today);
+    const lowerBound = this.computeLowerBound(business, todayUtc);
+    // A horizon past the current period's end lets the enumeration include
+    // the period still running; periods that start after today are dropped.
+    const horizon = new Date(Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth() + 3, 1));
+    const periodsOf = (reportingType: VATReportingType | TaxReportingType, type: ReportWorkflowType) =>
+      this.enumeratePeriodicPeriods(reportingType, lowerBound, horizon)
+        .filter((period) => period.periodStart <= todayUtc)
+        .map(({ periodStart, periodEnd, dueDate, label }) => ({ type, periodStart, periodEnd, dueDate, label }));
+
+    return [
+      ...(business.vatReportingType && business.vatReportingType !== VATReportingType.NOT_REQUIRED
+        ? periodsOf(business.vatReportingType, ReportWorkflowType.VAT_REPORT)
+        : []),
+      ...(business.taxReportingType && business.taxReportingType !== TaxReportingType.NOT_REQUIRED
+        ? periodsOf(business.taxReportingType, ReportWorkflowType.ADVANCE_TAX)
+        : []),
+    ];
+  }
+
   // ----- core: per-business processing -----
 
   /**

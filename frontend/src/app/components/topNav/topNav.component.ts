@@ -1,12 +1,13 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, output, ViewChild } from '@angular/core';
+import { AgentBellComponent } from '../my-agent/agent-bell.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, computed, inject, input, ViewChild } from '@angular/core';
 import { Menubar, MenubarModule } from 'primeng/menubar';
 import { ButtonModule } from 'primeng/button';
 import { IMenuItem } from './topNav-interface';
 import { ImageModule } from 'primeng/image';
-import { ButtonComponent } from '../button/button.component';
-import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { MenuButtonComponent } from '../menu-button/menu-button.component';
 import { MenuButtonItem } from '../menu-button/menu-button.model';
+import { ButtonComponent } from '../button/button.component';
+import { ButtonColor, ButtonSize } from '../button/button.enum';
 import { NavigationEnd, Router } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { filter, map } from 'rxjs/operators';
@@ -21,7 +22,7 @@ import { AppRefreshService } from 'src/app/services/pwa/app-refresh.service';
     standalone: true,
     templateUrl: './topNav.component.html',
     styleUrls: ['./topNav.component.scss'],
-    imports: [ButtonModule, MenubarModule, ImageModule, ButtonComponent, MenuButtonComponent],
+    imports: [AgentBellComponent, ButtonModule, MenubarModule, ImageModule, ButtonComponent, MenuButtonComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TopNavComponent {
@@ -29,8 +30,7 @@ export class TopNavComponent {
 
     menuItems = input<IMenuItem[]>([]);
 
-    /** Emitted when the user picks "logout" from the settings menu. */
-    readonly logout = output<void>();
+    readonly isAdmin = input(false);
 
     private readonly router = inject(Router);
     private readonly cdr = inject(ChangeDetectorRef);
@@ -42,33 +42,23 @@ export class TopNavComponent {
     readonly ButtonColor = ButtonColor;
     readonly ButtonSize = ButtonSize;
 
-    /**
-     * Rows for the settings menu-button (replaces the old settings gear link).
-     *
-     * "רענון" appears only in the installed PWA: a browser tab already has a
-     * reload button, and Chrome's native pull-to-refresh is unavailable in
-     * standalone mode (and impossible here anyway — the document root never
-     * scrolls, see `.app-content { overflow: hidden }`).
-     *
-     * It refreshes state through the services rather than reloading the
-     * document, so unsaved forms and the current route are preserved and no
-     * mutation is repeated.
-     */
-    readonly settingsMenuItems = computed<MenuButtonItem[]>(() => [
-        ...(this.runtime.isInstalledPwa()
-            ? [{
-                type: 'action' as const,
-                id: 'refresh',
-                label: 'רענון',
-                icon: 'pi pi-refresh',
-                disabled: this.appRefresh.isRefreshing(),
-                action: () => void this.appRefresh.refreshSharedState(),
-              }]
-            : []),
-        { type: 'action', id: 'settings', label: 'הגדרות', icon: 'pi pi-cog', action: () => this.router.navigate(['/settings']) },
-        { type: 'separator' },
-        { type: 'action', id: 'logout', label: 'התנתקות', icon: 'pi pi-sign-out', action: () => this.logout.emit() },
-    ]);
+    readonly isInstalledPwa = computed(() => this.runtime.isInstalledPwa());
+    readonly isRefreshing = computed(() => this.appRefresh.isRefreshing());
+
+    readonly settingsMenuItems = computed<MenuButtonItem[]>(() => this.isAdmin() ? [
+        ...(this.isInstalledPwa() ? [{type: 'action' as const, id: 'refresh', label: 'רענון', icon: 'pi pi-refresh', disabled: this.isRefreshing(), action: () => this.refreshApp()}] : []),
+        {type: 'action', id: 'settings-new', label: 'הגדרות חדש', icon: 'pi pi-cog', action: () => this.openSettings()},
+        {type: 'action', id: 'settings', label: 'הגדרות ישנות', icon: 'pi pi-cog', action: () => this.openLegacySettings()},
+    ] : []);
+
+    onSettingsTrigger(): void {
+        if (!this.isAdmin()) this.openSettings();
+    }
+    openSettings(): void { void this.router.navigate(['/settings-new']); }
+    openLegacySettings(): void {
+        if (this.isAdmin()) void this.router.navigate(['/settings']);
+    }
+    refreshApp(): void { void this.appRefresh.refreshSharedState(); }
 
     private readonly currentUrl = toSignal(
         this.router.events.pipe(

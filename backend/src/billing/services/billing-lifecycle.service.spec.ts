@@ -133,6 +133,7 @@ describe('BillingLifecycleService', () => {
       attemptId: 3,
       expectedStateVersion: 4,
       leaseOwner: 'worker-1',
+      subscriptionId: 7,
     });
     expect(receipt.createReceipt).toHaveBeenCalledTimes(1);
     expect(orchestration.finalizeCapturedAttempt).toHaveBeenCalledWith(3, 99);

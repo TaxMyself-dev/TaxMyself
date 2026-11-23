@@ -1,0 +1,58 @@
+# backend/agent — the AI agent's backend (KT-089)
+
+## Purpose
+
+The KeepInTax AI agent's backend, ported 1:1 from the team's agent template: its chat runtime, tool loop and harness, memory, skills, tracking tasks and background monitor, evals and harnessing. A separate strict ESM package (Effect 4, AI SDK 7, TypeScript 6/7, vitest, deepeval), because the Nest backend is CommonJS on TypeScript 5. Read [GUIDE.md](GUIDE.md) first; the template's own guide is [TEMPLATE-GUIDE.md](TEMPLATE-GUIDE.md).
+
+## Key entities
+
+- The template's tables in MySQL: `agent_users` ((actor, data owner) Firebase uids → agent id), `user_settings`, `agent_chat_*` (conversations, messages, documents, stream chunks, steers), `agent_memories`, `agent_usage`, and the example tracking tasks (`tracking_tasks`, `task_*`, `user_notifications`). Schema: `backend/scripts/migrations/2026-10-22_agent_harness_schema.sql`, then `2026-11-05_agent_actor_owner_scope.sql`.
+- `backend/shared/mysql/`: the gateway that answers supabase-js's PostgREST requests from MySQL, with the template's row level security and grants as code and its Postgres functions as transactions.
+
+## Main flows
+
+- The Nest module `backend/src/agent-harness` verifies the Firebase token and calls `handleAgentHttpRequest` (`src/server/agent-http.server.ts`) with the verified user; routes and server functions are the template's.
+- The task worker (`npm run worker:tasks`, `dist/task-worker.mjs`) runs beside the backend, never inside a request.
+- Dev-cloud packaging is `backend/Dockerfile.agent-dev` (Debian/Node 24, independent installs/builds with npm 11.6.2, production-only agent dependencies in the runtime). It does not start the example task worker. See `docs/operations/dev-ai-assistant.md`.
+
+## Invariants
+
+- Template files stay the template's: change them only to port a template change, or where GUIDE.md lists a KeepInTax change. Domain parts are `EXAMPLE` until the agent spec replaces them.
+- Every user query goes through the gateway's user scope; only the task monitor uses the service client.
+- The agent's data belongs to the pair (actor `actorFirebaseId`, data owner `firebaseId`); one conversation covers any of that owner's businesses; a read uses the business the user named or established in the conversation, else the only one, else asks; never the page's businessnumber header (GUIDE.md "Business selection"). A conversation id never authorizes anything by itself. Domain tools keep the backend's own authorization (EXPENSES_APPROVE for accounting decisions) and re-check the delegation on each call.
+- Development traces go only to a local Langfuse, on port 3100 here (`langfuse-tracing.server.ts`, GUIDE.md "Langfuse").
+- Schema changes: a new SQL script under `backend/scripts/migrations/` and the gateway's table registry (`mysql-agent-tables.ts`); never `synchronize`.
+- Checks: `npm run typecheck`, `npm run check`, `npm test` (with `AGENT_TEST_DATABASE_URL` for the MySQL integration tests), `npm run build`.
+
+## Phase 3 domain extension
+
+The existing `queryExpenses` is joined by nine read-only books/report tools over `KeepInTaxBooks` and the verified-user Nest `AgentBooksService`. Additional books tools and reports are deferred by namespace; expenses stay loaded. See GUIDE.md "Books and reports reads" for service sources, periods, currencies, exclusions and limits. Numeric evidence is restricted to successful books/report results from the same turn; discovery schemas, memory/web results and failed calls are not evidence. These are explicit KeepInTax extensions to the template, including the answer check and Hebrew instructions. Tests/evals use fixed fake ports; Phase 3 adds no SQL migrations.
+
+## Phase 3.1 chat interaction (KT-108)
+
+The prompt, user context, memory rules, turn-signal hint, follow-up writer and app knowledge ask nothing about the user and advertise only `agent-capabilities.ts`. The template's web, email, tracking and playbook tools stay registered for stored conversations but are never offered (`activeTools`, `agentChatToolApproval`). `askUserQuestion` has no `execute`: the page answers it and `agent-chat-question-answers.ts` accepts only an open question's own value, once; a typed message supersedes it. Turn origins are server-written `data-turnOrigin` parts; a pressed follow-up writes nothing. Created memories and tracking tasks are keyed by their tool call (`agent-tool-idempotency.ts`). No schema change. See GUIDE.md "Phase 3.1: chat interaction".
+
+## Related topics
+
+- [agent-harness](../src/agent-harness/AGENTS.md) — the Nest edge.
+- [guards](../src/guards/AGENTS.md) — FirebaseAuthGuard and delegation.
+
+## Optional telemetry failures
+
+Local tracing is optional: exporter flush/shutdown failures are bounded and contained by app-telemetry-errors.ts, with one credential-free warning per minute per exporter. Detached background promises are observed immediately, including on waitUntil hosts. Database/save failures are still reported. The Nest edge attributes SDK background rejections by AsyncLocalStorage; it does not suppress unrelated backend failures. See GUIDE.md and docs/operations/local-ai-development.md for the local launcher.
+
+## Phase A chat action
+
+Pending outgoing transactions can be classified through `prepareTransactionClassification` and approval-only `classifyTransaction`. The model passes a short ID; execution resolves the original preparation from successful assistant parts in this conversation. Never accept a replacement action payload from an approval response. Only the strict mode token in the stored approved decision for this exact toolCallId/proposalId may select one-time or permanent execution. Nest checks fresh write scope and catalog values, then uses the existing classification-only implementation under row locks. Permanent merchant/account classification is the default; explicit one-time requests precheck the card checkbox. No expense approval, confirmed-row update or arbitrary batch tool. Legacy cards remain one-time. GUIDE.md records expiry, replay behavior and the process-local signing-key limitation.
+
+Classification orchestration: successful current-turn preparation requires the actual approval-tool step unless explicitly preview-only. classifyTransaction stays eager for that forced step; approval and backend checks still apply. New steers supersede old proposals. Keep this transition classification-specific; see GUIDE.md and classification-orchestration.ts.
+
+Approval lifecycle: only the latest assistant answer may receive decisions. A new typed user message supersedes its open approvals (output-denied with the reserved system reason), preserving already completed actions. Older cards must be inactive in the page, with fresh-proposal recovery for classification; never execute an old card or infer approval from a clarification.
+
+## Onboarding extension
+
+The profile context callback in src/server/runtime/agent-domain.ts and agent-chat-response.server.ts, and the onboarding instructions, are intentional KeepInTax extensions. The profile store itself is owner-scoped Nest code; its tables are not exposed through the generic gateway. Ordinary chat remains free of onboarding questions. See GUIDE.md and ../src/agent-onboarding/README.md.
+
+## Voice input
+
+The existing dictation-key server function validates user ownership before applying the bounded process-local issuance limit (10/minute per agent user). Soniox keys are single-use, valid for connecting within 60 seconds, with sessions capped at 150 seconds. The Angular voice controller sends final text through the ordinary chat path. See GUIDE.md.

@@ -1,6 +1,22 @@
 <p-confirmDialog></p-confirmDialog>
 <p-toast></p-toast>
 <div class="my-categories-tab">
+  @if (hasDirectCard()) {
+  <section class="cashflow-preference" dir="rtl">
+    <h3>חיובי כרטיס דיירקט</h3>
+    <label>
+      <input type="checkbox" [checked]="excludeDirect()" [disabled]="!cashflowLoaded() || savingCashflow() || authService.isViewingAsClient()"
+        (change)="saveCashflowPreference($any($event.target).checked)" />
+      החרג מהתזרים חיובי בנק שסווגו ככרטיס דיירקט
+    </label>
+    @if (authService.isViewingAsClient()) {
+      <p role="note">מצב צפייה בלבד: כדי לשנות את ההגדרה ולבדוק את הפופאפ, התחברו ישירות עם פרטי המשתמש. הכפתור ״כניסה כמשתמש״ במסך הדמו פותח מצב צפייה.</p>
+    }
+    <p>סווגו את חיובי הדיירקט בבנק לתת־הקטגוריה ״כרטיס דיירקט״ תחת ״בנק, אשראי ותנועות״. סיווג קבוע יחול גם על תנועות תואמות בעתיד.</p>
+    @if (cashflowError()) { <p role="alert">{{ cashflowError() }}</p> }
+    @if (!cashflowLoaded()) { <button type="button" (click)="loadCashflowPreference()">טען הגדרה מחדש</button> }
+  </section>
+  }
 
   <!-- Business selector -->
   <div class="biz-selector-row">

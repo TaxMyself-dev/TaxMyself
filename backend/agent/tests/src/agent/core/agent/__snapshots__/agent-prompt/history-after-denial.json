@@ -1,0 +1,121 @@
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "<message_time>2026-10-04, 12:01 Asia/Jerusalem</message_time>"
+      },
+      {
+        "type": "text",
+        "text": "Delete the accountant task"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool-call",
+        "toolCallId": "call-a1",
+        "toolName": "deleteTrackingTasks",
+        "input": {
+          "taskIds": [
+            "6f1c2a1e-1111-4a1a-8a1a-111111111111"
+          ]
+        }
+      },
+      {
+        "type": "tool-approval-request",
+        "approvalId": "approval-a1",
+        "toolCallId": "call-a1"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "type": "tool-approval-response",
+        "approvalId": "approval-a1",
+        "approved": false,
+        "reason": "denied: the user refused this action in its approval card, so it did not happen. Do not call it again unless the user asks for it again; say it stayed undone and move on."
+      },
+      {
+        "type": "tool-result",
+        "toolCallId": "call-a1",
+        "toolName": "deleteTrackingTasks",
+        "output": {
+          "type": "error-text",
+          "value": "denied: the user refused this action in its approval card, so it did not happen. Do not call it again unless the user asks for it again; say it stayed undone and move on."
+        }
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "<message_time>2026-10-04, 12:01 Asia/Jerusalem</message_time>"
+      },
+      {
+        "type": "text",
+        "text": "Delete all the old tasks anyway"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool-call",
+        "toolCallId": "call-a2",
+        "toolName": "deleteTrackingTasks",
+        "input": {
+          "taskIds": [
+            "6f1c2a1e-1111-4a1a-8a1a-111111111111"
+          ]
+        }
+      },
+      {
+        "type": "tool-approval-request",
+        "approvalId": "approval-a2",
+        "toolCallId": "call-a2"
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "content": [
+      {
+        "type": "tool-approval-response",
+        "approvalId": "approval-a2",
+        "approved": false,
+        "reason": "denied with a change: the user did not approve this action as it was and wrote: \"Only the done ones\". It did not happen. Call the tool again with that change, and the user approves it again in a new card; if the note asks for something else, do that instead."
+      },
+      {
+        "type": "tool-result",
+        "toolCallId": "call-a2",
+        "toolName": "deleteTrackingTasks",
+        "output": {
+          "type": "error-text",
+          "value": "denied with a change: the user did not approve this action as it was and wrote: \"Only the done ones\". It did not happen. Call the tool again with that change, and the user approves it again in a new card; if the note asks for something else, do that instead."
+        }
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "<message_time>2026-10-04, 12:01 Asia/Jerusalem</message_time>"
+      },
+      {
+        "type": "text",
+        "text": "What is left?"
+      }
+    ]
+  }
+]

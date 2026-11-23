@@ -11,18 +11,20 @@ describe('bounded renewal-decline policy', () => {
     result.setDate(result.getDate() + days);
     return result;
   };
+  const plusMinutes = (minutes: number) =>
+    new Date(now.getTime() + minutes * 60_000);
 
-  it('is the established 3 attempts / +3d / +7d / PAST_DUE + 14d grace policy', () => {
+  it('allows the initial attempt plus two 30-minute retries before PAST_DUE', () => {
     expect(MAX_RENEWAL_ATTEMPTS).toBe(3);
     expect(decideRenewalDecline(0, now)).toEqual({
       kind: 'RETRY',
       attemptNumber: 1,
-      retryAt: plusDays(3),
+      retryAt: plusMinutes(30),
     });
     expect(decideRenewalDecline(1, now)).toEqual({
       kind: 'RETRY',
       attemptNumber: 2,
-      retryAt: plusDays(7),
+      retryAt: plusMinutes(30),
     });
     expect(decideRenewalDecline(2, now)).toEqual({
       kind: 'PAST_DUE',

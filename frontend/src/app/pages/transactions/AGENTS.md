@@ -8,6 +8,11 @@ Main transactions ledger: lists income and expense bank/card transactions, lets 
 - `transactions.module.ts` / `-routing.module.ts` — Angular module wiring; imports `TopNavComponent`, `ImageBunnerComponent`, `GenericTableComponent`, `AccountAssociationDialogComponent`, `AddBillComponent`, `ClassifyTranComponent`, `AddCategoryComponent`, `FilterPanelComponent`.
 
 ## Main flows
+
+- DirectCardNoticeComponent is also mounted on the cashflow page, active under
+  ordinary Angular routing (root uses router-outlet, not ion-router-outlet).
+  It waits for consent dialogs/running sync and is suppressed in view-as mode.
+  Its save uses the existing cashflowPreferencesChanged$ refresh subscription.
 - A verified disconnected effective profile shows the same yellow banking
   banner above the income/expense tables. Owner CTA repeats the feature gate,
   requires explicit consent, then uses `/billing/open-banking`; represented
@@ -40,3 +45,30 @@ confirmed state independently.
 - Backend: transactions (all core endpoints), expenses (confirm-to-expense flow), bookkeeping (category/subcategory data feeding classify dialogs).
 - Frontend pages: pnl-report-journal, vat-report-journal, settings — all inject `TransactionsService` from this directory for confirm/classify/account-source operations.
 - Frontend shared: add-bill, add-transaction, trans-management, category-management-adjacent dialogs (add-category, classify-tran), account-association-dialog.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.
+
+## Classification provenance
+
+Outgoing classified tables include סווג על ידי from the durable slim/cache
+decision source; USER/SYSTEM/null render as המשתמש/המערכת/מקור לא ידוע. Income
+and the dashboard's unclassified view omit that column. No classification or
+accounting behavior is authorized by this display field.

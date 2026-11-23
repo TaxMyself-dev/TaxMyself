@@ -1,8 +1,10 @@
+import { EmailIntakeStore } from '../email-intake/email-intake.store';
 import {
   BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
@@ -14,9 +16,11 @@ import { ImportedDocument } from './entities/imported-document.entity';
 import { DocumentImportSource } from './enums/document-import.enums';
 import { DocumentImportBlockedError } from './document-import-blocked.error';
 import { traceImportStep } from './document-import-trace';
+import { ProtectedPdfService } from '../protected-pdf/protected-pdf.service';
 
 /** Source-specific traceability carried alongside a Gmail import. */
 export interface GmailImportMetadata {
+  integrationId?: number;
   gmailMessageId: string;
   gmailThreadId?: string | null;
   gmailAttachmentId?: string | null;
@@ -51,6 +55,7 @@ export interface DocumentImportRequest {
 export type DocumentImportStatus = 'IMPORTED' | 'ALREADY_IMPORTED' | 'SKIPPED';
 
 export interface DocumentImportResult {
+  passwordRequired?: boolean;
   status: DocumentImportStatus;
   /** Populated for SKIPPED; null otherwise. */
   reason: string | null;
@@ -83,7 +88,26 @@ export class DocumentImportService {
     private readonly businessRepo: Repository<Business>,
     private readonly googleDriveService: GoogleDriveService,
     private readonly businessResolver: BusinessResolverService,
+    @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly emailStore?: EmailIntakeStore,
   ) {}
+
+  async resolveEmailBusiness(firebaseId:string,businessNumber?:string):Promise<string> {
+    const number=await this.resolveBusinessNumber({firebaseId,businessNumber} as DocumentImportRequest);
+    const business=await this.businessRepo.findOneBy({firebaseId,businessNumber:number});
+    if(!business||business.firebaseId!==firebaseId||business.businessNumber!==number)throw new BadRequestException('Business not found');
+    return number;
+  }
+  async hasImportedContent(firebaseId: string, businessNumber: string | undefined, content: Buffer): Promise<boolean> {
+    const target = await this.resolveBusinessNumber({ firebaseId, businessNumber } as DocumentImportRequest);
+    return !!await this.importedDocumentRepo.findOne({ where: {
+      firebaseId, businessNumber: target, contentHash: createHash('sha256').update(content).digest('hex'),
+    } });
+  }
+
+  async recordProtectedRun(owner: string, integrationId: number, summary: any): Promise<void> {
+    if (this.protectedPdf?.enabled()) await this.protectedPdf.recordRun(owner, integrationId, summary);
+  }
 
   /**
    * Import one document into the business's Drive inbox.
@@ -110,6 +134,19 @@ export class DocumentImportService {
       'content.hash',
       async () => createHash('sha256').update(request.content).digest('hex'),
     );
+
+    if(this.emailStore?.enabled()) {
+      const rows=await this.emailStore.query('SELECT id,email_work_state FROM imported_documents WHERE firebase_id=? AND business_number=? AND content_hash=?',[request.firebaseId,businessNumber,contentHash]);
+      if(rows[0] && ['DELETED','DELETE_PENDING','DELETE_RETRY','DELETE_UNCONFIRMED'].includes(rows[0].email_work_state))
+        return {status:'ALREADY_IMPORTED',reason:'EXPLICITLY_NON_ACCOUNTING',contentHash,driveFileId:null,driveFileName:null,importedDocumentId:rows[0].id};
+    }
+    if (this.protectedPdf?.enabled() && /\.pdf$/i.test(request.filename)) {
+      const inspection = await this.protectedPdf.inspection.inspect(request.content);
+      if (inspection.kind === 'password_required') {
+        return this.protectedPdf.storeLocked({ ...request, businessNumber, metadata: request.metadata as any });
+      }
+      if (inspection.kind !== 'readable') throw new BadRequestException({ code: inspection.kind === 'limit' ? 'PDF_VALIDATION_LIMIT' : 'INVALID_PDF', message: 'PDF could not be validated' });
+    }
 
     // Dedup BEFORE any Drive work: the product manages documents, not import
     // history — identical bytes for this user+business are one document, no

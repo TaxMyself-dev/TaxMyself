@@ -1,4 +1,15 @@
 ## Purpose
+
+MySQL upserts: QueryBuilder.values() accepts entity properties, while orUpdate()
+requires physical column names. Map slim/cache update keys through repository
+metadata; subCategoryId maps to sub_category_id and matchedDocumentId to
+matched_document_id on slim. Do not add duplicate camelCase DB columns to work
+around an upsert error. Regression generates real MySQL SQL without a connection.
+
+Direct-card notice eligibility comes from owned CREDIT_CARD sources with
+isDirect=true via cashflow-preferences (also returns lastLoginAt and permanent
+notice-dismissal state). Owner-only PATCH direct-card-notice persists only
+user.directCardNoticeDismissed=true; it never changes the cashflow preference.
 Owns bank/card transaction ingestion, classification (rule-based and manual), and the slim/cache dual-table model that powers flow analysis, expense confirmation, and report-period locking.
 
 ## Key entities/files
@@ -78,3 +89,67 @@ A successful single-source/cache-ready promotion preserves an existing aggregate
 ## Current-pull summaries and verified permission cleanup
 
 Permission refresh and permission/data-ready webhooks reconcile through UserSyncStateService.reconcileSourceConsents after complete provider proof. User/Source/consent locks and observation fences protect newer reconnections. Only temporary full_transactions_cache, cache freshness and per-source operational pointer/outcome fields are cleared. Sources/Bills, slim classifications, Expenses, rules, legacy accounting and technical history remain intact. Null-source orphan cache is cleared only after both identities prove full absence with no unresolved coverage. FullRunId/resultRunId identify job membership rather than copying permissions. Legacy nullable tags do not authorize a current-run success; cache reuse returns no current-run outcomes. One failed source outcome transaction does not roll back unrelated source successes.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+Classification rules retain their existing billId + merchant + optional-condition
+scope across all sources associated with that bill. No sourceRecordId column or
+source predicate is added to classified_transactions; durable source provenance
+on slim_transactions is used only for the bank-only cashflow exclusion policy.
+
+## Stable source outcome identity (2026-11-04)
+
+After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.
+
+## Agent pending classification boundary
+
+`classifyPendingForAgent` locks the User, owned cache row and slim row in one
+DataSource transaction, runs the action's stale/permission preflight, and calls
+the existing `classifyManually` on transaction-scoped repositories with
+`classificationOnly=true`. A preflight or domain failure aborts the transaction;
+an already-applied result writes nothing. Normal UI classification is unchanged.
+
+## Agent classification mode (2026-11-18)
+
+classifyPendingForAgent retains one transaction and owner/cache/slim locks. The
+agent passes the signed/default or stored approval-selected isSingleUpdate mode:
+one-time uses classifyManually; permanent uses classifyWithRule with explicit
+confirmOverride, classificationOnly=true and the focus business as backfill scope.
+Only this agent path adds business/unconfirmed/unlocked cache predicates; normal
+manual rule scope is unchanged. Rule lookup uses SQL IS NULL for absent conditions,
+so a default rule cannot accidentally replace a more constrained rule. Failure
+rolls rule/slim/cache writes back together; no expense confirmation is performed.
+
+## Automatic classification and provenance (2026-11-19)
+
+The optional automation argument on classifyPendingForAgent/classifyWithRule
+permits permanent mode only, never overrides an existing rule, skips the legacy
+bulk backfill, and may reuse a verified matching rule without updating its
+timestamp. The bounded automation worker handles every remaining history row.
+Normal manual/chat mode and its backfill scope remain unchanged.
+Rules retain original/latest USER/SYSTEM provenance; slim/cache retain the
+decision source, with NULL for unknown history. Cache rebuilds propagate it.
+When automation is enabled, nightly cleanup preserves opted-in users' pending
+outgoing cache so an unfinished history scan is not erased. Disconnect cleanup
+is unchanged. Apply the standalone auto-classification schema before this revision.
+
+## Banking manual activity attribution
+
+Manual trigger-sync and retry-source use FeezbackUserActivityInterceptor to
+retain the initiating owner's IP for Feezback data GETs. Independent jobs and
+admin sync-if-empty do not create this context. See
+[Feezback activity](../../../docs/features/feezback-user-activity.md).

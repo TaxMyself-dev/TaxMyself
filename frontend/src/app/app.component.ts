@@ -1,3 +1,4 @@
+import { environment } from '../environments/environment';
 import { Component, computed, effect, inject, OnInit, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, NavigationEnd, NavigationError } from '@angular/router';
 import { IColumnDataTable, IRowDataTable, IUserData } from './shared/interface';
@@ -43,10 +44,6 @@ export class AppComponent implements OnInit {
 
   // Show the blocking billing dialog when the backend reports a blocking status,
   // but never on auth or billing routes (avoids dialog-loop when navigating to /billing/plans).
-  openBankingManagement(): void {
-    void this.router.navigate(['/billing/open-banking/manage']);
-  }
-
   protected readonly showBillingDialog = computed(() => {
     const url = this.currentUrl();
     if (!url || ['/login', '/register'].includes(url) || url.startsWith('/billing')) {
@@ -64,15 +61,24 @@ export class AppComponent implements OnInit {
     if (this.billingStateService.hasBillingOverride()) {
       return false;
     }
+    // The checkout-return page owns payment-result presentation. Showing the
+    // generic TRIAL_EXPIRED dialog over its processing banner both contradicts
+    // the current state and can invite an unsafe second payment attempt.
+    if (this.billingStateService.hasCheckoutReturnContext()) {
+      return false;
+    }
     const status = this.billingStateService.effectiveStatus();
-    return !!status && BILLING_BLOCKING_STATUSES.includes(status);
+    return this.billingStateService.isPaymentRequired() ||
+      (!!status && BILLING_BLOCKING_STATUSES.includes(status));
   });
 
   // Dialog copy — driven by the effective status (subscription.status, or the
   // synthetic SUBSCRIPTION_MISSING top-level status) returned from the backend.
   protected readonly billingDialogContent = computed(() => {
     const status = this.billingStateService.effectiveStatus();
-    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' }> = {
+    const paymentBlockReason =
+      this.billingStateService.billingState()?.access?.paymentBlockReason;
+    const map: Record<string, { title: string; message: string; buttonLabel: string; action: 'NAVIGATE_TO_PLANS' | 'RESOLVE_MISSING_SUBSCRIPTION' | 'RECOVER_PAYMENT' | 'PREPARE_OVERDUE_RECOVERY' }> = {
       SUBSCRIPTION_MISSING: {
         title: 'תקלה בחשבון',
         message: 'נראה שהתרחשה תקלה בחשבון שלך.\nיש להסדיר את המנוי כדי להמשיך.',
@@ -86,8 +92,8 @@ export class AppComponent implements OnInit {
         action: 'NAVIGATE_TO_PLANS',
       },
       PAST_DUE: {
-        title: 'קיימת בעיה בתשלום',
-        message: 'לא הצלחנו לחייב את אמצעי התשלום שלך.\nניתן לשלם את החוב ולשמור את הכרטיס לחיובים הבאים.',
+        title: 'נדרש להסדיר את התשלום',
+        message: 'כדי להמשיך להשתמש במערכת יש להסדיר את התשלום.',
         buttonLabel: 'הסדרת התשלום',
         action: 'RECOVER_PAYMENT',
       },
@@ -98,6 +104,14 @@ export class AppComponent implements OnInit {
         action: 'NAVIGATE_TO_PLANS',
       },
     };
+    if (paymentBlockReason === 'ACTIVE_OVERDUE') {
+      return {
+        title: 'נדרש להסדיר את התשלום',
+        message: 'כדי להמשיך להשתמש במערכת יש להסדיר את התשלום.',
+        buttonLabel: 'הסדרת התשלום',
+        action: 'PREPARE_OVERDUE_RECOVERY' as const,
+      };
+    }
     return map[status!] ?? { title: '', message: '', buttonLabel: '', action: 'NAVIGATE_TO_PLANS' as const };
   });
 
@@ -444,6 +458,7 @@ export class AppComponent implements OnInit {
   }
 
   protected readonly resolvingMissingSubscription = signal(false);
+  protected readonly preparingOverdueRecovery = signal(false);
 
   /**
    * Single entry point for the blocking dialog's CTA button — dispatches by
@@ -456,8 +471,25 @@ export class AppComponent implements OnInit {
       void this.resolveMissingSubscription();
     } else if (this.billingDialogContent().action === 'RECOVER_PAYMENT') {
       void this.router.navigate(['/billing/recovery']);
+    } else if (this.billingDialogContent().action === 'PREPARE_OVERDUE_RECOVERY') {
+      void this.prepareOverdueRecovery();
     } else {
       this.navigateToBillingPlans();
+    }
+  }
+
+  private async prepareOverdueRecovery(): Promise<void> {
+    if (this.preparingOverdueRecovery()) return;
+    this.preparingOverdueRecovery.set(true);
+    try {
+      const result = await this.billingStateService.prepareOverdueRecovery();
+      if (!result.prepared) {
+        this.genericService.showToast(result.error ?? 'שגיאה בהכנת החוב להסדרה', 'error');
+        return;
+      }
+      await this.router.navigate(['/billing/recovery']);
+    } finally {
+      this.preparingOverdueRecovery.set(false);
     }
   }
 

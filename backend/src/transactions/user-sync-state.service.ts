@@ -115,11 +115,8 @@ export class UserSyncStateService {
    * New entries are written with status='not_synced'; existing entries get their
    * consentId (and optional identifiers) updated without changing their sync status.
    *
-   * Direct/Debit cards (isDirect === true, determined from Feezback balances at
-   * discovery) are pinned to the terminal status 'skipped_direct' — never
-   * not_synced/failed — so no retry path ever selects them. If a card previously
-   * marked skipped_direct is re-discovered with balances (isDirect === false),
-   * it flips back to 'not_synced' so the next sync pulls it normally.
+   * Direct cards use normal import states. Discovery upgrades legacy
+   * skipped_direct outcomes to not_synced without changing source identity.
    */
   private async resolveSource(userId: string, src: Pick<SourceResult, 'type' | 'sourceId' | 'sourceRecordId' | 'connectionRole'>, repository = this.accountSourceRepo): Promise<Source> {
     const where = src.sourceRecordId
@@ -127,7 +124,7 @@ export class UserSyncStateService {
       : { userId, sourceName: src.sourceId, sourceType: src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD,
           connectionRole: src.connectionRole ?? 'primary' as ConnectionRole };
     const source = await repository.findOne({ where });
-    if (!source || source.userId !== userId || (src.connectionRole && src.connectionRole !== source.connectionRole) || source.sourceName !== src.sourceId || source.sourceType !== (src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD)) {
+    if (!source || source.userId !== userId || (src.connectionRole && src.connectionRole !== source.connectionRole) || (!src.sourceRecordId && source.sourceName !== src.sourceId) || source.sourceType !== (src.type === 'bank' ? SourceType.BANK_ACCOUNT : SourceType.CREDIT_CARD)) {
       throw new BadRequestException('Source record not found for this user and payment source');
     }
     return source;
@@ -151,9 +148,7 @@ export class UserSyncStateService {
         // a fresh consentId / resourceId, overwrite the stored ones (consent
         // rotation changes consentId).
         const statusPatch: Partial<UserSourceSyncState> =
-          src.isDirect === true
-            ? { status: 'skipped_direct', transactionCount: 0, error: null }
-            : src.isDirect === false && existing.status === 'skipped_direct'
+          existing.status === 'skipped_direct'
               ? { status: 'not_synced', error: null }
               : src.consentId && src.consentId !== existing.consentId
                 ? { status: 'not_synced', error: null }
@@ -171,13 +166,13 @@ export class UserSyncStateService {
       } else {
         await this.sourceRepo.save(this.sourceRepo.create({
           userId,
-          sourceId: src.sourceId,
+          sourceId: source.sourceName,
           sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? null,
           consentId: src.consentId ?? null,
           consentVerifiedAt: verifiedAt,
-          status: src.isDirect === true ? 'skipped_direct' : 'not_synced',
+          status: 'not_synced',
           transactionCount: 0,
           error: null,
         }));
@@ -451,7 +446,7 @@ export class UserSyncStateService {
       try {
         await sourceRepo.insert({
           userId,
-          sourceId: src.sourceId,
+          sourceId: source.sourceName,
           sourceRecordId,
           type: src.type,
           resourceId: src.resourceId ?? null,
@@ -568,9 +563,8 @@ export class UserSyncStateService {
     });
     // Reset per-source status so next sync re-processes all sources.
     // Keeps consentId and identifiers intact — only clears sync outcome data.
-    // skipped_direct rows stay terminal — a Direct card is skipped by design,
-    // not an outcome to re-attempt; the next sync re-confirms it from balances.
-    await this.sourceRepo.update({ userId, status: Not('skipped_direct') }, {
+    // Direct cards and any legacy skipped outcome must be pulled again too.
+    await this.sourceRepo.update({ userId }, {
       status: 'not_synced',
       transactionCount: 0,
       error: null,

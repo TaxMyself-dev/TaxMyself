@@ -1,0 +1,10 @@
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { signal } from '@angular/core';
+import { AgentBellComponent } from './agent-bell.component';
+import { MyAgentService } from './my-agent.service';
+describe('agent notification menu',()=>{
+ function setup(){const api={context:()=> 'owner',unread:signal(1),inbox:jasmine.createSpy().and.resolveTo({items:[{id:'n',state:'waiting',read_at:null,display:{merchant:'חנות'}}]})};TestBed.configureTestingModule({imports:[AgentBellComponent],providers:[provideRouter([]),{provide:MyAgentService,useValue:api}]});const f=TestBed.createComponent(AgentBellComponent);f.detectChanges();tick();f.detectChanges();return f;}
+ it('closes on an outside click, focus or Escape while keeping inside clicks open',fakeAsync(()=>{const f=setup();const host=f.nativeElement as HTMLElement;host.querySelector<HTMLButtonElement>('button').click();f.detectChanges();expect(f.componentInstance.expanded()).toBeTrue();host.querySelector('.notices strong').dispatchEvent(new MouseEvent('click',{bubbles:true}));expect(f.componentInstance.expanded()).toBeTrue();document.body.click();expect(f.componentInstance.expanded()).toBeFalse();f.componentInstance.expanded.set(true);document.body.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));expect(f.componentInstance.expanded()).toBeFalse();f.componentInstance.expanded.set(true);document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));expect(f.componentInstance.expanded()).toBeFalse();f.destroy();}));
+ it('navigates to the exact notice and closes the menu',fakeAsync(()=>{const f=setup();const navigate=spyOn(TestBed.inject(Router),'navigate').and.resolveTo(true);f.componentInstance.expanded.set(true);f.detectChanges();f.nativeElement.querySelector('.notices button').click();expect(navigate).toHaveBeenCalledWith(['/settings-new'],{queryParams:{section:'agent',notice:'n'}});expect(f.componentInstance.expanded()).toBeFalse();f.destroy();}));
+});

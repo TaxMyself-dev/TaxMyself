@@ -1,0 +1,5 @@
+{
+  "extends":"./tsconfig.spec.json",
+  "compilerOptions":{"skipLibCheck":true,"types":["jasmine","node"]},
+  "include":["src/app/services/document-analysis.spec.ts","src/app/services/document-analysis-report.spec.ts","src/**/*.d.ts"]
+}

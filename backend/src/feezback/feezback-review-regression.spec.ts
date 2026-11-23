@@ -126,7 +126,7 @@ describe('Feezback review regressions',()=>{
   it('recovers terminal-write failure after the login retry path too',async()=>{
     jest.spyOn(console,'log').mockImplementation(()=>{});
     const service=Object.create(FeezbackService.prototype) as any;
-    const source={type:'bank',sourceId:'1111',status:'failed'};
+    const source={type:'bank',sourceId:'1111',consentId:'active-bank',status:'failed'};
     const failed=jest.fn().mockResolvedValue(undefined);
     Object.assign(service,{logger:{error:jest.fn(),log:jest.fn(),warn:jest.fn()},
       userRepository:{findOne:jest.fn().mockResolvedValue({hasOpenBanking:true})},billingService:{hasModuleAccess:jest.fn().mockResolvedValue(true)},

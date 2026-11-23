@@ -89,6 +89,21 @@ describe('SubscriptionAccessService.resolveModulesAccess — professional-access
     }
   });
 
+  it('classifies an overdue ACTIVE denial as payment recovery, not an upgrade', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-09T12:00:00Z'));
+    try {
+      const sub = makeSubscription({
+        status: SubscriptionStatus.ACTIVE,
+        nextBillingDate: new Date('2026-11-05T11:59:59Z'),
+      });
+      expect(service.resolveModulesAccess(sub, null)).toEqual([]);
+      expect(service.isPaymentRequired(sub)).toBe(true);
+      expect(service.paymentBlockReason(sub)).toBe('ACTIVE_OVERDUE');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('non-delegated access is completely unaffected (TRIAL_EXPIRED → no access)', () => {
     const sub = makeSubscription({ status: SubscriptionStatus.TRIAL_EXPIRED });
     expect(service.resolveModulesAccess(sub, null, false)).toEqual([]);

@@ -5,6 +5,7 @@
 export const environment = {
   production: true,
   enableDevTools: true,
+  agentDevPage: true,
   requireMfa: false,
   apiUrl: 'https://taxmys16elf-dev-146140406969.me-west1.run.app/',
   firebase: {

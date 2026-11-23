@@ -20,7 +20,9 @@ describe('BillingController — owner-mutation actor context', () => {
     cancelScheduledPlanChange: jest.Mock;
     cancelSubscription: jest.Mock;
     withdrawSubscriptionCancellation: jest.Mock;
+    getCheckoutResolution: jest.Mock;
   };
+  let overdueRecovery: { prepare: jest.Mock };
 
   beforeEach(() => {
     billingService = {
@@ -31,19 +33,47 @@ describe('BillingController — owner-mutation actor context', () => {
       cancelScheduledPlanChange: jest.fn(),
       cancelSubscription: jest.fn(),
       withdrawSubscriptionCancellation: jest.fn(),
+      getCheckoutResolution: jest.fn().mockResolvedValue({ status: 'PENDING' }),
     };
+    overdueRecovery = { prepare: jest.fn().mockResolvedValue({ status: 'PAST_DUE' }) };
     controller = new BillingController(
       billingService as unknown as BillingService,
+      undefined,
+      undefined,
+      overdueRecovery as any,
     );
   });
 
-  it.each(['previewCheckout', 'createCheckout', 'changePaymentMethod', 'getChangePaymentMethodStatus', 'cancelScheduledPlanChange', 'cancelSubscription', 'withdrawSubscriptionCancellation'])(
+    it.each(['previewCheckout', 'createCheckout', 'checkoutStatus', 'changePaymentMethod', 'getChangePaymentMethodStatus', 'cancelScheduledPlanChange', 'cancelSubscription', 'withdrawSubscriptionCancellation', 'prepareOverdueRecovery'])(
     'keeps %s authenticated but free of subscription module gates for blocked owners', method => {
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController)).toBeUndefined();
       expect(Reflect.getMetadata(GUARDS_METADATA, BillingController.prototype[method])).toEqual([FirebaseAuthGuard]);
     });
 
   describe('createCheckout', () => {
+    it('scopes checkout status to the verified direct owner and exact provider id', async () => {
+      const request = { user: { firebaseId: 'client-1', actorFirebaseId: 'client-1' } } as any;
+      await controller.checkoutStatus(request, 'lp-1');
+      expect(billingService.getCheckoutResolution).toHaveBeenCalledWith(expect.objectContaining({
+        actorFirebaseId: 'client-1', subjectFirebaseId: 'client-1',
+      }), 'lp-1');
+    });
+    it('prepares overdue recovery only with the verified direct-owner actor', async () => {
+      const request = {
+        user: { firebaseId: 'client-1', actorFirebaseId: 'client-1' },
+        isDelegatedAccess: false,
+        isAdminImpersonation: false,
+      } as any;
+
+      await controller.prepareOverdueRecovery(request);
+
+      expect(overdueRecovery.prepare).toHaveBeenCalledWith({
+        actorFirebaseId: 'client-1',
+        subjectFirebaseId: 'client-1',
+        isDelegatedAccess: false,
+        isAdminImpersonation: false,
+      });
+    });
     it('passes the verified actor and stale-state fields to subscription cancellation and withdrawal', async () => {
       const request = { user: { firebaseId: 'client-1', actorFirebaseId: 'admin-1' }, isAdminImpersonation: true } as any;
       const dto = { expectedStatus: 'ACTIVE', expectedPeriodEnd: '2026-11-07T07:14:48.000Z' } as any;

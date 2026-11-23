@@ -21,6 +21,7 @@ import { ShaamModule } from './shaam/shaam.module';
 import { AccountantTasksModule } from './accountant-tasks/accountant-tasks.module';
 import { AnnualReportModule } from './annual-report/annual-report.module';
 import { ReportWorkflowModule } from './report-workflow/report-workflow.module';
+import { AgentHarnessModule } from './agent-harness/agent-harness.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DemoDataModule } from './demo-data/demo-data.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
@@ -46,6 +47,7 @@ import { BillingObligation } from './billing/entities/billing-obligation.entity'
 import { BillingAttempt } from './billing/entities/billing-attempt.entity';
 import { BillingAttemptObligation } from './billing/entities/billing-attempt-obligation.entity';
 import { PaymentMethodUpdateAttempt } from './billing/entities/payment-method-update-attempt.entity';
+import { BillingPayerProfile } from './billing/entities/billing-payer-profile.entity';
 //Entities
 import { Expense } from './expenses/expenses.entity';
 import { Income } from './expenses/incomes.entity';
@@ -185,6 +187,7 @@ new Logger('Bootstrap').log(
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,
+        BillingPayerProfile,
         UserIntegration, OauthState, ImportedDocument, InboundEmailAddress,
         AssetDepreciationPosting,
         ShaamConnection, ShaamOauthState, UniformFileSubmission, ShaamInvoiceAllocationAttempt,
@@ -227,7 +230,7 @@ new Logger('Bootstrap').log(
     ScheduleModule.forRoot(devCompletionScheduleOptions()),
     LycheeModule,
     ...(process.env.NODE_ENV !== 'production' && process.env.WHATSAPP_DEV_ENABLED === 'true' ? [WhatsappDevelopmentModule] : []),
-    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule],
+    HttpModule, UsersModule, ReportsModule, ExpensesModule, TransactionsModule, BusinessModule, SharedModule, MailModule, DelegationModule, DocumentsModule, ClientsModule, BookkeepingModule, FeezbackModule, ShaamModule, FeezbackWebhookModule, AccountantTasksModule, AnnualReportModule, ReportWorkflowModule, NotificationsModule, DemoDataModule, GoogleDriveModule, BillingModule, IntegrationsModule, DocumentImportModule, InboundEmailModule, DepreciationModule, AgentHarnessModule],
   controllers: [AppController],
   providers: [AppService, ReadinessService, MailService, ClientsService, BookkeepingService, BusinessService],
 })

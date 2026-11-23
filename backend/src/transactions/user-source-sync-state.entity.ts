@@ -7,10 +7,8 @@ import type { BankingIssue } from '../feezback/core/open-banking-issue';
  *   not_synced     — discovered but never pulled (retryable).
  *   success        — transactions fetched successfully.
  *   failed         — a fetch was attempted and failed (retryable).
- *   skipped_direct — TERMINAL, intentional: this source is a Direct/Debit card.
- *                    Its transactions are deliberately NOT imported from the
- *                    card feed because they arrive through the bank-account
- *                    feed. Never selected for automatic or manual retry.
+ *   skipped_direct — legacy skipped state, upgraded/retried as not_synced.
+ *                    New Direct imports use success/failed like credit cards.
  */
 export type SourceSyncStatus = 'not_synced' | 'success' | 'failed' | 'skipped_direct';
 

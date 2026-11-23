@@ -5,6 +5,7 @@ import { signal } from '@angular/core';
 import { BillingRecoveryPage } from './billing-recovery.page';
 import { BillingStateService } from '../../services/billing-state.service';
 import { environment } from 'src/environments/environment';
+import { provideRouter, Router } from '@angular/router';
 
 describe('BillingRecoveryPage', () => {
   let http: HttpTestingController;
@@ -13,14 +14,17 @@ describe('BillingRecoveryPage', () => {
 
   beforeEach(() => {
     state = { billingState: signal({ subscription: { status: 'PAST_DUE' }, plan: { id: 3, name: 'Basic' } }),
-      loadBillingState: jasmine.createSpy().and.resolveTo(), hasBillingOverride: () => false };
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+      loadBillingState: jasmine.createSpy().and.resolveTo(), refreshBillingState: jasmine.createSpy().and.resolveTo(),
+      hasBillingOverride: () => false };
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]),
       { provide: BillingStateService, useValue: state }] });
     http = TestBed.inject(HttpTestingController);
     page = TestBed.runInInjectionContext(() => new BillingRecoveryPage());
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+  });
 
   async function loadDebt() {
     page.ngOnInit();
@@ -29,6 +33,21 @@ describe('BillingRecoveryPage', () => {
       recoveryQuote: 'a'.repeat(64), periods: [{ periodStart: '2026-09-15', periodEnd: '2026-10-15', amountAgorot: 11800 }] });
     await Promise.resolve();
   }
+
+  it('redirects a server-owned pending checkout without previewing or submitting debt', async () => {
+    state.billingState.set({ subscription: { status: 'PAST_DUE' }, plan: { id: 3 },
+      pendingCheckout: { status: 'PENDING', flow: 'RECOVERY' } });
+    const router = TestBed.inject(Router);
+    spyOn(router, 'navigate').and.resolveTo(true);
+
+    page.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/billing/payment-status'], { replaceUrl: true });
+    http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
+    http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
 
   it('shows the server debt amount and does not initiate payment while loading', async () => {
     await page.pay();
@@ -55,31 +74,64 @@ describe('BillingRecoveryPage', () => {
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout/preview`);
     expect(page.error()).toBeTruthy();
-    page.openCardChange();
-    expect(page.changeCardDialogOpen).toBeFalse();
   });
 
-  it('explains a pending payment instead of reporting a debt-loading failure', async () => {
+  it('offers server-owned continuation for a resumable pending CardCom checkout', async () => {
     page.ngOnInit();
     await Promise.resolve();
     http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
-      code: 'BILLING_PAYMENT_PENDING', message: 'התשלום ממתין לבדיקת תמיכה',
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: true,
     }, { status: 409, statusText: 'Conflict' });
     await Promise.resolve();
-    expect(page.error()).toBe('התשלום ממתין לבדיקת תמיכה');
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.canResumePayment()).toBeTrue();
+    expect(page.error()).toBe('');
     await page.pay();
     http.expectNone(`${environment.apiUrl}billing/checkout`);
   });
 
-  it('allows card replacement for a blocked owner even when debt preview needs review', async () => {
+  it('clears a restored redirect spinner and reloads the pending checkout after browser Back', async () => {
+    await loadDebt();
+    page.submitting.set(true);
+
+    page.onPageShow({ persisted: true } as PageTransitionEvent);
+    await Promise.resolve();
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: true,
+    }, { status: 409, statusText: 'Conflict' });
+    await Promise.resolve();
+
+    expect(page.submitting()).toBeFalse();
+    expect(page.loading()).toBeFalse();
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.canResumePayment()).toBeTrue();
+    expect(page.error()).toBe('');
+  });
+
+  it('does not offer continuation when the active checkout has no durable URL', async () => {
     page.ngOnInit();
     await Promise.resolve();
-    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({}, { status: 409, statusText: 'Conflict' });
+    http.expectOne(`${environment.apiUrl}billing/checkout/preview`).flush({
+      code: 'BILLING_PAYMENT_PENDING', message: 'כבר נפתח עמוד תשלום', canResume: false,
+    }, { status: 409, statusText: 'Conflict' });
     await Promise.resolve();
-    page.openCardChange();
-    expect(page.changeCardDialogOpen).toBeTrue();
-    expect(page.error()).toBeTruthy();
+    expect(page.pendingPayment()).toBeTrue();
+    expect(page.canResumePayment()).toBeFalse();
+  });
+
+  it('checks the provider before continuing and reports captured processing without another checkout', async () => {
+    page.canResumePayment.set(true);
+    const pending = page.resumePayment();
+    http.expectOne(`${environment.apiUrl}billing/checkout/continue`).flush({ status: 'PROCESSING' });
+    await pending;
+    expect(page.canResumePayment()).toBeFalse();
+    expect(page.error()).toContain('בתהליך השלמה');
+    expect(state.refreshBillingState).toHaveBeenCalled();
     http.expectNone(`${environment.apiUrl}billing/checkout`);
+  });
+
+  it('formats service periods for the payment summary', () => {
+    expect(page.formatDate('2026-11-06')).toBe('06/11/2026');
   });
 
   it('submits once on double click and prevents another submission after an unresolved response', async () => {

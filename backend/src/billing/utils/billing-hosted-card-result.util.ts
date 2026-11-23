@@ -8,6 +8,13 @@ export interface CardcomWebhookPayload {
   TranzactionId?: number;
   ReturnValue?: string;
   Operation?: string;
+  UIValues?: {
+    CardOwnerEmail?: string;
+    CardOwnerName?: string;
+    CardOwnerPhone?: string;
+    CardOwnerIdentityNumber?: string;
+    CustomFields?: Array<{ Id?: number; Value?: string }>;
+  };
   DocumentInfo?: {
     ResponseCode?: number;
     DocumentType?: string;
@@ -34,6 +41,11 @@ export interface CardcomWebhookPayload {
     Brand?: string;
     CardMonth?: number;
     CardYear?: number;
+    CardOwnerName?: string;
+    CardOwnerPhone?: string;
+    CardOwnerEmail?: string;
+    CardOwnerIdentityNumber?: string;
+    CustomFields?: Array<{ Id?: number; Value?: string }>;
     DocumentNumber?: number;
     DocumentType?: string;
     DocumentUrl?: string;
@@ -224,6 +236,40 @@ export function isDefinitiveHostedDecline(
     code === 0 ||
     code === 700 ||
     code === 701
+  ) {
+    return null;
+  }
+  return { responseCode: code };
+}
+
+/**
+ * A top-level non-success from GetLpResult is safe to treat as a terminal
+ * no-charge result only when CardCom echoes the immutable identity of this
+ * exact hosted page. Authentication/development errors commonly omit that
+ * identity and must stay UNKNOWN: a lookup failure is not evidence that an
+ * otherwise valid checkout did not charge.
+ *
+ * A transaction-bearing response is deliberately excluded. Rejected
+ * transactions are handled by isDefinitiveHostedDecline, while any conflicting
+ * transaction signal remains fail-closed.
+ */
+export function isDefinitiveHostedNoCharge(
+  result: unknown,
+  expected: HostedCaptureExpectation,
+): { responseCode: number } | null {
+  if (!result || typeof result !== 'object') return null;
+  const verified = result as CardcomWebhookPayload;
+  const code = verified.ResponseCode;
+  if (
+    typeof code !== 'number' ||
+    !Number.isFinite(code) ||
+    code === 0 ||
+    verified.LowProfileId !== expected.lowProfileId ||
+    !terminalMatches(verified, expected) ||
+    !returnValueMatches(verified, expected) ||
+    verified.TranzactionId != null ||
+    verified.TranzactionInfo?.TranzactionId != null ||
+    verified.TranzactionInfo?.ResponseCode === 0
   ) {
     return null;
   }

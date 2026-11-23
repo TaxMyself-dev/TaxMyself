@@ -25,6 +25,7 @@ import { CheckboxModule } from "primeng/checkbox";
 import { ProgressSpinnerModule } from "primeng/progressspinner";
 import { DialogModule } from "primeng/dialog";
 import { expenseCurrencyFormValue, expenseCurrencyPayload } from "./expense-currency.util";
+import { safeAnalysisPatch } from 'src/app/services/document-analysis-patch';
 
 @Component({
     selector: 'app-mannual-expense',
@@ -65,6 +66,9 @@ export class MannualExpenseComponent implements OnDestroy {
     isDirty = signal<boolean>(false);
     isLoadingAddExpense = signal<boolean>(false);
     isOcrLoading = signal<boolean>(false);
+    ocrState=signal('READY');
+    private ocrGeneration=0;
+    private ocrSubscription?:{unsubscribe():void};
     previewFileUrl = signal<string | null>(null);
     previewFileType = signal<'pdf' | 'image' | null>(null);
     safePreviewUrl = signal<SafeResourceUrl | null>(null);
@@ -436,6 +440,9 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
     selectedFiles(event: File[]): void {
+        this.ocrGeneration++;
+        this.ocrSubscription?.unsubscribe();
+        this.isOcrLoading.set(false);
         this.files.set(event);
 
         // Clean up previous preview URL
@@ -467,6 +474,9 @@ export class MannualExpenseComponent implements OnDestroy {
      * soft toast so the user can still fill the form manually.
      */
     private runOcrAutoFill(file: File): void {
+        const generation=++this.ocrGeneration;
+        this.ocrSubscription?.unsubscribe();
+        const snapshot=this.mannualExpenseForm.getRawValue();
         const businessNumber =
             this.mannualExpenseService.$selectedBusinessNumber() ??
             this.authService.getActiveBusinessNumber() ?? '';
@@ -477,9 +487,10 @@ export class MannualExpenseComponent implements OnDestroy {
             return;
         }
         this.isOcrLoading.set(true);
-        this.driveDocsService.ocrSingleFile(file, businessNumber)
+        this.ocrSubscription=this.driveDocsService.ocrSingleFile(file, businessNumber,state=>{if(generation===this.ocrGeneration)this.ocrState.set(state);})
             .pipe(
                 catchError((err) => {
+                    if(generation!==this.ocrGeneration)return EMPTY;
                     console.error('[MannualExpense] OCR failed:', err);
                     this.showToast({
                         severity: 'warn',
@@ -489,9 +500,11 @@ export class MannualExpenseComponent implements OnDestroy {
                     });
                     return EMPTY;
                 }),
-                finalize(() => this.isOcrLoading.set(false)),
+                finalize(() => {if(generation===this.ocrGeneration)this.isOcrLoading.set(false);}),
             )
             .subscribe((res) => {
+                const activeBusiness=this.mannualExpenseService.$selectedBusinessNumber()??this.authService.getActiveBusinessNumber()??'';
+                if(generation!==this.ocrGeneration||this.files()[0]!==file||activeBusiness!==businessNumber)return;
                 if (!res?.invoice) {
                     this.showToast({
                         severity: 'info',
@@ -501,7 +514,7 @@ export class MannualExpenseComponent implements OnDestroy {
                     });
                     return;
                 }
-                this.applyOcrResult(res.invoice);
+                this.applyOcrResult(res.invoice,snapshot);
                 this.showToast({
                     severity: 'success',
                     summary: 'הצלחה',
@@ -511,7 +524,7 @@ export class MannualExpenseComponent implements OnDestroy {
             });
     }
 
-    private applyOcrResult(inv: OcrInvoiceFields): void {
+    private applyOcrResult(inv: OcrInvoiceFields,snapshot?:Record<string,any>): void {
         const dateValue = this.apiDateToDateObject(inv.date);
         const patch: Record<string, any> = {};
         if (inv.supplier) patch['supplier'] = inv.supplier;
@@ -526,12 +539,15 @@ export class MannualExpenseComponent implements OnDestroy {
         if (typeof inv.is_equipment === 'boolean') patch['isEquipment'] = inv.is_equipment;
         // emitEvent: false — skip the isEquipment valueChanges subscription so
         // it doesn't overwrite category/taxPercent we just set from OCR.
-        this.mannualExpenseForm.patchValue(patch, { emitEvent: false });
+        const current=this.mannualExpenseForm.getRawValue();
+        const dirty=new Set(Object.keys(this.mannualExpenseForm.controls).filter(key=>this.mannualExpenseForm.get(key)?.dirty));
+        const safe=safeAnalysisPatch(patch,snapshot||current,current,dirty);
+        this.mannualExpenseForm.patchValue(safe, { emitEvent: false });
         this.isEquipmentChecked.set(this.mannualExpenseForm.get('isEquipment')?.value === true);
         // Populate the subcategory dropdown options for the chosen category
         // without clearing the subCategory we just patched in.
-        if (inv.category) {
-            this.getSubCategory(inv.category, true);
+        if (safe['category']) {
+            this.getSubCategory(safe['category'], true);
         }
         this.isDirty.set(true);
     }
@@ -1129,6 +1145,8 @@ export class MannualExpenseComponent implements OnDestroy {
     }
 
     ngOnDestroy(): void {
+        this.ocrGeneration++;
+        this.ocrSubscription?.unsubscribe();
         // Clean up blob URL to prevent memory leaks
         if (this.previewFileUrl()) {
             const url = this.previewFileUrl();

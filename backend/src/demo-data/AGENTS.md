@@ -1,4 +1,19 @@
 ## Purpose
+
+Direct-demo initial seed/testReset also resolves every cache payment identifier to
+the unique owned Source and persists missing sourceRecordId before creating card
+twins. Bank provenance is required for cashflow exclusion; it must not be inferred
+from merchant labels. Existing scenario rebuild already supplies these source IDs.
+
+Direct-demo seed/reset starts with exclusion off to exercise the opt-in popup on
+a real owner login. Only applyDirectCardFix passes enableDirectExclusion=true.
+Admin demo-entry is view-as, so owner-only preferences remain read-only there.
+
+Direct-card twins must omit the original cache row's generated primary key:
+TypeORM insert mutates bank-row objects with id before applyProfileSourceState
+clones them. buildLegacyDuplicateRows strips id while preserving stable external
+IDs, amounts and dates, so fresh seed/reset and scenario rebuilds cannot reuse a
+bank row's PRIMARY key. Regression fixture includes already-inserted bank IDs.
 Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Firebase + full DB graph across most modules) from static, version-controlled "profile" templates, for admin demos and in-app "אפס נתוני בדיקה" testing.
 
 ## Key entities/files
@@ -36,3 +51,41 @@ Seeds, resets, and self-service-resets realistic demo/sandbox user accounts (Fir
 - accountant-tasks (`AccountantTask` entity, purged on reset)
 - report-workflow (`ReportWorkflow` entity, purged on reset)
 - annual-report (`AnnualReport`/`AnnualReportFile`, purged on reset)
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Billing QA profile (KT-105)
+
+`profiles/billing-qa.profile.ts` defines the local synthetic user
+`demo+billing-qa@taxmyself.local`. Initial seed creates an ACTIVE paid
+subscription whose due date is four days old, a complete payer profile, and an
+encrypted deliberately-invalid demo token. Admin-only scenario actions replace
+its billing rows with `ACTIVE_OVERDUE`, `PAST_DUE`, or `DECLINED` state without
+calling CardCom. The declined state includes synthetic provider code and
+description for admin presentation testing. Direct owner login is required to
+see access blocking because admin impersonation intentionally bypasses it.
+
+`POST /demo-data/profiles/:id/billing-scenario/:state` is restricted to admins
+and to profiles declaring `billingQaScenario`. Creating or switching the
+fixture never submits a charge. Reset removes the fixture billing aggregate
+before deleting its demo identity.
+
+## Assistant QA demo (2026-11-15)
+
+The assistant-qa profile is an additive, synthetic two-business dev fixture. Its guarded CLI and expected-answer checklist live in docs/operations/assistant-qa-demo.md. Use only keepintax-dev. The CLI stores generated credentials, ownership and retry state under ignored .local/assistant-qa; never reset another profile or reuse an unrelated identity. Additional customers, classified transactions, source PDF links, pending/private expenses and issued documents are populated by scripts/seed-assistant-qa.ts, not the generic seedProfile path. No self-reset capability is granted. Source documents transferred to pending/private Expense rows retain their back-pointers without creating accounting journals.
+
+Assistant QA cache consistency: the dedicated seed must project its final slim classifications/confirmation into FullTransactionCache, including on completed additive reruns. assistant-qa-cache.ts owns this fixture-only projection; seed verification rejects mismatches. The guarded repair-assistant-qa-cache.ts repairs only this named local demo's cache, with synchronize=false and no app boot, documents, approvals or accounting changes.

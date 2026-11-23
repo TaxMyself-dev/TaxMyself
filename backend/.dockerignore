@@ -4,3 +4,31 @@ node_modules
 npm-debug.log
 dist
 .env
+.env.*
+**/.env
+**/.env.*
+**/journey-timings.local
+**/.eval
+src/auth/firebaseServiceAccount*.json
+**/*.pem
+**/*.key
+# The agent package (KT-089) installs and builds its own dependencies.
+agent/node_modules
+agent/dist
+# Local state, credentials and diagnostic/user artifacts never enter any layer.
+.git
+**/node_modules
+**/dist
+**/coverage
+**/.test-tmp
+**/.local
+**/.eval
+**/.env*
+**/.npmrc
+**/*credentials*.json
+**/*ServiceAccount*.json
+**/*.p12
+**/*.pfx
+**/transactions-data
+agent/tests
+agent/.inlang

@@ -28,6 +28,7 @@ import { BillingPlanChangeService } from './billing-plan-change.service';
 import { BillingCancellationService } from './billing-cancellation.service';
 import { OpenBankingEnrollmentService } from './open-banking-enrollment.service';
 import { billingDate, nextBillingInstant } from '../domain/billing-debt-periods';
+import { applyZeroPricePeriod } from '../domain/zero-price-period';
 import { BillingHostedCompletionService } from './billing-hosted-completion.service';
 import { BillingReconciliationService } from './billing-reconciliation.service';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
@@ -43,7 +44,7 @@ import {
 import {
   MAX_RENEWAL_ATTEMPTS,
   RENEWAL_GRACE_PERIOD_DAYS as GRACE_PERIOD_DAYS,
-  RENEWAL_RETRY_DELAYS_DAYS as RETRY_DELAYS_DAYS,
+  RENEWAL_RETRY_DELAYS_MINUTES as RETRY_DELAYS_MINUTES,
   renewalPeriodStart,
 } from '../domain/billing-renewal-policy';
 /** Bounded concurrency for the daily batch — avoids hammering CardCom/DB. */
@@ -371,11 +372,23 @@ export class SubscriptionRenewalService {
           subscription.firebaseId,
           plan.id,
         );
+    if (!reuseDebtSnapshot && pricing.finalAmountAgorot === 0) {
+      const applied = await this.dataSource.transaction(manager => applyZeroPricePeriod(manager, {
+        subscriptionId, planId: plan.id, start: periodStart, end: periodEnd, anchor, initial: false,
+        fingerprint: 'pricingFingerprint' in pricing ? pricing.pricingFingerprint as string : undefined,
+        agreementEventId: 'zeroPriceAgreementEventId' in pricing ? pricing.zeroPriceAgreementEventId as number : undefined,
+        actorFirebaseId: subscription.firebaseId,
+      }));
+      return { subscriptionId, outcome: applied ? 'success' : 'skipped', billingPeriod,
+        nextBillingDate: periodEnd, message: 'תקופת מנוי ללא חיוב' };
+    }
+    if (pricing.finalAmountAgorot === 0) throw new Error('Existing zero debt requires review; no provider submission');
     const result = await this.billingLifecycleService.executeRenewal(
       {
         actor,
         subscriptionId,
         planId: plan.id,
+        ...('pricingFingerprint' in pricing ? { pricingFingerprint: pricing.pricingFingerprint as string } : {}),
         periodStart: periodStartDate,
         periodEnd: existing?.obligation.periodEnd ?? billingDate(periodEnd),
         amountAgorot: pricing.finalAmountAgorot,
@@ -599,8 +612,8 @@ export class SubscriptionRenewalService {
   /**
    * The charge failed locally BEFORE any provider request (no usable payment
    * method), so it is neither a decline nor an uncertain charge and never uses
-   * the 3/7-day retry policy. The orchestration service already applied the
-   * transition atomically: CUSTOMER_ACTION left the subscription PAST_DUE (the
+   * the two-retries-at-30-minute-intervals policy. The orchestration service
+   * already applied the transition atomically: CUSTOMER_ACTION left the subscription PAST_DUE (the
    * hosted recovery flow collects it), SYSTEM_ACTION left the attempt in
    * MANUAL_REVIEW with the subscription unchanged. Only sanitized category
    * strings are logged or stored — never the token, key or a raw exception.
@@ -678,10 +691,14 @@ export class SubscriptionRenewalService {
     if (attempt.status !== BillingAttemptStatus.CAPTURED || !attempt.cardcomTransactionId || !attempt.capturedAt) {
       throw new Error('Verified capture required');
     }
-    const debt = await this.dataSource.manager.findOneByOrFail(BillingObligation, { id: attempt.obligationId });
+    const debts = await this.billingLifecycleService.findAttemptObligations(attempt);
+    if (!debts.length) throw new Error('Captured attempt has no billing obligations');
+    const debt = debts[0];
     const subscription = await this.subscriptionRepo.findOneByOrFail({ id: debt.subscriptionId });
-    const plan = await this.dataSource.manager.findOneByOrFail(SubscriptionPlan, { id: attempt.planId });
-    const start = billingBoundary(debt.periodStart), end = billingBoundary(debt.periodEnd);
+    const plan = await this.dataSource.manager.findOneOrFail(SubscriptionPlan, { where: { id: attempt.planId }, withDeleted: true });
+    const orderedDebts = [...debts].sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+    const start = billingBoundary(orderedDebts[0].periodStart);
+    const end = billingBoundary(orderedDebts[orderedDebts.length - 1].periodEnd);
     const result = await this.billingLifecycleService!.resumeCapturedAttempt({
       actor: { actorFirebaseId: subscription.firebaseId, subjectFirebaseId: subscription.firebaseId },
       attemptId, leaseOwner: `admin-complete-${attemptId}`,
@@ -692,7 +709,7 @@ export class SubscriptionRenewalService {
             where: { id: subscription.id }, lock: { mode: 'pessimistic_write' },
           });
           if (current.currentPeriodEnd && current.currentPeriodEnd >= end) return;
-          await manager.update(Subscription, current.id, recoverySubscriptionPatch(current, [debt]));
+          await manager.update(Subscription, current.id, recoverySubscriptionPatch(current, orderedDebts));
         });
       },
       receipt: { createReceipt: (captured, outcome) => this.createCanonicalRenewalReceipt(
@@ -1064,9 +1081,11 @@ export class SubscriptionRenewalService {
     let outcome: 'retry_scheduled' | 'past_due';
 
     if (!isFinalAttempt) {
-      const delayDays = RETRY_DELAYS_DAYS[attemptNumber - 1];
+      const delayMinutes = RETRY_DELAYS_MINUTES[attemptNumber - 1];
       retryScheduledFor = new Date(now);
-      retryScheduledFor.setDate(retryScheduledFor.getDate() + delayDays);
+      retryScheduledFor.setMinutes(
+        retryScheduledFor.getMinutes() + delayMinutes,
+      );
       outcome = 'retry_scheduled';
 
       await qr.manager.update(Subscription, subscription.id, {

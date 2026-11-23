@@ -14,11 +14,13 @@ import { AuthenticatedRequest } from 'src/interfaces/authenticated-request.inter
 import { UsersService } from 'src/users/users.service';
 import {
   DemoDataService,
+  DemoBillingQaScenarioResult,
   DemoProfileListItem,
   DemoResetResult,
   DemoScenarioResult,
   DemoSeedResult,
   DemoTestResetResult,
+  BillingQaScenarioState,
 } from './demo-data.service';
 import { canSelfResetDemoEmail } from './profiles';
 
@@ -91,6 +93,18 @@ export class DemoDataController {
   ): Promise<DemoScenarioResult> {
     await this.assertAdmin(request);
     return this.service.applyDirectCardFix(id);
+  }
+
+  /** Admin-only, provider-free switch for the dedicated billing QA profile. */
+  @Post('profiles/:id/billing-scenario/:state')
+  @HttpCode(HttpStatus.OK)
+  async billingScenario(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('state') state: BillingQaScenarioState,
+  ): Promise<DemoBillingQaScenarioResult> {
+    await this.assertAdmin(request);
+    return this.service.applyBillingQaScenario(id, state);
   }
 
   /**

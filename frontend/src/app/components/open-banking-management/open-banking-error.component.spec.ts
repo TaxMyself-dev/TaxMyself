@@ -10,7 +10,7 @@ describe('Open banking snackbar',()=>{
  beforeEach(()=>TestBed.configureTestingModule({imports:[OpenBankingErrorComponent,BankingToastContentComponent],providers:[MessageService,provideRouter([])]}));
  it('never hides missing direct consent',()=>{
   expect(savedConsentLabel(false,true)).toContain('ללא הרשאה');
-  expect(savedConsentLabel(true,true)).toBe('נמשך דרך חשבון הבנק');
+  expect(savedConsentLabel(true,true)).toBe('✓ פעיל');
  });
  it('sends one snackbar per issue without a duplicate inline alert',()=>{
   const add=spyOn(TestBed.inject(MessageService),'add');

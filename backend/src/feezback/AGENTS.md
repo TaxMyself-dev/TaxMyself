@@ -152,3 +152,63 @@ Consent termination failures and unconfirmed completion use consent_termination 
 The absence-of-balances Direct rule is evaluated for new discovery classifications only with UserDataIsAvailable proof matching the exact identity, consent and successful card reference. failedToFetchAccounts overrides fetchedAccounts; missing/malformed proof preserves the prior kind. ConsentStatusChanged and ordinary permission refresh save verified links but do not introduce Direct classifications. Other identities/consents are never certified by this proof. No additional schema or consent snapshot is used.
 
 Transaction pulls retain known card kinds; positive balances can identify credit, but missing balances cannot introduce Direct. An unknown card kind without balances yields an isolated CARD_DATA_NOT_READY source failure rather than importing a potential duplicate feed or silently skipping it. Other cards continue. OpenBankingCardKind diagnostics contain readiness, field presence, balance count and the chosen/preserved kind, without monetary amounts or full card identifiers.
+
+### Disconnected-source retry exclusion (2026-11-04)
+Login and automatic retry select only sources with a non-empty stored consentId. Stable historical source rows without a consent are not pending transaction work. Per-source pull/retry guards return a transient not_synced outcome without error, provider call or outcome write for disconnected rows. Missing resourceId under an existing consent remains a real error. Retry quality counts only currently linked sources, including a recheck after concurrent revocation. A historical OB-03 is cleared on login only when its exact old run contains exclusively failed disconnected outcomes and every currently linked source is already successful or Direct-skipped. Other failures are preserved. No provider consent verification or DB cleanup is added to login.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Stable source outcome identity (2026-11-04)
+
+After provider discovery has attached an owned permanent sourceRecordId, full-sync, single-source and admin date-range outcomes retain that ID through persistence. Full-sync summaries join fetch metadata by provider resource within the current identity; bank buckets are resource-scoped. An explicit permanent ID takes precedence over formatted names/currency, while tenant ownership, source type, identity role and consent/resource/run fencing remain enforced. New sync rows use the permanent Source.sourceName as their label. Discovery and legacy ID-less callers retain canonical-name lookup; no source rename, currency conversion, schema change, data backfill or production operation is introduced. Regression tests cover XXX, ILS and foreign currencies, duplicate number suffixes, stale labels, identity separation and invalid IDs.
+
+## Consent-aware transaction outcomes (2026-11-05)
+
+Full sync selects only stored nonblank consent links per sourceRecordId, type and
+connectionRole. A type/identity with no linked sources issues no provider request
+and contributes no transaction-fetch error. Discovery and permission-table behavior
+are unchanged; browser return does not discover/pull a pending new connection.
+Data-ready webhook discovery remains the owner of new source registration.
+
+Every expected source must receive a fetch outcome. Missing provider entries or
+stored resource IDs fail the source even if the provider list is empty. Zero
+transactions on a successfully fetched source are normal. Selection is rechecked
+after the call: revoked/replaced consent or resource snapshots cannot publish stale
+outcomes. No HTTP error automatically clears a permission or asks users to reconnect.
+Persistence failures remain OB-02/OB-04 and independently successful data is kept.
+
+Direct compatibility follows existing isRetryablePendingStatus('skipped_direct'):
+while Direct imports are disabled, known Direct sources are successful skips.
+The direct-card-cashflow feature enables ordinary retry/import of these rows, so
+they then participate in ordinary success/failure reporting without a new flag.
+Cashflow display/exclusion preferences never determine sync success.
+
+Failed account/consent-list requests now emit [FeezbackResponse] like card/transaction
+failures. Provider code and a redacted, bounded body are retained, with attempt
+timing and async-local run/source/role context when available. Success bodies and
+Axios request/config objects are not logged. No raw provider body is sent to users.
+
+## Account-holder activity IP
+
+Foreground owner data GETs use an async-local PSU IP context after Firebase
+authentication, including login/manual sync descendants. Only the matching
+primary/spouse identity at the configured API receives X-Psu-IP-Address.
+Background service/cron/webhook calls, admin view-as and other-owner targets
+omit it. Never store/reuse a user's IP on a singleton or add it to auth/link
+requests. Diagnostics redact it; the proxy preserves the explicit header.
+See [activity attribution](../../../docs/features/feezback-user-activity.md)
+for fixed local/Cloud Run address resolution and local verification.

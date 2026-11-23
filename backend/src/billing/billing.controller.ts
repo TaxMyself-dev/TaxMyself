@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Logger,
   NotFoundException,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -27,13 +29,47 @@ import { BillingMutationActorContext } from './services/billing-attempt-orchestr
 import { OpenBankingEnrollmentService } from './services/open-banking-enrollment.service';
 import { OpenBankingEnrollmentDto, CancelOpenBankingEnrollmentDto } from './dtos/open-banking-enrollment.dto';
 import { Optional } from '@nestjs/common';
+import { BillingPayerProfileService } from './services/billing-payer-profile.service';
+import { UpdateBillingPayerProfileDto } from './dtos/billing-payer-profile.dto';
+import { BillingOverdueRecoveryService } from './services/billing-overdue-recovery.service';
 
 @Controller('billing')
 export class BillingController {
   private readonly logger = new Logger(BillingController.name);
 
   constructor(private readonly billingService: BillingService,
-    @Optional() private readonly enrollment?: OpenBankingEnrollmentService) {}
+    @Optional() private readonly enrollment?: OpenBankingEnrollmentService,
+    @Optional() private readonly payerProfiles?: BillingPayerProfileService,
+    @Optional() private readonly overdueRecovery?: BillingOverdueRecoveryService) {}
+
+  @Get('payer-profile')
+  @UseGuards(FirebaseAuthGuard)
+  async getPayerProfile(@Req() request: AuthenticatedRequest) {
+    const actor = this.assertDirectOwner(request);
+    return this.payerProfiles!.getForOwner(actor.subjectFirebaseId);
+  }
+
+  @Patch('payer-profile')
+  @UseGuards(FirebaseAuthGuard)
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updatePayerProfile(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: UpdateBillingPayerProfileDto,
+  ) {
+    const actor = this.assertDirectOwner(request);
+    return this.payerProfiles!.updateForOwner(actor.subjectFirebaseId, dto);
+  }
+
+  private assertDirectOwner(request: AuthenticatedRequest): BillingMutationActorContext {
+    const actor = this.buildOwnerMutationActor(request);
+    if (
+      actor.isDelegatedAccess || actor.isAdminImpersonation ||
+      !actor.actorFirebaseId || actor.actorFirebaseId !== actor.subjectFirebaseId
+    ) {
+      throw new ForbiddenException('Billing payer details may be changed only by the account owner');
+    }
+    return actor;
+  }
 
   @Get('open-banking/enrollment')
   @UseGuards(FirebaseAuthGuard)
@@ -147,6 +183,13 @@ export class BillingController {
     return this.billingService.provisionExpiredSubscription(firebaseId);
   }
 
+  /** Materializes silently overdue ACTIVE debt without contacting CardCom. */
+  @Post('overdue/prepare')
+  @UseGuards(FirebaseAuthGuard)
+  prepareOverdueRecovery(@Req() request: AuthenticatedRequest) {
+    return this.overdueRecovery!.prepare(this.assertDirectOwner(request));
+  }
+
   /**
    * POST /billing/checkout/preview
    *
@@ -184,6 +227,31 @@ export class BillingController {
     return this.billingService.createCheckout(
       this.buildOwnerMutationActor(request),
       dto,
+    );
+  }
+
+  /** Re-checks and resumes the one existing hosted debt checkout. */
+  @Post('checkout/continue')
+  @UseGuards(FirebaseAuthGuard)
+  continueCheckout(@Req() request: AuthenticatedRequest) {
+    return this.billingService.continueRecoveryCheckout(
+      this.buildOwnerMutationActor(request),
+    );
+  }
+
+  /** Read-only resolution of the owner's existing hosted checkout. */
+  @Get('checkout/status')
+  @UseGuards(FirebaseAuthGuard)
+  checkoutStatus(
+    @Req() request: AuthenticatedRequest,
+    @Query('lowProfileId') lowProfileId?: string,
+  ) {
+    if (lowProfileId && (lowProfileId.length > 255 || !/^[a-zA-Z0-9-]+$/.test(lowProfileId))) {
+      throw new BadRequestException('Invalid checkout identifier');
+    }
+    return this.billingService.getCheckoutResolution(
+      this.assertDirectOwner(request),
+      lowProfileId,
     );
   }
 

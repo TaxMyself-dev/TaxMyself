@@ -26,6 +26,20 @@ interface TxForMatching {
 
 @Injectable()
 export class MatchingService {
+  /** Async uploads must recheck both sides inside the write transaction, not before the AI wait. */
+  async linkQueuedDocToTx(owner:string,userIndex:number,business:string,documentId:number,transactionId:number):Promise<void>{
+    await this.dataSource.transaction(async manager=>{
+      const docs=manager.getRepository(ExtractedDocument),slims=manager.getRepository(SlimTransaction);
+      const doc=await docs.findOne({where:{id:documentId,userId:userIndex,businessNumber:business},lock:{mode:'pessimistic_write'}});
+      const slim=await slims.findOne({where:{id:transactionId,userId:owner,businessNumber:business},lock:{mode:'pessimistic_write'}});
+      if(!doc||!slim||doc.deletedAt)throw new Error('Queued link target unavailable');
+      if(doc.matchedTransactionId===transactionId&&slim.matchedDocumentId===documentId)return;
+      if(doc.confirmedExpenseId||slim.confirmed)throw new Error('Queued link target unavailable');
+      if((doc.matchedTransactionId&&doc.matchedTransactionId!==transactionId)||(slim.matchedDocumentId&&slim.matchedDocumentId!==documentId))throw new Error('Queued link target changed');
+      await docs.update({id:doc.id},{matchedTransactionId:slim.id,matchStatus:'manual_link'});
+      await slims.update({id:slim.id},{matchedDocumentId:doc.id});
+    });
+  }
   private readonly logger = new Logger(MatchingService.name);
 
   constructor(

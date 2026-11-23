@@ -8,7 +8,20 @@ also rereads the effective tab profile for cached navigation.
 The temporary legacy diagnostic bypass was removed. Consent confirmation routes to /billing/open-banking for the plan/card enrollment flow in development and production.
 Main dashboard/home page shown after login: account sync status, transactions-to-classify, quick-access cards (create document, transactions, add expense), Open Banking connection, Feezback onboarding, and billing/payment-result handling.
 
+Layout-only invariant: `app-direct-card-notice` and `app-open-banking-error`
+are behavior/overlay hosts and must remain outside `.page-wrapper`. Empty custom
+element hosts inside that column flex container consume its 70px `row-gap` even
+when they render no visible content.
+
 ## Key entities/files
+
+- DirectCardNoticeComponent offers the exclusion checkbox only for server-detected
+  Direct-card owners with exclusion off and notice not permanently dismissed. It
+  waits for banking sync/dialogs, follows Ionic entry/leave, and never appears in
+  represented-client mode. Close/X/Later suppress for the current lastLoginAt in
+  this browser; Never Show Again persists independently on the owner account.
+  It starts active on normal Angular initialization; do not rely exclusively on
+  ionViewWillEnter, since the app root uses Angular router-outlet.
 - `my-account.page.ts` — standalone component; the largest/most central page component in the app. Aggregates: bank/card sync status polling (`SyncStatusService`), transactions needing classification (`ExpenseDataService`/`TransactionsService`), Feezback consent/pull dialog flow (`FeezbackService`), payment-result banner + polling after checkout redirect (`BillingStateService`), feature-gated navigation to doc-create/transactions (`AccessService`/`AccessHandlerService`/`AppFeature`), modals for add-bill/add-category/classify-transaction/account-association/manual-expense.
 - No separate service file — page composes many app-wide services directly; no dedicated `.module.ts` (standalone component, `loadComponent` route).
 
@@ -27,13 +40,21 @@ Main dashboard/home page shown after login: account sync status, transactions-to
 - Feezback onboarding: show consent dialog, poll for webhook readiness, trigger transaction pull, handle renew-consent/try-again states; any returned profile refresh is written through `AuthService` to the UID-bound tab cache rather than shared browser storage.
 - Mobile (the shared `isMobile()` breakpoint) additionally offers "צילום והעלאה ל-Drive". A hidden single-image input with `capture="environment"` opens synchronously in the menu action after the existing access/business checks. Cancel sends no request; confirmed capture passes the file to the quick-upload dialog. One business uploads automatically; multiple businesses require selection. Native camera behavior requires Android/iPhone verification.
 - For LAN phone testing, `npm run mobile` selects Angular's `mobile` configuration and `environment.mobile.ts`, which reaches port 3000 on the hostname serving the frontend. Ordinary `npm start` keeps `environment.ts` and `localhost:3000`. Restart the mobile dev server after changing its configuration; connect phone and computer to the same Wi-Fi.
-- Billing: poll for payment result after redirect back from checkout, resend receipt email, retry invoice.
+- Billing: ordinary dashboard billing dialogs, receipt-email resend and invoice
+  retry remain here. Canonical hosted-checkout returns are intercepted by
+  BillingGuard and resolved on `/billing/payment-status` before this component
+  is created; the dashboard is entered only after server-confirmed completion.
 - Canonical checkout return consumes tm.checkoutLowProfileId and scopes
   BillingStateService refreshes to that hosted attempt via GET /billing/me.
   An older result cannot satisfy the return; the freshness window applies
   only to legacy callbacks. Pending text awaits verification without claiming
   success. Background billing refresh retains the existing payload and does
   not toggle global loading, keeping blocking dialogs mounted between polls.
+  This older dashboard polling path is retained only for legacy callbacks.
+  While that exact legacy checkout-return context is active, the app shell suppresses
+  its generic expired-trial billing dialog so it cannot cover the authoritative
+  payment-result banner or invite another payment. Ordinary expired-trial
+  sessions without a return context keep the normal blocking dialog.
 - Demo users normally receive the same dashboard actions as regular users. The dedicated designer sandbox receives backend capability `canSelfResetDemoData` and alone sees the confirmed, loading-aware "איפוס נתוני הדמו" action; success reloads its seeded bills and pending transactions in place. During view-as, the action stays hidden and document creation remains blocked except when the real actor is an `ADMIN` and the backend marked the represented profile `isDemo=true`; admin access to real clients and non-admin access to demos remain view-only.
 - Feature-gated navigation cards to `/doc-create` and `/transactions`, gated through `AccessService`/`AccessHandlerService`.
 
@@ -54,3 +75,7 @@ The terminal banking dialog prioritizes the aggregate support error over per-sou
 ## Pull-result isolation and permission changes
 
 The post-consent pull reads its baseline run ID before triggering a new pull. It ignores that previous run even if it finished recently, while allowing a response that joins an already-running job. The comparison survives poll retries and never suppresses transport errors. Both API and polling service return source outcomes only for the current fullRunId; discovery-only skipped_direct and historical successes are excluded. Owner-profile updates and retained-page entry refetch existing displayed cache, so verified cleanup is reflected without a new transaction pull. Nullable run tags require docs/features/feezback-pull-run.sql before this backend is started.
+
+## Full sync retry from banking errors (2026-11-04)
+
+Owner-visible OB-03/OB-04 notifications include the action משוך מחדש את כל התנועות. It calls the existing full-sync endpoint after capturing the previous run ID, ignores that run during polling, joins an already-running job, and preserves displayed rows on request failure. The action is disabled while starting/running, hidden for disconnected or represented-client contexts, rechecks eligibility before POST, and cannot execute after its owning page is destroyed. A cleared issue removes its matching notification. No provider, backend, schema or production-data contract changes.

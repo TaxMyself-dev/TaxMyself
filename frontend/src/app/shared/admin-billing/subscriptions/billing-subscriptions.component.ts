@@ -13,12 +13,13 @@ import {
 import { CommonModule, DatePipe } from '@angular/common';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, Subscription, forkJoin } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Observable, Subscription, forkJoin, of } from 'rxjs';
+import { concatMap, finalize } from 'rxjs/operators';
 import { DrawerModule } from 'primeng/drawer';
 import { TooltipModule } from 'primeng/tooltip';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { DialogModule } from 'primeng/dialog';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonSize } from 'src/app/components/button/button.enum';
@@ -27,7 +28,10 @@ import { InputDateComponent } from 'src/app/components/input-date/input-date.com
 import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import {
   AdminBillingService,
+  AdminDebtSettlementPreview,
   AdminSubscription,
+  AdminSubscriptionPricing,
+  UpdateSubscriptionPricingPayload,
   AdminUnresolvedBillingAttempt,
   BillingResolutionAction,
   BillingAccessMode,
@@ -95,6 +99,7 @@ export const STATUS_LABELS: Record<string, string> = {
     DrawerModule,
     TooltipModule,
     ConfirmDialogModule,
+    DialogModule,
     GenericTableComponent,
     ButtonComponent,
     InputTextComponent,
@@ -181,16 +186,33 @@ export class BillingSubscriptionsComponent implements OnInit {
   }
   private exceptionsRequest: Subscription | null = null;
   savingEdit = signal(false);
+  pricing = signal<AdminSubscriptionPricing | null>(null);
+  pricingLoading = signal(false);
+  pricingFailed = signal(false);
+  private pricingRequest: Subscription | null = null;
+  readonly priceSourceLabels = { PLAN: 'מחיר התוכנית', FROZEN: 'מחיר שמור', CUSTOM: 'מחיר אישי', DEBT: 'חיוב קיים', AGREED: 'תנאי הצטרפות מאושרים' };
+
   /** Plan dropdown options for the edit-dialog "תוכנית" field. */
   planOptions = signal<ISelectItem[]>([]);
   /** subscriptionId currently being charged, or null. Mirrors the isClearingCache
    *  pattern used elsewhere — disables the "charge now" action across all rows
    *  while any one charge is in flight. */
   chargingSubscriptionId = signal<number | null>(null);
+  oneOffSubscriptionId = signal<number | null>(null);
+  oneOffAmountShekels = signal('');
+  oneOffDescription = signal('');
+  oneOffConsentEvidence = signal('');
+  oneOffRequestId = signal('');
   /** True while the manual "run cron now" batch request is in flight. */
   runningDueRenewals = signal(false);
 
   readonly editForm = this.fb.group({
+    pricePolicy: ['LIVE' as 'LIVE' | 'FROZEN'],
+    customPriceEnabled: [false],
+    customPriceShekels: [null as number | null],
+    customPriceTemporary: [false],
+    customPriceStartDate: [''],
+    customPriceEndDate: [''],
     billingAccessMode:      ['STANDARD' as BillingAccessMode],
     planId:                 [null as number | null],
     trialEnd:                [null as Date | null],
@@ -225,7 +247,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     { name: 'createdAt',          value: 'תאריך רישום',     type: FormTypes.DATE },
     { name: 'trialEnd',           value: 'תאריך סיום ניסיון', type: FormTypes.DATE },
     { name: 'nextBillingDate',    value: 'תאריך חיוב הבא',  type: FormTypes.DATE },
-    { name: 'nextBillingAmount',  value: 'סכום חיוב הבא',   type: FormTypes.TEXT },
+    { name: 'nextBillingAmount',  value: 'אומדן לתקופה חדשה לפני מע״מ',   type: FormTypes.TEXT },
     { name: 'discountPercentDisplay', value: 'אחוז הנחה',   type: FormTypes.TEXT },
     { name: 'discountAmountDisplay',  value: 'סכום הנחה',   type: FormTypes.TEXT },
     { name: 'currentPeriodEnd',   value: 'תום תקופה',       type: FormTypes.DATE },
@@ -247,10 +269,20 @@ export class BillingSubscriptionsComponent implements OnInit {
     {
       name: 'chargeNow',
       icon: 'pi pi-credit-card',
-      title: 'חיוב ידני',
-      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL',
+      title: 'גביית חוב בכרטיס השמור',
+      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        row['status'] === 'PAST_DUE' && row['cardTokenExists'] === true,
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
+    },
+    {
+      name: 'oneOffCharge',
+      icon: 'pi pi-plus-circle',
+      title: 'חיוב נוסף חד־פעמי',
+      showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        ['ACTIVE', 'PAST_DUE'].includes(String(row['status'])) && row['cardTokenExists'] === true,
+      isLoading: () => this.chargingSubscriptionId() !== null,
+      action: (_: any, row: IRowDataTable) => this.openOneOffCharge(row['subscriptionId'] as number),
     },
   ];
 
@@ -266,6 +298,7 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.filteredSubscriptions().map(s => ({
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
+      searchText: [s.userName, s.userEmail, s.businessName].filter(Boolean).join(' '),
       businessName:            s.businessName ?? '—',
       hasOpenBanking:          s.hasOpenBanking,
       lastLoginAtDisplay:      s.lastLoginAt
@@ -333,9 +366,13 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.resetEditForm(sub);
     this.showDrawer.set(true);
     this.loadBillingExceptions(sub.subscriptionId);
+    this.loadPricing(sub.subscriptionId);
   }
 
   onDrawerHide(): void {
+    this.pricingRequest?.unsubscribe();
+    this.pricingRequest = null;
+    this.pricing.set(null);
     this.exceptionsRequest?.unsubscribe();
     this.exceptionsRequest = null;
     this.selectedSub.set(null);
@@ -357,6 +394,54 @@ export class BillingSubscriptionsComponent implements OnInit {
         next: attempts => this.exceptionAttempts.set(attempts),
         error: () => this.exceptionsFailed.set(true),
       });
+  }
+
+  loadPricing(subscriptionId: number): void {
+    this.pricingRequest?.unsubscribe();
+    this.pricing.set(null);
+    this.pricingLoading.set(true);
+    this.pricingFailed.set(false);
+    this.pricingRequest = this.adminBillingService.getSubscriptionPricing(subscriptionId).pipe(
+      finalize(() => this.pricingLoading.set(false)), takeUntilDestroyed(this.destroyRef),
+    ).subscribe({
+      next: context => {
+        if (this.selectedSub()?.subscriptionId !== subscriptionId) return;
+        this.pricing.set(context);
+        this.editForm.patchValue({
+          pricePolicy: context.pricePolicy,
+          customPriceEnabled: context.customMonthlyPriceAgorot != null,
+          customPriceShekels: context.customMonthlyPriceAgorot != null ? context.customMonthlyPriceAgorot / 100 : null,
+          customPriceTemporary: context.customPriceEndDate != null,
+          customPriceStartDate: context.customPriceStartDate ?? '',
+          customPriceEndDate: context.customPriceEndDate ?? '',
+        });
+      },
+      error: () => this.pricingFailed.set(true),
+    });
+  }
+
+  pricingPayload(): UpdateSubscriptionPricingPayload | null {
+    const raw = this.editForm.getRawValue();
+    const amount = Number(raw.customPriceShekels);
+    if (raw.customPriceEnabled && (raw.customPriceShekels == null || raw.customPriceShekels === ('' as any) ||
+      !Number.isFinite(amount) || amount < 0 || amount > 1000000)) return null;
+    const start = raw.customPriceEnabled ? raw.customPriceStartDate || null : null;
+    const end = raw.customPriceEnabled && raw.customPriceTemporary ? raw.customPriceEndDate || null : null;
+    if (raw.customPriceEnabled && raw.customPriceTemporary && !end) return null;
+    if (start && end && start > end) return null;
+    return {
+      pricePolicy: raw.pricePolicy ?? 'LIVE',
+      customMonthlyPriceAgorot: raw.customPriceEnabled ? Math.round(amount * 100) : null,
+      customPriceStartDate: start, customPriceEndDate: end,
+    };
+  }
+
+  pricingChanged(): boolean {
+    const context = this.pricing();
+    const payload = this.pricingPayload();
+    return !!context && !!payload && (payload.pricePolicy !== context.pricePolicy ||
+      payload.customMonthlyPriceAgorot !== context.customMonthlyPriceAgorot ||
+      payload.customPriceStartDate !== context.customPriceStartDate || payload.customPriceEndDate !== context.customPriceEndDate);
   }
 
   formatDate(value: string | null | undefined): string {
@@ -394,6 +479,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   }
 
   saveEdit(): void {
+    if (this.savingEdit()) return;
     if (this.editForm.invalid) {
       this.editForm.markAllAsTouched();
       return;
@@ -407,6 +493,14 @@ export class BillingSubscriptionsComponent implements OnInit {
       this.confirmAccessModeChange(sub, nextAccessMode);
       return;
     }
+    if (sub.billingAccessMode === 'STANDARD' && (!this.pricing() || !this.pricingPayload())) {
+      this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לשמור',
+        detail: this.pricingFailed() ? 'טעינת הגדרות המחיר נכשלה. יש לנסות שוב לפני השמירה.' :
+          this.pricingLoading() ? 'יש להמתין לטעינת הגדרות המחיר.' : 'יש להזין מחיר אישי תקין ותאריכי תוקף תקינים.' });
+      return;
+    }
+    const pricingPayload = this.pricingPayload();
+    const updatePricing = this.pricingChanged();
     // Business dates are date-only, not timestamps — format using local date
     // parts to avoid the UTC-shift toISOString() would introduce.
     const toLocalDateString = (d: Date | null): string | null => {
@@ -441,6 +535,8 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.savingEdit.set(true);
     forkJoin(requests)
       .pipe(
+        concatMap(() => updatePricing && pricingPayload
+          ? this.adminBillingService.updateSubscriptionPricing(sub.subscriptionId, pricingPayload) : of(null)),
         finalize(() => this.savingEdit.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -462,9 +558,11 @@ export class BillingSubscriptionsComponent implements OnInit {
             key: 'br',
             severity: 'error',
             summary: 'שגיאה',
-            detail: err?.error?.message ?? 'שגיאה בעדכון המנוי',
-            life: 4000,
+            detail: `השמירה לא הושלמה; ייתכן שחלק מהשינויים נשמרו. ${err?.error?.message ?? 'יש לבדוק את הנתונים המעודכנים ולנסות שוב.'}`,
+            life: 6000,
           });
+          this.onDrawerHide();
+          this.loadSubscriptions();
         },
       });
   }
@@ -518,33 +616,51 @@ export class BillingSubscriptionsComponent implements OnInit {
       });
   }
 
-  // ─── Manual renewal charge ─────────────────────────────────────────────────
+  // ─── PAST_DUE debt settlement with the saved card ─────────────────────────
 
   confirmChargeNow(row: IRowDataTable): void {
     const subscriptionId = row['subscriptionId'] as number;
+    this.chargingSubscriptionId.set(subscriptionId);
+    this.adminBillingService.getDebtSettlementPreview(subscriptionId)
+      .pipe(finalize(() => this.chargingSubscriptionId.set(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: preview => this.confirmDebtSettlement(subscriptionId, preview),
+        error: err => this.messageService.add({ key: 'br', severity: 'error', summary: 'לא ניתן לטעון את החוב',
+          detail: err?.error?.message ?? 'יש לרענן את נתוני המנוי ולנסות שוב.' }),
+      });
+  }
+
+  private confirmDebtSettlement(subscriptionId: number, preview: AdminDebtSettlementPreview): void {
+    const periods = preview.periods.map(period =>
+      `${this.formatDate(period.periodStart)}–${this.formatDate(period.periodEnd)}: ${this.formatAmount(period.amountAgorot)}`
+    ).join('<br>');
     this.confirmationService.confirm({
-      header: 'חיוב מנוי',
-      message:
-        'האם אתה בטוח שברצונך לבצע חיוב ידני עבור מנוי זה?<br><br>' +
-        'הפעולה תנסה לחייב את אמצעי התשלום השמור של הלקוח באמצעות CardCom.',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: 'אישור',
+      header: 'גביית יתרת חוב',
+      message: `${periods}<br><br><strong>סה״כ כולל מע״מ: ${this.formatAmount(preview.finalAmountAgorot)}</strong><br>` +
+        'יתבצע ניסיון אחד בכרטיס השמור. רק הצלחה מאומתת תחזיר מנוי PAST_DUE לפעילות.',
+      icon: 'pi pi-credit-card',
+      acceptLabel: 'חייב את הכרטיס השמור',
       rejectLabel: 'ביטול',
-      accept: () => this.runChargeNow(subscriptionId),
+      accept: () => this.runChargeNow(subscriptionId, preview),
     });
   }
 
-  private runChargeNow(subscriptionId: number): void {
+  private runChargeNow(subscriptionId: number, preview: AdminDebtSettlementPreview): void {
     this.chargingSubscriptionId.set(subscriptionId);
-    this.adminBillingService.triggerSubscriptionRenewal(subscriptionId)
+    this.adminBillingService.settleDebtWithSavedCard(subscriptionId, preview)
       .pipe(
         finalize(() => this.chargingSubscriptionId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: result => {
-          const { severity, summary, detail } = this.describeRenewalResult(result);
-          this.messageService.add({ key: 'br', severity, summary, detail, life: 5000 });
+          const success = result.status === 'SETTLED';
+          const detail = success ? 'החוב נגבה והמנוי הופעל מחדש.'
+            : result.status === 'DECLINED' || result.status === 'PAYMENT_METHOD_REQUIRED'
+              ? 'הכרטיס השמור לא חויב. יש לבקש מהלקוח לעדכן אמצעי תשלום ולשלם בקישור מאובטח.'
+              : 'החיוב אינו סופי. אין לנסות שוב לפני בדיקת מצב הניסיון בפאנל.';
+          this.messageService.add({ key: 'br', severity: success ? 'success' : 'warn',
+            summary: success ? 'החוב שולם' : 'החיוב לא הושלם', detail, life: 7000 });
           this.loadSubscriptions();
         },
         error: err => {
@@ -556,6 +672,53 @@ export class BillingSubscriptionsComponent implements OnInit {
             life: 5000,
           });
         },
+      });
+  }
+
+  openOneOffCharge(subscriptionId: number): void {
+    this.oneOffSubscriptionId.set(subscriptionId);
+    this.oneOffAmountShekels.set('');
+    this.oneOffDescription.set('');
+    this.oneOffConsentEvidence.set('');
+    this.oneOffRequestId.set(crypto.randomUUID());
+  }
+
+  closeOneOffCharge(): void {
+    if (this.chargingSubscriptionId() !== null) return;
+    this.oneOffSubscriptionId.set(null);
+  }
+
+  submitOneOffCharge(): void {
+    const subscriptionId = this.oneOffSubscriptionId();
+    const amount = Number(this.oneOffAmountShekels());
+    const description = this.oneOffDescription().trim();
+    const consentEvidence = this.oneOffConsentEvidence().trim();
+    if (!subscriptionId || !Number.isFinite(amount) || amount < 1 ||
+      description.length < 3 || consentEvidence.length < 10) {
+      this.messageService.add({ key: 'br', severity: 'warn', summary: 'יש למלא סכום, תיאור ואסמכתת הסכמה' });
+      return;
+    }
+    this.chargingSubscriptionId.set(subscriptionId);
+    this.adminBillingService.createOneOffCharge(subscriptionId, {
+      requestId: this.oneOffRequestId(),
+      amountAgorot: Math.round(amount * 100),
+      description,
+      consentEvidence,
+    }).pipe(finalize(() => this.chargingSubscriptionId.set(null)), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          const success = result.status === 'CHARGED';
+          this.messageService.add({ key: 'br', severity: success ? 'success' : 'warn',
+            summary: success ? 'החיוב בוצע' : 'החיוב לא הושלם',
+            detail: success ? 'הופקה אסמכתה והחיוב לא שינה את מצב המנוי.'
+              : result.status === 'DECLINED' || result.status === 'PAYMENT_METHOD_REQUIRED'
+                ? 'הכרטיס השמור לא חויב; יש להשתמש באמצעי תשלום חדש.'
+                : 'התוצאה אינה סופית. אין לשלוח ניסיון נוסף עם מזהה בקשה חדש.', life: 7000 });
+          if (success) this.oneOffSubscriptionId.set(null);
+          this.loadSubscriptions();
+        },
+        error: err => this.messageService.add({ key: 'br', severity: 'error', summary: 'החיוב לא בוצע',
+          detail: err?.error?.message ?? 'יש לרענן ולנסות שוב רק לאחר בירור מצב הניסיון.' }),
       });
   }
 

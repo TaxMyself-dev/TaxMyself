@@ -16,7 +16,7 @@ allocation, retries perform local work only and never call SHAAM again.
 
 ## PDF rendering and signing
 
-- `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler fonts via Chromium. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.
+- `pdf/document-pdf-renderer.service.ts` renders escaped, RTL HTML with bundled Simpler TrueType fonts via Chromium. Both local and standalone rendering must use the converted `.ttf` assets and `font/ttf` CSS, including the footer. The original CFF/OTF assets produced Type3 fonts that failed in Mi Reader after FillFaster signing; the converted assets produce embedded Type0/CIDFontType2 fonts. Do not switch PDF rendering back to the frontend OTF assets. Layout follows the approved spacious mockup: logo left, issuer right, recipient/date band, centered title/underline, framed tables and centered footer. Scripts and non-data requests are blocked; concurrency, row count and HTML size are bounded.
 - Local development and the standalone PDF service reuse one Chromium process with a fresh BrowserContext per render; contexts close on success/error. Disconnected browsers relaunch on the next request, without retrying a failed issuance. Service failures/timeouts retire the process; failed local context cleanup also retires it. Browser cleanup is bounded and module destruction/service shutdown closes the cached browser. Recycle after 100 renders (local recycling waits until no other render is active). Existing concurrency limits remain unchanged. HTML waits for load followed by explicit font readiness and image decoding; failed assets prevent printing. The standalone deadline and bounded cleanup still apply.
 - Development-only `pdf/pdf-diagnostics.ts` correlates full create/preview HTTP requests via AsyncLocalStorage and `X-Pdf-Diagnostic-Id`. It records DTO prep, sequential creation stages, original/copy rendering/signing and transport spans, linking HTTP render IDs to service logs. Optional `PDF_DIAGNOSTICS_FILE` captures sanitized JSONL only in development. Parent and nested spans overlap; do not sum both. Never include document/user data or credentials in diagnostic events. Signing failures expose only a development-only HTTP status/allowlisted network code or invalid-envelope category; response bodies and tokens remain hidden. Failed creation timing separates the interrupted stage from rollback/release.
 - Manual `createDoc` prepares one request-scoped PDF model/logo for original and copy. It renders the original, overlaps original signing with copy rendering, then signs the copy (signing calls remain sequential). Both signed PDFs are uploaded concurrently; wait for both upload outcomes and attempt cleanup of successful siblings before propagating failure/rolling back. DB numbering/journal/commit, preview signing policy and existing issued files are unchanged. Pending-allocation finalization and system billing retain their existing orchestration; the local/shared renderer readiness change applies to all render callers.
@@ -44,6 +44,8 @@ allocation, retries perform local work only and never call SHAAM again.
   persisted header, allocation payload and journal flow.
 
 ## Key entities/files
+Shared analysis queue: inbound AI entry points register durable work in `document-ai/`; only its provider adapter calls `DocumentProcessorService.extract`. `processInboxForUser` performs discovery/dedup/restoration, not AI. Upload/OCR endpoints return job receipts; scoped polling returns completion. Preserve original source policies and do not reintroduce inline AI. See `docs/features/document-ai-shared-queue.md` for prepared schema, capacity measurement and activation boundaries.
+
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.
 - `doc-lines.entity.ts` — `DocLines`: line items of an issued document (quantity, unit price, discount, VAT per line).
 - `doc-payments.entity.ts` — `DocPayments`: payment details attached to an issued document (bank/check/credit-card info).
@@ -65,10 +67,13 @@ allocation, retries perform local work only and never call SHAAM again.
 - `GET|POST /documents/get-setting-doc-by-type/:typeDoc`, `setting-initial-index` — manage per-business running-number counters.
 - `POST /documents/rollback`, `POST /documents/finalize-allocation`, `PATCH /documents/update-status` — document lifecycle/allocation-number operations.
 - Allocation-required issuance first persists the header/lines/final running
-  number with `PENDING_ALLOCATION`. SHAAM saves `allocationNum` independently
-  before `finalizeAllocation` generates PDFs, posts the existing journal flow
-  and changes the status. Finalization never clears an already persisted
-  allocation number, so a PDF/upload failure is safely retryable.
+  number with `PENDING_ALLOCATION` and posts the journal entry in the same
+  transaction, so the numbered document participates in accounting reports
+  while its PDF waits for allocation. SHAAM saves `allocationNum`
+  independently before `finalizeAllocation` generates PDFs and changes the
+  status. Finalization reuses the existing journal link and creates one only
+  for legacy pending rows that do not have it. It never clears an already
+  persisted allocation number, so a PDF/upload failure is safely retryable.
 - `allocationNum` is `varchar(50)` because the production Invoice Information
   v2 portal schema permits `confirmation_number` values up to 50 characters;
   never truncate an upstream allocation number in storage. The issued PDF
@@ -83,13 +88,23 @@ allocation, retries perform local work only and never call SHAAM again.
   descriptions, recipient/issuer identifiers, amounts, allocation numbers or
   upstream response bodies. Operational logs may include status/error codes and
   template identifiers only.
-- `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files.
+- `POST /documents/me/process-inbox` — scans a business's Drive inbox folder, OCRs new files via `DocumentProcessorService`, dedupes by content hash, auto-restores a retained soft-deleted document when identical bytes are re-uploaded, runs pairing, moves processed files. Before Claude is called it persists a unique `PROCESSING` row for `(driveFileId, subIndex=0)` and claims the checksum in the current batch; every live row in every status is a permanent automatic-processing claim. A provider/parser failure is finalized as `ERROR` and moved to `processed/`, never deleted or retried by cron/report navigation. Byte-identical content represented by any live row also dedupes under a new Drive file id. This is intentionally at-most-once: an ambiguous crash may leave `PROCESSING`, but cannot create a second paid Claude call.
+- Provisioned Drive inboxes are also scanned automatically every minute by
+  `InboxOcrCronService`, independently of report navigation. Browser Drive
+  uploads and WhatsApp intake trigger the same locked processor immediately;
+  the periodic sweep is the recovery path and detects files dropped directly
+  into Drive. No separate processing lifecycle is exposed in the archive:
+  successful OCR rows enter as `PENDING_REVIEW`.
+- The archive also projects unrepresented files still present in the Drive
+  inbox as the existing `PENDING`/"waiting for approval" state. These rows
+  are previewable but not approvable until OCR persists the corresponding
+  `ExtractedDocument`; no additional user-facing processing status exists.
 - Byte-identical live duplicates are recorded as `REJECTED` without another OCR
   pass and persist the user-facing rejection reason `קובץ כפול`; the diagnostic
   `rawResponse` retains the original Drive file id. Archive projection also
   recognizes that diagnostic on older duplicate rows whose persisted reason is
   null, so existing records display the same reason without a data rewrite.
-- `POST /documents/me/ocr-file` — OCR a single uploaded file on demand.
+- `POST /documents/me/ocr-file` — stateless OCR of a single uploaded file on demand for form prefill; it is not a Drive-backed archive item and is outside the durable at-most-once claim boundary.
 - `GET /documents/me/catalog`, `GET /documents/me/review` — build the review UI's list of extracted/matched documents.
 - `POST /documents/me/archive/:documentId` — archive a reviewed `ExtractedDocument`.
 - `GET /documents/me/archived`, `DELETE /documents/me/archived/:documentId`, `PATCH /documents/me/archived/:documentId/restore` — unified archive list plus file-scoped soft delete/restore. The list preserves distinct user-facing states for approved expenses, annual filings, archived/rejected/error rows and exposes `canResolve` only for visible `PENDING_REVIEW` documents. Delete sets `deletedAt` without changing lifecycle status or removing the Drive file/accounting links; operational review, pairing and matching queries exclude deleted rows.
@@ -121,3 +136,19 @@ allocation, retries perform local work only and never call SHAAM again.
 - shared (`SharedService`, `FxRateService`/`FxRate` — currency normalization for non-ILS OCR'd documents)
 - delegation (`Delegation` entity registered in module)
 - demo-data (depends on this module: `DocumentsService.createDoc` used to seed demo income documents)
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.

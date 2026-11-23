@@ -2163,11 +2163,12 @@ export class ReportReviewPage implements OnInit {
       input.value = '';
       return;
     }
+    const targetBusiness=this.businessNumber();
     this.runAction(
       row,
-      this.reviewService.uploadDocToTx(this.businessNumber(), row.slimTransactionId, file),
+      this.reviewService.uploadDocToTx(targetBusiness, row.slimTransactionId, file),
       'העלאת המסמך וקישורו לתנועה נכשלה',
-      (doc) => this.mergeUploadedDocIntoRow(row, doc as UploadDocToTxResponse),
+      (doc) => {if(this.businessNumber()===targetBusiness)this.mergeUploadedDocIntoRow(row, doc as UploadDocToTxResponse);},
     );
     // Clear so a re-pick of the same filename still fires `change`.
     input.value = '';

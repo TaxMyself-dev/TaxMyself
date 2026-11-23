@@ -3,7 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ConfirmationService, MessageService } from 'primeng/api';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ButtonComponent } from 'src/app/components/button/button.component';
 import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
 import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
@@ -12,6 +12,7 @@ import { InputTextComponent } from 'src/app/components/input-text/input-text.com
 import {
   AdminBillingService,
   AdminSubscription,
+  AdminSubscriptionPricing,
   AdminUnresolvedBillingAttempt,
 } from 'src/app/services/admin-billing.service';
 import { BillingSubscriptionsComponent } from './billing-subscriptions.component';
@@ -91,6 +92,8 @@ const attempt = (
   reconciliationAttempts: 5,
   lastReconciledAt: '2026-09-02T08:05:00.000Z',
   nextActionAt: null,
+  providerResponseCode: null,
+  providerDescription: null,
   failureCategory: 'RECONCILIATION_EXHAUSTED',
   requiredAction: 'INTERNAL_REVIEW',
   cardcomTransactionId: null,
@@ -117,6 +120,8 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
 
   beforeEach(async () => {
     api = jasmine.createSpyObj<AdminBillingService>('AdminBillingService', [
+      'getSubscriptionPricing',
+      'updateSubscriptionPricing',
       'getSubscriptions',
       'getPlans',
       'getUnresolvedBillingAttempts',
@@ -127,6 +132,7 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
       'updateSubscriptionTrialEnd',
       'updateSubscriptionDiscount',
     ]);
+    api.getSubscriptionPricing.and.callFake(id => of(pricingContext(id)));
     await TestBed.configureTestingModule({
       imports: [BillingSubscriptionsComponent, NoopAnimationsModule],
       providers: [{ provide: AdminBillingService, useValue: api }, MessageService, ConfirmationService],
@@ -320,4 +326,89 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
     expect(rendered).toContain('ניסיון #5');
     expect(rendered).not.toMatch(/SECRET|4580000011112222|ECONNRESET|ResponseCode/);
   });
+  const pricingContext = (id = 7): AdminSubscriptionPricing => ({
+    subscriptionId: id, planId: null, pricePolicy: 'LIVE', frozenPlanId: null,
+    frozenMonthlyPriceAgorot: null, customMonthlyPriceAgorot: null,
+    customPriceStartDate: null, customPriceEndDate: null, nextBillingDate: null,
+    current: { source: 'PLAN', baseAmountAgorot: 10000, amountBeforeVatAgorot: 10000,
+      amountIncludingVatAgorot: 11800, vatAmountAgorot: 1800, vatRate: 18 }, next: null,
+  });
+
+  it('accepts a zero personal price and clears its expiry when permanent is selected', async () => {
+    await render([subscription(7)]);
+    component.openEdit(7);
+    component.editForm.patchValue({ customPriceEnabled: true, customPriceShekels: 0,
+      customPriceTemporary: false, customPriceEndDate: '2026-12-31' });
+    expect(component.pricingPayload()).toEqual({ pricePolicy: 'LIVE', customMonthlyPriceAgorot: 0,
+      customPriceStartDate: null, customPriceEndDate: null });
+  });
+
+  it('rejects missing personal amount, missing temporary end and reversed dates', async () => {
+    await render([subscription(7)]);
+    component.openEdit(7);
+    component.editForm.patchValue({ customPriceEnabled: true, customPriceShekels: null });
+    expect(component.pricingPayload()).toBeNull();
+    component.editForm.patchValue({ customPriceShekels: 79, customPriceTemporary: true });
+    expect(component.pricingPayload()).toBeNull();
+    component.editForm.patchValue({ customPriceStartDate: '2026-12-20', customPriceEndDate: '2026-12-10' });
+    expect(component.pricingPayload()).toBeNull();
+    component.editForm.patchValue({ customPriceEndDate: '2026-12-20' });
+    expect(component.pricingPayload()?.customMonthlyPriceAgorot).toBe(7900);
+  });
+
+  it('blocks all ordinary writes if authoritative pricing failed to load', async () => {
+    await render([subscription(7)]);
+    api.getSubscriptionPricing.and.returnValue(throwError(() => new Error('offline')));
+    component.openEdit(7);
+    component.saveEdit();
+    expect(component.pricingFailed()).toBeTrue();
+    expect(api.updateSubscriptionPlan).not.toHaveBeenCalled();
+    expect(api.updateSubscriptionPricing).not.toHaveBeenCalled();
+  });
+
+  it('saves pricing only after plan, trial and discount writes finish', async () => {
+    await render([subscription(7)]);
+    component.openEdit(7);
+    component.editForm.patchValue({ planId: 3, customPriceEnabled: true, customPriceShekels: 79 });
+    const planSaved = new Subject<any>();
+    api.updateSubscriptionPlan.and.returnValue(planSaved);
+    api.updateSubscriptionTrialEnd.and.returnValue(of({} as any));
+    api.updateSubscriptionDiscount.and.returnValue(of({} as any));
+    api.updateSubscriptionPricing.and.returnValue(of(pricingContext()));
+    component.saveEdit();
+    expect(api.updateSubscriptionPricing).not.toHaveBeenCalled();
+    planSaved.next({}); planSaved.complete();
+    expect(api.updateSubscriptionPricing).toHaveBeenCalledWith(7, {
+      pricePolicy: 'LIVE', customMonthlyPriceAgorot: 7900, customPriceStartDate: null, customPriceEndDate: null,
+    });
+  });
+
+  it('cancels stale pricing requests when switching or closing the drawer', async () => {
+    await render([subscription(7), subscription(8)]);
+    const old = new Subject<AdminSubscriptionPricing>();
+    api.getSubscriptionPricing.and.returnValue(old);
+    component.openEdit(7);
+    api.getSubscriptionPricing.and.returnValue(of(pricingContext(8)));
+    component.openEdit(8);
+    old.next({ ...pricingContext(7), customMonthlyPriceAgorot: 1 });
+    expect(component.pricing()?.subscriptionId).toBe(8);
+    component.onDrawerHide();
+    expect(component.pricing()).toBeNull();
+  });
+
+  it('closes stale drawer state and reports partial writes when the pricing save fails', async () => {
+    await render([subscription(7)]);
+    component.openEdit(7);
+    component.editForm.patchValue({ customPriceEnabled: true, customPriceShekels: 79 });
+    api.updateSubscriptionPlan.and.returnValue(of({} as any));
+    api.updateSubscriptionTrialEnd.and.returnValue(of({} as any));
+    api.updateSubscriptionDiscount.and.returnValue(of({} as any));
+    api.updateSubscriptionPricing.and.returnValue(throwError(() => new Error('offline')));
+    const toast = spyOn(TestBed.inject(MessageService), 'add');
+    component.saveEdit();
+    expect(component.showDrawer()).toBeFalse();
+    expect(component.selectedSub()).toBeNull();
+    expect(toast).toHaveBeenCalledWith(jasmine.objectContaining({ detail: jasmine.stringMatching('ייתכן שחלק מהשינויים נשמרו') }));
+  });
+
 });

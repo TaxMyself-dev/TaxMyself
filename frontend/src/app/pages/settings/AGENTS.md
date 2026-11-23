@@ -1,6 +1,15 @@
 ## Purpose
 Account/profile settings hub: tabbed page for editing personal details, spouse details, children, businesses, category customization, permissions, and connected-account management.
 
+## Gmail connection boundary
+
+- Gmail uses Composio Managed OAuth; retain the shared component in both settings pages.
+- Pass the local integration ID for reconnect, never a provider connection ID from UI.
+- Callback query parameters only indicate a return; connection success comes from saved
+  server-verified account state. Represented-client mode cannot manage/read mailboxes.
+- Pending remote disconnect remains visible and retryable after local access stops.
+- Focused specs use `tsconfig.email-spec.json`; see `docs/features/composio-email.md`.
+
 ## Key entities/files
 - `settings.page.ts` — `SettingsPage` (standalone component, no module.ts — routed directly via `loadComponent` in `app-routing.module.ts`). Owns per-tab reactive forms (`personalFormGroup`, `spouseFormGroup`, `childrenFormArray`, `businessesFormArray`, `addBusinessFormGroup`, `addPermissionFormGroup`). Categories and permission management are available to every authenticated user; only the open-banking account-source subsection is entitlement-gated.
 - `settings-access.policy.ts` — testable settings-tab policy and the narrow predicate that prevents users without `OPEN_BANKING` from loading bank account sources.
@@ -8,6 +17,11 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows
+
+- The Direct-card cashflow setting appears only when cashflow-preferences returns
+  hasDirectCard=true from an owned CREDIT_CARD source with isDirect=true. Hiding
+  the control does not reset a saved exclusion preference. The dashboard popup
+  uses the same save endpoint; its permanent dismissal does not hide Settings.
 
 - User payment history has view and download document actions for charge and
   refund rows. Preview reserves a tab during the click, fetches the existing
@@ -113,3 +127,35 @@ Without a persisted permission list, an empty local list cannot prove the provid
 Cancellation support failures use OB-05 and preserve the server error ID through a failed post-action profile reload. Source-row cancellation targets its consent only; full disconnection includes all discovered consents, regardless of primary/spouse role.
 
 - Banking source pull actions require saved hasConsent=true and exclude direct cards. Support errors use the global banking toast (code + error ID + copy action); do not add a parallel generic error notification.
+
+
+## Direct-card cashflow update (2026-11-04)
+
+This section supersedes earlier bank-only / skipped_direct descriptions. Direct
+cards now import through the ordinary card feed and retain readiness/consent/error
+checks. New outcomes are success/failed, with legacy skipped outcomes retried.
+The owner's persisted opt-in preference excludes only owned bank-source rows
+classified to the immutable SYSTEM subcategory identified by
+DIRECT_CARD_BANK_PAYMENT; no per-row visibility flag or name matching. One SQL
+predicate serves cashflow lists/charts, pending archives/previews and approval
+guards. Existing approved expenses/journals are preserved. Settings stores the
+preference on the server; the cashflow list follows it without a show-excluded toggle.
+Apply docs/features/direct-card-cashflow.sql manually before booting this version.
+The script is also appended to cutover.sql and was applied only to keepintax-dev.
+See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Billing payer profile (2026-11-09)
+
+The subscription tab reads and edits the authenticated owner's billing payer
+profile: full name, identity number, email, phone and business number. Defaults
+come from existing user/business data. The backend rejects delegated/admin
+impersonation, validates lengths/formats and versions every save. Changes apply
+only to future attempts; the immutable snapshot on an existing attempt is not
+rewritten. No card number or CVV is collected here. Once the profile is loaded,
+the secondary action is labeled "עריכת פרטי תשלום" and sits on the visual left
+of the RTL card; it updates the saved profile rather than creating another
+payment method.
+
+## Manual Gmail pull date range
+
+The manual pull dialog requires from/to dates shared by selected accounts. Server validation and inclusive-end query construction reuse GmailSyncService initial-import rules (Jan 1 previous year through today in Israel). The API retains its no-date 90-day fallback for existing clients; partial date ranges or combining dates with q are rejected. Initial-import completion and nightly cursor are unchanged.

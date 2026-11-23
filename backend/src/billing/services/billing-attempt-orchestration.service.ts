@@ -41,9 +41,11 @@ import { billingDebtQuote } from '../domain/billing-debt-quote';
 import { billingDate } from '../domain/billing-debt-periods';
 import { BillingObligation } from '../entities/billing-obligation.entity';
 import { PaymentMethod } from '../entities/payment-method.entity';
+import { assertPricingFingerprint } from '../domain/subscription-pricing';
 import { Subscription } from '../entities/subscription.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { Documents } from '../../documents/documents.entity';
+import { BillingPayerProfile } from '../entities/billing-payer-profile.entity';
 import { BillingEventType } from '../enums/billing.enums';
 import { ResolveBillingAttemptDto } from '../dtos/admin/resolve-billing-attempt.dto';
 import {
@@ -176,6 +178,7 @@ export class BillingRenewalDeferredError extends Error {
 }
 
 export interface OpenBillingAttemptInput {
+  pricingFingerprint?: string;
   actor: BillingMutationActorContext;
   subscriptionId: number;
   kind: BillingObligationKind;
@@ -201,6 +204,10 @@ export interface OpenBillingAttemptInput {
   enforceInitialPurchase?: boolean;
   enforceUpgrade?: boolean;
   planChangeSnapshot?: PlanChangeSnapshot;
+  obligationKeyOverride?: string;
+  requestId?: string;
+  requestedByFirebaseId?: string;
+  auditMetadata?: Record<string, unknown>;
 }
 
 export interface ApplyNormalizedOutcomeOptions {
@@ -251,15 +258,18 @@ export type NormalizedChargeOutcome =
       cardcomTransactionId: string;
       providerTerminalRef?: string | null;
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
     }
   | {
       kind: 'DECLINED';
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
       failureCategory?: string | null;
     }
   | {
       kind: 'UNKNOWN';
       providerResponseCode?: number | null;
+      providerDescription?: string | null;
       failureCategory?: string | null;
     };
 
@@ -290,13 +300,36 @@ export class BillingAttemptOrchestrationService {
     await this.tasks?.enqueue('CAPTURE', attempt.id, due, String(attempt.stateVersion)).catch(() => undefined);
   }
 
+  private async enqueueRenewalRetry(attempt?: BillingAttempt): Promise<void> {
+    if (!this.tasks || attempt?.operation !== 'CHARGE' ||
+      attempt.status !== BillingAttemptStatus.DECLINED ||
+      attempt.trigger !== BillingAttemptTrigger.RENEWAL) return;
+    const obligation = await this.dataSource.manager.findOne(BillingObligation, {
+      where: { id: attempt.obligationId! },
+    });
+    if (!obligation) return;
+    const subscription = await this.dataSource.manager.findOne(Subscription, {
+      where: { id: obligation.subscriptionId },
+    });
+    if (!subscription || subscription.status !== SubscriptionStatus.ACTIVE ||
+      subscription.renewalAttempts < 1 || subscription.renewalAttempts >= 3 ||
+      !subscription.nextBillingDate) return;
+    await this.tasks.enqueueCharge(
+      subscription.id,
+      subscription.nextBillingDate,
+      `${obligation.id}:${subscription.renewalAttempts}`,
+    ).catch(() => undefined);
+  }
+
   assertOwnerMutation(context: BillingMutationActorContext): void {
     assertBillingOwnerMutation(context);
   }
 
   /** Reserve the entire reviewed balance before any hosted provider I/O. */
   async createRecoveryCollection(actor: BillingMutationActorContext, subscriptionId: number,
-    expectedIds: number[], expectedQuote?: string): Promise<OpenBillingAttemptResult> {
+    expectedIds: number[], expectedQuote?: string,
+    chargeMode: BillingChargeMode = BillingChargeMode.LOW_PROFILE_HOSTED,
+    requestedByFirebaseId: string | null = null): Promise<OpenBillingAttemptResult> {
     this.assertOwnerMutation(actor);
     return this.inTransaction(async manager => {
       const subscription = await manager.findOne(Subscription, {
@@ -310,7 +343,8 @@ export class BillingAttemptOrchestrationService {
         throw new ConflictException('Recovery state changed; refresh before paying');
       }
       const debts = await manager.find(BillingObligation, {
-        where: { subscriptionId, status: BillingObligationStatus.OPEN },
+        where: { subscriptionId, status: BillingObligationStatus.OPEN,
+          kind: BillingObligationKind.RECURRING_PERIOD },
         order: { id: 'ASC' }, lock: { mode: 'pessimistic_write' },
       });
       const ids = debts.map(debt => debt.id);
@@ -333,14 +367,17 @@ export class BillingAttemptOrchestrationService {
         debts.reduce((total, debt) => total + debt[key], 0);
       const input: OpenBillingAttemptInput = {
         actor, subscriptionId, kind: first.kind, planId: first.planId,
-        trigger: BillingAttemptTrigger.RECOVERY, chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+        trigger: BillingAttemptTrigger.RECOVERY, chargeMode,
         periodStart: first.periodStart, periodEnd: first.periodEnd, currency: first.currency,
         amountAgorot: sum('amountAgorot'), amountBeforeVatAgorot: sum('amountBeforeVatAgorot'),
         vatAmountAgorot: sum('vatAmountAgorot'),
       };
       this.validateOpenInput(input);
+      const paymentMethodId = await this.resolvePaymentMethodId(manager, subscription, input);
       const attempt = await this.saveAttemptWithUniqueProviderKey(manager, first,
-        (latest?.attemptNumber ?? 0) + 1, input, null);
+        (latest?.attemptNumber ?? 0) + 1, input, paymentMethodId);
+      attempt.requestedByFirebaseId = requestedByFirebaseId;
+      if (requestedByFirebaseId) await manager.save(BillingAttempt, attempt);
       for (const debt of debts) {
         await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
           attemptId: attempt.id, obligationId: debt.id,
@@ -434,6 +471,7 @@ export class BillingAttemptOrchestrationService {
       return attempt;
     });
     await this.enqueueCompletion(result);
+    await this.enqueueRenewalRetry(result);
     return result;
   }
 
@@ -507,6 +545,7 @@ export class BillingAttemptOrchestrationService {
           'Billing mutation subject does not own the subscription',
         );
       }
+      await assertPricingFingerprint(manager, subscription, input.planId, input.pricingFingerprint ?? input.planChangeSnapshot?.pricingFingerprint);
       if (input.enforceRenewalSchedule) {
         this.assertRenewalDue(subscription, input.periodStart, new Date());
       }
@@ -552,6 +591,7 @@ export class BillingAttemptOrchestrationService {
             status: BillingObligationStatus.OPEN },
           lock: { mode: 'pessimistic_write' },
         });
+        let resumableInitialPurchase: OpenBillingAttemptResult | null = null;
         for (const purchase of pending ?? []) {
           if (input.enforceRenewalSchedule && purchase.kind !== BillingObligationKind.CHECKOUT) continue;
           if (purchase.activeAttemptId != null) {
@@ -560,10 +600,26 @@ export class BillingAttemptOrchestrationService {
             });
             if (!attempt || BILLING_ATTEMPT_BLOCKING_STATUSES.has(attempt.status)) {
               if (input.enforceRenewalSchedule) throw new BillingRenewalDeferredError('NOT_DUE');
+              const isResumableInitialPurchase = !!attempt && input.enforceInitialPurchase &&
+                purchase.kind === BillingObligationKind.CHECKOUT &&
+                attempt.obligationId === purchase.id && attempt.operation === 'CHARGE' &&
+                attempt.trigger === BillingAttemptTrigger.CHECKOUT &&
+                attempt.chargeMode === BillingChargeMode.LOW_PROFILE_HOSTED;
+              if (isResumableInitialPurchase) {
+                if (resumableInitialPurchase) {
+                  throw new ConflictException('Multiple unresolved initial checkout attempts require review');
+                }
+                resumableInitialPurchase = { obligation: purchase, attempt, created: false };
+                continue;
+              }
               throw new ConflictException('קיים תהליך תשלום קודם שטרם הסתיים. אין לבצע תשלום נוסף.');
             }
           }
         }
+        // The caller performs the owner-scoped, read-only CardCom inspection
+        // and either resumes this exact durable page or, only after a verified
+        // final decline, calls back to reserve one replacement attempt.
+        if (resumableInitialPurchase) return resumableInitialPurchase;
       }
       if (input.enforceRecoverySchedule && (
         subscription.status !== SubscriptionStatus.PAST_DUE ||
@@ -577,7 +633,7 @@ export class BillingAttemptOrchestrationService {
         input,
       );
 
-      const obligationKey = input.planChangeSnapshot
+      const obligationKey = input.obligationKeyOverride ?? (input.planChangeSnapshot
         ? `subscription:${input.subscriptionId}:prorated:${input.planChangeSnapshot.sourcePlanId}:${new Date(input.planChangeSnapshot.sourcePeriodStart).getTime()}:${new Date(input.planChangeSnapshot.sourcePeriodEnd).getTime()}:to:${input.planId}:at:${new Date(input.planChangeSnapshot.quotedAt).getTime()}`
         : input.enforceUpgrade
         ? upgradeKey(subscription, input.planId, input.amountAgorot)
@@ -586,7 +642,7 @@ export class BillingAttemptOrchestrationService {
         : this.buildObligationKey(
         input.subscriptionId,
         input.periodStart,
-      );
+      ));
       const obligation = await this.createOrLockObligation(
         manager,
         obligationKey,
@@ -638,6 +694,20 @@ export class BillingAttemptOrchestrationService {
       await manager.save(BillingAttemptObligation, manager.create(BillingAttemptObligation, {
         attemptId: attempt.id, obligationId: obligation.id,
       }));
+      if (input.auditMetadata) {
+        await manager.save(BillingEvent, manager.create(BillingEvent, {
+          firebaseId: subscription.firebaseId,
+          subscriptionId: subscription.id,
+          billingAttemptId: attempt.id,
+          billingObligationId: obligation.id,
+          eventType: BillingEventType.MANUAL_CHARGE_REQUESTED,
+          amountAgorot: attempt.amountAgorot,
+          amountBeforeVatAgorot: attempt.amountBeforeVatAgorot,
+          vatAmountAgorot: attempt.vatAmountAgorot,
+          currency: attempt.currency,
+          metadata: input.auditMetadata,
+        }));
+      }
       if (input.planChangeSnapshot) {
         await manager.save(BillingEvent, manager.create(BillingEvent, {
           firebaseId: subscription.firebaseId, subscriptionId: subscription.id,
@@ -795,7 +865,14 @@ export class BillingAttemptOrchestrationService {
       const targetStatus = BillingAttemptStatus[outcome.kind];
       assertBillingAttemptTransition(attempt.status, targetStatus);
       attempt.status = targetStatus;
-      attempt.providerResponseCode = outcome.providerResponseCode ?? null;
+      // A later transport failure must not erase the last bounded CardCom
+      // diagnostic we successfully received for an unresolved attempt.
+      attempt.providerResponseCode =
+        outcome.providerResponseCode ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerResponseCode : null);
+      attempt.providerDescription =
+        outcome.providerDescription ??
+        (outcome.kind === 'UNKNOWN' ? attempt.providerDescription : null);
       attempt.failureCategory =
         outcome.kind === 'CAPTURED' ? null : outcome.failureCategory ?? null;
       attempt.lastReconciledAt = wasReconciliation
@@ -858,8 +935,8 @@ export class BillingAttemptOrchestrationService {
   /**
    * Terminates a claimed token attempt whose local pre-flight failed BEFORE any
    * provider request, in one transaction. No charge can have been made, so it
-   * is never UNKNOWN, never reconciled and never consumes the 3/7-day
-   * provider-decline policy (`renewalAttempts` is not touched).
+   * is never UNKNOWN, never reconciled and never consumes the provider-decline
+   * policy's two retries at 30-minute intervals (`renewalAttempts` is not touched).
    * - CUSTOMER_ACTION: PROCESSING -> DECLINED (sanitized local category), the
    *   obligation's active pointer is cleared so the hosted recovery flow may
    *   open a new attempt, and an ACTIVE subscription still collecting this
@@ -1057,6 +1134,50 @@ export class BillingAttemptOrchestrationService {
     );
   }
 
+  async findStaleHostedCheckouts(
+    createdBefore: Date,
+    limit: number,
+  ): Promise<ReconciliationCandidate[]> {
+    return this.inTransaction(async manager =>
+      this.withOwners(
+        manager,
+        await manager.find(BillingAttempt, {
+          where: {
+            status: BillingAttemptStatus.AWAITING_CUSTOMER,
+            operation: 'CHARGE',
+            chargeMode: BillingChargeMode.LOW_PROFILE_HOSTED,
+            createdAt: LessThanOrEqual(createdBefore),
+          },
+          order: { createdAt: 'ASC' },
+          take: limit,
+        }),
+      ),
+    );
+  }
+
+  async markStaleHostedCheckoutUnknown(
+    attemptId: number,
+    createdBefore: Date,
+    now = new Date(),
+  ): Promise<BillingAttempt> {
+    return this.inTransaction(async manager => {
+      const attempt = await this.lockAttempt(manager, attemptId);
+      if (attempt.status !== BillingAttemptStatus.AWAITING_CUSTOMER ||
+        attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+        attempt.createdAt > createdBefore) return attempt;
+      assertBillingAttemptTransition(
+        attempt.status,
+        BillingAttemptStatus.UNKNOWN,
+      );
+      attempt.status = BillingAttemptStatus.UNKNOWN;
+      attempt.unknownSince = now;
+      attempt.nextActionAt = now;
+      attempt.failureCategory = 'HOSTED_CHECKOUT_TIMEOUT';
+      attempt.stateVersion += 1;
+      return manager.save(BillingAttempt, attempt);
+    });
+  }
+
   /**
    * UNKNOWN attempts whose read-only reconciliation is due, oldest first. An
    * attempt that failed locally before any provider request is not an uncertain
@@ -1164,6 +1285,55 @@ export class BillingAttemptOrchestrationService {
       if (this.isDuplicateEntry(error)) {
         return { recorded: false, reason: 'LOW_PROFILE_IN_USE' };
       }
+      throw error;
+    }
+  }
+
+  /**
+   * Persists the complete hosted checkout identity before its URL is returned
+   * to the customer. The first LowProfile id and URL are immutable as a pair;
+   * a later caller may confirm the same values but can never replace either.
+   */
+  async recordHostedCheckout(
+    attemptId: number,
+    lowProfileId: string,
+    paymentUrl: string,
+    subjectFirebaseId: string,
+  ): Promise<{ recorded: boolean; reason?: 'ALREADY_SET' | 'NOT_ELIGIBLE' | 'LOW_PROFILE_IN_USE' }> {
+    if (!lowProfileId || lowProfileId.length > 255 || paymentUrl.length > 2048) {
+      return { recorded: false, reason: 'NOT_ELIGIBLE' };
+    }
+    let parsed: URL;
+    try { parsed = new URL(paymentUrl); }
+    catch { return { recorded: false, reason: 'NOT_ELIGIBLE' }; }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'secure.cardcom.solutions') {
+      return { recorded: false, reason: 'NOT_ELIGIBLE' };
+    }
+    try {
+      return await this.inTransaction(async manager => {
+        const attempt = await this.lockAttempt(manager, attemptId);
+        const obligation = await this.lockObligation(manager, attempt.obligationId);
+        if (obligation.firebaseIdSnapshot !== subjectFirebaseId) {
+          throw new ForbiddenException('Billing mutation subject does not own the billing attempt');
+        }
+        if (attempt.cardcomLowProfileId != null || attempt.hostedPaymentUrl != null) {
+          return attempt.cardcomLowProfileId === lowProfileId && attempt.hostedPaymentUrl === paymentUrl
+            ? { recorded: false, reason: 'ALREADY_SET' as const }
+            : { recorded: false, reason: 'NOT_ELIGIBLE' as const };
+        }
+        if (attempt.chargeMode !== BillingChargeMode.LOW_PROFILE_HOSTED ||
+          ![BillingAttemptStatus.CREATED, BillingAttemptStatus.AWAITING_CUSTOMER].includes(attempt.status)) {
+          return { recorded: false, reason: 'NOT_ELIGIBLE' as const };
+        }
+        attempt.cardcomLowProfileId = lowProfileId;
+        attempt.hostedPaymentUrl = paymentUrl;
+        if (attempt.status === BillingAttemptStatus.CREATED) attempt.status = BillingAttemptStatus.AWAITING_CUSTOMER;
+        attempt.stateVersion += 1;
+        await manager.save(BillingAttempt, attempt);
+        return { recorded: true };
+      });
+    } catch (error) {
+      if (this.isDuplicateEntry(error)) return { recorded: false, reason: 'LOW_PROFILE_IN_USE' };
       throw error;
     }
   }
@@ -1525,6 +1695,9 @@ export class BillingAttemptOrchestrationService {
     input: OpenBillingAttemptInput,
     paymentMethodId: number | null,
   ): Promise<BillingAttempt> {
+    const payerProfile = await manager.findOne(BillingPayerProfile, {
+      where: { subscriptionId: obligation.subscriptionId },
+    });
     let lastCollision: unknown;
     for (
       let keyAttempt = 0;
@@ -1545,6 +1718,17 @@ export class BillingAttemptOrchestrationService {
         providerTerminalRef: null,
         cardcomTransactionId: null,
         providerResponseCode: null,
+        providerDescription: null,
+        payerProfileVersion: payerProfile?.version ?? null,
+        payerProfileSnapshot: payerProfile
+          ? {
+              fullName: payerProfile.fullName,
+              identityNumber: payerProfile.identityNumber,
+              email: payerProfile.email,
+              phone: payerProfile.phone,
+              businessNumber: payerProfile.businessNumber,
+            }
+          : null,
         failureCategory: null,
         planId: input.planId,
         amountAgorot: input.amountAgorot,
@@ -1552,6 +1736,8 @@ export class BillingAttemptOrchestrationService {
         vatAmountAgorot: input.vatAmountAgorot,
         currency: input.currency ?? 'ILS',
         receiptDocId: null,
+        requestId: input.requestId ?? null,
+        requestedByFirebaseId: input.requestedByFirebaseId ?? null,
         leaseOwner: null,
         leaseExpiresAt: null,
         stateVersion: 0,
@@ -1630,6 +1816,11 @@ export class BillingAttemptOrchestrationService {
   }
 
   private validateOpenInput(input: OpenBillingAttemptInput): void {
+    if (input.obligationKeyOverride &&
+      (!/^subscription:\d+:manual:[0-9a-f-]{36}$/.test(input.obligationKeyOverride) ||
+        input.obligationKeyOverride.length > 191)) {
+      throw new BadRequestException('Invalid manual billing obligation key');
+    }
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(input.periodStart) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(input.periodEnd)

@@ -16,6 +16,8 @@ and `tx_only` rows and replaces the former overlay review dialog.
   persistent edit, link, approve, archive and reject endpoints.
 
 ## Main flows
+Uploaded transaction documents are analyzed asynchronously through the shared queue. The backend revalidates and locks both link targets at completion. Polling must retain the original business context; a late result must not modify a different business's view.
+
 
 - `reviewRowActions` implements the unified generic-table `actions` contract.
   Existing custom cell templates and desktop icon/label buttons are retained;

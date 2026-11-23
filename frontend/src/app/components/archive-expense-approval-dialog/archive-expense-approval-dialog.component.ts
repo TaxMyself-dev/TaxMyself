@@ -1,3 +1,4 @@
+import { hasRequiredDocumentInput } from '../../services/document-approval-input';
 import { Component, computed, EventEmitter, inject, Input, OnChanges, Output, signal, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EMPTY, forkJoin } from 'rxjs';
@@ -68,7 +69,8 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
     const doc = this.document();
     if (!doc) return 'אישור מסמך כהוצאה';
     const draft = this.draft();
-    const amount = Number(draft?.amount ?? doc.amount ?? 0).toLocaleString('he-IL', { maximumFractionDigits: 2 });
+    if((draft?.amount ?? doc.amount)==null)return doc.supplier || doc.driveFileName;
+    const amount = Number(draft?.amount ?? doc.amount).toLocaleString('he-IL', { maximumFractionDigits: 2 });
     const currency = draft?.currency ?? doc.currency ?? 'ILS';
     const formatted = currency === 'ILS' ? `${amount} ₪` : `${this.currencySymbol(currency)}${amount}`;
     return `${doc.supplier || doc.driveFileName} — ${formatted}`;
@@ -128,13 +130,14 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
 
   readonly canApprove = computed(() => {
     const draft = this.draft();
-    if (!draft || draft.subCategoryId == null) return false;
+    if (!draft || draft.subCategoryId == null || !hasRequiredDocumentInput(draft)) return false;
     const row = this.catalog().find(item => item.subCategoryId === draft.subCategoryId);
     return !!row && (row.isPrivate || (row.accountId != null && row.approvalStatus === 'APPROVED'));
   });
 
   readonly documentTypeOptions = [
     ['invoice', 'חשבונית'], ['receipt', 'קבלה'],
+    ['insurance_policy', 'פוליסת ביטוח'], ['license_fee', 'אגרות רישוי'],
     ['tax_invoice_receipt', 'חשבונית מס קבלה'], ['credit_invoice', 'חשבונית זיכוי'],
     ['invoice_receipt_pair', 'חשבונית + קבלה'], ['form_106', 'טופס 106'],
     ['tax_form', 'טופס מס'], ['contract', 'חוזה'], ['unknown', 'לא ידוע'],
@@ -300,7 +303,7 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
       this.document.set(row.document);
       this.matchedTransactionId.set(row.type === 'matched' ? row.transaction.slimTransactionId : null);
       const classification = row.classification;
-      const date = row.document.date ?? this.documentDate ?? '';
+      const date = row.document.date ?? '';
       this.draft.set({
         category: classification.categoryName ?? row.document.category ?? '',
         subCategory: classification.subCategoryName ?? row.document.subCategory ?? '',
@@ -311,7 +314,7 @@ export class ArchiveExpenseApprovalDialogComponent implements OnChanges {
         reductionPercent: Number(classification.reductionPercent ?? 0),
         isEquipment: !!(classification.isEquipment ?? row.document.isEquipment),
         date,
-        amount: Number(row.document.amount ?? 0),
+        amount: row.document.amount==null ? null : Number(row.document.amount),
         currency: row.document.currency ?? 'ILS',
         ilsAmount: row.document.ilsAmount ?? null,
         fxRateToIls: row.document.fxRateToIls ?? null,

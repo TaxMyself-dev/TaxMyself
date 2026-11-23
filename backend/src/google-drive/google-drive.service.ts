@@ -1,3 +1,4 @@
+import { documentTransportOptions } from '../document-ai/document-ai.execution';
 import {
   Injectable,
   InternalServerErrorException,
@@ -52,6 +53,47 @@ export interface DriveFileMeta {
 
 @Injectable()
 export class GoogleDriveService {
+  async ensureAnalysisTemporary(businessFolderId:string):Promise<string>{
+    return this.getOrCreateChildFolder(businessFolderId,'analysis-temporary');
+  }
+  async ensureProtectedFolders(businessFolderId: string): Promise<{ blocked: string; staging: string }> {
+    return {
+      blocked: await this.getOrCreateChildFolder(businessFolderId, 'blocked'),
+      staging: await this.getOrCreateChildFolder(businessFolderId, 'replacement-staging'),
+    };
+  }
+
+  /** Recovery is tied to our opaque operation tag, never to a filename/hash search. */
+  async findProtectedUploads(folderId: string, operationId: string): Promise<string[]> {
+    if (!/^(root-\d+|[a-f0-9-]{36})$/.test(operationId)) throw new Error('Invalid upload operation');
+    const result = await this.getSystemDrive().files.list({
+      q: `'${folderId.replace(/'/g, "\\'")}' in parents and trashed=false and appProperties has { key='keepintaxProtectedOperation' and value='${operationId}' }`,
+      fields: 'files(id)', pageSize: 100, supportsAllDrives: true, includeItemsFromAllDrives: true,
+    }, { timeout: 30000, retry: false, ...documentTransportOptions() });
+    return (result.data.files || []).map(file => file.id).filter(Boolean);
+  }
+
+  async uploadProtectedFile(folderId: string, name: string, bytes: Buffer, operationId: string, mimeType = 'application/pdf'): Promise<string> {
+    const { Readable } = await import('stream');
+    const result = await this.getSystemDrive().files.create({
+      requestBody: { name, parents: [folderId], mimeType, appProperties: { keepintaxProtectedOperation: operationId } },
+      media: { mimeType, body: Readable.from(bytes) }, fields: 'id', supportsAllDrives: true,
+    }, { timeout: 30000, retry: false, ...documentTransportOptions() });
+    if (!result.data.id) throw new Error('Protected upload returned no identity');
+    return result.data.id;
+  }
+  async ensureIntakeStaging(businessFolderId: string): Promise<string> {
+    return this.getOrCreateChildFolder(businessFolderId, 'intake-staging');
+  }
+  async getIntakeFileMetadata(fileId: string) {
+    const result = await this.getSystemDrive().files.get({fileId,supportsAllDrives:true,fields:'id,name,mimeType,size,md5Checksum,createdTime,parents,trashed,appProperties'},{timeout:30000,retry:false,...documentTransportOptions()});
+    return result.data;
+  }
+  /** Unlike the legacy delete wrapper, a 404 is NOT confirmed deletion. */
+  async deleteIntakeFile(fileId: string): Promise<'DELETED'|'UNCONFIRMED'> {
+    try { await this.getSystemDrive().files.delete({fileId,supportsAllDrives:true},{timeout:30000,retry:false,...documentTransportOptions()}); return 'DELETED'; }
+    catch(error:any) { if((error?.code??error?.response?.status)===404)return 'UNCONFIRMED'; throw new Error('Intake deletion failed'); }
+  }
   private readonly logger = new Logger(GoogleDriveService.name);
   private driveClient: drive_v3.Drive | null = null;
   private rootFolderIdCached: string | null = null;
@@ -230,7 +272,7 @@ export class GoogleDriveService {
         removeParents: fromParentId ?? undefined,
         fields: 'id, parents',
         supportsAllDrives: true,
-      });
+      }, documentTransportOptions());
       return;
     } catch (error: any) {
       systemError = error;
@@ -248,7 +290,7 @@ export class GoogleDriveService {
         removeParents: fromParentId ?? undefined,
         fields: 'id, parents',
         supportsAllDrives: true,
-      });
+      }, documentTransportOptions());
     } catch (error: any) {
       this.logger.error(
         `moveFile failed (fileId=${fileId}, from=${fromParentId}, to=${toParentId}): ` +
@@ -311,7 +353,7 @@ export class GoogleDriveService {
       spaces: 'drive',
       supportsAllDrives: true,
       includeItemsFromAllDrives: true,
-    });
+    }, documentTransportOptions());
 
     const existing = list.data.files?.[0]?.id;
     if (existing) return existing;
@@ -324,7 +366,7 @@ export class GoogleDriveService {
       },
       fields: 'id',
       supportsAllDrives: true,
-    });
+    }, documentTransportOptions());
 
     const id = res.data.id;
     if (!id) {
@@ -592,7 +634,7 @@ export class GoogleDriveService {
       const drive = this.getSystemDrive();
       const res = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
-        { responseType: 'arraybuffer' },
+        { responseType: 'arraybuffer', ...documentTransportOptions() },
       );
       return Buffer.from(res.data as ArrayBuffer);
     } catch (error: any) {
@@ -607,7 +649,7 @@ export class GoogleDriveService {
       const { drive } = this.getDrive();
       const res = await drive.files.get(
         { fileId, alt: 'media', supportsAllDrives: true },
-        { responseType: 'arraybuffer' },
+        { responseType: 'arraybuffer', ...documentTransportOptions() },
       );
       return Buffer.from(res.data as ArrayBuffer);
     } catch (error: any) {

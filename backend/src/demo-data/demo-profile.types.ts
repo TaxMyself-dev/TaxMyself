@@ -41,6 +41,12 @@ export interface DemoProfile {
    */
   syntheticOpenBanking?: boolean;
 
+  /**
+   * Dedicated local billing QA fixture. The admin demo screen may switch this
+   * profile between synthetic billing states without contacting CardCom.
+   */
+  billingQaScenario?: boolean;
+
   /** Primary user (the one who signs in with `email`/`password`). */
   user: DemoUser;
 

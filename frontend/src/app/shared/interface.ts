@@ -414,6 +414,8 @@ export interface ICityData {
 }
 
 export interface ITransactionData {
+  classificationSource?: 'USER'|'SYSTEM'|null;
+  classificationSourceLabel?: string;
     paymentIdentifier: string,
     sourceRecordId?: number,
     subCategory: string,

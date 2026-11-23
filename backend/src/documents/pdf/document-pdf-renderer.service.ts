@@ -69,8 +69,8 @@ export class DocumentPdfRenderer implements OnModuleDestroy {
     if (!this.cachedFonts) {
       const dir = join(__dirname, '..', '..', 'assets', 'document-fonts');
       this.cachedFonts = fontCss(
-        readFileSync(join(dir, 'Simpler-Regular.otf')).toString('base64'),
-        readFileSync(join(dir, 'Simpler-Bold.otf')).toString('base64'),
+        readFileSync(join(dir, 'Simpler-Regular.ttf')).toString('base64'),
+        readFileSync(join(dir, 'Simpler-Bold.ttf')).toString('base64'),
       );
     }
     return this.cachedFonts;

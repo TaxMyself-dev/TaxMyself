@@ -1,0 +1,128 @@
+import { AutoClassificationService } from '../auto-classification/auto-classification.service';
+import { OnboardingService } from '../agent-onboarding/onboarding.service';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { agentPackageDir, loadAgentBundle } from './agent-bundle-loader';
+import { AgentBooksService } from './agent-books.service';
+import { AgentClassificationService } from './agent-classification.service';
+import {
+  installAgentRejectionGuard,
+  withAgentBackgroundContext,
+} from './agent-background-context';
+import { AgentDomainService } from './agent-domain.service';
+import type { AgentDomain } from './agent-domain.types';
+
+/**
+ * The verified user the agent package serves a request for — the fields of
+ * FirebaseAuthGuard's request it reads (backend/agent/src/server/runtime/
+ * supabase-client.ts, AgentRequestUser).
+ */
+export interface AgentHarnessUser {
+  actorFirebaseId: string;
+  firebaseId: string;
+  businessNumber: string | null;
+  delegationScopes: string[];
+  isDelegatedAccess: boolean;
+  isAdminImpersonation: boolean;
+}
+
+/**
+ * The agent package's HTTP entry (backend/agent/src/server/agent-http.server.ts),
+ * as its bundle exports it.
+ */
+interface AgentHarnessBundle {
+  handleAgentHttpRequest: (
+    request: Request,
+    user: AgentHarnessUser,
+    domain: AgentDomain,
+  ) => Promise<Response>;
+  disposeAppRuntime: () => Promise<void>;
+}
+
+let rejectionGuardInstalled = false;
+
+/**
+ * Loads the agent package's bundle (backend/agent/dist/agent-http.mjs, built
+ * by `npm run build` in backend/agent) on the first agent request, so the Nest
+ * backend starts — and serves everything else — whether or not the agent is
+ * built or configured. AGENT_BUNDLE_PATH points it elsewhere.
+ */
+@Injectable()
+export class AgentHarnessService implements OnModuleDestroy {
+  private readonly logger = new Logger(AgentHarnessService.name);
+  private bundle: Promise<AgentHarnessBundle> | null = null;
+
+  constructor(
+    private readonly agentDomain: AgentDomainService,
+    private readonly agentBooks: AgentBooksService,
+    private readonly classification: AgentClassificationService,
+    private readonly onboarding?: OnboardingService,
+    private readonly automation?: AutoClassificationService,
+  ) {}
+
+  load(): Promise<AgentHarnessBundle> {
+    if (!this.bundle) {
+      if (!rejectionGuardInstalled) {
+        installAgentRejectionGuard(this.logger, agentPackageDir);
+        rejectionGuardInstalled = true;
+      }
+      this.bundle = loadAgentBundle().then((loaded) => loaded as AgentHarnessBundle);
+      this.bundle.catch((error: unknown) => {
+        this.logger.error(
+          `AGENT_BUNDLE_UNAVAILABLE: agent bundle could not be loaded (run npm run build in backend/agent)`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        // A later request tries again, after a build.
+        this.bundle = null;
+      });
+    }
+
+    return this.bundle;
+  }
+
+  async handle(request: Request, user: AgentHarnessUser): Promise<Response> {
+    await this.agentDomain.assertAiAdmin(user);
+    return await withAgentBackgroundContext(async () => {
+      const bundle = await this.load();
+      // Includes promises scheduled by the SDK after this response ends.
+      return await bundle.handleAgentHttpRequest(request, user, {
+        ...this.agentDomain.forUser(user),
+        ...this.agentBooks.forUser(user),
+        ...this.classification.forUser(user),
+        startAutomaticClassification: () => this.automation ? this.automation.start(user) : Promise.reject(new Error('AUTOMATION_UNAVAILABLE')),
+        authorizeOnboarding: () => this.agentDomain.assertOnboardingAdmin(user),
+        profile: this.onboarding
+          ? {
+              read: (businessNumber) =>
+                this.onboarding.read(user, businessNumber),
+              update: async (input) => {
+                const proposal = await this.onboarding.prepareChanges(
+                  user,
+                  input,
+                );
+                return this.onboarding.commit(
+                  user,
+                  input.businessNumber,
+                  proposal.id,
+                );
+              },
+            }
+          : undefined,
+        readOnboardingContext: (businessNumber: string | null) =>
+          this.onboarding?.context(user, businessNumber) ?? Promise.resolve(''),
+      });
+    });
+  }
+
+  async onModuleDestroy() {
+    if (!this.bundle) {
+      return;
+    }
+
+    try {
+      const bundle = await this.bundle;
+      await withAgentBackgroundContext(() => bundle.disposeAppRuntime());
+    } catch {
+      // Not loaded: nothing to dispose.
+    }
+  }
+}

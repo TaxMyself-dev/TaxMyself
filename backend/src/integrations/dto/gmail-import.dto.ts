@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  Matches,
   Min,
 } from 'class-validator';
 
@@ -32,6 +33,17 @@ export class GmailImportDto {
   @IsString()
   @IsNotEmpty()
   businessNumber?: string;
+
+  /** Optional paired dates; the same calendar/range rules as initial import apply. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  fromDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  toDate?: string;
 
   /** Optional Gmail search override; defaults to the reader's broad receipts query. */
   @IsOptional()

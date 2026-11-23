@@ -10,6 +10,7 @@ import { billingDate } from '../domain/billing-debt-periods';
 import { latestPlanChangeCommand, matchesPlanChangeSource, PLAN_CHANGE_POLICY, PLAN_CHANGE_QUOTE_TTL_MS,
   PlanChangeSnapshot, planChangeQuote, proratedDifference, reservedUpgradeSnapshot } from '../domain/billing-plan-change';
 import { assertBillingOwnerMutation, BillingMutationActorContext } from './billing-attempt-orchestration.service';
+import { assertPricingFingerprint, frozenPricePlanPatch } from '../domain/subscription-pricing';
 import { PricingService } from './pricing.service';
 
 @Injectable()
@@ -48,6 +49,10 @@ export class BillingPlanChangeService {
       if (paid.obligationKey?.includes(':prorated:') && !upgrade) throw new ConflictException('Missing paid upgrade terms; review required');
       return upgrade?.targetMonthlyNetAgorot ?? paid.amountBeforeVatAgorot;
     }
+    const freePeriod = await manager.findOne(BillingEvent, { where: { subscriptionId: sub.id, eventType: BillingEventType.PLAN_CHANGED,
+      metadata: Raw(alias => `JSON_UNQUOTE(JSON_EXTRACT(${alias}, '$.policy')) = 'ZERO_PRICE_PERIOD_V1' AND JSON_EXTRACT(${alias}, '$.planId') = :freePlan AND JSON_UNQUOTE(JSON_EXTRACT(${alias}, '$.periodStart')) = :freeStart`,
+        { freePlan: sub.planId, freeStart: sub.currentPeriodStart!.toISOString() }) }, order: { id: 'DESC' } });
+    if (freePeriod) return 0;
     // Zero-charge upgrades carry the continuing monthly terms in their atomic event.
     const free = await manager.findOne(BillingEvent, {
       where: { subscriptionId: sub.id, eventType: BillingEventType.PLAN_CHANGED,
@@ -97,6 +102,7 @@ export class BillingPlanChangeService {
     const amounts = this.pricing.calculateBillingAmounts(net);
     const renewal = await this.pricing.calculateCheckoutPrice(sub.firebaseId, planId, sub.currentPeriodEnd!);
     const snapshot: PlanChangeSnapshot = {
+      pricingFingerprint: target.pricingFingerprint,
       policy: PLAN_CHANGE_POLICY, action, sourcePlanId: sub.planId, targetPlanId: planId,
       sourcePeriodStart: sub.currentPeriodStart!.toISOString(), sourcePeriodEnd: sub.currentPeriodEnd!.toISOString(),
       quotedAt: at.toISOString(), scheduleEventId: command?.id ?? null,
@@ -133,10 +139,13 @@ export class BillingPlanChangeService {
       const command = await latestPlanChangeCommand(manager, sub.id);
       if ((command?.id ?? null) !== snapshot.scheduleEventId) throw new ConflictException('בקשת שינוי התוכנית השתנתה. יש לרענן.');
       await this.assertNoPendingPayment(manager, sub.id);
+      await assertPricingFingerprint(manager, sub, snapshot.targetPlanId, snapshot.pricingFingerprint);
+      const target = await manager.findOne(SubscriptionPlan, { where: { id: snapshot.targetPlanId, isActive: true }, lock: { mode: 'pessimistic_read' } });
+      if (!target) throw new ConflictException('התוכנית אינה זמינה להצטרפות');
       if (snapshot.action === 'UPGRADE' && snapshot.finalAmountAgorot !== 0) throw new ConflictException('Payment required');
       await this.writeCommand(manager, sub, snapshot.action === 'DOWNGRADE' ? 'SCHEDULE' : 'APPLY', snapshot);
       if (snapshot.action === 'UPGRADE') {
-        await manager.update(Subscription, sub.id, { planId: snapshot.targetPlanId });
+        await manager.update(Subscription, sub.id, { planId: snapshot.targetPlanId, ...await frozenPricePlanPatch(manager, sub, snapshot.targetPlanId) });
         await manager.save(BillingEvent, manager.create(BillingEvent, { firebaseId: sub.firebaseId, subscriptionId: sub.id,
           eventType: BillingEventType.PLAN_CHANGED, metadata: { policy: PLAN_CHANGE_POLICY, snapshot, withoutCharge: true } }));
       }
@@ -172,9 +181,9 @@ export class BillingPlanChangeService {
         return;
       }
       await this.assertNoPendingPayment(manager, sub.id);
-      const target = await manager.findOne(SubscriptionPlan, { where: { id: snapshot.targetPlanId, isActive: true } });
+      const target = await manager.findOne(SubscriptionPlan, { where: { id: snapshot.targetPlanId }, lock: { mode: 'pessimistic_read' } });
       if (!target) throw new ConflictException('Scheduled plan is unavailable; manual review required');
-      await manager.update(Subscription, sub.id, { planId: target.id });
+      await manager.update(Subscription, sub.id, { planId: target.id, ...await frozenPricePlanPatch(manager, sub, target.id) });
       await this.writeCommand(manager, sub, 'APPLY', snapshot);
       await manager.save(BillingEvent, manager.create(BillingEvent, { firebaseId: sub.firebaseId, subscriptionId: sub.id,
         eventType: BillingEventType.PLAN_CHANGED, metadata: { policy: PLAN_CHANGE_POLICY, snapshot, scheduled: true } }));

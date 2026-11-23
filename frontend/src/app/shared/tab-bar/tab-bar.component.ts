@@ -7,6 +7,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
     standalone: false
 })
 export class TabBarComponent {
+  @Input() scrollable = false;
   @Input() selectedTab: string = '';  // Input for the currently selected tab
   //@Input() tabs: { label: string, value: string, type: string, content?: string, component?: any }[] = [];
   @Input() tabs: { label: string, value: string, component?: any }[] = [];

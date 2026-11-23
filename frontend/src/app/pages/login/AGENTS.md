@@ -14,6 +14,22 @@ email-verification flows.
 - `login.module.ts` / `login-routing.module.ts` — module wiring, routed at `/login`.
 
 ## Main flows
+
+- Login and password-reset email controls use required + Angular Validators.email.
+  Plus aliases and longer suffixes (including the synthetic demo .local address)
+  are accepted; do not restore the former 2–3-character-suffix regex. Firebase
+  remains responsible for authentication and account existence.
+- Email/password login uses the form's `ngSubmit` and an `app-p-button` with `type="submit"`, so Enter in either credential input and clicking the login button share one path. Invalid forms and an active login are rejected by `login()`. Other shared buttons default to `type="button"`, including password reset.
+- Enter from a noninteractive area also calls login on the active /login route
+  (query/fragment allowed). The page document listener leaves credential inputs,
+  submit/Google/reset buttons, links, editors and other focused actions alone.
+  It rejects invalid/pending forms, login/reset requests in flight, registration,
+  verification/MFA/reset flows, visible dialogs, repeated/composing/modified keys
+  and default-prevented events. Cached Ionic login pages on other routes cannot
+  trigger it. A blocking dialog must have visible CSS and a nonzero width/height
+  rectangle: PrimeNG retains empty zero-height p-dialog alertdialog hosts while
+  closed. Inspect the actual open panel, not just the presence of layout boxes.
+  Keep ngSubmit as the single native form-submit path.
 - Email/password login: Firebase `signInWithEmailAndPassword` → verify email → `AuthService.signIn(true)` (backend sync, `freshLogin=true`) → store user data in the current tab's UID-bound session cache → `GenericService.loadBusinessesFromServer()` → navigate to `/my-account`.
 - Email/password and Google login never write authenticated profile/business
   state to shared `localStorage`; this permits different identities in separate

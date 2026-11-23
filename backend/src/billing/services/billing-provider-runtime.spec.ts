@@ -2,6 +2,7 @@ import { BillingAttemptStatus } from '../enums/billing.enums';
 import {
   BillingProviderRuntimeService,
   normalizeCardComCharge,
+  normalizeCardComReconciliation,
 } from './billing-provider-runtime.service';
 
 describe('BillingProviderRuntimeService', () => {
@@ -24,6 +25,7 @@ describe('BillingProviderRuntimeService', () => {
         cardcomTransactionId: 'tx-4',
         providerTerminalRef: null,
         providerResponseCode: 0,
+        providerDescription: null,
       },
     ],
     [
@@ -32,11 +34,41 @@ describe('BillingProviderRuntimeService', () => {
       {
         kind: 'DECLINED',
         providerResponseCode: 51,
+        providerDescription: null,
         failureCategory: 'PROVIDER_DECLINED',
       },
     ],
   ])('normalizes %s deterministically', (_name, response, expected) => {
     expect(normalizeCardComCharge(response as any)).toEqual(expected);
+  });
+
+  it('keeps unverified hosted failures unknown with their sanitized diagnostics', () => {
+    expect(normalizeCardComReconciliation({
+      success: false,
+      responseCode: 603,
+      providerDescription: 'Invalid API credentials',
+      failureCategory: 'HOSTED_RESULT_NOT_SUCCESSFUL',
+    })).toEqual({
+      kind: 'UNKNOWN',
+      providerResponseCode: 603,
+      providerDescription: 'Invalid API credentials',
+      failureCategory: 'HOSTED_RESULT_NOT_SUCCESSFUL',
+    });
+  });
+
+  it('accepts only executor-proven hosted no-charge results as declined', () => {
+    expect(normalizeCardComReconciliation({
+      success: false,
+      responseCode: 10,
+      providerDescription: 'Payment page expired',
+      failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+      definitiveDecline: true,
+    })).toEqual({
+      kind: 'DECLINED',
+      providerResponseCode: 10,
+      providerDescription: 'Payment page expired',
+      failureCategory: 'HOSTED_NOT_SUCCESSFUL',
+    });
   });
 
   it('maps executor transport failure to UNKNOWN and never retries the charge', async () => {
@@ -145,5 +177,25 @@ describe('BillingProviderRuntimeService', () => {
 
     expect(result.kind).toBe('NOT_CLAIMED');
     expect(executor.executeCharge).not.toHaveBeenCalled();
+  });
+
+  it('checks an awaiting hosted page read-only and applies a definitive decline', async () => {
+    const hosted = { ...attempt, cardcomLowProfileId: 'lp-4', planId: 2,
+      chargeMode: 'LOW_PROFILE_HOSTED', status: BillingAttemptStatus.AWAITING_CUSTOMER };
+    const orchestration = {
+      assertOwnerMutation: jest.fn(),
+      claimForHostedOutcome: jest.fn().mockResolvedValue({ claimed: true, attempt: hosted }),
+      applyNormalizedOutcome: jest.fn().mockResolvedValue({ ...hosted, status: BillingAttemptStatus.DECLINED }),
+    };
+    const executor = { executeCharge: jest.fn(), reconcileCharge: jest.fn().mockResolvedValue({
+      success: false, responseCode: 51, failureCategory: 'PROVIDER_DECLINED', definitiveDecline: true,
+    }) };
+    const service = new BillingProviderRuntimeService(orchestration as any, executor as any);
+
+    const result = await service.inspectHostedCheckout({ actor, attemptId: 4, subscriptionId: 7, leaseOwner: 'customer-4' });
+
+    expect(result).toEqual(expect.objectContaining({ kind: 'APPLIED', outcome: expect.objectContaining({ kind: 'DECLINED' }) }));
+    expect(executor.executeCharge).not.toHaveBeenCalled();
+    expect(executor.reconcileCharge).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,9 +3,9 @@
     (change)="onFileChange($event)" (cancel)="onFileSelectionCanceled()" />
 }
 @if (hasRetainedRows() && useSyncState() && processStatus() === 'running') {
-  <p role="status" dir="rtl">מעדכנים את הנתונים. בינתיים מוצגים הנתונים הקיימים.</p>
+  <p role="status" dir="rtl">נתונים נמשכים מהבנק, בקרוב ממש הם יופיעו</p>
 }
-<div class="table-container" [class.table-container--cards]="isMobile() && mobileCardConfig()">
+<div class="table-container" [attr.aria-busy]="effectiveIsLoading()" [class.table-container--cards]="isMobile() && mobileCardConfig()">
   <div class="table-header">
 
     <div class="input-title-container">
@@ -194,7 +194,7 @@
   }
 
   @if (!isMobile() || !mobileCardConfig()) {
-  <div class="table">
+  <div class="table" [class.table--contained-actions]="rowActionsWithinTable()">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
       (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
@@ -350,6 +350,16 @@
                   }
                 </span>
               }
+              @else if (col.cellRenderer === ICellRenderer.SOURCE_BADGE) {
+                <span class="generic-source-badge">
+                  @if (row.sourceIconUrl) {
+                    <img class="generic-source-badge__image" [src]="row.sourceIconUrl" alt="" aria-hidden="true" />
+                  } @else if (row.sourceIconClass) {
+                    <i class="generic-source-badge__icon {{ row.sourceIconClass }}" aria-hidden="true"></i>
+                  }
+                  <span>{{ row[col.name] }}</span>
+                </span>
+              }
               <!-- Default row: format dates by column name *or* explicit FormTypes.DATE -->
               @else if (col.name?.toLowerCase().includes('date') || col.type === FormTypes.DATE) {
                 {{ row[col.name] | dateFormat }}
@@ -440,7 +450,7 @@
 
     @if (!isMobile() && hoveredRowInfo() && getActionsForRow(hoveredRowInfo()?.row).length) {
     <div [@slideInFromLeft]="isSlideIn() ? 'visible' : 'void'" class="floating-buttons"
-      [style.top.px]="hoveredRowInfo()?.top" (mouseenter)="onFloatingEnter()"
+      [style.top.px]="hoveredRowInfo()?.top" [style.height.px]="hoveredRowInfo()?.height" (mouseenter)="onFloatingEnter()"
       (mouseleave)="onFloatingLeave()">
       @for (action of getActionsForRow(hoveredRowInfo()?.row); track action.name) {
         <app-p-button

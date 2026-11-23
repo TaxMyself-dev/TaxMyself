@@ -41,6 +41,9 @@ async function bootstrap() {
     app.use(startupTiming.firstRequestMiddleware());
   }
   app.useGlobalFilters(new HttpExceptionFilter());
+  // Runs modules' shutdown hooks on SIGTERM/SIGINT: the agent harness
+  // disposes its runtime there (final telemetry flush, its MySQL pool).
+  app.enableShutdownHooks();
   app.use(require('cors')('*'));
   // Preserve Lychee signature bytes and cap the event independently of uploads.
   app.use('/webhooks/lychee', bodyParser.json({ limit: '256kb', inflate: false,
@@ -104,6 +107,13 @@ async function bootstrap() {
   app.use((req: any, res: any, next: any) => {
     // If body was already parsed by our /agent middleware, skip bodyParser
     if (req.body !== undefined) {
+      return next();
+    }
+
+    // The agent harness (/api/agent, KT-089) reads its own request body as a
+    // stream, with its own size limit (a chat message with attachments), so
+    // it is left unparsed here.
+    if (req.path?.startsWith('/api/agent/')) {
       return next();
     }
 

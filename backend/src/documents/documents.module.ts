@@ -1,3 +1,7 @@
+import { DocumentSchedulerController } from '../document-ai/document-ai-scheduler.controller';
+import { DocumentSchedulerGuard } from '../document-ai/document-ai-scheduler.guard';
+import { EmailIntakeModule } from '../email-intake/email-intake.module';
+import { EmailProcessingWorker } from '../email-intake/email-processing.worker';
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm'
 import { DocumentsService,  } from './documents.service';
@@ -41,10 +45,22 @@ import { DocumentPdfClient } from './pdf/document-pdf-client';
 import { FillFasterSigner } from './pdf/fillfaster-signer.service';
 import { IdentityImagesModule } from '../identity-images/identity-images.module';
 import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-allocation-attempt.entity';
+import { InboxOcrCronService } from './inbox-ocr-cron.service';
+import { ProtectedPdfModule } from '../protected-pdf/protected-pdf.module';
+import { DocumentAiModule } from '../document-ai/document-ai.module';
+import { DocumentAnalysisExecutor } from '../document-ai/document-ai.executor';
+import { DOCUMENT_AI_PROVIDERS, DocumentAiWorker } from '../document-ai/document-ai.worker';
+import { AnthropicDocumentProvider } from '../document-ai/anthropic-document.provider';
+import { MatchingService } from '../reports/matching.service';
+import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
 
 
 @Module({
   imports: [
+    DocumentAiModule,
+    TypeOrmModule.forFeature([FullTransactionCache]),
+    ProtectedPdfModule,
+    EmailIntakeModule,
     IdentityImagesModule,
     TypeOrmModule.forFeature([SettingDocuments, Documents, Expense, Transactions, DocLines, DocPayments, Business, Delegation, JournalEntry, JournalLine, BookingAccount, AccountingSection, Category, SubCategory, User, ExtractedDocument, Supplier, FxRate, SlimTransaction, ImportedDocument, ShaamInvoiceAllocationAttempt]),
     MailModule,
@@ -52,8 +68,14 @@ import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-a
     forwardRef(() => UsersModule),
     forwardRef(() => BillingModule),
   ],
-  controllers: [DocumentsController],
+  controllers: [DocumentsController, DocumentSchedulerController],
   providers: [
+    AnthropicDocumentProvider,
+    {provide:DOCUMENT_AI_PROVIDERS,useFactory:(provider:AnthropicDocumentProvider)=>[provider],inject:[AnthropicDocumentProvider]},
+    {provide:DocumentAnalysisExecutor,useExisting:DocumentsService},
+    DocumentAiWorker,
+    DocumentSchedulerGuard,
+    MatchingService,
     DocumentPdfClient,
     DocumentPdfRenderer,
     FillFasterSigner,
@@ -66,8 +88,10 @@ import { ShaamInvoiceAllocationAttempt } from '../shaam/entities/shaam-invoice-a
     AccountCodeAllocatorService,
     BusinessService,
     DocumentProcessorService,
+    EmailProcessingWorker,
     DocumentPairingService,
+    InboxOcrCronService,
   ],
-  exports: [DocumentsService, DocumentProcessorService, DocumentPairingService], // Export for use in other modules
+  exports: [DocumentsService, DocumentPairingService], // The provider client is private to queued workers.
 })
 export class DocumentsModule {}

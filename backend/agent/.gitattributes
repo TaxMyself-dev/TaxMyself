@@ -1,0 +1,4 @@
+# The agent package keeps LF in the working tree on every platform, as the
+# template and its formatter (oxfmt, endOfLine lf) expect; core.autocrlf=true
+# on Windows would otherwise check these files out with CRLF.
+* text=auto eol=lf

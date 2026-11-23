@@ -247,6 +247,7 @@ export class CatalogSeedService implements OnModuleInit {
 
       const category = await this.catalogService.findCategoryById(categoryId);
       await this.catalogService.createSubCategory(scope, category!, sub.name, {
+        systemKey: sub.systemKey,
         isPrivate: sub.isPrivate ?? false,
         accountId,
       });

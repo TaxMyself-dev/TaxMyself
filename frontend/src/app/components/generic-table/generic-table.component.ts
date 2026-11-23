@@ -69,6 +69,8 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   readonly displayedEmptyText = computed(() => this.dataTable()?.length
     ? 'אויש, לא מצאנו את מה שחיפשת' : this.emptyText());
   actions = input<IGenericTableAction[]>([]);
+  /** Keep desktop hover actions inside this table; legacy consumers retain viewport positioning. */
+  rowActionsWithinTable = input(false);
   /** Opt-in legacy attach fallback; ordinary row actions never create an upload control. */
   fileAttachmentEnabled = input<boolean>(false);
   immediateActions = input<boolean>(true);
@@ -203,7 +205,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
 
   expandedRows = new Set<number>();
   hoverTimeout: any;
-  hoveredRowInfo = signal<{ row: any, top: number } | null>(null);
+  hoveredRowInfo = signal<{ row: any, top: number, height?: number } | null>(null);
   isRowHovered = signal<boolean>(false);
   isFloatingHovered = signal<boolean>(false);
   isSlideIn = signal<boolean>(false);
@@ -211,8 +213,10 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   fileChange = output<{ row: IRowDataTable, file?: File }>(); 
 
   hasRetainedRows = computed(() => this.preserveRowsDuringSync() && !!this.dataTable()?.length);
-  effectiveIsLoading = computed(() => !this.hasRetainedRows() &&
-    (this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running')));
+  // Retention protects the last readable rows after a failed refresh; it must
+  // not hide the loading indicator while a new pull or table read is in flight.
+  effectiveIsLoading = computed(() =>
+    this.isLoadingState() || (this.useSyncState() && this.processStatus() === 'running'));
 
   filteredDataTable = computed(() => {
     const data = this.dataTable();
@@ -291,13 +295,30 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
     this.mobileTableExpanded.update(v => !v);
   }
 
-  /** A single row-aware list supplies desktop buttons and both mobile layouts. */
+  private readonly rowActionLists = computed(() => {
+    // New source/context inputs must still refresh cards when a consumer reuses row objects.
+    this.dataTable();
+    this.actions();
+    this.fileEditingEnabled();
+    this.fileAttachmentEnabled();
+    this.filesAttached();
+    return new WeakMap<IRowDataTable, IGenericTableAction[]>();
+  });
+
+  /** Recheck mutable rows/predicates, but keep unchanged OnPush child inputs stable. */
   getActionsForRow(row: IRowDataTable): IGenericTableAction[] {
-    return resolveTableActions(this.actions(), row, {
+    const next = resolveTableActions(this.actions(), row, {
       fileEditingEnabled: this.fileEditingEnabled(),
       fileAttachmentEnabled: this.fileAttachmentEnabled(),
       filesAttached: this.filesAttached(),
     }, target => this.triggerFileInput(target));
+    if (!row) return next;
+    const previous = this.rowActionLists().get(row);
+    if (previous && previous.length === next.length && previous.every((action, index) => action === next[index])) {
+      return previous;
+    }
+    this.rowActionLists().set(row, next);
+    return next;
   }
 
   needsFileInput = computed(() => this.fileEditingEnabled()
@@ -475,7 +496,12 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   onRowEnter(rowIndex: number, row: any, event: MouseEvent) {
     clearTimeout(this.hoverTimeout);
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.hoveredRowInfo.set({ row, top: rect.top + window.scrollY });
+    const table = this.rowActionsWithinTable()
+      ? (event.currentTarget as HTMLElement).closest<HTMLElement>('.table') : null;
+    this.hoveredRowInfo.set({ row,
+      top: table ? rect.top - table.getBoundingClientRect().top + table.scrollTop : rect.top + window.scrollY,
+      height: table ? rect.height : undefined,
+    });
     this.isRowHovered.set(true);
     this.isSlideIn.set(false);
     setTimeout(() => {

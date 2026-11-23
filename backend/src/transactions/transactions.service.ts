@@ -1,3 +1,4 @@
+import { cashflowExcludedSql } from './cashflow-exclusion';
 import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Between, Not, Brackets, LessThan, MoreThan, FindOptionsWhere, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
@@ -31,6 +32,10 @@ import { log } from 'console';
 
 @Injectable()
 export class TransactionsService {
+  async hasDetectedDirectCard(userId: string): Promise<boolean> {
+    return this.sourceRepo.existsBy({ userId, sourceType: SourceType.CREDIT_CARD, isDirect: true });
+  }
+
   constructor(
     private readonly sharedService: SharedService,
     private readonly expenseService: ExpensesService,
@@ -526,9 +531,9 @@ export class TransactionsService {
    * billName is joined from `source` (sourceName == sourceId); no Bill link →
    * null (frontend shows «לא משויך»). hasConsent = user_source_sync_state
    * .consentId non-null (revoke/expire nulls it via clearConsentOnSources).
-   * isDirect is joined from `source` — true marks a Direct/Debit card whose
-   * transactions are intentionally received via the bank feed (the frontend
-   * hides the per-source pull button and shows a "כרטיס דיירקט" note).
+   * isDirect is joined from `source` — true marks a detected Direct/Debit card.
+   * Card transactions are imported normally; owners can exclude classified bank
+   * mirrors through the independent cashflow preference.
    */
   async getSourcesWithTypes(userId: string): Promise<{ sourceRecordId: number; sourceName: string; sourceType: SourceType; connectionRole: 'primary' | 'spouse'; billName: string | null; hasConsent: boolean; isDirect: boolean | null }[]> {
     const [syncStates, sourceRows] = await Promise.all([
@@ -843,7 +848,8 @@ export class TransactionsService {
       .andWhere('c.amount < 0')
       // slim.confirmed IS NULL  → no slim row yet → treat as unconfirmed
       // slim.confirmed = false  → explicitly not yet confirmed
-      .andWhere('(s.confirmed IS NULL OR s.confirmed = false)');
+      .andWhere('(s.confirmed IS NULL OR s.confirmed = false)')
+      .andWhere('NOT (' + cashflowExcludedSql('c') + ')');
 
     if (periodLabels.length > 0) {
       // Period-stamped (classified) rows → match by label. Unclassified rows
@@ -970,7 +976,7 @@ export class TransactionsService {
     // then derive externalTransactionId for all slim state operations.
     const cacheIds = transactionData.map(td => td.id);
 
-    const cacheRows = await this.cacheRepo.findBy({
+    let cacheRows = await this.cacheRepo.findBy({
       id: In(cacheIds),
       userId,
     });
@@ -978,6 +984,13 @@ export class TransactionsService {
     if (!cacheRows || cacheRows.length === 0) {
       throw new Error('No transactions found with the provided IDs.');
     }
+
+    const excluded = await this.cacheRepo.createQueryBuilder('c')
+      .where('c.userId = :userId', { userId }).andWhere('c.id IN (:...ids)', { ids: cacheIds })
+      .andWhere(cashflowExcludedSql('c')).getCount();
+    if (excluded > 0) throw new BadRequestException('לא ניתן לאשר חיובי בנק שהוחרגו מהתזרים');
+    await this.catalogService.refreshPendingClassifications({ userId });
+    cacheRows = await this.cacheRepo.findBy({ id: In(cacheIds), userId });
 
     // Load existing slim rows so we can use the period label already stamped
     // at classification time. Confirm-trans no longer (re)computes the period;
@@ -1035,6 +1048,7 @@ export class TransactionsService {
       expense.supplierID = '';
       expense.category = row.category;
       expense.subCategory = row.subCategory;
+      expense.subCategoryId = row.subCategoryId;
       expense.sum = sumIls;
       expense.taxPercentSnapshot = row.taxPercent;
       expense.vatPercentSnapshot = row.vatPercent;
@@ -1157,6 +1171,7 @@ export class TransactionsService {
       qb.andWhere('c.billId = :billId', { billId });
     }
 
+    qb.andWhere('NOT (' + cashflowExcludedSql('c') + ')');
     qb.orderBy('merchantName', 'ASC');
     const rows = await qb.getRawMany<{ merchantName: string }>();
     return rows.map(r => r.merchantName);

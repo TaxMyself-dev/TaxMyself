@@ -405,7 +405,7 @@ export class ReportsController {
       // as the UTF-8 it actually is. No-op for ASCII filenames.
       file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
       return this.reviewService.uploadDocAndLinkToTx(
-        firebaseId, bn, Number(transactionId), file,
+        firebaseId, bn, Number(transactionId), file,request.user.actorFirebaseId||firebaseId,
       );
     }
 

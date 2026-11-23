@@ -44,6 +44,17 @@ describe('Open banking trial enrollment', () => {
       finalAmountAgorot: 6372, amountBeforeVatAgorot: 5400, vatAmountAgorot: 972, currency: 'ILS' })) } as any);
   });
   afterEach(() => jest.useRealTimers());
+  it('can prepare and preserve a zero-price banking agreement without crashing options', async () => {
+    (service as any).pricing.calculateCheckoutPrice.mockResolvedValue({ finalAmountAgorot: 0, amountBeforeVatAgorot: 0, vatAmountAgorot: 0, currency: 'ILS' });
+    const options = await service.options('owner');
+    await service.prepare(owner, 5, options.plans[0].quote);
+    sub.paymentMethodId = 1;
+    await service.connectionVerified('owner');
+    jest.setSystemTime(end);
+    expect(await service.activateDue(7)).toBe(true);
+    const saved = await service.firstPeriodPrice(sub, end);
+    expect(saved).toMatchObject({ finalAmountAgorot: 0, zeroPriceAgreementEventId: events.at(-1).id });
+  });
   it('reports a missing subscription as a server error, not a conflict', async () => {
     sub = null;
     await expect(service.options('owner')).rejects.toMatchObject({

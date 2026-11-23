@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, switchMap } from 'rxjs';
+import { DocumentAnalysisService, AnalysisReceipt } from './document-analysis.service';
 import { environment } from 'src/environments/environment';
 
 /** Mirrors the backend's FilesInterceptor('files', 30, ...) cap on
@@ -16,6 +17,8 @@ export const MAX_UPLOAD_TO_INBOX_FILES = 30;
  *  fall out of the listing. */
 export interface ProcessInboxResult {
   processed: number;
+  /** Registered for asynchronous analysis, not yet completed. */
+  queued?: number;
   failed: number;
   skipped: number;
   /** Byte-identical re-uploads auto-rejected this pass (same file dropped
@@ -56,6 +59,8 @@ export type RecordSource = 'DRIVE' | 'EMAIL' | 'MANUAL' | 'OPEN_BANKING' | 'WHAT
 
 /** User-facing lifecycle status for the ארכיון שלי page. */
 export type ArchiveItemStatus =
+  | 'PASSWORD_REQUIRED'
+  | 'NO_INVOICE_FOUND'
   | 'PENDING'
   | 'APPROVED'
   | 'FILED_ANNUAL'
@@ -76,6 +81,12 @@ export type ArchiveDocumentClassification =
  *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
  *  Expense/SlimTransaction ids can collide) — key rows by `${itemType}-${id}`. */
 export interface ArchivedItem {
+  protectedDocumentId?: number;
+  originalDriveFileId?: string;
+  canUploadOpenCopy?: boolean;
+  canRetryDelivery?: boolean;
+  replacementUploadStatus?: string;
+  replacementProcessingStatus?: string;
   id: number;
   itemType: 'DOCUMENT' | 'EXPENSE' | 'TRANSACTION';
   documentType: string | null;
@@ -126,7 +137,23 @@ export interface OcrSingleFileResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DriveDocsService {
-  constructor(private http: HttpClient) {}
+  replaceProtectedPdf(documentId: number, businessNumber: string, file: File, key: string, confirmed: boolean): Observable<any> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('businessNumber', businessNumber);
+    form.append('idempotencyKey', key);
+    form.append('confirmed', String(confirmed));
+    return this.http.post(`${environment.apiUrl}documents/me/protected/${documentId}/replacement`, form,
+      { headers: new HttpHeaders({ businessnumber: businessNumber }) });
+  }
+  protectedPdfHistory(documentId: number, businessNumber: string): Observable<any> {
+    return this.http.get(`${environment.apiUrl}documents/me/protected/${documentId}/history`, { params: { businessNumber } });
+  }
+  retryProtectedDelivery(documentId: number, businessNumber: string): Observable<any> {
+    return this.http.post(`${environment.apiUrl}documents/me/protected/${documentId}/retry-delivery`, { businessNumber });
+  }
+  private readonly analysis:DocumentAnalysisService;
+  constructor(private http: HttpClient,analysis?:DocumentAnalysisService) {this.analysis=analysis||new DocumentAnalysisService(http);}
 
   processInbox(businessNumber: string): Observable<ProcessInboxResult> {
     const url = `${environment.apiUrl}documents/me/process-inbox`;
@@ -191,26 +218,26 @@ export class DriveDocsService {
   /**
    * Runs Claude OCR on a single uploaded file (PDF/JPEG/PNG/etc) and returns
    * the extracted invoice fields for the manual-expense form to prefill.
-   * Does NOT persist anything on the backend.
+   * Uses a durable temporary analysis job; no archive or expense is created.
    */
-  ocrSingleFile(file: File, businessNumber: string): Observable<OcrSingleFileResponse> {
+  ocrSingleFile(file: File, businessNumber: string,onStatus?:(state:string)=>void): Observable<OcrSingleFileResponse> {
     const url = `${environment.apiUrl}documents/me/ocr-file`;
     const form = new FormData();
     form.append('file', file, file.name);
     form.append('businessNumber', businessNumber);
-    return this.http.post<OcrSingleFileResponse>(url, form);
+    return this.http.post<AnalysisReceipt>(url, form).pipe(switchMap(receipt=>this.analysis.waitFor<OcrSingleFileResponse>(receipt,businessNumber,onStatus)));
   }
 
   /**
    * Drops one or more files straight into the business's Drive inbox/
-   * folder — no OCR, just storage. Used by the settings-page "upload docs
+   * intake and shared analysis queue. Used by the settings-page "upload docs
    * to Drive" button.
    */
   uploadFilesToInbox(
     files: File[],
     businessNumber: string,
     clientUserId?: string,
-  ): Observable<{ fileId: string; fileName: string }[]> {
+  ): Observable<{ fileId: string; fileName: string; passwordRequired?: boolean }[]> {
     const url = `${environment.apiUrl}documents/me/upload-to-inbox`;
     const form = new FormData();
     files.forEach(file => form.append('files', file, file.name));
@@ -219,6 +246,6 @@ export class DriveDocsService {
     if (clientUserId) {
       headers = headers.set('x-client-user-id', clientUserId);
     }
-    return this.http.post<{ fileId: string; fileName: string }[]>(url, form, { headers });
+    return this.http.post<{ fileId: string; fileName: string; passwordRequired?: boolean }[]>(url, form, { headers });
   }
 }

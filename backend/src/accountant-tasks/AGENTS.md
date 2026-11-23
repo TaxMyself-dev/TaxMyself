@@ -8,6 +8,10 @@ Drives the accountant's "משימות" (tasks) todo list — auto-generates recu
 - `accountant-tasks.controller.ts` — `/accountant-tasks` REST endpoints, all accountant-only (checked via `UsersService.isAccountant`).
 
 ## Main flows
+- `expectedReportPeriods(business, today)` is the agent's pure read helper:
+  it reuses existing period enumeration/lookback/due-date rules, includes
+  the running period and inserts no tasks/workflows or notifications.
+  Existing generation methods retain their behavior.
 - `GET /accountant-tasks` — lists an accountant's open/done tasks, refreshing (regenerating) state on entry.
 - `POST /accountant-tasks` / `PATCH :id` / `DELETE :id` — manual task CRUD; delete on an AUTO task soft-dismisses instead of removing.
 - `POST /accountant-tasks/generate` — manual trigger of the full generator (idempotent, mirrors former cron).
