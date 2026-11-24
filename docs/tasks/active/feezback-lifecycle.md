@@ -84,3 +84,25 @@ Risk tier: backend domain/controller/persistence and frontend component behavior
   initial implementation delivery; this explicitly authorized follow-up applies it to dev.
 - Schema/local configuration verification only; application suites/builds were not
   repeated because no executable source changed.
+
+## Consent-check diagnosis and local key repair (2026-11-24)
+
+- All 25 saved dev rows reported CONSENT_CHECK_FAILED. A bounded read-only sample
+  reproduced failure during JWT signing, before token or consent HTTP requests.
+- The copied backend/.env referenced ../global/keys/private.key, but the ignored
+  key was absent from the feature worktree. The matching configured key exists
+  in the primary checkout. No inline signing key was configured.
+- Copied that existing key to the matching missing feature path, without changing
+  backend/.env, overwriting a file, or displaying key material. Verified file hashes
+  match and git check-ignore confirms global/keys/private.key is excluded.
+- Repeated the diagnostic through the actual compiled FeezbackApiService reader
+  for primary and spouse identities of one failed sample: both succeeded and
+  returned zero consents. An earlier raw GET returned documented USER_NOT_FOUND;
+  the application correctly normalizes this to an empty consent list.
+- Existing outgoing token/consent requests use the Cloud Run proxy and Feezback,
+  not local ngrok. No server was launched/restarted and no consent terminated.
+- Observed flags: lifecycle enabled, automatic disconnection disabled. Existing
+  stored errors clear on successful queued retries or an admin check request;
+  this diagnostic did not write user rows or manually erase errors.
+- Verification command: node C:/Users/user/Documents/ChatGPT/Keepintax-Feezback/diagnose-feezback-consent-check.cjs.
+  No executable repository source changed, so application suites/builds were reused.
