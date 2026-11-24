@@ -44,6 +44,13 @@ function validateJob(job) {
     )
       invalid();
   }
+  if (model.transferDetails != null) {
+    const details = model.transferDetails;
+    if (typeof details !== "object" || Array.isArray(details)) invalid();
+    for (const [key, limit] of Object.entries({ bank: 100, branch: 20, accountNumber: 40, beneficiary: 100 })) {
+      if (typeof details[key] !== "string" || !details[key].trim() || details[key].length > limit) invalid();
+    }
+  }
   for (const field of ["items", "totals", "payments", "paymentTotals"]) {
     const rows = model[field];
     if (!Array.isArray(rows) || rows.length > 1000) invalid();

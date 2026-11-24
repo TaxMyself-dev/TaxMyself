@@ -99,3 +99,14 @@ discount / 18% therefore produces a net discount of 100 and matching line and
 document totals of 1062. EXCLUDE/WITHOUT continue to use the entered discount
 unchanged. `doc-create-discount-audit.spec.ts` covers all three paths;
 `tsconfig.doc-discount.spec.json` isolates its ChromeHeadless tests.
+
+## Bank transfer instructions
+
+Only transaction invoices and tax invoices allow optional `transferDetails`
+(bank, branch, accountNumber, beneficiary). This is a nullable document snapshot,
+separate from received payments; it never affects accounting or payment totals.
+All four text fields are required when enabled, preserving leading zeros. Drafts
+and pending-allocation finalization retain the snapshot. Business/type/reset
+changes clear the frontend form. PDF output escapes values and isolates account
+and branch identifiers LTR. Apply the additive nullable JSON column SQL before
+boot/deployment; see `docs/features/document-bank-details.md` from repository root.

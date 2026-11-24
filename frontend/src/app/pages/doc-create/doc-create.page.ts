@@ -116,6 +116,41 @@ export class DocCreatePage implements OnInit, OnDestroy {
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
+  readonly transferDetailsEnabled = signal(false);
+  readonly transferDetailsValid = signal(false);
+  readonly supportsTransferDetails = computed(() =>
+    this.fileSelected() === DocumentType.TRANSACTION_INVOICE || this.fileSelected() === DocumentType.TAX_INVOICE);
+  readonly transferDetailsFields = [
+    { key: 'bank', label: 'בנק' }, { key: 'branch', label: 'סניף' },
+    { key: 'accountNumber', label: 'מספר חשבון' }, { key: 'beneficiary', label: 'שם המוטב' },
+  ];
+  readonly transferDetailsForm = new FormGroup({
+    bank: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]),
+    branch: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(20)]),
+    accountNumber: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(40)]),
+    beneficiary: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]),
+  });
+
+  resetTransferDetails(): void {
+    this.transferDetailsEnabled.set(false);
+    this.transferDetailsForm.reset();
+  }
+
+  restoreTransferDetails(details: any): void {
+    this.resetTransferDetails();
+    if (this.supportsTransferDetails() && details) {
+      this.transferDetailsForm.patchValue(details);
+      this.transferDetailsEnabled.set(true);
+    }
+  }
+
+  private collectTransferDetails(): Record<string, string> | null {
+    if (!this.supportsTransferDetails() || !this.transferDetailsEnabled()) return null;
+    if (this.transferDetailsForm.invalid) throw new Error('Incomplete transfer details');
+    return Object.fromEntries(Object.entries(this.transferDetailsForm.getRawValue())
+      .map(([key, value]) => [key, (value ?? '').trim()]));
+  }
+
   paymentsDetailsForm: FormGroup;
   myForm: FormGroup;
   userDetailsFields: ICreateDocField<FieldsCreateDocName, FieldsCreateDocValue>[] = [];
@@ -302,6 +337,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   createDocIsValid = computed(() => {
     return (
+      (!this.supportsTransferDetails() || !this.transferDetailsEnabled() || this.transferDetailsValid()) &&
       this.generalFormIsValidSignal() &&
       this.userFormIsValidSignal() &&
       this.lineItemsDraft().length > 0 &&
@@ -324,6 +360,8 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   constructor(private authService: AuthService, private fileService: FilesService, private genericService: GenericService, private router: Router, public docCreateService: DocCreateService, private formBuilder: FormBuilder, private docCreateBuilderService: DocCreateBuilderService, private dialogService: DialogService) {
 
+
+    this.transferDetailsForm.statusChanges.subscribe(() => this.transferDetailsValid.set(this.transferDetailsForm.valid));
 
     this.initialIndexForm = this.formBuilder.group({
       initialIndex: new FormControl(
@@ -495,6 +533,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   setSelectedBusiness(business: Business): void {
+    if (this.selectedBusinessNumber !== business.businessNumber) this.resetTransferDetails();
     this.selectedBusinessNumber = business.businessNumber;
     this.selectedBusinessName = business.businessName;
     this.selectedBusinessAddress = business.businessAddress;
@@ -543,6 +582,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
     this.requestAllocationVoluntarily.set(false);
     this.isDocWithPayments.set(event === DocumentType.RECEIPT || event === DocumentType.TAX_INVOICE_RECEIPT);
+    if (this.fileSelected() !== event) this.resetTransferDetails();
     this.fileSelected.set(event);
     this.HebrewNameFileSelected = this.getHebrewNameDoc(this.fileSelected());
     this.handleDocIndexes(this.fileSelected());
@@ -593,6 +633,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
         this.onSelectedDoc(event);
         break;
       case 'businessNumber':
+        this.resetTransferDetails();
         this.requestAllocationVoluntarily.set(false);
         this.generalDetailsForm.get('docType')?.setValue(""); //To enable switching between businesses and selecting the same document
         this.isFileSelected.set(false);
@@ -862,6 +903,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
   private resetDocFormsAndDrafts(): void {
+    this.resetTransferDetails();
     this.generalDetailsForm.reset({
       [DocCreateFields.DOC_VAT_RATE]: 18,
       [FieldsCreateDocValue.DOC_DATE]: new Date(),
@@ -1005,6 +1047,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
       generalDocIndex,
       issuerBusinessNumber,
       docDescription,
+      transferDetails: this.collectTransferDetails(),
       docDate,
       allocationNum,
       docSubtitle,
@@ -2676,6 +2719,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
               console.log('Patching generalDetailsForm with:', generalFormValues);
               this.generalDetailsForm.patchValue(generalFormValues);
+              this.restoreTransferDetails(docData.transferDetails);
 
               // Restore user details using correct field names from enum
               const recipientAddress = docData.recipientStreet

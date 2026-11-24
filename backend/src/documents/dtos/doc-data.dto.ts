@@ -1,9 +1,31 @@
 import { IsIsraeliPhone } from 'src/shared/israeli-phone';
-import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsNotEmpty, IsString, IsOptional, IsNumber, IsEnum, IsDateString, IsBoolean, IsObject, ValidateNested, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { BusinessType, DocumentType, DocumentStatusType } from 'src/enum';
 
+const trimText = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
+
+export class TransferDetailsDto {
+  @Transform(trimText) @IsString() @IsNotEmpty() @MaxLength(100)
+  bank: string;
+
+  @Transform(trimText) @IsString() @IsNotEmpty() @MaxLength(20)
+  branch: string;
+
+  @Transform(trimText) @IsString() @IsNotEmpty() @MaxLength(40)
+  accountNumber: string;
+
+  @Transform(trimText) @IsString() @IsNotEmpty() @MaxLength(100)
+  beneficiary: string;
+}
+
 export class DocDataDto {
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TransferDetailsDto)
+  transferDetails?: TransferDetailsDto;
+
 
   // Document details
 

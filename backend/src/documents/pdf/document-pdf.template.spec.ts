@@ -37,6 +37,7 @@ describe('document PDF template', () => {
     const html = buildDocumentHtml(model(), '');
     expect(html).toContain('טיוטה');
     expect(html).not.toContain('<section class="payments">');
+    expect(html).not.toContain('<section class="transfer-details">');
     expect(html).not.toContain('<div class="allocation">');
     expect(html).not.toContain('<img class="logo"');
   });

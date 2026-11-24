@@ -1,5 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, BeforeInsert, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { Currency, DocumentStatusType, DocumentType } from 'src/enum';
+import { TransferDetails } from './transfer-details';
 import { BillingAttempt } from '../billing/entities/billing-attempt.entity';
 
 
@@ -64,6 +65,9 @@ export class Documents {
 
   @Column({ type: 'varchar', nullable: true })
   docDescription: string;
+
+  @Column({ name: 'transfer_details', type: 'json', nullable: true })
+  transferDetails: TransferDetails | null;
 
   @Column({ type: 'varchar', nullable: true })
   docSubtitle: string; // כותרת משנה

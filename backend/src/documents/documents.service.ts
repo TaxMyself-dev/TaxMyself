@@ -1,3 +1,4 @@
+import { normalizeTransferDetails } from './transfer-details';
 import { EmailIntakeStore, EmailWork } from '../email-intake/email-intake.store';
 import { EmailRoutingService } from '../email-intake/email-routing.service';
 import { emailRoutingNote, EmailRoutingDecision, resolveAiBusiness } from '../email-intake/email-routing.policy';
@@ -735,6 +736,7 @@ export class DocumentsService {
       recipientTaxNumber: doc.recipientId ? `מספר עוסק: ${doc.recipientId}` : null,
       date: this.formatDateToDDMMYYYY(doc.docDate), documentType: isCopy ? 'העתק נאמן למקור' : 'מקור',
       subtitle: doc.docSubtitle, note: doc.docDescription,
+      transferDetails: normalizeTransferDetails(doc.docType, doc.transferDetails),
       allocation: allocationNumber ? `מספר הקצאה: ${allocationNumber}` : null,
       logoDataUri, preview,
       items: await this.transformLinesToItemsTable(data.linesData ?? []),
@@ -1053,6 +1055,7 @@ export class DocumentsService {
       // the transform — saveDocInfo only sets a default when this is undefined.
       ...(docData.docStatus ? { docStatus: docData.docStatus } : {}),
       docDescription: docData.docDescription || null,
+      transferDetails: normalizeTransferDetails(docData.docType, docData.transferDetails),
       docSubtitle: docData.docSubtitle || null,
       docNumber: String(docData.docNumber),
       docVatRate: Number(docData.docVatRate),
@@ -1894,6 +1897,7 @@ ${finalOwnerName}`;
         docDate: data.docDate ? new Date(data.docDate) : new Date(),
         valueDate: data.valueDate ? new Date(data.valueDate) : new Date(),
         issueHour,
+        transferDetails: normalizeTransferDetails(data.docType, data.transferDetails),
         isCancelled: data.isCancelled ?? false,
         docNumber: data.docNumber.toString(),
       };

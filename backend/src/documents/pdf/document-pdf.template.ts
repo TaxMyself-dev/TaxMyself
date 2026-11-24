@@ -1,4 +1,5 @@
 export interface DocumentPdfModel {
+  transferDetails?: { bank: string; branch: string; accountNumber: string; beneficiary: string } | null;
   title: string;
   issuerName?: string;
   issuerDetails?: string;
@@ -115,6 +116,8 @@ export function buildDocumentHtml(
     th{font-weight:700;border-bottom:1pt solid #888;text-align:right;white-space:nowrap;overflow-wrap:normal}td{border-bottom:.7pt solid #999}tbody tr:last-child td{border-bottom:0}
     .description{white-space:pre-line}.numeric{white-space:nowrap;overflow-wrap:normal;word-break:normal}td:last-child{font-weight:700}.totals{margin-top:4mm;width:max-content;min-width:100mm;max-width:100%;margin-right:auto;break-inside:avoid}
     .total-row{display:flex;justify-content:space-between;gap:8mm;font-weight:700;font-size:13pt;margin-top:1mm;white-space:nowrap}.total-row>span,.total-row>bdi{flex-shrink:0;white-space:nowrap}
+    .transfer-details{margin-top:10mm;border:1pt solid #aaa;border-radius:2mm;padding:4mm;break-inside:avoid;overflow-wrap:anywhere}
+    .transfer-details h2{font-size:12pt;margin:0 0 2mm}.transfer-row{display:flex;gap:3mm}.transfer-row>span{min-width:27mm;font-weight:700}
     .draft{position:fixed;top:100mm;left:15mm;right:15mm;font-size:80pt;color:rgba(28,34,48,.065);transform:rotate(-25deg);text-align:center;z-index:-1;pointer-events:none}
     </style></head><body>${
       model.preview ? '<div class="draft">טיוטה</div>' : ''
@@ -164,6 +167,12 @@ export function buildDocumentHtml(
           }${totals(model.paymentTotals)}</section>`
         : ''
     }
+    ${model.transferDetails ? `<section class="transfer-details"><h2>פרטי חשבון להעברת תשלום</h2>${[
+      ['בנק', model.transferDetails.bank, 'auto'],
+      ['סניף', model.transferDetails.branch, 'ltr'],
+      ['מספר חשבון', model.transferDetails.accountNumber, 'ltr'],
+      ['שם המוטב', model.transferDetails.beneficiary, 'auto'],
+    ].map(([label, value, dir]) => `<div class="transfer-row"><span>${label}:</span><bdi dir="${dir}">${escapeHtml(value)}</bdi></div>`).join('')}</section>` : ''}
     </body></html>`;
 }
 

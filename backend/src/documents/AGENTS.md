@@ -167,3 +167,14 @@ preference on the server; the cashflow list follows it without a show-excluded t
 Apply docs/features/direct-card-cashflow.sql manually before booting this version.
 The script is also appended to cutover.sql and was applied only to keepintax-dev.
 See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
+
+## Bank transfer instructions
+
+Only transaction invoices and tax invoices allow optional `transferDetails`
+(bank, branch, accountNumber, beneficiary). This is a nullable document snapshot,
+separate from received payments; it never affects accounting or payment totals.
+All four text fields are required when enabled, preserving leading zeros. Drafts
+and pending-allocation finalization retain the snapshot. Business/type/reset
+changes clear the frontend form. PDF output escapes values and isolates account
+and branch identifiers LTR. Apply the additive nullable JSON column SQL before
+boot/deployment; see `docs/features/document-bank-details.md` from repository root.
