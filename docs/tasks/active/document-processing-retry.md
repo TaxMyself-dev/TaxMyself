@@ -1,6 +1,6 @@
 # Manual document-processing retry
 
-- Status: WORKER_COMPLETE
+- Status: INTEGRATED
 - Task manager/worker: Codex (single agent)
 - Worktree: isolated document-retry feature worktree
 - Branch: codex/document-retry
@@ -36,3 +36,19 @@ Completed in the isolated feature branch; ready for review and explicit main-int
 - Full repository Jest and unrelated UI suites were not run: this change is confined to retry/domain endpoints, archive projection/selection and mailbox status UI; direct consumers and both package builds were checked.
 - Schema / production / accounting / OAuth / external provider impact: none. Security: new owner-only endpoints with business/mailbox/worker fences and safe partial-result reporting.
 - Branch and commits are retained for review. Worktree cleanup follows successful, explicitly approved main integration, not feature completion alone.
+
+## Approved local main integration (2026-11-25)
+
+Elazar explicitly approved local main integration and focused post-integration checks, with no GitHub push. Main was clean at 6ca36c56; codex/document-retry was clean at 1935f2ec and a fast-forward descendant. Integrated with `git merge --ff-only 1935f2ec`.
+
+- Pre-integration effective configuration: frontend 4200, backend 3000, frontend API http://localhost:3000/. Verified with both local start scripts' --print-config and the listening processes. Feature overrides were confined to ignored configuration.
+- Re-ran the exact focused backend command listed above on main at 1935f2ec: 5 suites / 72 tests passed (48.9s).
+- Re-ran the exact focused ChromeHeadless command listed above on main at 1935f2ec: 66 tests passed, including rendered 375px/1100px retry controls and selection regression coverage.
+- Reused the passing Nest and Angular production builds of the identical executable revision. No broad repository suites or redundant production rebuilds were run, as requested.
+- The existing backend watcher compiled with zero errors and restarted on port 3000. Unauthenticated POSTs to both new retry endpoints returned 401. Frontend localhost:4200 returned 200 after recompilation. An earlier optional 15-second frontend request timed out during compilation; later localhost and IPv6-loopback checks both returned 200.
+- No real document retries, imports, file deletions or explicit AI calls were triggered during integration checks.
+- Completed worktree verified clean, exact integrated HEAD/branch, no important untracked files and no active dependent server. Its ignored backend environment and feature port configuration were copied to a private non-Git backup and SHA-256 verified before safe removal without force. The feature branch and commit are retained.
+- Cleanup measurements and final removal result are recorded in the local handoff evidence; main itself is retained.
+- This integration record is documentation only after the tested executable commit. GitHub push and deployment remain unapproved and were not performed.
+
+Cleanup completed: the document-retry feature worktree was removed with git worktree remove (no force). Its measured logical file size was 4,010,918,062 bytes (3.74 GiB across 170,799 files); private configuration backups were verified and the branch was retained.
