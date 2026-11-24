@@ -101,3 +101,22 @@ Schema/production/accounting/external-contract impact: none. Security change:
 AI uses the actor's own subscription entitlement instead of ADMIN. Trial/full
 access inherits existing module policy. Changing a live plan would affect all
 members and is explicitly outside this task. See docs/features/ai-module.md.
+
+## Local runtime preparation follow-up
+
+The user reported 503 AGENT_UNAVAILABLE opening the local chat. The worktree
+had backend/frontend dependencies but not the separate backend/agent install
+or bundle. The existing backend/.env already had the required provider keys;
+values were checked without printing them. The local frontend on 4200 and
+backend on 3000 were confirmed to belong to this AI worktree; neither process
+was stopped or restarted. This is user-started local configuration, not a main
+integration port check.
+
+Executed in backend/agent: `npm ci --no-audit --no-fund` (exit 0, 724 packages),
+then `npm run build` (exit 0, agent-http.mjs and task-worker.mjs generated).
+Executed in backend: `node scripts/check-agent-image.cjs` (exit 0,
+AGENT_IMAGE_LOAD_OK). This proves the actual compiled backend loader can
+import both required exports offline. npm peer/engine warnings did not block
+installation. Generated bundles/dependencies and backend/.env verified ignored.
+Authenticated readAgentSession, database availability and model execution have
+not been retested; the existing UI can retry without a backend restart.

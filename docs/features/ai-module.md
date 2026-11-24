@@ -49,6 +49,14 @@ document-AI scheduler credentials and infrastructure remain internal.
 
 ## Manual checks after approved integration
 
+Local worktrees also need the independent agent package prepared: run `npm ci`
+and `npm run build` inside `backend/agent`. The Nest build does not build this
+ESM package. Missing `backend/agent/dist/agent-http.mjs` produces
+503 AGENT_UNAVAILABLE even when backend/.env contains all credentials.
+From `backend`, `node scripts/check-agent-image.cjs` verifies the bundle through
+the same loader used by AgentHarnessService, without serving an authenticated
+request or calling a model. Failed loads retry on the next chat request.
+
 - Entitled regular owner: AI main menu opens all three screens; admin panel denied.
 - Owner without AI: no AI menu, direct AI routes and APIs denied.
 - Grant/revoke AI: refresh subscription state; verify menu and direct APIs.
