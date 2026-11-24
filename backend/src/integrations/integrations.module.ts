@@ -21,6 +21,8 @@ import { EmailConnectionsService } from './services/email-connections.service';
 import { ComposioClientService } from './services/composio-client.service';
 import { EmailAttachmentDownloadService } from './services/email-attachment-download.service';
 import { EmailProvider } from './providers/email-provider';
+import { ComposioOutlookProvider } from './providers/composio-outlook.provider';
+import { ConnectedEmailProvider } from './providers/connected-email.provider';
 import { ComposioGmailProvider } from './providers/composio-gmail.provider';
 import { GmailReaderService } from './services/gmail-reader.service';
 import { GmailDriveImportService } from './services/gmail-drive-import.service';
@@ -48,7 +50,7 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
     DocumentImportModule,
   ],
   controllers: [IntegrationsController],
-  providers: [EmailIntakeRunsService, FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, { provide: EmailProvider, useClass: ComposioGmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
+  providers: [EmailIntakeRunsService, FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, ComposioGmailProvider, ComposioOutlookProvider, { provide: EmailProvider, useClass: ConnectedEmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
   exports: [UserIntegrationsService, GmailReaderService, GmailDriveImportService, GmailSyncService],
 })
 export class IntegrationsModule {}

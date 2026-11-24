@@ -1,5 +1,5 @@
 <div class="settings-layout" dir="rtl">
-  <aside class="settings-sidebar" aria-label="ניווט הגדרות חדשות">
+  <aside class="settings-sidebar" aria-label="ניווט הגדרות">
     <h1>הגדרות</h1>
     <button class="group-toggle" type="button" [attr.aria-expanded]="personalExpanded()"
       aria-controls="personal-links" (click)="personalExpanded.set(!personalExpanded())">
@@ -23,7 +23,7 @@
     <button class="logout" type="button" (click)="confirmLogout()"><img src="assets/settings-new/logout.svg" width="12" height="12" alt="" />התנתקות</button>
   </aside>
 
-  <main #scroller class="settings-scroll" (scroll)="onScroll()" (wheel)="stopRestoringSection()" (touchstart)="stopRestoringSection()" (pointerdown)="stopRestoringSection()" (keydown)="stopRestoringSection()" aria-label="הגדרות אישיות">
+  <main #scroller class="settings-scroll" (scroll)="onScroll()" (wheel)="stopRestoringSection($event)" (touchstart)="stopRestoringSection($event)" (pointerdown)="stopRestoringSection($event)" (keydown)="stopRestoringSection($event)" aria-label="הגדרות אישיות">
     <div class="settings-content">
       <section data-settings-section="account" id="new-account" aria-labelledby="account-heading">
         @if (authService.isViewingAsClient()) { <p class="view-only" role="status">פרטי החשבון מוצגים לצפייה בלבד.</p> }
@@ -159,7 +159,7 @@
         </div>
       </section>
 
-      @if (agentAccess.isAdmin()) {
+      @if (agentAccess.canAccessAi()) {
       <section class="panel agent-panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
         @if (agentActivated()) { <app-my-agent /> }
         @else {
@@ -223,7 +223,9 @@
         </div>
         @if (connectionsActivated()) {
           <div class="integration-area"><app-gmail-integration /></div>
+          <!-- Dedicated forwarding email is temporarily hidden; keep its implementation for reactivation.
           <div class="integration-area"><app-inbound-email /></div>
+          -->
         }
       </section>
 

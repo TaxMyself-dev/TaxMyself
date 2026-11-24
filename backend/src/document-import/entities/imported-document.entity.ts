@@ -32,6 +32,9 @@ import { DocumentImportSource } from '../enums/document-import.enums';
 @Index('ux_imported_documents_content', ['firebaseId', 'businessNumber', 'contentHash'], { unique: true })
 @Index('ix_imported_documents_user_business', ['firebaseId', 'businessNumber'])
 export class ImportedDocument {
+  @Column({ name: 'email_routing_json', type: 'json', nullable: true })
+  emailRouting: import('../../email-intake/email-routing.policy').EmailRoutingDecision | null;
+
   @PrimaryGeneratedColumn()
   id: number;
 

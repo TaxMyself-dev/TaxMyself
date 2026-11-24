@@ -57,6 +57,7 @@ interface GmailSyncRunContext {
 
 /** Per-connected-mailbox sync state, one entry per Google integration row. */
 export interface GmailAccountSyncStatus {
+  provider?: IntegrationProvider;
   passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
@@ -127,19 +128,29 @@ export class GmailSyncService {
   async getSyncStatus(firebaseId: string): Promise<GmailSyncStatusResponse> {
     // Visible accounts only: a REVOKED (user-disconnected) mailbox must not
     // reappear in the UI. EXPIRED accounts stay so the user can reconnect.
-    const integrations = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
+    const google = await this.userIntegrationsService.findAllVisibleByUserAndProvider(
       firebaseId,
       IntegrationProvider.GOOGLE,
     );
+    const microsoft = await this.userIntegrationsService.findAllVisibleByUserAndProvider(firebaseId, IntegrationProvider.MICROSOFT);
+    const integrations = [...google, ...microsoft.filter(row => row.provider === IntegrationProvider.MICROSOFT)].sort((a, b) => a.id - b.id);
 
     const passwordCounts = this.protectedPdf?.enabled()
       ? await this.protectedPdf.passwordCounts(firebaseId, integrations.map(row => row.id)) : new Map<number, number>();
+    const runs = this.durableRuns?.enabled() ? await this.durableRuns.status(firebaseId) : undefined;
+    const supersededError = (integration: UserIntegration) => {
+      const latest = runs?.find(run => run.integrationId === integration.id);
+      return integration.lastSyncStatus === IntegrationSyncStatus.ERROR && !!integration.lastSyncStartedAt
+        && latest?.pull_state === 'COMPLETE'
+        && new Date(latest.startedAt).getTime() > integration.lastSyncStartedAt.getTime();
+    };
     return {
-      ...(this.durableRuns?.enabled()?{runs:await this.durableRuns.status(firebaseId)}:{}),
+      ...(runs ? { runs } : {}),
       minFromDate: this.getMinFromDate(),
       maxToDate: this.getMaxToDate(),
       accounts: integrations.map((integration) => ({
         id: integration.id,
+        provider: integration.provider,
         passwordRequiredCount: passwordCounts.get(integration.id) || 0,
         accountEmail: integration.accountEmail,
         status: integration.status,
@@ -148,9 +159,9 @@ export class GmailSyncService {
         initialImportCompleted: !!integration.initialImportCompletedAt,
         initialImportCompletedAt: integration.initialImportCompletedAt?.toISOString() ?? null,
         lastSuccessfulSyncAt: integration.lastSuccessfulSyncAt?.toISOString() ?? null,
-        lastSyncStatus: integration.lastSyncStatus ?? null,
-        lastSyncError: integration.lastSyncError ?? null,
-        syncErrorPredatesConnection: integration.status === IntegrationStatus.ACTIVE
+        lastSyncStatus: supersededError(integration) ? IntegrationSyncStatus.SUCCESS : integration.lastSyncStatus ?? null,
+        lastSyncError: supersededError(integration) ? null : integration.lastSyncError ?? null,
+        syncErrorPredatesConnection: !supersededError(integration) && integration.status === IntegrationStatus.ACTIVE
           && integration.lastSyncStatus === IntegrationSyncStatus.ERROR
           && !!integration.connectionVerifiedAt && !!integration.lastSyncStartedAt
           && integration.lastSyncStartedAt.getTime() < integration.connectionVerifiedAt.getTime(),
@@ -206,7 +217,7 @@ export class GmailSyncService {
       integrationId,
       firebaseId,
     );
-    if (integration.provider !== IntegrationProvider.GOOGLE) {
+    if (![IntegrationProvider.GOOGLE, IntegrationProvider.MICROSOFT].includes(integration.provider)) {
       throw new BadRequestException('Integration is not a Google account.');
     }
     if (integration.status !== IntegrationStatus.ACTIVE) {

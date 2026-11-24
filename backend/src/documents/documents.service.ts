@@ -1,4 +1,7 @@
 import { EmailIntakeStore, EmailWork } from '../email-intake/email-intake.store';
+import { EmailRoutingService } from '../email-intake/email-routing.service';
+import { emailRoutingNote, EmailRoutingDecision, resolveAiBusiness } from '../email-intake/email-routing.policy';
+import { isDeepStrictEqual } from 'util';
 import { DocumentAiStore } from '../document-ai/document-ai.store';
 import { AnalysisInput, AnalysisInputError, AnalysisJob, AnalysisOutcome, AnalysisPurpose, AnalysisReceipt, analysisContext } from '../document-ai/document-ai.types';
 import { CapacityProfile, capacityProfile } from '../document-ai/document-ai.capacity';
@@ -225,6 +228,7 @@ export class DocumentsService {
     @Optional() private readonly emailStore?: EmailIntakeStore,
     @Optional() private readonly analysisQueue?: DocumentAiStore,
     @Optional() private readonly queuedMatching?: MatchingService,
+    @Optional() private readonly emailRouting?: EmailRoutingService,
   ) { }
 
   isIncrement: boolean = false;
@@ -3374,7 +3378,8 @@ ${finalOwnerName}`;
       await this.queueStore().patch(job,{claim_id:claim.id},manager);
     });
     const catalog=cached?[]:await this.buildExtractionCatalog(job.owner,job.business);
-    return {bytes,mimeType:job.mime_type,catalog,gmailPolicy:job.source==='GMAIL',cached,estimatedInput:Math.max(1,this.documentProcessor.estimatePromptTokens(catalog,job.source==='GMAIL')+(job.mime_type==='application/pdf'?pages*profile.pdfPageTokens:profile.imageTokens)),estimatedOutput:profile.outputEstimate};
+    const beforeAnalyze=job.purpose==='GMAIL'&&this.emailRouting?()=>this.emailRouting.assertImportedAllowed(job.owner,Number(analysisContext(job.context_json).importId)):undefined;
+    return {bytes,mimeType:job.mime_type,catalog,gmailPolicy:job.source==='GMAIL',cached,beforeAnalyze,estimatedInput:Math.max(1,this.documentProcessor.estimatePromptTokens(catalog,job.source==='GMAIL')+(job.mime_type==='application/pdf'?pages*profile.pdfPageTokens:profile.imageTokens)),estimatedOutput:profile.outputEstimate};
   }
   async completeQueuedAnalysis(job:AnalysisJob,outcome:AnalysisOutcome):Promise<Record<string,any>>{
     const {user,business}=await this.analysisBusiness(job.owner,job.business),context=analysisContext(job.context_json);
@@ -3544,6 +3549,18 @@ ${finalOwnerName}`;
 
   async persistEmailWork(work:EmailWork,token:string,outcome:any,context?:any) {
     if(!this.emailStore?.enabled())throw new Error('Durable email disabled');
+    let routing:EmailRoutingDecision=work.email_routing_json?analysisContext(work.email_routing_json) as EmailRoutingDecision:null;
+    if(this.emailRouting&&outcome.intakeDecision==='accounting'&&outcome.invoices?.length){
+      const businesses=await this.emailRouting.ownedBusinesses(work.firebase_id);
+      const identified=businesses.length>1?resolveAiBusiness(outcome.invoices,businesses):null;
+      routing=routing||{version:'recipient-v1',initialBusiness:work.business_number,finalBusiness:work.business_number,source:businesses.length===1?'SINGLE_BUSINESS':'MAILBOX',decidedAt:new Date().toISOString()};
+      if(identified){routing={...routing,finalBusiness:identified.businessNumber,recipient:identified.recipient,decidedAt:new Date().toISOString(),...(identified.businessNumber!==routing.initialBusiness?{source:'AI' as const}:{} )};}
+      if(routing.finalBusiness!==work.business_number){
+        // Freeze the decision before any cross-business Drive mutation. Result stays saved.
+        await this.emailStore.updateWork(work,token,{email_routing_json:JSON.stringify(routing),email_work_state:'ROUTING_PENDING'});
+        return;
+      }
+    }
     const catalog=context?.catalog || await this.buildExtractionCatalog(work.firebase_id,work.business_number);
     await this.emailStore.transaction(async manager=>{
       const current=await this.emailStore.work(work.id,work.firebase_id,work.business_number,manager);
@@ -3552,10 +3569,218 @@ ${finalOwnerName}`;
       if(!claim)throw new Error('Email claim missing');
       const negative=outcome.intakeDecision==='not_accounting'&&Array.isArray(outcome.invoices)&&outcome.invoices.length===0;
       const relevant=outcome.intakeDecision==='accounting'&&Array.isArray(outcome.invoices)&&outcome.invoices.length>0;
-      if(relevant)await this.persistExtractedRows({index:claim.userId},work.business_number,{id:work.drive_file_id,name:work.filename,md5Checksum:claim.driveFileMd5},claim.uploadDate,RecordSource.EMAIL,claim,outcome.invoices,outcome.rawResponse||'',catalog,repository,await repository.find({where:{driveFileId:work.drive_file_id}}));
+      if(relevant){
+        if(routing)claim.emailRouting=routing;
+        await this.persistExtractedRows({index:claim.userId},work.business_number,{id:work.drive_file_id,name:work.filename,md5Checksum:claim.driveFileMd5},claim.uploadDate,RecordSource.EMAIL,claim,outcome.invoices,outcome.rawResponse||'',catalog,repository,await repository.find({where:{driveFileId:work.drive_file_id}}));
+        if(routing)await this.emailStore.query('UPDATE extracted_document SET email_routing_json=? WHERE drive_file_id=? AND user_id=? AND business_number=?',[JSON.stringify(routing),work.drive_file_id,claim.userId,work.business_number],manager);
+        if(routing)await this.emailStore.query('UPDATE imported_documents SET email_routing_json=? WHERE id=? AND firebase_id=? AND business_number=? AND email_lease_token=?',[JSON.stringify(routing),work.id,work.firebase_id,work.business_number,token],manager);
+      }
       else {claim.status=negative?ExtractedDocStatus.REJECTED:ExtractedDocStatus.PENDING_REVIEW;claim.documentKind=DocumentKind.UNIDENTIFIED;claim.documentType=ExtractedDocumentType.UNKNOWN;claim.rejectionReason=null;claim.rawResponse=null;await repository.save(claim)}
       const result=await this.emailStore.query('UPDATE imported_documents SET email_work_state=?,email_decision=?,email_error_code=?,email_decided_at=UTC_TIMESTAMP(3) WHERE id=? AND email_lease_token=?',[negative?'DELETE_PENDING':'MOVE_PROCESSED',negative?'NOT_ACCOUNTING':relevant?'ACCOUNTING':'UNCERTAIN',outcome.technicalCode||null,work.id,token],manager);if(result.affectedRows!==1)throw new Error('Email lease changed');
       work.email_work_state=negative?'DELETE_PENDING':'MOVE_PROCESSED';work.email_decision=negative?'NOT_ACCOUNTING':relevant?'ACCOUNTING':'UNCERTAIN';
+    });
+  }
+  /** The source run/job remain immutable audit records; only retained document ownership moves. */
+  async completeEmailRouting(work: EmailWork, token: string): Promise<void> {
+    const plan = analysisContext(
+      work.email_routing_json,
+    ) as EmailRoutingDecision;
+    if (
+      plan.version !== 'recipient-v1' ||
+      plan.initialBusiness !== work.business_number ||
+      plan.source !== 'AI' ||
+      !plan.finalBusiness
+    )
+      throw new Error('Invalid saved routing decision');
+    const outcome = analysisContext(work.email_result_json);
+    if (
+      outcome.intakeDecision !== 'accounting' ||
+      !outcome.invoices?.length ||
+      resolveAiBusiness(outcome.invoices, [
+        { businessNumber: plan.finalBusiness },
+      ])?.businessNumber !== plan.finalBusiness
+    )
+      throw new Error('Saved extraction unavailable or inconsistent');
+    const source = await this.businessRepo.findOneBy({
+      firebaseId: work.firebase_id,
+      businessNumber: work.business_number,
+    });
+    const target = await this.businessRepo.findOneBy({
+      firebaseId: work.firebase_id,
+      businessNumber: plan.finalBusiness,
+    });
+    if (
+      !source?.driveInboxFolderId ||
+      !source.driveProcessedFolderId ||
+      !target?.driveProcessedFolderId ||
+      source.firebaseId !== work.firebase_id ||
+      target.firebaseId !== work.firebase_id
+    )
+      throw new Error('Routing business folders unavailable');
+    const check = async (manager: EntityManager) => {
+      // Revalidate ownership/folders inside both short DB transactions: Drive may
+      // have succeeded while a user removed or changed one of the businesses.
+      for (const expected of [source, target].sort((a, b) =>
+        a.businessNumber.localeCompare(b.businessNumber),
+      )) {
+        const currentBusiness = await manager.getRepository(Business).findOne({
+          where: {
+            firebaseId: work.firebase_id,
+            businessNumber: expected.businessNumber,
+          },
+          lock: { mode: 'pessimistic_read' },
+        });
+        if (
+          !currentBusiness ||
+          currentBusiness.driveProcessedFolderId !==
+            expected.driveProcessedFolderId ||
+          currentBusiness.driveInboxFolderId !== expected.driveInboxFolderId
+        )
+          throw new Error('Routing business changed during transfer');
+      }
+      const current = await this.emailStore.work(
+        work.id,
+        work.firebase_id,
+        work.business_number,
+        manager,
+      );
+      if (
+        !current ||
+        current.drive_file_id !== work.drive_file_id ||
+        current.content_hash !== work.content_hash ||
+        current.email_lease_token !== token ||
+        current.email_work_state !== 'ROUTING_PENDING' ||
+        !isDeepStrictEqual(analysisContext(current.email_routing_json), plan)
+      )
+        throw new Error('Routing lease or decision changed');
+      const duplicate = await this.emailStore.query(
+        'SELECT id FROM imported_documents WHERE firebase_id=? AND business_number=? AND content_hash=? AND id<>? FOR UPDATE',
+        [work.firebase_id, plan.finalBusiness, work.content_hash, work.id],
+        manager,
+      );
+      if (duplicate.length)
+        throw new Error('Routing target already contains this content');
+      const claim = await manager.getRepository(ExtractedDocument).findOne({
+        where: {
+          id: current.email_claim_id,
+          driveFileId: work.drive_file_id,
+          businessNumber: work.business_number,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !claim ||
+        claim.status !== ExtractedDocStatus.PROCESSING ||
+        claim.deletedAt ||
+        claim.confirmedExpenseId
+      )
+        throw new Error('Routing document is no longer pending');
+      return { current, claim };
+    };
+    await this.emailStore.transaction(check);
+    const metadata = await this.googleDriveService.getIntakeFileMetadata(
+      work.drive_file_id,
+    );
+    const parents = metadata.parents || [];
+    if (
+      metadata.trashed ||
+      parents.length !== 1 ||
+      ![
+        source.driveInboxFolderId,
+        source.driveProcessedFolderId,
+        target.driveProcessedFolderId,
+      ].includes(parents[0])
+    )
+      throw new Error('Routing file outside expected folders');
+    if (parents[0] !== target.driveProcessedFolderId)
+      await this.googleDriveService.moveFile(
+        work.drive_file_id,
+        parents[0],
+        target.driveProcessedFolderId,
+      );
+    const verified = await this.googleDriveService.getIntakeFileMetadata(
+      work.drive_file_id,
+    );
+    if (
+      verified.trashed ||
+      verified.parents?.length !== 1 ||
+      verified.parents[0] !== target.driveProcessedFolderId
+    )
+      throw new Error('Routing move not confirmed');
+    const catalog = await this.buildExtractionCatalog(
+      work.firebase_id,
+      plan.finalBusiness,
+    );
+    const invoices = outcome.invoices.map((invoice: any) => {
+      const match = catalog.find(
+        (entry) =>
+          entry.categoryName === invoice.category &&
+          entry.subCategoryName === invoice.sub_category,
+      );
+      return {
+        ...invoice,
+        category: match?.categoryName || null,
+        sub_category: match?.subCategoryName || null,
+        tax_percent: match?.taxPercent ?? null,
+        vat_percent: match?.vatPercent ?? null,
+        is_equipment: match?.isEquipment ?? null,
+      };
+    });
+    const completed = { ...plan, movedAt: new Date().toISOString() };
+    await this.emailStore.transaction(async (manager) => {
+      const { claim } = await check(manager);
+      const repository = manager.getRepository(ExtractedDocument);
+      claim.emailRouting = completed;
+      await this.persistExtractedRows(
+        { index: claim.userId },
+        plan.finalBusiness,
+        {
+          id: work.drive_file_id,
+          name: work.filename,
+          md5Checksum: claim.driveFileMd5,
+        },
+        claim.uploadDate,
+        RecordSource.EMAIL,
+        claim,
+        invoices,
+        outcome.rawResponse || '',
+        catalog,
+        repository,
+        await repository.find({ where: { driveFileId: work.drive_file_id } }),
+      );
+      await this.emailStore.query(
+        'UPDATE extracted_document SET email_routing_json=? WHERE drive_file_id=? AND user_id=? AND business_number=?',
+        [
+          JSON.stringify(completed),
+          work.drive_file_id,
+          claim.userId,
+          plan.finalBusiness,
+        ],
+        manager,
+      );
+      const result = await this.emailStore.query(
+        "UPDATE imported_documents SET business_number=?,drive_folder_id=?,email_routing_json=?,email_work_state='AWAITING_APPROVAL',email_decision='ACCOUNTING',email_result_json=NULL,email_error_code=NULL,email_decided_at=UTC_TIMESTAMP(3) WHERE id=? AND firebase_id=? AND business_number=? AND email_lease_token=? AND email_work_state='ROUTING_PENDING'",
+        [
+          plan.finalBusiness,
+          target.driveProcessedFolderId,
+          JSON.stringify(completed),
+          work.id,
+          work.firebase_id,
+          work.business_number,
+          token,
+        ],
+        manager,
+      );
+      if (result.affectedRows !== 1)
+        throw new Error('Routing commit lease changed');
+    });
+    Object.assign(work, {
+      business_number: plan.finalBusiness,
+      drive_folder_id: target.driveProcessedFolderId,
+      email_routing_json: completed,
+      email_work_state: 'AWAITING_APPROVAL',
+      email_decision: 'ACCOUNTING',
+      email_result_json: null,
     });
   }
   private async safelyMoveToProcessed(
@@ -4145,6 +4370,7 @@ ${finalOwnerName}`;
       documentDate: d.date,
       uploadDate: d.uploadDate ?? (d.date ? new Date(d.date) : null),
       source: d.source,
+      routingNote: emailRoutingNote(d.emailRouting),
       status: d.deletedAt
         ? ArchiveItemStatus.DELETED
         : this.archiveItemStatusForDocument(d, approvalStatusByExpenseId),
@@ -4527,6 +4753,7 @@ ${finalOwnerName}`;
 
 /** A row on the ארכיון שלי (unified archive) page — `GET /documents/me/archived`. */
 export interface ArchivedItem {
+  routingNote?: string | null;
   /** ExtractedDocument.id, Expense.id or SlimTransaction.id — not globally
    *  unique across item types, so callers must disambiguate with `itemType`. */
   id: number;

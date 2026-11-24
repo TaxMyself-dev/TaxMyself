@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.email-spec.json",
+  "include": [
+    "src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts",
+    "src/app/pages/settings-new/email-provider-icons.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

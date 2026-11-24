@@ -15,7 +15,7 @@ import { AgentClassificationService } from '../agent-harness/agent-classificatio
 import { CatalogContextService } from '../bookkeeping/catalog-context.service';
 import { CatalogService } from '../bookkeeping/catalog.service';
 import { BillingService } from '../billing/services/billing.service';
-import { ApprovalStatus, ModuleName, UserRole } from '../enum';
+import { ApprovalStatus, ModuleName } from '../enum';
 import { User } from '../users/user.entity';
 import { FullTransactionCache } from '../transactions/full-transaction-cache.entity';
 import { ClassifiedTransactions } from '../transactions/classified-transactions.entity';
@@ -54,7 +54,7 @@ export class AutoClassificationService {
   ) {}
   private async check(user: AgentHarnessUser) {
     assertSelf(user);
-    await this.domain.assertAiAdmin(user);
+    await this.domain.assertAiAccess(user);
   }
   private async connected(owner: string) {
     const row = await this.db
@@ -349,10 +349,10 @@ export class AutoClassificationService {
       );
       try {
         try {
-          await this.domain.assertAiAdmin(autoIdentity(owner));
+          await this.domain.assertAiAccess(autoIdentity(owner));
         } catch (error) {
           if (!(error instanceof ForbiddenException)) throw error;
-          await this.pause(owner, 'ADMIN_REQUIRED');
+          await this.pause(owner, 'AI_MODULE_REQUIRED');
           return;
         }
         if (!(await this.connected(owner))) {
@@ -594,7 +594,8 @@ export class AutoClassificationService {
           if (
             !pref?.enabled ||
             Number(pref.version) !== consentVersion ||
-            !ownerRow?.role?.includes(UserRole.ADMIN) ||
+            !ownerRow ||
+            !(await this.billing.hasModuleAccess(owner, ModuleName.AI, false, false)) ||
             !ownerRow?.hasOpenBanking ||
             !(await this.billing.hasModuleAccess(
               owner,

@@ -1,7 +1,21 @@
 ## Purpose
 
+Gmail business routing: owner-only GET/POST google/:integrationId/routing manages
+a mailbox default and up to 100 exact sender rules. Provider read boundaries
+reload all current rules; blocked senders never reach attachment/AI calls. Query
+changes restart durable pagination without discarding source identities. See
+../../../docs/features/gmail-business-routing.md and email-intake/AGENTS.md.
+
 Owns connected third-party user integrations, currently Composio-managed Gmail
 document import/synchronization.
+
+Before Google connect, the owner selects an owned business (single-business UI
+goes straight to Google). GET google/routing-options returns only owned choices.
+The business is frozen in oauth_states.business_number, never a callback URL
+parameter. Callback revalidates ownership before provider reads and before save.
+Reconnect updates only the default JSON key via JSON_SET, preserving sender rules
+and sync cursors, including concurrent settings edits. The nullable state column
+was explicitly authorized/applied to keepintax-dev on 2026-11-23; not production.
 
 ## Key entities/files
 
@@ -36,3 +50,13 @@ document import/synchronization.
 ## Manual Gmail pull date range
 
 The manual pull dialog requires from/to dates shared by selected accounts. Server validation and inclusive-end query construction reuse GmailSyncService initial-import rules (Jan 1 previous year through today in Israel). The API retains its no-date 90-day fallback for existing clients; partial date ranges or combining dates with q are rejected. Initial-import completion and nightly cursor are unchanged.
+
+
+## Outlook through Composio
+
+Settings now supports Microsoft Outlook alongside Gmail. OAuth state is provider-bound;
+the backend validates managed auth config, toolkit, owner, active account and identity.
+Read tools are allowlisted separately per toolkit. The persisted provider selects the
+reader; date windows, durable runs, owner restrictions and content-hash dedup are shared.
+Historical GMAIL source/metadata names identify this shared email pipeline internally.
+See `docs/features/outlook-email.md` for configuration and the verified DEV-only schema and pending live OAuth verification.

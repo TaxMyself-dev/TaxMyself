@@ -7,9 +7,13 @@ export type GmailSyncRunStatus = 'RUNNING' | 'SUCCESS' | 'ERROR';
 
 /** סטטוס האינטגרציה עצמה (REVOKED לא מוחזר לפרונט). */
 export type GmailIntegrationStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+export interface EmailSenderRule { sender:string;action:'BLOCK'|'BUSINESS';businessNumber?:string; }
+export interface EmailRoutingSettings { businessNumber:string|null;rules:EmailSenderRule[]; }
+export interface EmailRoutingConfiguration {settings:EmailRoutingSettings;businesses:{businessNumber:string;businessName:string}[];}
 
 /** מצב סנכרון של חשבון Gmail בודד (שורה אחת מתוך user_integrations). */
 export interface GmailAccountSyncStatus {
+  provider?: 'GOOGLE' | 'MICROSOFT';
   passwordRequiredCount?: number;
   id: number;
   accountEmail: string | null;
@@ -74,11 +78,31 @@ export interface GmailImportAllResult {
 export class IntegrationsService {
   constructor(private http: HttpClient) {}
 
+  getEmailRouting(id:number):Observable<EmailRoutingConfiguration>{
+    return this.http.get<EmailRoutingConfiguration>(`${environment.apiUrl}integrations/google/${id}/routing`);
+  }
+  getEmailRoutingOptions():Observable<Pick<EmailRoutingConfiguration,'businesses'>>{
+    return this.http.get<Pick<EmailRoutingConfiguration,'businesses'>>(`${environment.apiUrl}integrations/google/routing-options`);
+  }
+  saveEmailRouting(id:number,settings:EmailRoutingSettings):Observable<{settings:EmailRoutingSettings}>{
+    return this.http.post<{settings:EmailRoutingSettings}>(`${environment.apiUrl}integrations/google/${id}/routing`,settings);
+  }
+
   /** כתובת מסך ההסכמה של Google — הפרונט מנווט אליה כדי לחבר חשבון. */
-  getGoogleConnectUrl(integrationId?: number): Observable<{ url: string }> {
+  getGoogleConnectUrl(integrationId?: number, businessNumber?:string): Observable<{ url: string }> {
     return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/google/connect`, {
-      params: integrationId === undefined ? {} : { integrationId: String(integrationId) },
+      params: {...(integrationId===undefined?{}:{integrationId:String(integrationId)}),...(businessNumber?{businessNumber}:{})},
     });
+  }
+
+  getOutlookConnectUrl(integrationId?: number, businessNumber?:string): Observable<{ url: string }> {
+    return this.http.get<{ url: string }>(`${environment.apiUrl}integrations/outlook/connect`, {
+      params: {...(integrationId===undefined?{}:{integrationId:String(integrationId)}),...(businessNumber?{businessNumber}:{})},
+    });
+  }
+
+  disconnectEmailIntegration(integrationId: number): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}integrations/email/${integrationId}`);
   }
 
   /** מצב הסנכרון של Gmail עבור המשתמש הנוכחי (משמש גם ל-polling בזמן ריצה). */

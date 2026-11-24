@@ -1,5 +1,15 @@
+import {
+  emailWorkerScope,
+  emailRunScope,
+  emailWorkScope,
+} from './email-worker-scope';
 import { EmailProviderError } from '../integrations/providers/email-provider.error';
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { randomUUID } from 'crypto';
 export interface EmailRun {
@@ -14,6 +24,7 @@ export interface EmailRun {
   scan_state: string;
   page_token?: string;
   scan_generation: number;
+  attempts?: number;
   lease_token?: string;
   started_at: Date;
 }
@@ -30,6 +41,7 @@ export interface EmailItem {
   attempts: number;
 }
 export interface EmailWork {
+  email_routing_json?: any;
   source?: string;
   email_policy_version?: string;
   id: number;
@@ -52,7 +64,22 @@ export interface EmailWork {
   email_decision: string;
 }
 @Injectable()
-export class EmailIntakeStore {
+export class EmailIntakeStore implements OnModuleInit {
+  readonly workerScope = emailWorkerScope();
+  async onModuleInit() {
+    if (!this.workerScope) return;
+    const [identity] = await this.db.query('SELECT DATABASE() AS db');
+    if (identity?.db !== 'keepintax-dev')
+      throw new Error('Email worker routing requires keepintax-dev');
+    const columns = await this.db.query(
+      "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='email_import_runs' AND COLUMN_NAME='worker_scope'",
+    );
+    if (columns.length !== 1)
+      throw new Error(
+        'Email worker routing requires the reviewed worker_scope schema',
+      );
+  }
+
   constructor(readonly db: DataSource) {}
   enabled() {
     return true;
@@ -98,14 +125,26 @@ export class EmailIntakeStore {
       if (!account || account.status !== 'ACTIVE')
         throw new ServiceUnavailableException('Mailbox unavailable');
       const active = await this.query(
-        "SELECT id FROM email_import_runs WHERE integration_id=? AND firebase_id=? AND pull_state IN ('RUNNING','RETRY') LIMIT 1",
+        'SELECT id' +
+          (this.workerScope ? ',worker_scope' : '') +
+          " FROM email_import_runs WHERE integration_id=? AND firebase_id=? AND pull_state IN ('RUNNING','RETRY') LIMIT 1",
         [input.integrationId, input.owner],
         m,
       );
-      if (active.length) return active[0].id;
+      if (active.length) {
+        if (this.workerScope && active[0].worker_scope !== this.workerScope)
+          throw new ConflictException(
+            'Mailbox work belongs to another worker scope',
+          );
+        return active[0].id;
+      }
       const id = randomUUID();
       await this.query(
-        'INSERT INTO email_import_runs (id,firebase_id,business_number,integration_id,sync_type,query_text,from_date,to_date) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO email_import_runs (id,firebase_id,business_number,integration_id,sync_type,query_text,from_date,to_date' +
+          (this.workerScope ? ',worker_scope' : '') +
+          ') VALUES (?,?,?,?,?,?,?,?' +
+          (this.workerScope ? ',?' : '') +
+          ')',
         [
           id,
           input.owner,
@@ -115,6 +154,7 @@ export class EmailIntakeStore {
           input.query,
           input.from || null,
           input.to || null,
+          ...(this.workerScope ? [this.workerScope] : []),
         ],
         m,
       );
@@ -123,26 +163,37 @@ export class EmailIntakeStore {
   }
   async runs(owner?: string): Promise<EmailRun[]> {
     if (!this.enabled()) return [];
+    const scope = emailRunScope(this.workerScope);
     return this.query(
       owner
-        ? 'SELECT * FROM email_import_runs WHERE firebase_id=? ORDER BY started_at DESC LIMIT 20'
-        : "SELECT * FROM email_import_runs WHERE (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3)) ORDER BY started_at LIMIT 2",
-      owner ? [owner] : [],
+        ? `SELECT r.* FROM email_import_runs r WHERE r.firebase_id=?${emailRunScope(this.workerScope,'r.worker_scope').sql} AND (
+          r.pull_state IN ('RUNNING','RETRY') OR r.processing_state='RUNNING' OR
+          r.id=(SELECT latest.id FROM email_import_runs latest
+            WHERE latest.firebase_id=r.firebase_id AND latest.integration_id=r.integration_id${emailRunScope(this.workerScope,'latest.worker_scope').sql}
+            ORDER BY latest.started_at DESC,latest.id DESC LIMIT 1)
+        ) ORDER BY r.started_at DESC,r.id DESC`
+        : "SELECT * FROM email_import_runs WHERE (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))" + scope.sql + ' ORDER BY started_at LIMIT 2',
+      owner ? [owner,...scope.params,...scope.params] : scope.params,
     );
   }
   async leaseRun(id: string) {
+    const scope = emailRunScope(this.workerScope);
     const token = randomUUID();
     const result = await this.query(
-      "UPDATE email_import_runs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 2 MINUTE) WHERE id=? AND (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))",
-      [token, id],
+      "UPDATE email_import_runs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 2 MINUTE) WHERE id=? AND (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))" +
+        scope.sql,
+      [token, id, ...scope.params],
     );
     return result.affectedRows === 1 ? token : null;
   }
   async fencedRun(run: EmailRun, token: string, m?: EntityManager) {
+    const scope = emailRunScope(this.workerScope);
     const row = (
       await this.query(
-        'SELECT * FROM email_import_runs WHERE id=? AND firebase_id=? AND business_number=? FOR UPDATE',
-        [run.id, run.firebase_id, run.business_number],
+        'SELECT * FROM email_import_runs WHERE id=? AND firebase_id=? AND business_number=?' +
+          scope.sql +
+          ' FOR UPDATE',
+        [run.id, run.firebase_id, run.business_number, ...scope.params],
         m,
       )
     )[0];
@@ -208,10 +259,9 @@ export class EmailIntakeStore {
         const known = part.skip
           ? []
           : await this.query(
-              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND r.business_number=? AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
+              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND d.firebase_id=r.firebase_id AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
               [
                 run.firebase_id,
-                run.business_number,
                 run.integration_id,
                 message.message_id,
                 part.path,
@@ -304,20 +354,27 @@ export class EmailIntakeStore {
   }
   async dueWork(): Promise<EmailWork[]> {
     if (!this.enabled()) return [];
+    const scope = emailWorkScope(this.workerScope);
     return this.query(
-      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) ORDER BY id LIMIT 20",
+      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','ROUTING_PENDING','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) " +
+        scope.sql +
+        ' ORDER BY id LIMIT 20',
+      scope.params,
     );
   }
   async claimWork(work: EmailWork) {
+    const scope = emailWorkScope(this.workerScope);
     const token = randomUUID();
     const r = await this.query(
-      'UPDATE imported_documents SET email_lease_token=?,email_lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND firebase_id=? AND business_number=? AND email_work_state=? AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3))',
+      'UPDATE imported_documents SET email_lease_token=?,email_lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND firebase_id=? AND business_number=? AND email_work_state=? AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3))' +
+        scope.sql,
       [
         token,
         work.id,
         work.firebase_id,
         work.business_number,
         work.email_work_state,
+        ...scope.params,
       ],
     );
     return r.affectedRows === 1 ? token : null;
@@ -328,6 +385,7 @@ export class EmailIntakeStore {
     changes: Record<string, any>,
   ) {
     const allowed = [
+      'email_routing_json',
       'email_work_state',
       'email_ai_state',
       'email_ai_attempt_id',
@@ -549,18 +607,18 @@ export class EmailIntakeStore {
         processing
           ? 'RUNNING'
           : attention
-            ? 'ATTENTION'
-            : pending
-              ? 'WAITING'
-              : 'COMPLETE',
+          ? 'ATTENTION'
+          : pending
+          ? 'WAITING'
+          : 'COMPLETE',
         pull,
         processing
           ? 'RUNNING'
           : attention
-            ? 'ATTENTION'
-            : pending
-              ? 'WAITING'
-              : 'COMPLETE',
+          ? 'ATTENTION'
+          : pending
+          ? 'WAITING'
+          : 'COMPLETE',
         run.id,
       ],
     );

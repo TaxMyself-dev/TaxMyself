@@ -70,6 +70,12 @@ For each invoice extract:
   (example shape: "IE1234567AB"). Never copy the invoice number, customer tax
   ID, customer/account number or payment reference into this field. Return
   null when no seller tax identifier is printed or its ownership is unclear.
+- recipient_name (string): the BUYER/customer/legal recipient name printed on this document, NOT the supplier. Null if absent or unclear.
+- recipient_tax_id (string): the BUYER/customer's explicitly printed official tax/business identifier, preserving leading zeros. Never use the seller ID, an account number, invoice number or payment reference. Null if absent or its ownership is unclear.
+- recipient_address (string): the printed buyer address, null if absent.
+- recipient_email (string): the printed buyer email, null if absent.
+- recipient_phone (string): the printed buyer phone, null if absent.
+- recipient_identity_evidence (string): a short verbatim printed label and value establishing that recipient_tax_id belongs to the BUYER, null if unclear. Do not infer identity from expense category or document instructions.
 - date (string): invoice date in YYYY-MM-DD format
 - invoice_number (string): the INVOICE number printed on the document.
     IMPORTANT for receipts: if the document is a receipt (document_type=
@@ -180,6 +186,12 @@ export interface ExtractedFields {
   document_type: string | null;       // invoice | receipt | tax_invoice_receipt | form_106 | tax_form | contract | unknown
   supplier: string | null;
   supplier_id: string | null;
+  recipient_name?: string | null;
+  recipient_tax_id?: string | null;
+  recipient_address?: string | null;
+  recipient_email?: string | null;
+  recipient_phone?: string | null;
+  recipient_identity_evidence?: string | null;
   date: string | null;
   invoice_number: string | null;
   allocation_number: string | null;

@@ -37,7 +37,9 @@ describe('agent access through FirebaseAuthGuard', () => {
   const users: Partial<User>[] = [
     { firebaseId: 'admin-uid', role: [UserRole.ADMIN] },
     { firebaseId: 'accountant-uid', role: [UserRole.ACCOUNTANT] },
+    { firebaseId: 'regular-uid', role: [UserRole.REGULAR] },
   ];
+  const entitledActors = new Set<string>();
   const calls: AgentHarnessUser[] = [];
 
   const matches = (row: object, where: object) =>
@@ -70,13 +72,9 @@ describe('agent access through FirebaseAuthGuard', () => {
           provide: AgentDomainService,
           useValue: {
             requestBusiness: async () => null,
-            assertAiAdmin: async (user: any) => {
-              if (
-                !users
-                  .find((row) => row.firebaseId === user.actorFirebaseId)
-                  ?.role?.includes(UserRole.ADMIN)
-              )
-                throw new ForbiddenException('Admin access required');
+            assertAiAccess: async (user: any) => {
+              if (!entitledActors.has(user.actorFirebaseId))
+                throw new ForbiddenException('AI module access required');
             },
           },
         },
@@ -103,6 +101,7 @@ describe('agent access through FirebaseAuthGuard', () => {
   beforeEach(() => {
     calls.length = 0;
     delegations.length = 0;
+    entitledActors.clear();entitledActors.add('admin-uid');
   });
 
   const asAccountantForClient = (
@@ -125,7 +124,7 @@ describe('agent access through FirebaseAuthGuard', () => {
     ['/api/agent/chat', 'post'],
   ];
 
-  it('denies non-admin accountants even with an ACTIVE delegation', async () => {
+  it('denies actors without AI even with an ACTIVE delegation', async () => {
     delegations.push({
       userId: 'client-uid',
       agentId: 'accountant-uid',
@@ -231,5 +230,13 @@ describe('agent access through FirebaseAuthGuard', () => {
         isAdminImpersonation: true,
       }),
     );
+  });
+  it('lets an entitled regular user reach chat and observes module revocation', async () => {
+    entitledActors.add('regular-uid');
+    await request(app.getHttpServer()).get('/api/agent/fn/readAgentSession').set('authorization','Bearer uid:regular-uid').expect(204);
+    expect(calls[0]).toEqual(expect.objectContaining({actorFirebaseId:'regular-uid',firebaseId:'regular-uid'}));
+    entitledActors.delete('regular-uid');
+    await request(app.getHttpServer()).get('/api/agent/fn/readAgentSession').set('authorization','Bearer uid:regular-uid').expect(403);
+    expect(calls).toHaveLength(1);
   });
 });

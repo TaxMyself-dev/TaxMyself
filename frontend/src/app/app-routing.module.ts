@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from './pages/settings/settings.routes';
 import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 // route guard
@@ -21,16 +22,19 @@ import { DEV_AGENT_PATH, devAgentRouteEnabled } from './pages/dev-agent/dev-agen
  * guards or briefly activate the target page.
  */
 const appRoutes: Routes = [
-  {path:'agent/chat',canActivate:[AuthGuard,AdminRouteGuard,BillingGuard],loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
-  {path:'agent/onboarding',canActivate:[AuthGuard, AdminRouteGuard],loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
+  {path:'ai',canActivate:[AuthGuard,BillingGuard,ModuleAccessGuard],data:{appRoute:AppRoute.AI},loadComponent:()=>import('./pages/ai/ai.page').then(m=>m.AiPage)},
+  {path:'agent/chat',canActivate:[AuthGuard,BillingGuard,ModuleAccessGuard],data:{appRoute:AppRoute.AI},loadComponent:()=>import('./pages/dev-agent/dev-agent.page').then(m=>m.DevAgentPage)},
+  {path:'agent/onboarding',canActivate:[AuthGuard,BillingGuard,ModuleAccessGuard],data:{appRoute:AppRoute.AI},loadComponent:()=>import('./pages/agent-onboarding/onboarding.page').then(m=>m.OnboardingPage)},
+  {path:'agent/automation',canActivate:[AuthGuard,BillingGuard,ModuleAccessGuard],data:{appRoute:AppRoute.AI},loadComponent:()=>import('./pages/ai/ai-automation.page').then(m=>m.AiAutomationPage)},
   {path:'dev/agent/onboarding',redirectTo:'agent/onboarding',pathMatch:'full'},
   // The AI agent's test page (backend/agent), only where the environment
   // turns it on (local development and dev-cloud); never in production builds.
-  // The admin panel's "צ׳אט AI" tab opens it (same flag, dev-agent.route.ts).
+  // The ordinary AI module always uses /agent/chat, including production.
   ...(devAgentRouteEnabled()
     ? [{
         path: DEV_AGENT_PATH,
-        canActivate: [AuthGuard, AdminRouteGuard],
+        canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],
+        data: { appRoute: AppRoute.AI },
         loadComponent: () => import('./pages/dev-agent/dev-agent.page').then(m => m.DevAgentPage),
       }]
     : []),
@@ -64,16 +68,7 @@ const appRoutes: Routes = [
     loadComponent: () => import('./pages/my-account/my-account.page').then(m => m.MyAccountPage),
     canActivate: [AuthGuard, BillingGuard]
   },
-  {
-    path: 'settings-new',
-    loadComponent: () => import('./pages/settings-new/settings-new.page').then(m => m.SettingsNewPage),
-    canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'settings',
-    loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
-    canActivate: [AuthGuard, BillingGuard]
-  },
+  ...SETTINGS_ROUTES,
   {
     path: 'transactions',
     canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],

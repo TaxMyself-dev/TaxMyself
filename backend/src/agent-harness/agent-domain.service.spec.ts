@@ -79,6 +79,7 @@ const setup = (
     businessService as never,
     delegationRepository as never,
     userRepository as never,
+    { hasModuleAccess: async () => true } as never,
   );
 
   return { service, expensesService, businessService, delegationRepository };

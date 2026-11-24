@@ -1,4 +1,16 @@
 import { EmailIntakeRunsService } from './email-intake-runs.service';
+import { EmailRulesChangedError } from './email-routing.policy';
+
+it('restarts pagination on changed rules while retaining durable source identities',async()=>{
+  const run:any={id:'run',firebase_id:'owner',business_number:'123',integration_id:17,query_text:'has:attachment',page_token:'old',scan_state:'PAGING'};
+  const query=jest.fn(async(sql:string)=>sql.startsWith('SELECT *')?[run]:{affectedRows:1});
+  const store:any={enabled:()=>true,leaseRun:async()=> 'token',items:async()=>[],summary:async()=>({messages:{},attachments:{}}),query};
+  const reader:any={durablePage:jest.fn(async()=>{throw new EmailRulesChangedError('has:attachment -from:(blocked@example.com)');})};
+  const service=new EmailIntakeRunsService(store,reader,{findOwnedByIdOrThrow:async()=>({status:'ACTIVE'})} as any,{} as any,{} as any);
+  await service.step(run);
+  expect(query).toHaveBeenCalledWith(expect.stringContaining("error_code='RULES_CHANGED'"),['has:attachment -from:(blocked@example.com)','run','token']);
+  expect(query.mock.calls.some(([sql])=>/DELETE|TRUNCATE/.test(sql))).toBe(false);
+});
 function simulation() {
   const run: any = {
     id: 'run',
@@ -137,6 +149,7 @@ function simulation() {
       status: 'ACTIVE',
     }),
     markSyncSuccess: jest.fn(),
+    finishManualSync: jest.fn(),
   };
   const create = () =>
     new EmailIntakeRunsService(store, reader, integrations, {} as any, storage);
@@ -247,4 +260,15 @@ it('reconciles completed pull after a crash before integration finalization with
 
 it('reports persisted status without starting work or requiring an activation switch',async()=>{
  const t=simulation();t.store.query.mockResolvedValue([{pull_state:'RUNNING',processing_state:'RUNNING'}]);const status=await t.create().status('owner');expect(status[0].processing_state).toBe('RUNNING');expect(status[0]).not.toHaveProperty('processingPaused');expect(t.reader.durablePage).not.toHaveBeenCalled();expect(t.storage.accept).not.toHaveBeenCalled();
+});
+
+describe('Successful manual pulls supersede old account errors',()=>{
+ it('clears an older account error only after a manual pull is complete',async()=>{
+  const t=simulation();t.integrations.finishManualSync=jest.fn();t.run.sync_type='MANUAL';
+  t.store.refreshRun=async()=>({pull:'RUNNING'});await t.create().step(t.run);
+  expect(t.integrations.finishManualSync).not.toHaveBeenCalled();
+  t.store.refreshRun=async()=>({pull:'COMPLETE'});await t.create().step(t.run);
+  expect(t.integrations.finishManualSync).toHaveBeenCalledWith(t.run.integration_id,false,undefined,t.run.started_at);
+  expect(t.integrations.markSyncSuccess).not.toHaveBeenCalled();
+ });
 });

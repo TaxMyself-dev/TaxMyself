@@ -1,4 +1,7 @@
 ## Purpose
+Subscription plans can include `AI` alongside the other module values. This
+grants AI screens to entitled regular users without granting admin privileges.
+Plan edits affect every subscriber; see docs/features/ai-module.md.
 KT-105 replaces the ambiguous “manual charge” row action with two explicit
 flows. “Debt settlement” appears only for PAST_DUE subscriptions with a saved
 card, previews every unpaid period and a VAT-inclusive total, and performs one

@@ -1,0 +1,144 @@
+# Outlook email through Composio
+
+Implementation branch: `codex/outlook-email`, based on `7b63265d`.
+
+## Behavior
+
+Both Settings screens reuse the email component. The section heading is
+"חבר את תיבת המייל שלך לטובת משיכת מסמכים". Both Outlook add-account buttons
+show the local decorative Outlook SVG through the existing button icon input.
+The asset is the Outlook SVG linked by Microsoft’s own Microsoft 365 page:
+https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/product-icon-M365-Outlook-48x48-1
+(source page: https://www.microsoft.com/en-gb/microsoft-365). It replaces the earlier
+hand-drawn approximation. New Settings applies its Gmail pseudo-element only to
+explicit gmail-connect-button controls, preventing a second Gmail icon on Outlook
+or unrelated import buttons.
+Owners can add Outlook accounts,
+reconnect the exact selected Microsoft account, disconnect and retry remote revocation.
+The callback success flag only triggers a refresh; backend-verified state is authoritative.
+Google and Microsoft remain distinct persisted providers. Delegation and admin
+impersonation cannot connect or read mailboxes.
+
+The Outlook adapter uses the existing initial, manual and nightly intake. Shared fixed
+date queries become receivedDateTime OData filters across all folders, with exclusive
+upper bounds and opaque continuation tokens. It does not use Graph hasAttachments,
+which omits messages with inline files only. Unsupported arbitrary Gmail queries fail
+closed. File attachments use the existing bounded signed-download service; embedded
+items and linked files are excluded. Unpageable attachment lists fail instead of
+silently completing an incomplete scan. Attachment IDs are sorted before MIME paths
+are assigned so provider ordering does not change stored part paths.
+
+The existing GMAIL document source, metadata names, processing policy and source
+labels remain historical internal shared-email identifiers. No new accounting or
+deletion behavior. Informational document message metadata is limited to its existing
+64-character column; full message IDs must remain intact in the durable scan queue.
+
+## Configuration
+
+In the application's own Composio project/environment, configure a managed Outlook
+OAuth auth config with read access (User.Read, Mail.Read and offline_access), then set:
+
+- COMPOSIO_OUTLOOK_AUTH_CONFIG_ID
+- COMPOSIO_OUTLOOK_TOOLKIT_VERSION: an explicitly verified pinned toolkit version
+- COMPOSIO_OUTLOOK_CALLBACK_URL: backend `/integrations/outlook/callback`
+- OUTLOOK_FRONTEND_URL: Settings return URL (GMAIL_FRONTEND_URL is the fallback)
+
+The existing COMPOSIO_API_KEY/environment and download hostname allowlist are reused.
+No credentials or new auth configs were created or changed during development.
+Connecting Outlook to this chat's Composio connector does not configure the application.
+
+Outlook read allowlist: GET_PROFILE, LIST_MESSAGES, GET_MESSAGE,
+LIST_OUTLOOK_ATTACHMENTS and DOWNLOAD_OUTLOOK_ATTACHMENT (all OUTLOOK-prefixed).
+Every SDK execution uses the explicit connected account and authenticated `me`.
+
+Existing Google URLs remain compatible. Shared status/import URLs retain their historic
+`google/gmail` names and now operate on owner-scoped supported email providers.
+New URLs: GET outlook/connect, GET outlook/callback, DELETE email/:integrationId,
+under `/integrations`.
+
+## DEV schema applied; production unchanged
+
+Elazar approved DEV-only application on 2026-11-23 after preparation approval.
+`node scripts/apply-outlook-dev-schema.cjs` inspected fixed local DEV settings,
+runtime DATABASE(), data encoding/length, full unique index and InnoDB row format.
+`node scripts/apply-outlook-dev-schema.cjs --apply` applied exactly one ALTER on
+keepintax-dev (MySQL 8.0.37-google). Before/after count: 408 rows; no non-ASCII or
+overlength IDs. Verified message_id VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin
+NOT NULL, full unique index retained, 1296-byte maximum string key payload, plan [].
+A later read-only inspection also returned plan [] with 410 rows: DEV has concurrent
+activity. The schema helper performed no INSERT/UPDATE/DELETE or application boot.
+
+Standalone SQL: docs/features/outlook-email.sql. The cumulative cutover copy is a
+record only, not an application command. PROD application remains unauthorized.
+The helper defaults to inspection, hardcodes keepintax-dev, checks live metadata and
+data before conversion, uses a maintenance lock and bounded metadata-lock wait,
+and checks post-application state. Six offline guard tests cover identity refusal,
+lossless conversion preconditions, index shape and idempotency.
+
+## DEV Composio configuration and connection test
+
+The user-supplied Outlook auth config is saved only in this worktree's ignored
+backend/.env. The five allowlisted tool schemas all resolved to pinned version
+20261120_00 using the application's existing Composio DEV key.
+`node scripts/configure-outlook-dev.cjs --auth-config-id=ac_<id>` validates the
+config when management access is available and writes only the four Outlook
+settings locally. Auth-config metadata reads still return HTTP 403 under the
+current key, so scopes/managed status cannot be independently confirmed yet.
+No auth-config credentials or scopes were changed through the API.
+
+Local launch and return destinations are stored only in ignored backend/.env and
+.local-ai-dev/ports.json. The user-selected frontend return port and canonical
+frontend launcher are aligned; the backend callback remains on its separate
+feature port. The configuration helper resolves URLs from the effective local
+settings. Main configuration and the existing frontend process are preserved.
+No servers were started or restarted for this adjustment.
+A complete app callback validates/consumes state and
+then redirects to the frontend Settings URL; status=success in the incoming query
+alone is not persisted connection verification. Old/expired attempts must be
+restarted through the application after the correct feature servers are running.
+
+`node scripts/test-outlook-dev-connection.cjs` starts an isolated loopback listener
+on 127.0.0.1:4318, overriding the callback only in that diagnostic process. It
+creates an OAuth attempt under a new technical DEV owner, loads only integration
+repositories/services, disables synchronize/migrations and blocks every SDK tool
+except OUTLOOK_GET_PROFILE. Connection deletion is also blocked. The provider
+accepted creation of a hosted link for the supplied auth config. Microsoft consent
+and a successful callback remain pending; link creation is not active connection
+verification. No messages, attachments, imports, AI or schedulers were executed.
+
+## Verification and live limits
+
+Contracts were discovered using Composio tool schemas without reading any mailbox.
+Live Microsoft OAuth, personal/organization account behavior, managed scopes, pinned
+toolkit responses, download hosts and long-ID persistence still require dedicated DEV
+verification after user consent. DEV schema/configuration operations above are approved.
+No Nest app boot, mailbox read, AI run, main integration, push or deployment occurred.
+Exact automated commands and results are recorded in docs/tasks/active/outlook-email.md.
+
+## Current DEV runtime verification (2026-11-24)
+
+The user subsequently authorized local DEV runtime repair and mailbox import.
+Backend 3000 and frontend return 4200 are configured only in ignored local files.
+The actual Microsoft OAuth connection was verified ACTIVE with matching managed
+owner/config/profile. The original durable pull completed: three messages scanned,
+15 attachments downloaded and identified as existing content, no duplicate document
+creation, connection ACTIVE and last sync SUCCESS. New-document creation and
+subsequent AI processing were not separately exercised by this duplicate fixture.
+
+The shared DEV cloud revision predates Outlook and can mistakenly consume Outlook
+runs using its Gmail-only adapter. Local EMAIL_DEV_EXCLUSIVE_SCANNER=true retains
+the existing global scanner lock across ticks while this feature server runs;
+other cooperating scanners skip. Exact live keepintax-dev identity and safe DEV
+settings are mandatory; normal behavior is unchanged without the local opt-in.
+Keep this local feature server running for Outlook tests until shared DEV workers
+are upgraded compatibly. Shutdown releases ownership, allowing legacy workers to
+resume. No cloud deployment or remote setting was changed. Structured diagnostics,
+bounded retries and accurate Hebrew status messages are implemented. Full command
+and live acceptance evidence is in docs/tasks/active/outlook-email.md.
+## Prepared local/test routing (2026-11-24)
+
+[Email worker routing](email-worker-scope.md) adds server-owned run scopes, including
+email-origin processing/AI/protected-PDF work. The additive schema was applied to
+DEV only; production SQL is prepared, not executed. Every shared DEV worker must
+be updated/configured before replacing the temporary exclusive scanner protection.
+The coordinated runtime activation/cloud update was not performed in this task.

@@ -13,6 +13,7 @@ import { environment } from 'src/environments/environment';
  */
 
 export interface ReviewDocSummary {
+  routingNote?: string | null;
   documentId: number;
   driveFileId: string;
   driveFileName: string;

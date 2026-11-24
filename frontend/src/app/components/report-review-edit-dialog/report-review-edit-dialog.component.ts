@@ -90,6 +90,7 @@ export class ReportReviewEditDialogComponent {
   }
   @Input() driveFileName = '';
   @Input() titleLabel = '';
+  @Input() routingNote: string | null = null;
   @Input() viewMode: 'regular' | 'professional' = 'regular';
   @Input() fields: ExpenseEditFieldValues | null = null;
   @Input() categoryOptions: string[] = [];

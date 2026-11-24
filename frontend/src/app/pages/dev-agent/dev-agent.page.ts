@@ -32,7 +32,7 @@ import {
   readDevAgentConversation,
   withDevAgentFollowUps,
 } from './dev-agent-chat';
-import { DEV_AGENT_FROM_ADMIN, devAgentApiOverride } from './dev-agent.route';
+import { devAgentApiOverride } from './dev-agent.route';
 
 type MessagePart = UIMessage['parts'][number];
 
@@ -67,16 +67,16 @@ const examplePrompts = [
 ];
 
 /**
- * A dev-only page to try the AI agent (backend/agent) against the real
+ * The shared AI chat screen (backend/agent) against the real
  * backend: a chat that streams the agent's answers and shows everything it
  * does — each tool call with its input and output, approval cards to approve
  * or deny, askUserQuestion's buttons (answered by the page, Phase 3.1),
  * follow-ups as they are written and after a reload, a "saved" notice with
  * undo for a remembered fact, reasoning summaries and the stream's data
  * parts. The conversation is in the URL (?chat=), so a reload reopens it
- * and follows an answer still running. It is a test
- * screen, not the product's chat (its UI spec is pending); the route exists
- * only when environment.agentDevPage is on (app-routing.module.ts).
+ * and follows an answer still running. The AI module opens /agent/chat;
+ * the additional /dev/agent diagnostic route exists only when enabled by
+ * environment.agentDevPage (app-routing.module.ts).
  */
 @Component({
   selector: 'app-dev-agent',
@@ -100,8 +100,7 @@ export class DevAgentPage implements OnInit, OnDestroy {
   // ?api=http://localhost:3011/ (several worktrees' backends run side by side).
   // Read from the route, so it holds after an in-app navigation too.
   readonly apiUrl = devAgentApiUrl(this.query.get('api'));
-  // Opened from the admin panel's "צ׳אט AI" tab: offer the way back.
-  readonly fromAdminPanel = this.query.get('from') === DEV_AGENT_FROM_ADMIN;
+  readonly diagnosticView = this.router.url?.startsWith('/dev/agent') === true;
 
   loading = signal<'session' | 'history' | null>('session');
   private loadGeneration = 0;
@@ -231,10 +230,10 @@ export class DevAgentPage implements OnInit, OnDestroy {
     void this.chat()?.stop();
   }
 
-  // Back to the admin panel, keeping the ?api= override for the next visit.
-  backToAdminPanel() {
+  // Return to the AI module, retaining an explicitly selected local backend.
+  backToAi() {
     const api = devAgentApiOverride(this.query.get('api'));
-    void this.router.navigate(['/admin-panel'], { queryParams: api ? { api } : {} });
+    void this.router.navigate(['/ai'], { queryParams: api ? { api } : {} });
   }
 
   newChat() {

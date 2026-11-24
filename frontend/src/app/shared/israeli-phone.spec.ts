@@ -2,7 +2,7 @@ import { FormBuilder, FormControl, Validators } from '@angular/forms';
 import { DocCreateBuilderService } from '../pages/doc-create/doc-create-builder.service';
 import { FieldsCreateDocValue } from './enums';
 import { ISRAELI_PHONE_ERROR, ISRAELI_PHONE_PATTERN, isValidIsraeliPhone, israeliPhoneValidator } from './israeli-phone';
-import { SettingsPage } from '../pages/settings/settings.page';
+import { SettingsFormBase } from '../pages/settings/settings-form-base';
 import { ClientPanelPage } from '../pages/clients-panel/clients-panel.page';
 
 const GOOD = ['021234567', '031234567', '041234567', '081234567', '091234567', '0501234567', '0521234567',
@@ -38,7 +38,7 @@ describe('Israeli phone validation (all routes)', () => {
   });
 
   describe('settings page forms', () => {
-    const page = Object.create(SettingsPage.prototype) as any;
+    const page = Object.create(SettingsFormBase.prototype) as any;
     page.fb = new FormBuilder();
     it('personal phone and spouse phone are optional and validated', () => {
       expectControl(() => page.buildPersonalForm().get('phone'), 'personal phone');

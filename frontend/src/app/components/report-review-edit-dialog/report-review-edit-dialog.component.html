@@ -10,6 +10,7 @@
 
   <div class="edit-dialog-body" [class.with-preview]="hasDocument" *ngIf="fields as f">
     <div class="edit-dialog-main">
+      <p *ngIf="routingNote" role="note">{{routingNote}}</p>
       <div class="field-grid">
         <label class="field">
           <span class="field-label">ספק</span>

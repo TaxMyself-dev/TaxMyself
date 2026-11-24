@@ -5,8 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { UserIntegration } from '../entities/user-integration.entity';
+import { routingSettings } from '../../email-intake/email-routing.policy';
 import {
   IntegrationProvider,
   IntegrationStatus,
@@ -14,6 +15,7 @@ import {
 } from '../enums/integrations.enums';
 
 export interface UpsertIntegrationInput {
+  businessNumber?:string;
   firebaseId: string;
   provider: IntegrationProvider;
   /**
@@ -181,6 +183,7 @@ export class UserIntegrationsService {
     integration.scopes = input.scopes ?? null;
     integration.expiresAt = input.expiresAt ?? null;
     integration.status = IntegrationStatus.ACTIVE;
+    if(input.businessNumber!==undefined)integration.emailRouting={...routingSettings(existing?.emailRouting),businessNumber:input.businessNumber};
 
     let saved: UserIntegration;
     try {
@@ -191,10 +194,12 @@ export class UserIntegrationsService {
           retiredConnectedAccountIds: integration.retiredConnectedAccountIds, remoteDisconnectPending: false,
           accountEmail: integration.accountEmail, status: IntegrationStatus.ACTIVE,
           refreshToken: null, accessToken: null, scopes: integration.scopes, expiresAt: integration.expiresAt,
+          ...(input.businessNumber===undefined?{}:{emailRouting:()=>"JSON_SET(COALESCE(email_routing_json,JSON_OBJECT('rules',JSON_ARRAY())), '$.businessNumber', :routingBusiness)"}),
         };
         const result = await this.userIntegrationRepo.createQueryBuilder().update(UserIntegration).set(values)
           .where('id = :id AND firebase_id = :firebaseId AND connected_account_id <=> :previousConnection AND remote_disconnect_pending = 0 AND (last_sync_status IS NULL OR last_sync_status <> :running)', {
             id: existing.id, firebaseId: input.firebaseId, running: IntegrationSyncStatus.RUNNING, previousConnection: previousConnectedAccountId,
+            ...(input.businessNumber===undefined?{}:{routingBusiness:input.businessNumber}),
           }).execute();
         if (result.affected !== 1) throw new ConflictException('Connection changed or a synchronization started; retry');
         saved = integration;
@@ -232,7 +237,7 @@ export class UserIntegrationsService {
   async findGmailSyncCandidates(): Promise<UserIntegration[]> {
     return this.userIntegrationRepo.find({
       where: {
-        provider: IntegrationProvider.GOOGLE,
+        provider: In([IntegrationProvider.GOOGLE, IntegrationProvider.MICROSOFT]),
         status: IntegrationStatus.ACTIVE,
         initialImportCompletedAt: Not(IsNull()),
       },
@@ -333,7 +338,18 @@ export class UserIntegrationsService {
     await this.userIntegrationRepo.update({ id: integrationId, connectedAccountId }, { retiredConnectedAccountIds: null });
   }
 
-  async finishManualSync(integrationId: number, failed: boolean, reason?: string): Promise<void> {
+  async finishManualSync(integrationId: number, failed: boolean, reason?: string, startedAt?: Date): Promise<void> {
+    if (startedAt) {
+      // A completed manual pull clears older errors without advancing the nightly cursor
+      // or overwriting a newer/in-flight synchronization.
+      await this.userIntegrationRepo.createQueryBuilder().update(UserIntegration)
+        .set({ lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS,
+          lastSyncError: failed ? (reason || 'Manual scan incomplete; retry required').slice(0, 2000) : null })
+        .where("id = :id AND status = :active AND (last_sync_status IS NULL OR last_sync_status <> :running) AND (last_sync_started_at IS NULL OR last_sync_started_at <= :startedAt) AND NOT EXISTS (SELECT 1 FROM email_import_runs newer WHERE newer.integration_id = :id AND newer.started_at > :startedAt)",
+          { id: integrationId, active: IntegrationStatus.ACTIVE, running: IntegrationSyncStatus.RUNNING, startedAt })
+        .execute();
+      return;
+    }
     await this.userIntegrationRepo.update({ id: integrationId }, { lastSyncStatus: failed ? IntegrationSyncStatus.ERROR : IntegrationSyncStatus.SUCCESS, lastSyncError: failed ? (reason || 'Manual scan incomplete; retry required').slice(0, 2000) : null });
   }
 }

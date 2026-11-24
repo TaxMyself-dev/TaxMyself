@@ -45,15 +45,15 @@ function identity(req: AuthenticatedRequest): AgentHarnessUser {
   };
 }
 @Injectable()
-export class OnboardingAdminGuard implements CanActivate {
+export class OnboardingAiGuard implements CanActivate {
   constructor(private readonly domain: AgentDomainService) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    await this.domain.assertOnboardingAdmin(identity(context.switchToHttp().getRequest<AuthenticatedRequest>()));
+    await this.domain.assertOnboardingAccess(identity(context.switchToHttp().getRequest<AuthenticatedRequest>()));
     return true;
   }
 }
 @Controller('api/agent-profile')
-@UseGuards(FirebaseAuthGuard, OnboardingAdminGuard)
+@UseGuards(FirebaseAuthGuard, OnboardingAiGuard)
 export class OnboardingController {
   constructor(private readonly service: OnboardingService) {}
   @Get('businesses') businesses(@Req() req: AuthenticatedRequest) {

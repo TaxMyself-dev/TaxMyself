@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "types": [
+      "jasmine",
+      "node"
+    ]
+  },
+  "include": [
+    "src/app/pages/settings-new/settings-scroll.spec.ts",
+    "src/app/pages/settings-new/settings-navigation.spec.ts",
+    "src/app/pages/settings-new/settings-new.page.spec.ts",
+    "src/**/*.d.ts"
+  ]
+}

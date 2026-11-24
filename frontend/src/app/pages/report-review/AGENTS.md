@@ -16,6 +16,10 @@ and `tx_only` rows and replaces the former overlay review dialog.
   persistent edit, link, approve, archive and reject endpoints.
 
 ## Main flows
+
+- Optional server routingNote identifies AI-driven business reassignment in the
+  document-type cell and shared edit details. Preserve it when mapping a loaded
+  document summary; never derive or change business routing in this page.
 Uploaded transaction documents are analyzed asynchronously through the shared queue. The backend revalidates and locks both link targets at completion. Polling must retain the original business context; a late result must not modify a different business's view.
 
 

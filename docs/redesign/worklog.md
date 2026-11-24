@@ -2720,3 +2720,28 @@ Delivery verified: 461885a2 on local main, origin/main and both integration refs
 - Evidence and exact commands: docs/tasks/active/non-ai-main-integration.md.
   Local main integration is explicitly approved; push still requires Elazar's
   personal test of the delivered revision and explicit push approval.
+
+## Gmail routing and latest-status local integration — 2026-11-23
+
+Elazar explicitly authorized remote-main pull followed by Gmail feature integration.
+Pulled main to ee9a43ec, combined Gmail source 739169c1 with it in isolated
+candidate eeb9758e without conflicts, and reviewed the document-service auto-merge.
+Combined checks: 37 backend suites / 359 tests, 29 frontend tests, Nest build and
+Angular production build passed (hash 7f63e2d7855a8dc5). Existing budget/CommonJS
+warnings remain. Main local launch configuration verified as frontend4200,
+backend3000 and API http://localhost:3000/; corrected only ignored backend/.env
+PORT. No application server, SQL, database/provider/AI access or production operation.
+Unrelated main backend/journey-timings.local is preserved. Exact commands,
+runner diagnostics and evidence: docs/tasks/active/gmail-main-integration.md.
+No push: Elazar must personally test delivered local main and explicitly approve.
+
+### 2026-11-24 — authorized Outlook local-main integration
+
+Prepared a combined candidate preserving current local main and freshly fetched
+origin/main, Outlook managed OAuth/intake and existing Gmail business routing.
+483 combined backend tests plus 65 final affected checks, 33 focused frontend
+checks, 3 prior rendered icon checks and both package builds passed (mixed-revision
+details in docs/tasks/active/outlook-email.md). Existing DEV schema remains; no
+production/schema/accounting data operations, deployment or push. User explicitly
+authorized local main merge and deletion of the unrelated local timing log. Final
+main/cleanup status is recorded in that task file.

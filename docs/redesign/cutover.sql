@@ -3110,20 +3110,58 @@ ALTER TABLE slim_transactions ADD COLUMN classificationSource varchar(10) NULL;
 
 ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) NULL;
 
--- Feezback lifecycle (opt-in; apply before enabling the feature).
+
+-- 2026-11-23: Outlook email message ID capacity (DEV application approved and verified).
+-- Standalone source: docs/features/outlook-email.sql. No PROD application authorized.
+-- Outlook message IDs: prepared and applied to DEV only on 2026-11-23.
+-- Elazar explicitly approved keepintax-dev application; PROD is NOT authorized.
+-- DEV application verified with the guarded helper; repeat only after live preflight.
+-- Requires the existing durable intake schema; do not run the cumulative cutover file.
+-- Preflight: verify message_id contains only ASCII, every value fits 512 characters,
+-- and the table uses an InnoDB row format supporting a 3072-byte index key.
+-- Preserve ux_email_item(run_id,message_id,part_path) without prefix truncation.
+-- Conservative key payload: 36*4 + 512*1 + 160*4 = 1296 bytes (<3072).
+-- ASCII binary collation preserves opaque case-sensitive Gmail/Outlook identities.
+ALTER TABLE email_import_items
+  MODIFY COLUMN message_id VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin NOT NULL;
+
+-- 2026-11-24: email worker routing, prepared for DEV and production.
+-- Only keepintax-dev execution authorized. No production execution performed.
+-- Standalone reviewed source: docs/features/email-worker-scope.sql.
+-- Nullable/no backfill. Deploy/configure all shared DEV workers before activation.
+ALTER TABLE email_import_runs
+  ADD COLUMN worker_scope VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
+  ADD INDEX ix_email_runs_scope_due (worker_scope,pull_state,next_attempt_at,started_at),
+  ALGORITHM=INPLACE, LOCK=NONE;
+-- Gmail business routing, 2026-11-22. Explicit preparation approval only.
+-- Do not execute without separate database-change authorization. Apply once.
+-- Same statements as backend/scripts/migrations/2026-11-22_gmail-business-routing.sql;
+-- choose one execution path, never run both.
+ALTER TABLE user_integrations ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE imported_documents ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE extracted_document ADD COLUMN email_routing_json JSON NULL;
+
+-- Gmail pre-connect business selection, 2026-11-23. Development application
+-- authorized; production execution still requires separate authorization.
+-- Same as backend/scripts/migrations/2026-11-23_gmail-connect-business.sql: run once.
+ALTER TABLE oauth_states ADD COLUMN business_number VARCHAR(32) NULL;
+
+-- Feezback lifecycle: opt-in; no production application authorized.
+-- Apply explicitly before enabling FEEZBACK_LIFECYCLE_ENABLED. No existing table/data is changed.
 CREATE TABLE IF NOT EXISTS feezback_lifecycle (
- firebase_id varchar(255) NOT NULL PRIMARY KEY,
- evidence json NULL,
- entitlement_key varchar(500) NULL,
- next_check_at datetime NOT NULL,
- generation int NOT NULL DEFAULT 0,
- lease_token varchar(36) NULL,
- lease_until datetime NULL,
- attempts int NOT NULL DEFAULT 0,
- disconnect_requested tinyint NOT NULL DEFAULT 0,
- last_action varchar(40) NULL,
- last_error varchar(80) NULL,
- requested_by varchar(255) NULL,
- requested_at datetime NULL,
- KEY ix_feezback_lifecycle_due (next_check_at)
+  firebase_id varchar(255) NOT NULL,
+  evidence json NULL,
+  entitlement_key varchar(500) NULL,
+  next_check_at datetime NOT NULL,
+  generation int NOT NULL DEFAULT 0,
+  lease_token varchar(36) NULL,
+  lease_until datetime NULL,
+  attempts int NOT NULL DEFAULT 0,
+  disconnect_requested tinyint NOT NULL DEFAULT 0,
+  last_action varchar(40) NULL,
+  last_error varchar(80) NULL,
+  requested_by varchar(255) NULL,
+  requested_at datetime NULL,
+  PRIMARY KEY (firebase_id),
+  KEY ix_feezback_lifecycle_due (next_check_at)
 ) ENGINE=InnoDB;

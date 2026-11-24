@@ -1,3 +1,4 @@
+import { emailSyncErrorMessage } from './email-sync-messages';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { Subscription, interval } from 'rxjs';
@@ -62,7 +63,7 @@ export class GmailSyncStateService {
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
-          detail: 'לא ניתן לטעון את מצב חיבור ה-Gmail',
+          detail: 'לא ניתן לטעון את מצב חיבור המייל',
           life: 4000,
           key: 'br',
         });
@@ -80,7 +81,7 @@ export class GmailSyncStateService {
         this.messageService.add({
           severity: 'info',
           summary: 'הייבוא התחיל',
-          detail: 'ייבוא ההודעות מ-Gmail רץ ברקע — נעדכן כשיסתיים',
+          detail: 'ייבוא ההודעות מהמייל רץ ברקע — נעדכן כשיסתיים',
           life: 5000,
           key: 'br',
         });
@@ -109,7 +110,11 @@ export class GmailSyncStateService {
   private applyStatus(status: GmailSyncStatus): void {
     for (const account of status.accounts) {
       const previous = this.previousStatuses.get(account.id);
-      if (previous === 'RUNNING' && account.lastSyncStatus === 'SUCCESS') {
+      const runs = status.runs?.filter(run => run.integrationId === account.id) ?? [];
+      const wasActive = this.status()?.runs?.some(run => run.integrationId === account.id && (run.processing_state === 'RUNNING' || ['RUNNING', 'RETRY'].includes(run.pull_state)));
+      const processing = runs.some(run => run.processing_state === 'RUNNING' || ['RUNNING', 'RETRY'].includes(run.pull_state));
+      const needsAttention = runs[0]?.processing_state === 'ATTENTION' || runs[0]?.pull_state === 'PARTIAL';
+      if ((previous === 'RUNNING' || wasActive) && account.lastSyncStatus === 'SUCCESS' && !processing && !needsAttention) {
         this.notifyFinished('success', account);
       } else if (previous === 'RUNNING' && account.lastSyncStatus === 'ERROR') {
         this.notifyFinished('error', account);
@@ -135,7 +140,7 @@ export class GmailSyncStateService {
       this.messageService.add({
         severity: 'success',
         summary: 'המשיכה מהמייל הושלמה',
-        detail: `המשיכה מ-Gmail הסתיימה; מצב עיבוד המסמכים מוצג בנפרד${email ? ` (${email})` : ''}`,
+        detail: `המשיכה ועיבוד המסמכים הסתיימו${email ? ` (${email})` : ''}`,
         life: 5000,
         key: 'br',
       });
@@ -144,8 +149,7 @@ export class GmailSyncStateService {
         severity: 'error',
         summary: 'הייבוא נכשל',
         detail:
-          account.lastSyncError ||
-          `הייבוא מ-Gmail נכשל${email ? ` (${email})` : ''}. ניתן לנסות שוב.`,
+          emailSyncErrorMessage(account.lastSyncError),
         life: 6000,
         key: 'br',
       });

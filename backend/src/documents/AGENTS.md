@@ -48,6 +48,14 @@ parent early.
   persisted header, allocation payload and journal flow.
 
 ## Key entities/files
+Gmail recipient extraction extends the same AI response with buyer identity,
+separate from supplier_id. A frozen ROUTING_PENDING decision can move the existing
+file and unedited claim to an owned target business before approval. Destination
+classification uses its own catalog; raw model percentages are not copied across
+businesses. Transfer retries consume the saved result, never another AI call.
+Minimal routingNote is exposed in archive/review/details; full identity audit stays
+in nullable email_routing_json. See ../../../docs/features/gmail-business-routing.md.
+
 Shared analysis queue: inbound AI entry points register durable work in `document-ai/`; only its provider adapter calls `DocumentProcessorService.extract`. `processInboxForUser` performs discovery/dedup/restoration, not AI. Upload/OCR endpoints return job receipts; scoped polling returns completion. Preserve original source policies and do not reintroduce inline AI. See `docs/features/document-ai-shared-queue.md` for prepared schema, capacity measurement and activation boundaries.
 
 - `documents.entity.ts` — `Documents`: issued document header (issuer/recipient details, doc type/number, sums, VAT, dates, parent-doc linkage for credit notes, `journalEntryNumber`/`journalEntryId` FK to bookkeeping). Unique per `(issuerBusinessNumber, docType, docNumber)`. The nullable UNIQUE `billingAttemptId` is reserved for the future atomic billing finalization path; KT-032 registers the provenance FK but does not wire document creation to it yet.

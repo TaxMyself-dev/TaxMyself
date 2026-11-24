@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { EmailAccountContext, EmailPart, EmailProvider } from '../providers/email-provider';
 import { EmailProviderError } from '../providers/email-provider.error';
 import { UserIntegration } from '../entities/user-integration.entity';
-import { IntegrationStatus } from '../enums/integrations.enums';
+import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
 import { matchesAccountingDocumentKeyword } from '../utils/accounting-document-keywords.util';
 import {
   GmailKeywordMatchSource,
@@ -195,6 +195,7 @@ export class GmailReaderService {
     this.assertUsableIntegration(integration);
     const account=this.accountContext(integration);
     const message=await this.emailProvider.getMessage(account,messageId);
+    account.senderEmail=message.payload.headers?.find(header=>header.name?.toLowerCase()==='from')?.value || null;
     if(!/^root(?:\.\d+)*$/.test(path))throw new EmailProviderError('CONTRACT');
     let part=message.payload;
     for(const index of path.split('.').slice(1)) { if(!/^\d+$/.test(index)||!part.parts?.[Number(index)])throw new EmailProviderError('CONTRACT'); part=part.parts[Number(index)]; }
@@ -339,7 +340,7 @@ export class GmailReaderService {
   }
 
   private accountContext(integration: UserIntegration): EmailAccountContext {
-    return { firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
+    return { ...(integration.provider === IntegrationProvider.MICROSOFT ? { toolkit: 'outlook' as const } : {}), firebaseId: integration.firebaseId, connectedAccountId: integration.connectedAccountId, environment: process.env.COMPOSIO_ENVIRONMENT };
   }
 
   private async listMessagesPage(account: EmailAccountContext, query: string, maxResults: number, pageToken?: string): Promise<{ ids: string[]; nextPageToken?: string }> {
@@ -366,6 +367,8 @@ export class GmailReaderService {
     aiReviewQueued: number;
   }> {
     const message = await this.emailProvider.getMessage(account, messageId);
+
+    account = {...account, senderEmail: message.payload.headers?.find(header=>header.name?.toLowerCase()==='from')?.value || null};
 
     const header = (name: string): string | null =>
       message.payload?.headers?.find((h) => h.name?.toLowerCase() === name)?.value ?? null;

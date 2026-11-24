@@ -7,6 +7,12 @@ const input: any = {
   gmailPolicy: false,
 };
 describe('document provider transport (offline)', () => {
+  it('rechecks current source rules immediately before AI and never calls the provider if blocked',async()=>{
+    const extract=jest.fn();
+    const beforeAnalyze=jest.fn(async()=>{throw new Error('EMAIL_SENDER_BLOCKED');});
+    await expect(new AnthropicDocumentProvider({extract} as any).analyze({...input,beforeAnalyze},'claude-frozen')).rejects.toMatchObject({code:'EMAIL_SENDER_BLOCKED'});
+    expect(beforeAnalyze).toHaveBeenCalledTimes(1);expect(extract).not.toHaveBeenCalled();
+  });
   it('normalizes usage and remaining quotas without exposing arbitrary headers', async () => {
     const processor: any = {
       extract: jest.fn(async (_b, _m, _c, _g, options) => {

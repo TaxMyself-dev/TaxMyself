@@ -16,6 +16,9 @@ entitlements, referral consent, offline navigation and view-only delegation.
 - `startup-redirect.guard.ts` resolves the post-login destination.
 - `billing.guard.ts` and `module-access.guard.ts` enforce subscription/module
   access while preserving approved admin impersonation behavior.
+- `/ai` and the chat/onboarding/automation routes require the AI module;
+  the internal admin console still requires AdminRouteGuard. Server AI checks
+  always authorize the real actor's own subscription without billing overrides.
 - `referral-consent.guard.ts`, `offline-navigation.guard.ts` and
   `view-only-block-doc.guard.ts` protect specialized flows.
 

@@ -16,6 +16,7 @@ import { GenericService } from './services/generic.service';
 import { BillingStateService, BILLING_BLOCKING_STATUSES } from './services/billing-state.service';
 import { AccessService } from './services/access.service';
 import { AppFeature } from './shared/access-control';
+import { MyAgentService } from './components/my-agent/my-agent.service';
 import { NetworkStatusService } from './services/pwa/network-status.service';
 import { AppRefreshService } from './services/pwa/app-refresh.service';
 import { StartupService } from './services/startup.service';
@@ -34,6 +35,7 @@ export class AppComponent implements OnInit {
   protected genericService = inject(GenericService);
   protected billingStateService = inject(BillingStateService);
   private readonly accessService = inject(AccessService);
+  private readonly aiAccess = inject(MyAgentService);
   private readonly networkStatus = inject(NetworkStatusService);
   private readonly appRefresh = inject(AppRefreshService);
   /** Eagerly construct the cold-start gate so the global loader is on immediately. */
@@ -145,6 +147,7 @@ export class AppComponent implements OnInit {
 
     const items = [
       { label: 'דף הבית', routerLink: '/my-account' },
+      ...(this.aiAccess.context() ? [{ label: 'AI', routerLink: '/ai' }] : []),
       ...(showTransactions ? [{ label: 'תזרים', routerLink: '/transactions' }] : []),
       { label: 'דוחות', routerLink: '/reports' },
       ...(hasBusiness ? [{ label: 'הנהלת חשבונות', routerLink: '/book-keeping' }] : []),

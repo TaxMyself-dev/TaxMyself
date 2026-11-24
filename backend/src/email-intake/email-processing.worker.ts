@@ -178,6 +178,7 @@ export class EmailProcessingWorker {
           };
         await this.documents.persistEmailWork(work, token, outcome);
       }
+      if(work.email_work_state==='ROUTING_PENDING')await this.documents.completeEmailRouting(work,token);
       if (work.email_work_state === 'MOVE_PROCESSED') {
         const metadata = await this.drive.getIntakeFileMetadata(
           work.drive_file_id,
@@ -234,8 +235,8 @@ export class EmailProcessingWorker {
       }
       if (work.email_run_id) {
         const runs = await this.store.query(
-          'SELECT * FROM email_import_runs WHERE id=? AND firebase_id=? AND business_number=?',
-          [work.email_run_id, work.firebase_id, work.business_number],
+          'SELECT * FROM email_import_runs WHERE id=? AND firebase_id=?',
+          [work.email_run_id, work.firebase_id],
         );
         if (runs[0]) await this.store.refreshRun(runs[0]);
       }

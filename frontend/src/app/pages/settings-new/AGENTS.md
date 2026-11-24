@@ -1,9 +1,10 @@
 # New personal settings
 
-This is the additive `/settings-new` implementation. Keep `/settings` and all
-files under `pages/settings/` unchanged during the design trial.
+This is the sole settings screen at `/settings`. The former `/settings-new` URL
+redirects here while preserving query parameters and fragments. The user ended
+the design trial and authorized deletion of the legacy screen.
 
-- `SettingsNewPage` reuses the existing `SettingsPage` form builders and
+- `SettingsNewPage` reuses the viewless `SettingsFormBase` form builders and
   persistence methods, with a separate standalone template and scoped styles.
 - Includes personal/family/business settings and subscription/payment/history,
   permissions, banking and category-rule settings.
@@ -24,7 +25,7 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
   edit mode only after a successful server response (and account-profile refresh
   for personal/spouse); failures retain the entered values and edit state.
 - These new-page callbacks use the existing AuthService APIs without changing
-  the old SettingsPage callbacks. Reload the saved form from server values and
+  the shared form-base callbacks. Reload the saved form from server values and
   preserve local calendar dates. New family members open directly in edit mode.
 
 ## Subscription and connection presentation
@@ -39,7 +40,7 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
   Keep OpenBankingManagementComponent's saved reads and verified cancellation
   previews; do not call provider refresh or disconnect on page entry.
 - See `docs/tasks/active/settings-subscription-redesign.md` for verification.
-- Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Keep old category files unchanged. Load only when its section is reached.
+- Category UI inherits MyCategoriesTabComponent handlers and providers, with a separate template/styles and shared searchable selects. Shared category handlers remain required by this view. Load only when its section is reached.
 - Personal Cancel restores the entry snapshot (including after Clear), resets touched/dirty state, and closes editing. It is disabled while saving; explicit image saves remain separate.
 
 ## Temporary section memory
@@ -49,9 +50,16 @@ See `docs/tasks/active/settings-personal-redesign.md` for validation and limits.
 - Reset on Firebase owner changes (including sign-out) and delegated-client
   changes even while settings is unmounted. Generation-bound visit contexts
   reject trailing scroll events from previous identities.
-- New page instances restore the section without form/edit state. Keep the
-  restored anchor aligned while async content resizes; stop repositioning on
-  wheel/touch/pointer/keyboard interaction or explicit sidebar navigation.
+- New page instances restore the section without form/edit state. Clicked and
+  restored anchors remain selected while content/viewport resizes; intermediate
+  programmatic scroll events must not activate lazy sections or overwrite memory.
+- Recompute the destination only when geometry changes; clamp to the available
+  scroll range and avoid restarting unchanged animations. A newer sidebar click
+  replaces and cancels any pending animation. Restore/reduced-motion uses instant
+  scrolling. Manual wheel/touch/pointer/navigation keys (including Tab) release
+  the anchor and stop pending animation; typing keys do not move the page.
+- Observe the content, scroll viewport and section sizes. Disconnect observers
+  and cancel pending animation when the page is destroyed.
 - Reloading/reopening starts at account. Do not persist unsaved forms or pixels.
 
 ## My Agent (2026-11-19)
@@ -62,7 +70,8 @@ owned notice ID. The shared bell and verified banking-return offer use the same
 owner-only API. Never keep a prior owner's data after owner/view-as changes.
 Rule source labels are additive; original creator and latest editor differ.
 
-ADMIN-only: hide the agent sidebar link and panel for non-admins, including
-section=agent deep links. MyAgentService gates status polling, the bell and
-banking-return consent offer using the actual signed-in profile. Ordinary
-settings remain available. Chat and onboarding routes require AdminRouteGuard.
+AI module: show the agent sidebar link and panel only with AI entitlement,
+including section=agent deep links. MyAgentService gates status polling, the
+bell and banking-return consent offer by module access and owner identity.
+Chat, onboarding and automation are also available under the main AI menu;
+their routes use ModuleAccessGuard. Ordinary settings remain available.

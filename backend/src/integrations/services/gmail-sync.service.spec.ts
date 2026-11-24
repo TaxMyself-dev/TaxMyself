@@ -123,3 +123,29 @@ describe('Unresolved intake prevents successful synchronization', () => {
     expect(integrations.markSyncError).toHaveBeenCalledWith(17, expect.stringContaining('2 קבצים דורשים בדיקה'));
   });
 });
+
+describe('Gmail stale errors require evidence of later successful intake',()=>{
+ it.each([
+  ['2026-11-21T00:00:00Z','COMPLETE',17,false],
+  ['2026-11-23T00:00:00Z','PARTIAL',17,false],
+  ['2026-11-23T00:00:00Z','COMPLETE',18,false],
+  ['2026-11-23T00:00:00Z','COMPLETE',17,true],
+ ])('handles %s %s mailbox %s',async(startedAt,pull_state,integrationId,cleared)=>{
+  const row={id:17,status:'ACTIVE',lastSyncStatus:'ERROR',lastSyncError:'old failure',lastSyncStartedAt:new Date('2026-11-22T00:00:00Z')};
+  const integrations:any={findAllVisibleByUserAndProvider:async()=>[row]};
+  const durable:any={enabled:()=>true,status:async()=>[{integrationId,pull_state,startedAt}]};
+  const result=await new GmailSyncService(integrations,{} as any,undefined,durable).getSyncStatus('owner');
+  expect(result.accounts[0].lastSyncStatus).toBe(cleared?'SUCCESS':'ERROR');
+  expect(result.accounts[0].lastSyncError).toBe(cleared?null:'old failure');
+  expect(row.lastSyncError).toBe('old failure');
+ });
+});
+
+it('does not hide a newer failed run behind an older successful run still processing',async()=>{
+ const row={id:17,lastSyncStatus:'ERROR',lastSyncError:'current failure',lastSyncStartedAt:new Date('2026-11-21')};
+ const durable:any={enabled:()=>true,status:async()=>[
+  {integrationId:17,pull_state:'PARTIAL',startedAt:'2026-11-23'},
+  {integrationId:17,pull_state:'COMPLETE',processing_state:'RUNNING',startedAt:'2026-11-22'}]};
+ const result=await new GmailSyncService({findAllVisibleByUserAndProvider:async()=>[row]} as any,{} as any,undefined,durable).getSyncStatus('owner');
+ expect(result.accounts[0].lastSyncError).toBe('current failure');
+});

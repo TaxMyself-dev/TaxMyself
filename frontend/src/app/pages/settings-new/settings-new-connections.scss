@@ -32,7 +32,7 @@
 :host ::ng-deep .integration-area .subsection-title { font-size:16px; margin:0 0 8px; }
 :host ::ng-deep .integration-area .gmail-text,:host ::ng-deep .integration-area .description { color:var(--new-muted); font-size:14px; line-height:1.6; }
 :host ::ng-deep .integration-area .p-button { border-radius:30px; font:inherit; min-height:39px; }
-:host ::ng-deep .integration-area .gmail-actions .p-button.black::after { content:''; background:url('/assets/settings-new/gmail.png') center/19px 15px no-repeat; display:block; width:19px; height:15px; }
+:host ::ng-deep .integration-area .gmail-actions .p-button.gmail-connect-button::after { content:''; background:url('/assets/settings-new/gmail.png') center/19px 15px no-repeat; display:block; width:19px; height:15px; }
 :host ::ng-deep .integration-area .address-card { border:0; padding:0; justify-content:flex-start; flex-wrap:wrap; }
 :host ::ng-deep .integration-area .address-input-row { border-radius:30px; border-color:var(--new-stroke); max-width:100%; }
 :host ::ng-deep .integration-area .address-input-row input { min-width:80px; width:150px; max-width:100%; }
