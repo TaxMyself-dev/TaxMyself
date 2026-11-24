@@ -69,6 +69,116 @@ describe("Admin Feezback tab", () => {
     fixture.detectChanges();
     return fixture;
   }
+  it("does not mark a missing subscription as a problem when neither system has a connection", () => {
+    const user = row("no-subscription", {
+      hasOpenBanking: false,
+      primaryUnits: 0,
+      spouseUnits: 0,
+      expectedUnits: 0,
+      entitlement: {
+        eligible: null,
+        reason: "NO_SUBSCRIPTION",
+        plan: null,
+        until: null,
+        subscriptionStatus: null,
+      },
+    });
+    component.rows.set([user]);
+    expect(component.providerLabel(user)).toBe("אין");
+    expect(component.localLabel(user)).toBe("אין");
+    expect(component.requiresAttention(user)).toBeFalse();
+    expect(component.attentionCount()).toBe(0);
+    component.setFilter("attention");
+    expect(component.filtered()).toEqual([]);
+  });
+  it("explains local demo data without treating it as real provider permission or a problem", () => {
+    const user = row("document-lab", {
+      localDataIsDemo: true,
+      synthetic: false,
+      primaryUnits: 0,
+      spouseUnits: 0,
+      expectedUnits: 0,
+    });
+    expect(component.providerLabel(user)).toBe("אין");
+    expect(component.localLabel(user)).toBe("יש — נתוני דמו");
+    expect(component.explanation(user)).toContain("מדמים חיבור");
+    expect(component.requiresAttention(user)).toBeFalse();
+    component.rows.set([user]);
+    component.setFilter("demo");
+    expect(component.filtered()).toEqual([user]);
+  });
+  it("keeps real provider permissions visible even for a demo user", () => {
+    const user = row("demo-with-real-consent", {
+      synthetic: true,
+      localDataIsDemo: true,
+    });
+    expect(component.providerLabel(user)).toBe("יש");
+    expect(component.explanation(user)).toContain("הרשאות אמיתיות");
+    expect(component.requiresAttention(user)).toBeTrue();
+  });
+  it("explains each direction of a real local/provider discrepancy", () => {
+    const providerOnly = row("provider-only", { hasOpenBanking: false });
+    const localOnly = row("local-only", {
+      primaryUnits: 0,
+      spouseUnits: 0,
+      expectedUnits: 0,
+    });
+    expect(component.explanation(providerOnly)).toContain(
+      "אצלנו לא מסומן חיבור"
+    );
+    expect(component.explanation(localOnly)).toContain(
+      "לא נמצאו הרשאות בפיזבק"
+    );
+    expect(component.requiresAttention(providerOnly)).toBeTrue();
+    expect(component.requiresAttention(localOnly)).toBeTrue();
+  });
+  it("does not turn unknown or stale evidence into an absence of permissions", () => {
+    expect(
+      component.providerLabel(
+        row("unknown", {
+          primaryUnits: null,
+          spouseUnits: null,
+          expectedUnits: null,
+        })
+      )
+    ).toBe("לא ידוע");
+    expect(
+      component.providerLabel(
+        row("old", {
+          primaryUnits: 0,
+          spouseUnits: 0,
+          expectedUnits: 0,
+          stale: true,
+        })
+      )
+    ).toBe("לא ידוע");
+  });
+  it("renders only the requested connection columns and keeps subscription details out of the table", () => {
+    const fixture = renderRows([row("owner")]);
+    try {
+      const headers = Array.from(
+        fixture.nativeElement.querySelectorAll("th")
+      ).map((header: HTMLElement) => header.textContent.trim());
+      expect(headers).toEqual([
+        "משתמש",
+        "הרשאות בפיזבק",
+        "חיבור שמור אצלנו",
+        "מה צריך לדעת",
+        "פעולות",
+      ]);
+      expect(
+        fixture.nativeElement.querySelector("table").textContent
+      ).not.toContain("ללא מנוי");
+      expect(
+        fixture.nativeElement.querySelector("table").textContent
+      ).not.toContain("צפי יחידות חיוב");
+      expect(
+        fixture.nativeElement.querySelector(".summary").textContent
+      ).toContain("דורשים בירור");
+    } finally {
+      fixture.destroy();
+    }
+  });
   it("loads saved-state pages only, then filters across all users", () => {
     component.reload();
     http
@@ -148,7 +258,7 @@ describe("Admin Feezback tab", () => {
         enabled: true,
         automatic: false,
         total: 1,
-        rows: [row("owner", { expectedUnits: null })],
+        rows: [row("owner", { primaryUnits: null, spouseUnits: null, expectedUnits: null })],
       });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector("table").textContent).toContain(

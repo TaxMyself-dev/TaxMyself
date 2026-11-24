@@ -44,6 +44,8 @@ Integrates with Feezback, the Open Banking (AISP) data provider: handles the con
   transaction subscribers and webhooks enqueue checks; natural expiry is repaired
   every ten minutes. Initial rollout observes only. Automatic all-consent revocation
   requires a separate flag, final eligibility recheck, and provider verification.
+  Admin-list localDataIsDemo explains local fixture provenance only; it must never
+  alter provider reads, cost, eligibility or the existing synthetic capability.
   Apply the prepared schema before enabling; see ../../../docs/features/feezback-lifecycle.md.
 - `POST /feezback/consent-link` (auth) — stamps consent-initiation timestamp, returns a Feezback consent URL.
 - `POST /feezback/webhook-router` — public webhook receiver; responds 200 immediately and forwards the payload async.

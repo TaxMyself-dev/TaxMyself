@@ -13,12 +13,19 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { EMPTY, expand, finalize, reduce, timer } from "rxjs";
 import { DialogModule } from "primeng/dialog";
 import { environment } from "src/environments/environment";
+import {
+  providerState,
+  localDemoData,
+  requiresAttention,
+  connectionExplanation,
+} from "./admin-feezback.presentation";
 
 export interface FeezbackAdminRow {
   firebaseId: string;
   name: string;
   email: string;
   synthetic: boolean;
+  localDataIsDemo?: boolean;
   hasOpenBanking: boolean;
   entitlement: {
     eligible: boolean | null;
@@ -85,6 +92,15 @@ export class AdminFeezbackComponent implements OnInit {
   readonly selected = signal<FeezbackAdminRow | null>(null);
   readonly confirmDisconnect = signal<FeezbackAdminRow | null>(null);
   readonly page = signal(0);
+  readonly providerState = providerState;
+  readonly localDemoData = localDemoData;
+  readonly requiresAttention = requiresAttention;
+  readonly permissionCount = computed(
+    () => this.rows().filter((row) => providerState(row) === "yes").length
+  );
+  readonly attentionCount = computed(
+    () => this.rows().filter(requiresAttention).length
+  );
   readonly filtered = computed(() => {
     const query = this.search().toLowerCase().trim();
     return this.rows()
@@ -95,17 +111,17 @@ export class AdminFeezbackComponent implements OnInit {
               value.toLowerCase().includes(query)
             )) &&
           (this.filter() === "all" ||
+            (this.filter() === "attention" && requiresAttention(row)) ||
+            (this.filter() === "demo" && localDemoData(row)) ||
             (this.filter() === "mismatch" && row.mismatch) ||
             (this.filter() === "pending" && row.pending) ||
             (this.filter() === "failed" && !!row.lastError) ||
             (this.filter() === "unknown" &&
-              (row.stale ||
-                row.expectedUnits === null ||
-                row.entitlement.eligible === null)))
+              (row.stale || row.expectedUnits === null)))
       )
       .sort(
         (a, b) =>
-          Number(b.mismatch) - Number(a.mismatch) ||
+          Number(requiresAttention(b)) - Number(requiresAttention(a)) ||
           Number(!!b.lastError) - Number(!!a.lastError) ||
           a.name.localeCompare(b.name, "he")
       );
@@ -323,6 +339,47 @@ export class AdminFeezbackComponent implements OnInit {
   }
   unitsLabel(value: number | null) {
     return value === null ? "לא ידוע" : String(value);
+  }
+  providerLabel(row: FeezbackAdminRow) {
+    const state = providerState(row);
+    return state === "yes"
+      ? "יש"
+      : state === "no"
+      ? "אין"
+      : row.synthetic &&
+        !row.lastError &&
+        !row.evidence.primary.checkedAt &&
+        !row.evidence.spouse.checkedAt
+      ? "לא נבדק (דמו)"
+      : "לא ידוע";
+  }
+  localLabel(row: FeezbackAdminRow) {
+    return !row.hasOpenBanking
+      ? "אין"
+      : localDemoData(row)
+      ? "יש — נתוני דמו"
+      : "יש";
+  }
+  explanation(row: FeezbackAdminRow) {
+    if (this.queuedActions()[row.firebaseId] || this.busy() === row.firebaseId)
+      return this.rowFeedback()[row.firebaseId];
+    if (row.disconnectRequested) return "בקשת ניתוק ממתינה לאימות מול פיזבק.";
+    return connectionExplanation(row);
+  }
+  subscriptionLabel(row: FeezbackAdminRow) {
+    if (row.entitlement.reason === "COMPLIMENTARY") return "הטבה פעילה";
+    if (!row.entitlement.subscriptionStatus) return "אין רשומת מנוי";
+    if (row.entitlement.subscriptionStatus === "TRIAL") return "תקופת ניסיון";
+    return (
+      row.entitlement.plan ||
+      {
+        ACTIVE: "מנוי פעיל",
+        PAST_DUE: "תשלום לא הוסדר",
+        CANCELED: "מנוי בוטל",
+        TRIAL_EXPIRED: "הניסיון הסתיים",
+      }[row.entitlement.subscriptionStatus] ||
+      "נדרשת בדיקת המנוי"
+    );
   }
   status(row: FeezbackAdminRow) {
     if (row.synthetic) return "חשבון דמו";

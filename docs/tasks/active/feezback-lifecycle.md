@@ -135,3 +135,34 @@ Risk tier: backend domain/controller/persistence and frontend component behavior
   ignored environment/key files, generated output or diagnostic logs are staged.
 - Backend suites and external/DB checks were not repeated: no backend/API/schema/
   accounting/auth changes. Documentation updated in feature guide and admin topic.
+
+## Simplified connection comparison (2026-11-24)
+
+- Base: 22581a2f, same existing feature branch/worktree. User requested a simple
+  comparison of provider permissions vs saved local connection with a short cause,
+  explicitly distinguishing synthetic demo data from genuine provider consents.
+- Main table reduced to user, provider permissions, saved local connection and one
+  explanation plus actions. Removed duplicate missing-subscription messages, raw
+  identifiers, repeated dates, separate identity columns and billing-unit clutter
+  from the main table. Advanced information stays behind Details, initially collapsed.
+- Review count/filter now reflects real verification problems, actual discrepancies
+  and provider permissions requiring entitlement review. A missing subscription
+  with no provider/local connection is not a problem. Expected local demo data with
+  zero provider consents is explained without a warning. Real consents on demos
+  remain visible and actionable. Stale/failed/unknown data never becomes 'no'.
+- Added a batched read of local link provenance and display-only localDataIsDemo.
+  Registered demo profiles and paired, unverified legacy document-lab fixture IDs
+  are recognized without guessing from an arbitrary name/email. This does not change
+  synthetic capability, external reads, billing/cost, authorization, automatic jobs
+  or disconnection policy. No new schema, user-data modification or provider action.
+- Backend: npm test -- --runInBand feezback/lifecycle/feezback-local-data.spec.ts feezback/lifecycle/feezback-lifecycle.service.spec.ts --silent
+  Passed: 2 suites / 16 tests, 50.563 seconds.
+- Frontend: npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.feezback-lifecycle.spec.json --include=src/app/pages/admin-panel/admin-feezback.component.spec.ts
+  Passed: 20 tests in Chrome Headless 157.0.0.0, including existing action/X tests
+  and new demo/missing-subscription/discrepancy/table-layout cases. The unknown-state
+  fixture now consistently sets both identity counts unknown, not just the total.
+- Required builds passed on the final source, exit 0: backend `npm run build` and
+  frontend `npm run build -- --configuration production` (hash 53985b525533a277,
+  50.504 seconds). Existing warning-only bundle/style/CommonJS notices remain.
+- No broad-suite repetition: focused domain/listing/browser checks cover changed
+  behavior. Main integration, push and starting application servers remain unauthorized.

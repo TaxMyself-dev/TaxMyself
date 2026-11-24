@@ -54,10 +54,24 @@ Permanent accounting data is preserved by the existing disconnection path.
 
 The existing admin panel includes a Feezback tab. Saved-state pages are fetched in
 bounded batches and combined for search, global filters and 50-row display pagination.
-Each server page batches local subscription/plan/state/enrollment reads; it never calls
-Feezback. The table includes own entitlement, primary/spouse evidence, expected 0–2
-units, mismatches, pending operations and errors. Known fresh units and unknown users
-are shown separately. Synthetic demos are visible but excluded from live actions/cost.
+Each server page batches local subscription/plan/state/enrollment/source-link reads;
+it never calls Feezback. The main table has five columns: user, provider permissions
+(yes/no/unknown), saved local connection (yes/no/demo), one plain-language explanation,
+and actions. Subscription details, separate primary/spouse counts, dates and consent
+identifiers are available only through Details and its collapsed additional information.
+The two summary counters show users with verified permissions and users needing review.
+A missing subscription alone is not a connection problem when both sides show no
+connection. Real local/provider discrepancies, verification failures and permissions
+without known entitlement remain actionable. A verified absence of provider permission
+hides the unnecessary disconnect action; unknown evidence never becomes absence.
+
+`localDataIsDemo` is display-only provenance, derived from registered demo profiles or
+the legacy document-lab's paired, unverified fixture consent/resource identifiers on
+every local link. It does not change the existing synthetic capability, provider reads,
+cost calculations, eligibility, queue execution, authorization or disconnection policy.
+Real provider permissions remain visible and require review even alongside local demo
+data. Synthetic-only users without external evidence show not checked rather than a
+fabricated zero. Expected fixture/local mismatches are explained instead of flagged.
 Month-end warnings use Asia/Jerusalem and appear during the last six calendar dates.
 
 Per-row check and confirmed full disconnect enqueue durable work. A manual admin

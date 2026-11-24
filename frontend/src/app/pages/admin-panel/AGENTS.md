@@ -8,9 +8,10 @@ record externally confirmed non-acceptance or a verified allocation number,
 together with a bounded evidence reference.
 
 ## Key entities/files
-- `admin-feezback.component.*` — Feezback tab with all local users, saved consent
-  evidence per primary/spouse identity, own entitlement, expected 0–2 billing units,
-  global filters, month-end warning and queued admin checks/disconnections.
+- `admin-feezback.component.*` / `admin-feezback.presentation.ts` — Feezback tab:
+  provider permissions, local connection/demo data and one plain-language explanation.
+  Detailed consent, identity-count, date and subscription fields stay behind Details.
+  A missing subscription without provider permissions does not inflate the review counter.
   Row actions expose sending/queued/result feedback locally and in a fixed notice;
   dialog X controls use visibleChange to clear their parent signals immediately.
   See ../../../../../docs/features/feezback-lifecycle.md for activation and limits.

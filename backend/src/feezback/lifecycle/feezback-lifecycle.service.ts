@@ -10,6 +10,8 @@ import { BillingEventType } from '../../billing/enums/billing.enums';
 import { OpenBankingEnrollmentService } from '../../billing/services/open-banking-enrollment.service';
 import { SubscriptionAccessService } from '../../billing/services/subscription-access.service';
 import { usesSyntheticOpenBanking } from '../../demo-data/profiles';
+import { UserSourceSyncState } from '../../transactions/user-source-sync-state.entity';
+import { hasLocalDemoData } from './feezback-local-data';
 import { FeezbackApiService } from '../api/feezback-api.service';
 import { FeezbackDisconnectionService } from '../feezback-disconnection.service';
 import { feezbackSub } from '../utils/feezback-identity';
@@ -96,13 +98,11 @@ export class FeezbackLifecycleService {
   async list(page = 0, limit = 50) {
     if (!this.enabled)
       return { enabled: false, automatic: false, rows: [], total: 0 };
-    const [users, total] = await this.db
-      .getRepository(User)
-      .findAndCount({
-        order: { index: 'ASC' },
-        skip: page * limit,
-        take: limit,
-      });
+    const [users, total] = await this.db.getRepository(User).findAndCount({
+      order: { index: 'ASC' },
+      skip: page * limit,
+      take: limit,
+    });
     if (!users.length)
       return { enabled: true, automatic: this.automatic, rows: [], total };
     const ids = users.map((user) => user.firebaseId);
@@ -123,6 +123,15 @@ export class FeezbackLifecycleService {
       : [];
     const states = await this.db.manager.find(FeezbackLifecycle, {
       where: { firebaseId: In(ids) },
+    });
+    const localLinks = await this.db.manager.find(UserSourceSyncState, {
+      select: {
+        userId: true,
+        consentId: true,
+        resourceId: true,
+        consentVerifiedAt: true,
+      },
+      where: { userId: In(ids) },
     });
     const subIds = subscriptions.map((sub) => sub.id);
     const events = subIds.length
@@ -176,6 +185,10 @@ export class FeezbackLifecycleService {
         name: [user.fName, user.lName].filter(Boolean).join(' '),
         email: user.email,
         hasOpenBanking: user.hasOpenBanking,
+        localDataIsDemo: hasLocalDemoData(
+          user.email,
+          localLinks.filter((link) => link.userId === user.firebaseId),
+        ),
         synthetic,
         entitlement,
         evidence,
@@ -357,24 +370,29 @@ export class FeezbackLifecycleService {
           job.disconnectRequested ||
           (this.automatic && entitlement.eligible === false && hasPermissions)
         ) {
-          const result = await this.disconnection.disconnect(job.firebaseId, { scope: 'all' }, async proceed => this.db.transaction(async (manager) => {
-            // Serialize renewal/upgrade with the final eligibility decision and termination.
-            await manager.findOne(Subscription, {
-              where: { firebaseId: job.firebaseId },
-              lock: { mode: 'pessimistic_write' },
-            });
-            const freshJob = await manager.findOne(FeezbackLifecycle, {
-              where: { firebaseId: job.firebaseId },
-            });
-            const current = await this.entitlement(job.firebaseId, manager);
-            if (
-              freshJob?.generation !== job.generation ||
-              freshJob?.leaseToken !== token ||
-              (!job.disconnectRequested && current.eligible !== false)
-            )
-              return null;
-            return proceed();
-          }));
+          const result = await this.disconnection.disconnect(
+            job.firebaseId,
+            { scope: 'all' },
+            async (proceed) =>
+              this.db.transaction(async (manager) => {
+                // Serialize renewal/upgrade with the final eligibility decision and termination.
+                await manager.findOne(Subscription, {
+                  where: { firebaseId: job.firebaseId },
+                  lock: { mode: 'pessimistic_write' },
+                });
+                const freshJob = await manager.findOne(FeezbackLifecycle, {
+                  where: { firebaseId: job.firebaseId },
+                });
+                const current = await this.entitlement(job.firebaseId, manager);
+                if (
+                  freshJob?.generation !== job.generation ||
+                  freshJob?.leaseToken !== token ||
+                  (!job.disconnectRequested && current.eligible !== false)
+                )
+                  return null;
+                return proceed();
+              }),
+          );
           if (result) {
             evidence = await this.observe(job.firebaseId, evidence);
             if (

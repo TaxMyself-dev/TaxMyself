@@ -4,6 +4,7 @@ import {
 } from './feezback-lifecycle.service';
 import { FeezbackLifecycle } from './feezback-lifecycle.entity';
 import { emptyEvidence } from './feezback-lifecycle.policy';
+import { UserSourceSyncState } from '../../transactions/user-source-sync-state.entity';
 
 describe('Feezback lifecycle durable work', () => {
   let service: FeezbackLifecycleService,
@@ -42,40 +43,36 @@ describe('Feezback lifecycle durable work', () => {
     db = {
       getRepository: () => repo,
       manager: {
-        findOne: jest
-          .fn()
-          .mockResolvedValue({
-            firebaseId: 'owner',
-            email: 'real@example.com',
-          }),
+        findOne: jest.fn().mockResolvedValue({
+          firebaseId: 'owner',
+          email: 'real@example.com',
+        }),
         query: jest.fn(),
       },
     };
     db.transaction = jest.fn(async (callback) =>
       callback({
-        findOne: jest
-          .fn()
-          .mockImplementation(async (entity: any) =>
-            entity === FeezbackLifecycle
-              ? {
-                  ...job,
-                  leaseToken:
-                    repo.createQueryBuilder().set.mock.calls[0][0].leaseToken,
-                }
-              : {},
-          ),
+        findOne: jest.fn().mockImplementation(async (entity: any) =>
+          entity === FeezbackLifecycle
+            ? {
+                ...job,
+                leaseToken:
+                  repo.createQueryBuilder().set.mock.calls[0][0].leaseToken,
+              }
+            : {},
+        ),
       }),
     );
     api = {
-      getUserConsents: jest
-        .fn()
-        .mockResolvedValue({
-          consents: [{ resourceId: 'bank', consentStatus: 'valid' }],
-        }),
+      getUserConsents: jest.fn().mockResolvedValue({
+        consents: [{ resourceId: 'bank', consentStatus: 'valid' }],
+      }),
     };
     disconnect = {
       perform: jest.fn().mockResolvedValue({ status: 'success' }),
-      disconnect: jest.fn(async (_id, _request, guard) => guard ? guard(disconnect.perform) : disconnect.perform()),
+      disconnect: jest.fn(async (_id, _request, guard) =>
+        guard ? guard(disconnect.perform) : disconnect.perform(),
+      ),
     };
     service = new FeezbackLifecycleService(
       db,
@@ -165,6 +162,43 @@ describe('Feezback lifecycle durable work', () => {
     expect(api.getUserConsents).not.toHaveBeenCalled();
     expect(disconnect.perform).not.toHaveBeenCalled();
   });
+  it('marks fixture provenance for display without suppressing real provider evidence or changing synthetic policy', async () => {
+    repo.findAndCount = jest
+      .fn()
+      .mockResolvedValue([
+        [{ firebaseId: 'owner', fName: 'Lab', email: 'lab@example.com' }],
+        1,
+      ]);
+    const evidence = emptyEvidence();
+    evidence.primary = {
+      checkedAt: new Date().toISOString(),
+      error: null,
+      consents: [{ id: 'real-consent', status: 'valid', validUntil: null }],
+    };
+    evidence.spouse.checkedAt = new Date().toISOString();
+    db.manager.find = jest.fn(async (entity) =>
+      entity === UserSourceSyncState
+        ? [
+            {
+              userId: 'owner',
+              consentId: 'expense-document-lab-consent',
+              resourceId: 'expense-document-lab-bank',
+              consentVerifiedAt: null,
+            },
+          ]
+        : entity === FeezbackLifecycle
+        ? [{ firebaseId: 'owner', evidence, nextCheckAt: new Date() }]
+        : [],
+    );
+    const result = await service.list();
+    expect(result.rows[0]).toMatchObject({
+      localDataIsDemo: true,
+      synthetic: false,
+      expectedUnits: 1,
+    });
+    expect(api.getUserConsents).not.toHaveBeenCalled();
+    expect(disconnect.perform).not.toHaveBeenCalled();
+  });
   it('automatically disconnects all identities and verifies both again', async () => {
     process.env.FEEZBACK_LIFECYCLE_AUTODISCONNECT = 'true';
     api.getUserConsents
@@ -176,7 +210,11 @@ describe('Feezback lifecycle durable work', () => {
       })
       .mockResolvedValue({ consents: [] });
     await service.run(job);
-    expect(disconnect.disconnect).toHaveBeenCalledWith('owner', { scope: 'all' }, expect.any(Function));
+    expect(disconnect.disconnect).toHaveBeenCalledWith(
+      'owner',
+      { scope: 'all' },
+      expect.any(Function),
+    );
     expect(saved()).toMatchObject({
       lastAction: 'DISCONNECTED',
       lastError: null,
