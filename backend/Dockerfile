@@ -100,7 +100,9 @@ COPY --chown=node:node scripts/check-agent-image.cjs ./scripts/check-agent-image
 USER root
 
 # Fail the build if the final filesystem cannot load the actual agent contract.
-RUN --network=none node scripts/check-agent-image.cjs
+# Keep this legacy-Docker compatible: Cloud Run source deploy does not enable
+# BuildKit Dockerfile RUN flags such as --network=none.
+RUN node scripts/check-agent-image.cjs
 
 # Start the server using the production build
 CMD [ "node", "dist/main.js" ]

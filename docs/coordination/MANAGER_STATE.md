@@ -1,5 +1,35 @@
 # Primary manager state
 
+## KT-126 Cloud Build Dockerfile compatibility — 2026-11-23
+
+The production source build stopped safely before creating a Cloud Run
+revision because its legacy Dockerfile parser rejected the BuildKit-only
+`RUN --network=none` flag on the final agent image probe. The Dockerfile now
+uses portable `RUN node scripts/check-agent-image.cjs`, retaining the mandatory
+filesystem/export/disposal contract check. A focused regression prevents
+reintroducing BuildKit-only RUN network flags. Source/integration `443eb431`
+passed 5/5 focused tests, a clean npm 11.6.2 backend install and the Nest
+production build. Main's required local ports remain frontend 4200, backend
+3000 and API `http://localhost:3000/`. No application behavior, dependency,
+schema, production data, environment, traffic or deployment action changed.
+The operator must rerun the guarded release; the failed Cloud Build created no
+candidate revision and changed no production traffic.
+
+## KT-125 deterministic release installs — 2026-11-23
+
+The Stage 4 release failure was caused by a backend `package-lock.json` that
+did not contain the nested `google-auth-library@11.3.4` graph required by the
+current manifest under npm 10.9.7. The backend lockfile is synchronized without
+changing application code, package manifests, schema, deployment configuration
+or production data; the user's current frontend lockfile is preserved.
+Integration `7f783539` passed independent clean `npm ci` installs for backend
+(1,177 packages) and frontend (1,492 packages), followed by both production
+builds. The required main local-port check confirmed frontend 4200, backend
+3000 and `http://localhost:3000/`, with no process or local port override.
+Existing engine/deprecation and Angular budget/CommonJS warnings remain
+non-fatal. Production deployment remains an authorized-operator action under
+`PRODUCTION_POLICY.md`.
+
 ## KT-124 SHAAM draft completion — 2026-11-23
 
 OAuth recovery drafts are excluded from issued-document listings, the SHAAM
