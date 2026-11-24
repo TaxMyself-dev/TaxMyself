@@ -14,6 +14,10 @@ describe('Gmail connection requests', () => {
   });
   afterEach(() => http.verify());
 
+  it('includes the selected owned business when initiating Outlook',()=>{
+    service.getOutlookConnectUrl(undefined,'123456789').subscribe();
+    http.expectOne(`${environment.apiUrl}integrations/outlook/connect?businessNumber=123456789`).flush({url:'https://connect.composio.dev/synthetic'});
+  });
   it('connects and disconnects an Outlook row through the provider-aware endpoints', () => {
     service.getOutlookConnectUrl(42).subscribe();
     http.expectOne(`${environment.apiUrl}integrations/outlook/connect?integrationId=42`).flush({url:'https://connect.composio.dev/link/test'});

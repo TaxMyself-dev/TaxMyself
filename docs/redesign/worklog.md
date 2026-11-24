@@ -2734,3 +2734,14 @@ PORT. No application server, SQL, database/provider/AI access or production oper
 Unrelated main backend/journey-timings.local is preserved. Exact commands,
 runner diagnostics and evidence: docs/tasks/active/gmail-main-integration.md.
 No push: Elazar must personally test delivered local main and explicitly approve.
+
+### 2026-11-24 — authorized Outlook local-main integration
+
+Prepared a combined candidate preserving current local main and freshly fetched
+origin/main, Outlook managed OAuth/intake and existing Gmail business routing.
+483 combined backend tests plus 65 final affected checks, 33 focused frontend
+checks, 3 prior rendered icon checks and both package builds passed (mixed-revision
+details in docs/tasks/active/outlook-email.md). Existing DEV schema remains; no
+production/schema/accounting data operations, deployment or push. User explicitly
+authorized local main merge and deletion of the unrelated local timing log. Final
+main/cleanup status is recorded in that task file.

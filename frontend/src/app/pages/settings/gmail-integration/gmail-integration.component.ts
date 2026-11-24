@@ -239,7 +239,6 @@ export class GmailIntegrationComponent implements OnInit {
     });
   }
 
-  /** האם חשבון ניתן לבחירה בדיאלוג: מחובר (ACTIVE) וגם השלים משיכה ראשונית. */
   private navigateToProvider(url: string): void {
     window.location.href = url;
   }
@@ -253,6 +252,7 @@ export class GmailIntegrationComponent implements OnInit {
     if (!this.authService.isViewingAsClient()) this.syncState.refresh();
   }
 
+  /** האם חשבון ניתן לבחירה בדיאלוג: מחובר (ACTIVE) וגם השלים משיכה ראשונית. */
   isImportSelectable(account: GmailAccountSyncStatus): boolean {
     return account.connected && account.initialImportCompleted;
   }

@@ -19,6 +19,14 @@ describe('Email connection lifecycle without a live mailbox', () => {
     expect(states.bindConnection).toHaveBeenCalledWith('single-use', 'ca-a', undefined);
     expect(composio.link).toHaveBeenCalledWith('user-a', expect.stringContaining('state=single-use'));
   });
+  it('binds Outlook business selection to the Microsoft OAuth state',async()=>{
+    process.env.COMPOSIO_OUTLOOK_CALLBACK_URL='http://localhost:3000/integrations/outlook/callback';
+    const routing:any={connectionBusiness:jest.fn().mockResolvedValue('123456789')};
+    const scoped=new EmailConnectionsService(composio,states,integrations,routing);
+    await scoped.connect('user-a',undefined,'123456789',IntegrationProvider.MICROSOFT);
+    expect(states.createState).toHaveBeenCalledWith('user-a',IntegrationProvider.MICROSOFT,null,'123456789');
+    expect(composio.link).toHaveBeenCalledWith('user-a',expect.stringContaining('/outlook/callback'), 'outlook');
+  });
   it('binds an owned business to single-use server state before linking Google',async()=>{
     const routing:any={connectionBusiness:jest.fn().mockResolvedValue('123456789')};
     const scoped=new EmailConnectionsService(composio,states,integrations,routing);

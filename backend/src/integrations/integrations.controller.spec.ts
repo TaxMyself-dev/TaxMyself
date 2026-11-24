@@ -11,7 +11,10 @@ describe('Mailbox owner-only controller', () => {
 
   it('creates Outlook connections only for owners and validates reconnect IDs', async () => {
     await controller.connectOutlook({user:{firebaseId:'owner'}} as any,'42');
-    expect(connections.connect).toHaveBeenCalledWith('owner',42,'MICROSOFT');
+    expect(connections.connect).toHaveBeenCalledWith('owner',42,undefined,'MICROSOFT');
+    await controller.connectOutlook({user:{firebaseId:'owner'}} as any,'42','123456789');
+    expect(connections.connect).toHaveBeenCalledWith('owner',42,'123456789','MICROSOFT');
+    await expect(controller.connectOutlook({user:{firebaseId:'owner'}} as any,'42',' ')).rejects.toThrow('Invalid connection business');
     await expect(controller.connectOutlook({user:{firebaseId:'client'},isDelegatedAccess:true} as any)).rejects.toThrow('owner');
     await expect(controller.connectOutlook({user:{firebaseId:'owner'}} as any,'NaN')).rejects.toThrow();
   });

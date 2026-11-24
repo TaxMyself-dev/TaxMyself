@@ -435,3 +435,67 @@ One existing comment was relocated after testing; executable inputs unchanged.
 No main integration, push, cloud deployment or local backend restart.
 
 Final frontend production command: CI=true, npm run build -- --configuration production --progress=false. Exit 0, hash 9ce56e0795be6f4f, 125035 ms. Existing CSS-budget/CommonJS/initial-bundle warnings remain. No repeated tests/build after comment-only relocation. Application diff reviewed and git diff --check passed.
+
+## Authorized local main integration — 2026-11-24
+
+Elazar explicitly authorized merging to main and then deleting the unrelated main
+backend/journey-timings.local performance log. Deleted exactly that 4371-byte file;
+no tracked main source was discarded. Main preflight was 2eedefa7, feature e00447b3.
+Fresh origin/main was 7deef507: main had ten local commits and six upstream commits.
+Merged both histories into the feature candidate without reset/rewrite: 18fbb4a9
+combines local main, 49c0e208 combines origin/main. Main stays untouched until final
+verification/fast-forward. No push authorized or attempted.
+
+Resolved conflicts preserving Gmail business routing, canonical redesigned Settings,
+latest per-account summaries, provider-aware Outlook OAuth, safe failures, worker
+routing and Back/cancel reset. Outlook connect now accepts the same owned-business
+selection, binds it to Microsoft OAuth state, and forwards it through the UI/service.
+Routing settings recognize both email providers. Outlook rechecks current sender
+blocking before attachment metadata/download and again before signed byte retrieval;
+missing sender fails closed when block rules exist. Run scope follows immutable
+run ID/owner even when existing business routing moves an import to another owned
+business; current work/job business fences remain. Tests cover these interactions.
+
+Main port gate: canonical print-config before integration reported frontend 4200,
+backend 3000, API http://localhost:3000/, synchronize=false. Feature overrides remain
+ignored; they are not staged or substituted for main defaults. The feature watcher
+(root 7828/app 28136) and frontend 21916 were verified by exact worktree command
+lines and stopped before changing source. Other feature servers were preserved.
+Read-only DEV metadata confirmed all previously introduced Gmail routing JSON
+columns and OAuth business_number already exist. No schema/data operation occurred
+as part of integration, and no production access or cloud deployment occurred.
+
+Verification on the combined candidate:
+- backend npm ci --no-audit --no-fund: exit 0, 1177 packages, 1 minute, existing
+  dependency deprecation warnings. Isolated feature dependencies only.
+- backend `npm test -- --runInBand --silent --testPathPattern='src.integrations|src.email-intake|src.document-ai|src.protected-pdf'`:
+  exit 0, 49 suites / 483 tests, 84.318 s. After adding explicit Outlook business
+  input validation and final tests, reran only affected boundaries below; do not
+  describe the 483-test result as a complete final-revision run.
+- backend `npm test -- --runInBand --silent --runTestsByPath src/integrations/integrations.controller.spec.ts src/integrations/services/email-connections.service.spec.ts src/email-intake/email-routing.service.spec.ts src/integrations/providers/composio-outlook.provider.spec.ts src/email-intake/email-worker-scope.spec.ts`:
+  exit 0, 5 suites / 65 tests, 94.907 s on final executable sources.
+- backend npm run build: exit 0 on final executable sources.
+- frontend Edge-headless rendered component/icon command from the prior section:
+  exit 0, 29 tests on the combined candidate. Final focused command:
+  `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.email-spec.json --include=src/app/services/integrations.service.spec.ts --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --progress=false`:
+  exit 0, 33 tests, including forwarding Outlook business selection. Existing
+  reactive-form disabled-attribute warnings remain; no failing cases.
+- frontend CI=true, `npm run build -- --configuration production --progress=false`:
+  exit 0, hash 2573ef41ccba3c80, 145836 ms; existing budgets/CommonJS warnings.
+  Later frontend edits were tests and a comment relocation only.
+- `node --test backend/scripts/apply-email-worker-scope-dev.test.cjs backend/scripts/apply-outlook-dev-schema.test.cjs backend/scripts/outlook-dev-urls.test.cjs backend/scripts/check-agent-image.test.cjs`:
+  exit 0, 21 tests, 1102.7765 ms. No live schema/provider checks rerun.
+- git diff --check passed. No accounting algorithms, paid outcome policy, owner
+  restrictions, credentials, production callbacks or remote configuration changed.
+
+Private cleanup backup prepared at
+C:/Users/user/.codex/backups/keepintax-outlook-email-20261124-main-integration,
+restricted to current user and SYSTEM. Feature backend/.env and original main
+backend/.env hash-verified without exposing content; ignored local config/evidence
+will be copied/verified before worktree removal. Main already uses keepintax-dev,
+COMPOSIO_ENVIRONMENT=dev, and matching Composio key/Gmail auth config. Outlook is
+not yet configured in main's ignored environment. Move only the four approved
+local Outlook settings and temporary DEV scanner ownership there, preserving all
+existing secrets and port defaults. EMAIL_WORKER_SCOPE remains unset: old shared
+DEV servers have not been upgraded, so the temporary protection is still needed.
+Final fast-forward, launch and cleanup evidence follows after completion.

@@ -30,6 +30,11 @@ function fixture(
   };
 }
 describe('owned mailbox settings and initial routing', () => {
+  it('applies owned mailbox routing to Outlook and rejects unrelated providers',async()=>{
+    const t=fixture();t.integration.provider='MICROSOFT';
+    expect(await t.service.initial('owner',17)).toMatchObject({initialBusiness:'123456789'});
+    t.integration.provider='OTHER';await expect(t.service.initial('owner',17)).rejects.toThrow('Mailbox not found');
+  });
   it('auto-selects a sole owned business but requires a valid choice for multiple businesses',async()=>{
     const single=fixture([{businessNumber:'123456789'}]);
     expect(await single.service.connectionBusiness('owner')).toBe('123456789');

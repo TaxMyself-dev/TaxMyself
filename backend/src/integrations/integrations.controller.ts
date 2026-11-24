@@ -62,7 +62,8 @@ export class IntegrationsController {
     const owner = this.ownerId(request);
     const id = integrationId === undefined ? undefined : Number(integrationId);
     if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) throw new NotFoundException('Integration not found');
-    return this.emailConnectionsService.connect(owner, id, businessNumber, IntegrationProvider.MICROSOFT);
+    if(businessNumber!==undefined&&(typeof businessNumber!=='string'||!businessNumber.trim()||businessNumber.length>32))throw new BadRequestException('Invalid connection business');
+    return this.emailConnectionsService.connect(owner, id, businessNumber?.trim(), IntegrationProvider.MICROSOFT);
   }
 
   @Get('outlook/callback')
