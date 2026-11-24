@@ -173,7 +173,9 @@ See docs/features/direct-card-cashflow.md for schema, demo, testing and limits.
 Only transaction invoices and tax invoices allow optional `transferDetails`
 (bank, branch, accountNumber, beneficiary). This is a nullable document snapshot,
 separate from received payments; it never affects accounting or payment totals.
-All four text fields are required when enabled, preserving leading zeros. Drafts
+The four fields are always visible on supported document forms. They must be all
+blank or all complete; blank forms send null and omit the PDF section. Text
+preserves leading zeros. Drafts
 and pending-allocation finalization retain the snapshot. Business/type/reset
 changes clear the frontend form. PDF output escapes values and isolates account
 and branch identifiers LTR. Apply the additive nullable JSON column SQL before

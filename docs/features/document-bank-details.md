@@ -1,13 +1,15 @@
 # Bank transfer instructions on issued documents
 
-Transaction invoices (חשבון עסקה) and tax invoices (חשבונית מס) offer an unchecked
-"הוסף פרטי חשבון להעברת תשלום" option. Enabling it reveals bank, branch, account
-number and beneficiary; all four must be nonblank. Text values preserve leading
-zeros. Limits are 100/20/40/100 characters respectively.
+Transaction invoices (חשבון עסקה) and tax invoices (חשבונית מס) always display
+bank, branch, account number and beneficiary under "פרטי חשבון להעברת תשלום".
+There is no checkbox. All four may stay blank; if any is filled, all four must be
+nonblank. Partial input blocks preview/issuance and shows a group message.
+Whitespace-only fields count as blank. Text preserves leading zeros.
+Limits are 100/20/40/100 characters respectively.
 
 The optional `docData.transferDetails` object is a document-owned snapshot stored
 in nullable `documents.transfer_details` JSON. It survives draft restoration and
-pending-allocation finalization. Unchecking sends null. Changing business or
+pending-allocation finalization. An entirely blank form sends null and omits the PDF section. Changing business or
 document type and resetting after issuance clear the form. Other document types
 reject supplied instructions. Existing documents have null instructions.
 
@@ -33,6 +35,6 @@ Backend: `npm test -- --runInBand --silent --runTestsByPath src/documents/transf
 Frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.doc-transfer.spec.json --include=src/app/pages/doc-create/doc-create-transfer.spec.ts --progress=false`, then `npm run build -- --configuration production`.
 
 Manual acceptance: create/preview either supported type with leading-zero branch
-and account numbers; uncheck; restore an OAuth draft; finalize an allocation;
+and account numbers; clear all four fields; restore an OAuth draft; finalize an allocation;
 switch business/type; review a long multipage PDF. Synthetic PDF fixtures require
 no database, signing provider, or real banking data.

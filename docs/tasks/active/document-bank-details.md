@@ -8,7 +8,7 @@
 ## Acceptance criteria
 
 - Optional bank, branch, account number and beneficiary on transaction invoices and tax invoices.
-- Off by default, all four fields required when enabled, leading zeros preserved.
+- Four fields always visible on supported forms; all blank or all complete, with leading zeros preserved.
 - Preview, original and copy display escaped RTL instructions separately from received payments.
 - Draft restore and pending-allocation finalization retain the document snapshot.
 - Context changes/reset prevent instructions leaking into another business/type.
@@ -102,3 +102,20 @@ Verification on this follow-up:
   unrelated application builds and business-flow tests were not repeated for
   this CSS-only follow-up. Prior evidence is recorded above, not claimed as a
   full run on this follow-up. No main integration, DB execution or push.
+
+
+## All-or-none form follow-up (2026-11-24; parent f4b97264)
+
+Removed the bank-details checkbox. Supported document types always show all four
+fields under "פרטי חשבון להעברת תשלום". A group validator accepts either four
+blank fields or four complete fields. Any partial entry blocks preview/issuance
+and displays an accessible group message. Entirely blank/cleared/whitespace-only
+input sends null, so the existing PDF path omits the whole section. Full input
+is trimmed and keeps leading zeros. Draft restoration and context resets remain.
+
+Risk tier: component behavior. Final follow-up verification:
+- frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.doc-transfer.spec.json --include=src/app/pages/doc-create/doc-create-transfer.spec.ts --progress=false`: 24/24 passed, exit 0. Includes all 14 partial combinations, empty/whitespace, complete/overlong, clear, draft and business/type scenarios.
+- frontend: `npm run build -- --configuration production`: passed, exit 0; hash `c2e824fbb6749876`, 138154ms. Nonblocking warnings: initial bundle 3.15 MB vs 2 MB warning budget, document styles 7.82 kB vs 6 kB, other component style budgets, unchanged SettingsNewPage NG8113 and CommonJS dependencies. No dependency/configuration changes.
+- Static search confirmed no remaining bank-checkbox state/template/style references. Shared existing title/input components retained; template compiled by the production build.
+- Full diff and `git diff --check` reviewed. Updated feature guide and nearest frontend/backend instructions.
+- Backend executable code, PDF template, schema and private-service contract did not change; their earlier evidence above is reused, not claimed as rerun on this follow-up. No DB write, main integration, deployment or push.

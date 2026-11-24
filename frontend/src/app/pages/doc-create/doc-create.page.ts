@@ -1,6 +1,6 @@
 import { writePdfPreviewStatus } from '../../services/pdf-preview-tab';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormControl, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
@@ -22,6 +22,12 @@ import { bankOptionsList, DocCreateFields, DocTypeDefaultStart, DocTypeDisplayNa
 import { DocCreateBuilderService } from './doc-create-builder.service';
 import { IClient, IDocCreateFieldData, SectionKeysEnum } from './doc-create.interface';
 import { DocCreateService } from './doc-create.service';
+
+function allOrNoTransferDetails(control: AbstractControl): ValidationErrors | null {
+  const values = Object.values(control.value as Record<string, string | null>);
+  const filled = values.filter(value => !!value?.trim()).length;
+  return filled === 0 || filled === values.length ? null : { incompleteTransferDetails: true };
+}
 
 interface DocPayload {
   docData: any[];
@@ -116,8 +122,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
   BusinessStatus = BusinessStatus;
   businessStatus: BusinessStatus = BusinessStatus.SINGLE_BUSINESS;
 
-  readonly transferDetailsEnabled = signal(false);
-  readonly transferDetailsValid = signal(false);
+  readonly transferDetailsValid = signal(true);
   readonly supportsTransferDetails = computed(() =>
     this.fileSelected() === DocumentType.TRANSACTION_INVOICE || this.fileSelected() === DocumentType.TAX_INVOICE);
   readonly transferDetailsFields = [
@@ -125,14 +130,13 @@ export class DocCreatePage implements OnInit, OnDestroy {
     { key: 'accountNumber', label: 'מספר חשבון' }, { key: 'beneficiary', label: 'שם המוטב' },
   ];
   readonly transferDetailsForm = new FormGroup({
-    bank: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]),
-    branch: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(20)]),
-    accountNumber: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(40)]),
-    beneficiary: new FormControl('', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(100)]),
-  });
+    bank: new FormControl('', [Validators.maxLength(100)]),
+    branch: new FormControl('', [Validators.maxLength(20)]),
+    accountNumber: new FormControl('', [Validators.maxLength(40)]),
+    beneficiary: new FormControl('', [Validators.maxLength(100)]),
+  }, { validators: allOrNoTransferDetails });
 
   resetTransferDetails(): void {
-    this.transferDetailsEnabled.set(false);
     this.transferDetailsForm.reset();
   }
 
@@ -140,15 +144,15 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.resetTransferDetails();
     if (this.supportsTransferDetails() && details) {
       this.transferDetailsForm.patchValue(details);
-      this.transferDetailsEnabled.set(true);
     }
   }
 
   private collectTransferDetails(): Record<string, string> | null {
-    if (!this.supportsTransferDetails() || !this.transferDetailsEnabled()) return null;
-    if (this.transferDetailsForm.invalid) throw new Error('Incomplete transfer details');
-    return Object.fromEntries(Object.entries(this.transferDetailsForm.getRawValue())
+    if (!this.supportsTransferDetails()) return null;
+    const details = Object.fromEntries(Object.entries(this.transferDetailsForm.getRawValue())
       .map(([key, value]) => [key, (value ?? '').trim()]));
+    if (this.transferDetailsForm.invalid) throw new Error('Incomplete transfer details');
+    return Object.values(details).some(value => !!value) ? details : null;
   }
 
   paymentsDetailsForm: FormGroup;
@@ -337,7 +341,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
   createDocIsValid = computed(() => {
     return (
-      (!this.supportsTransferDetails() || !this.transferDetailsEnabled() || this.transferDetailsValid()) &&
+      (!this.supportsTransferDetails() || this.transferDetailsValid()) &&
       this.generalFormIsValidSignal() &&
       this.userFormIsValidSignal() &&
       this.lineItemsDraft().length > 0 &&

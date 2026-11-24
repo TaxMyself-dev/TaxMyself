@@ -548,13 +548,10 @@
 
     @if (isFileSelected() && supportsTransferDetails()) {
     <section class="section transfer-details-section" aria-label="פרטי חשבון להעברת תשלום">
-      <div class="transfer-details-toggle">
-        <p-checkbox [binary]="true" inputId="transferDetailsCheckbox"
-          [ngModel]="transferDetailsEnabled()" (ngModelChange)="transferDetailsEnabled.set($event)"></p-checkbox>
-        <label for="transferDetailsCheckbox">הוסף פרטי חשבון להעברת תשלום</label>
+      <div class="create-doc-header">
+        <div class="icon-title"><span class="title">פרטי חשבון להעברת תשלום</span></div>
       </div>
-      @if (transferDetailsEnabled()) {
-      <p>הפרטים יוצגו במסמך כדי לאפשר ללקוח לשלם בהעברה בנקאית.</p>
+      <p>אפשר להשאיר את כל השדות ריקים. כדי להציג פרטי חשבון במסמך, יש למלא את כל ארבעת השדות.</p>
       <div class="user-details-section">
         @for (field of transferDetailsFields; track field.key) {
         <app-input-text [controlName]="field.key" [labelText]="field.label" [placeholder]="field.label"
@@ -562,6 +559,8 @@
           [size]="isMobile() ? inputsSize.MOBILE : inputsSize.BETWEEN"></app-input-text>
         }
       </div>
+      @if (!transferDetailsValid()) {
+      <p role="alert">יש למלא את כל ארבעת פרטי החשבון בצורה תקינה או להשאיר את כולם ריקים.</p>
       }
     </section>
     }

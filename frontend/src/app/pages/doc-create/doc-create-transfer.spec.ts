@@ -32,14 +32,13 @@ describe('document transfer details form', () => {
     page.selectedBusinessNumber = '123456789';
   });
   it('is optional by default and adds no payment rows', () => {
-    expect(page.transferDetailsEnabled()).toBeFalse();
     expect(page.createDocIsValid()).toBeTrue();
     const payload = page.buildDocPayload();
     expect(payload.docData.transferDetails).toBeNull();
     expect(payload.paymentData).toEqual([]);
   });
-  it('blocks issue/preview when enabled but incomplete, then preserves leading zeros', () => {
-    page.transferDetailsEnabled.set(true);
+  it('blocks partial instructions and preserves leading zeros when completed', () => {
+    page.transferDetailsForm.patchValue({bank: details.bank});
     expect(page.createDocIsValid()).toBeFalse();
     expect(() => page.buildDocPayload()).toThrow();
     page.transferDetailsForm.setValue(details);
@@ -48,18 +47,16 @@ describe('document transfer details form', () => {
     page.transferDetailsForm.patchValue({bank: ' '});
     expect(page.createDocIsValid()).toBeFalse();
   });
-  it('omits details after unchecking, even with entered values', () => {
+  it('omits instructions after clearing all previously filled fields', () => {
     page.restoreTransferDetails(details);
-    page.transferDetailsEnabled.set(false);
+    page.transferDetailsForm.reset();
     expect(page.buildDocPayload().docData.transferDetails).toBeNull();
     expect(page.createDocIsValid()).toBeTrue();
   });
   it('restores drafts with details and clears legacy draft details', () => {
     page.restoreTransferDetails(details);
-    expect(page.transferDetailsEnabled()).toBeTrue();
     expect(page.buildDocPayload().docData.transferDetails).toEqual(details);
     page.restoreTransferDetails(undefined);
-    expect(page.transferDetailsEnabled()).toBeFalse();
     expect(page.transferDetailsForm.get('accountNumber').value).toBeNull();
   });
   it('supports exactly transaction and tax invoices', () => {
@@ -71,14 +68,12 @@ describe('document transfer details form', () => {
   it('clears instructions when the selected business changes', () => {
     page.restoreTransferDetails(details);
     page.setSelectedBusiness({businessNumber: '987654321'});
-    expect(page.transferDetailsEnabled()).toBeFalse();
     expect(page.transferDetailsForm.get('bank').value).toBeNull();
   });
   it('clears instructions when document type changes', () => {
     page.restoreTransferDetails(details);
     page.handleDocIndexes = () => {};
     page.onSelectedDoc(DocumentType.TRANSACTION_INVOICE);
-    expect(page.transferDetailsEnabled()).toBeFalse();
     expect(page.transferDetailsForm.get('accountNumber').value).toBeNull();
   });
   it('does not send details for an unsupported document type', () => {
@@ -86,4 +81,27 @@ describe('document transfer details form', () => {
     page.fileSelected.set(DocumentType.CREDIT_INVOICE);
     expect(page.buildDocPayload().docData.transferDetails).toBeNull();
   });
+  it('treats whitespace-only inputs as empty and sends no PDF instructions', () => {
+    page.transferDetailsForm.setValue({bank: ' ', branch: '  ', accountNumber: '', beneficiary: ' '});
+    expect(page.createDocIsValid()).toBeTrue();
+    expect(page.buildDocPayload().docData.transferDetails).toBeNull();
+  });
+  it('trims complete details and rejects overlong values', () => {
+    page.transferDetailsForm.setValue({...details, bank: '  ' + details.bank + '  '});
+    expect(page.buildDocPayload().docData.transferDetails).toEqual(details);
+    page.transferDetailsForm.patchValue({accountNumber: '0'.repeat(41)});
+    expect(page.createDocIsValid()).toBeFalse();
+    expect(() => page.buildDocPayload()).toThrow();
+  });
+  for (let mask = 1; mask < 15; mask++) {
+    it(`blocks partial field combination ${mask} without sending any document request`, () => {
+      const values = Object.fromEntries(Object.entries(details).map(([key, value], index) =>
+        [key, mask & (1 << index) ? value : '']));
+      page.transferDetailsForm.setValue(values);
+      expect(page.transferDetailsValid()).toBeFalse();
+      expect(page.createDocIsValid()).toBeFalse();
+      expect(() => page.buildDocPayload()).toThrow();
+    });
+  }
+
 });
