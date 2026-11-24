@@ -1,13 +1,10 @@
-import { AccountImageComponent } from 'src/app/components/account-image/account-image.component';
 import { OpenBankingManagementComponent } from 'src/app/components/open-banking-management/open-banking-management.component';
-import { savedConsentLabel, BankingSupportError, OpenBankingErrorComponent, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
+import { savedConsentLabel, BankingSupportError, bankingRequestError } from 'src/app/components/open-banking-management/open-banking-error.component';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
-import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Directive, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { ISRAELI_PHONE_ERROR, israeliPhoneValidator } from 'src/app/shared/israeli-phone';
-import { ButtonComponent } from 'src/app/components/button/button.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -15,25 +12,11 @@ import { AccessService } from 'src/app/services/access.service';
 import { ModuleName } from 'src/app/shared/access-control';
 import { MyPermissionsService } from 'src/app/services/my-permissions.service';
 import { IUserData, Business, IChild, IColumnDataTable, IMobileCardConfig, IRowDataTable } from 'src/app/shared/interface';
-import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
-import { AvatarModule } from 'primeng/avatar';
 import { ConfirmationService, MessageService } from 'primeng/api';
-import { ToastModule } from 'primeng/toast';
-import { DialogModule } from 'primeng/dialog';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { SelectModule } from 'primeng/select';
 import { familyStatusOptionsList, employmentTypeOptionsList, businessTypeOptionsList, companyBusinessTypeOptionsList, businessFieldTypeOptionsList, BusinessProprietorRole, isExemptBusinessType, paymentIdentifierType, VATReportingType, TaxReportingType, inputsSize } from 'src/app/shared/enums';
 import { TransactionsService } from 'src/app/pages/transactions/transactions.page.service';
 import { SyncStatusService } from 'src/app/services/sync-status.service';
 import { catchError, EMPTY, finalize, take } from 'rxjs';
-import { SharedModule } from 'src/app/shared/shared.module';
-import { MyCategoriesTabComponent } from './my-categories-tab/my-categories-tab.component';
-import { GmailIntegrationComponent } from './gmail-integration/gmail-integration.component';
-import { InboundEmailComponent } from './inbound-email/inbound-email.component';
-import { MySubscriptionTabComponent } from './my-subscription-tab/my-subscription-tab.component';
-import { InputTextComponent } from 'src/app/components/input-text/input-text.component';
-import { InputDateComponent } from 'src/app/components/input-date/input-date.component';
-import { InputSelectComponent } from 'src/app/components/input-select/input-select.component';
 import { DriveDocsService, MAX_UPLOAD_TO_INBOX_FILES } from 'src/app/services/drive-docs.service';
 import { SETTINGS_TABS, shouldLoadOpenBankingAccountSources } from './settings-access.policy';
 import {
@@ -53,35 +36,8 @@ type ShaamConnectionViewStatus =
   | 'sandbox-blocked'
   | 'error';
 
-@Component({
-  selector: 'app-settings',
-  templateUrl: './settings.page.html',
-  styleUrls: ['./settings.page.scss', '../../shared/shared-styling.scss'],
-  standalone: true,
-  imports: [AccountImageComponent, OpenBankingErrorComponent,
-    OpenBankingManagementComponent,
-    CommonModule,
-    FormsModule,
-    ReactiveFormsModule,
-    ButtonComponent,
-    AvatarModule,
-    ToastModule,
-    DialogModule,
-    ConfirmDialogModule,
-    SelectModule,
-    SharedModule,
-    MyCategoriesTabComponent,
-    GmailIntegrationComponent,
-    InboundEmailComponent,
-    MySubscriptionTabComponent,
-    GenericTableComponent,
-    InputTextComponent,
-    InputDateComponent,
-    InputSelectComponent,
-  ],
-  providers: []
-})
-export class SettingsPage implements OnInit {
+@Directive()
+export class SettingsFormBase implements OnInit {
   readonly bankingError = signal<BankingSupportError | null>(null);
   readonly phoneError = ISRAELI_PHONE_ERROR;
   authService = inject(AuthService);

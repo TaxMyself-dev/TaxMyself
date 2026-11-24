@@ -3133,3 +3133,15 @@ ALTER TABLE email_import_runs
   ADD COLUMN worker_scope VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
   ADD INDEX ix_email_runs_scope_due (worker_scope,pull_state,next_attempt_at,started_at),
   ALGORITHM=INPLACE, LOCK=NONE;
+-- Gmail business routing, 2026-11-22. Explicit preparation approval only.
+-- Do not execute without separate database-change authorization. Apply once.
+-- Same statements as backend/scripts/migrations/2026-11-22_gmail-business-routing.sql;
+-- choose one execution path, never run both.
+ALTER TABLE user_integrations ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE imported_documents ADD COLUMN email_routing_json JSON NULL;
+ALTER TABLE extracted_document ADD COLUMN email_routing_json JSON NULL;
+
+-- Gmail pre-connect business selection, 2026-11-23. Development application
+-- authorized; production execution still requires separate authorization.
+-- Same as backend/scripts/migrations/2026-11-23_gmail-connect-business.sql: run once.
+ALTER TABLE oauth_states ADD COLUMN business_number VARCHAR(32) NULL;

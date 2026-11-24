@@ -15,7 +15,7 @@ describe('new personal settings', () => {
     const page: any = Object.create(SettingsNewPage.prototype);
     const scrollTo = jasmine.createSpy('scrollTo');
     page.activeSection = signal<'account' | 'businesses'>('account');
-    page.scroller = { nativeElement: { scrollTop: 80, getBoundingClientRect: () => ({ top: 60 }), scrollTo } } as any;
+    page.scroller = { nativeElement: { scrollTop: 80, scrollHeight: 2000, clientHeight: 500, getBoundingClientRect: () => ({ top: 60 }), scrollTo } } as any;
     page.businessSection = { nativeElement: { getBoundingClientRect: () => ({ top: 700 }) } } as any;
     page.goTo('businesses');
     expect(scrollTo).toHaveBeenCalledWith(jasmine.objectContaining({ top: 688 }));

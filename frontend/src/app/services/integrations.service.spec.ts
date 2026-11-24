@@ -22,11 +22,25 @@ describe('Gmail connection requests', () => {
     expect(request.request.method).toBe('DELETE');
     request.flush({});
   });
+  it('reads and saves multiple mailbox-scoped rules without provider credentials',()=>{
+    const settings={businessNumber:'123456789',rules:[{sender:'blocked@example.com',action:'BLOCK' as const},{sender:'billing@example.com',action:'BUSINESS' as const,businessNumber:'987654321'}]};
+    service.getEmailRouting(17).subscribe();
+    http.expectOne(`${environment.apiUrl}integrations/google/17/routing`).flush({settings,businesses:[]});
+    service.saveEmailRouting(17,settings).subscribe();
+    const save=http.expectOne(`${environment.apiUrl}integrations/google/17/routing`);
+    expect(save.request.method).toBe('POST');expect(save.request.body).toEqual(settings);save.flush({settings});
+  });
   it('creates a new connection without a mailbox identifier from the browser', () => {
     service.getGoogleConnectUrl().subscribe();
     const request = http.expectOne(`${environment.apiUrl}integrations/google/connect`);
     expect(request.request.params.keys()).toEqual([]);
     request.flush({ url: 'https://connect.composio.dev/link/test' });
+  });
+  it('sends the selected business before opening Google and lists only server-owned choices',()=>{
+    service.getEmailRoutingOptions().subscribe();http.expectOne(`${environment.apiUrl}integrations/google/routing-options`).flush({businesses:[]});
+    service.getGoogleConnectUrl(undefined,'123456789').subscribe();
+    const request=http.expectOne(`${environment.apiUrl}integrations/google/connect?businessNumber=123456789`);
+    expect(request.request.params.has('integrationId')).toBeFalse();request.flush({url:'https://connect.composio.dev/link/test'});
   });
   it('reconnects only the explicitly selected local integration', () => {
     service.getGoogleConnectUrl(42).subscribe();

@@ -143,6 +143,13 @@ describe('server-owned email worker routing', () => {
       expect(args.at(-1)).toBe('local');
     }
   });
+  it('keeps worker ownership bound to the immutable run when business routing moves the document',()=>{
+    const sql=emailWorkScope('local').sql;
+    expect(sql).toContain('scope_run.id=imported_documents.email_run_id');
+    expect(sql).toContain('scope_run.firebase_id=imported_documents.firebase_id');
+    expect(sql).not.toContain('scope_run.business_number=imported_documents.business_number');
+    expect(emailAnalysisScope('local').sql).not.toContain('scope_run.business_number=scope_doc.business_number');
+  });
   it('rejects wrong live database or missing schema before starting a scoped server', async () => {
     const wrong = new EmailIntakeStore({
       query: async () => [{ db: 'other' }],

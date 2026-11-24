@@ -50,3 +50,18 @@ describe("durable Gmail progress without an extra review screen", () => {
     expect(service.status()?.runs?.[0].pull_state).toBe("RETRY");
   });
 });
+
+describe('Gmail completion follows processing', () => {
+  it('does not announce completion when the pull finishes before processing', () => {
+    let status: any = {accounts:[{id:17,lastSyncStatus:'RUNNING'}],runs:[{id:'run',integrationId:17,pull_state:'RUNNING',processing_state:'WAITING'}]};
+    const add = jasmine.createSpy();
+    TestBed.configureTestingModule({providers:[{provide:IntegrationsService,useValue:{getGmailSyncStatus:()=>of(status)}},{provide:MessageService,useValue:{add}}]});
+    const service=TestBed.inject(GmailSyncStateService);
+    service.refresh();
+    status={accounts:[{id:17,lastSyncStatus:'SUCCESS'}],runs:[{id:'run',integrationId:17,pull_state:'COMPLETE',processing_state:'RUNNING'}]};
+    service.refresh();expect(add).not.toHaveBeenCalled();expect(service.isAnyRunning()).toBeTrue();
+    status={accounts:status.accounts,runs:[{id:'run',integrationId:17,pull_state:'COMPLETE',processing_state:'COMPLETE'}]};
+    service.refresh();expect(add).toHaveBeenCalledTimes(1);expect(service.isAnyRunning()).toBeFalse();
+    service.refresh();expect(add).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,7 +1,21 @@
 ## Purpose
 
+Gmail business routing: owner-only GET/POST google/:integrationId/routing manages
+a mailbox default and up to 100 exact sender rules. Provider read boundaries
+reload all current rules; blocked senders never reach attachment/AI calls. Query
+changes restart durable pagination without discarding source identities. See
+../../../docs/features/gmail-business-routing.md and email-intake/AGENTS.md.
+
 Owns connected third-party user integrations, currently Composio-managed Gmail
 document import/synchronization.
+
+Before Google connect, the owner selects an owned business (single-business UI
+goes straight to Google). GET google/routing-options returns only owned choices.
+The business is frozen in oauth_states.business_number, never a callback URL
+parameter. Callback revalidates ownership before provider reads and before save.
+Reconnect updates only the default JSON key via JSON_SET, preserving sender rules
+and sync cursors, including concurrent settings edits. The nullable state column
+was explicitly authorized/applied to keepintax-dev on 2026-11-23; not production.
 
 ## Key entities/files
 

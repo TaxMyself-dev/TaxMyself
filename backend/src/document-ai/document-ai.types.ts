@@ -70,6 +70,8 @@ export interface AnalysisJob {
   expires_at: Date | null;
 }
 export interface AnalysisInput {
+  /** Re-read current source rules immediately before a paid provider call. */
+  beforeAnalyze?: () => Promise<void>;
   bytes: Buffer;
   mimeType: string;
   catalog: any[];

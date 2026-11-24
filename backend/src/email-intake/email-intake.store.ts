@@ -41,6 +41,7 @@ export interface EmailItem {
   attempts: number;
 }
 export interface EmailWork {
+  email_routing_json?: any;
   source?: string;
   email_policy_version?: string;
   id: number;
@@ -165,13 +166,14 @@ export class EmailIntakeStore implements OnModuleInit {
     const scope = emailRunScope(this.workerScope);
     return this.query(
       owner
-        ? 'SELECT * FROM email_import_runs WHERE firebase_id=?' +
-            scope.sql +
-            ' ORDER BY started_at DESC LIMIT 20'
-        : "SELECT * FROM email_import_runs WHERE (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))" +
-            scope.sql +
-            ' ORDER BY started_at LIMIT 2',
-      owner ? [owner, ...scope.params] : scope.params,
+        ? `SELECT r.* FROM email_import_runs r WHERE r.firebase_id=?${emailRunScope(this.workerScope,'r.worker_scope').sql} AND (
+          r.pull_state IN ('RUNNING','RETRY') OR r.processing_state='RUNNING' OR
+          r.id=(SELECT latest.id FROM email_import_runs latest
+            WHERE latest.firebase_id=r.firebase_id AND latest.integration_id=r.integration_id${emailRunScope(this.workerScope,'latest.worker_scope').sql}
+            ORDER BY latest.started_at DESC,latest.id DESC LIMIT 1)
+        ) ORDER BY r.started_at DESC,r.id DESC`
+        : "SELECT * FROM email_import_runs WHERE (pull_state IN ('RUNNING','RETRY') OR (pull_state='COMPLETE' AND sync_type<>'MANUAL' AND integration_finalized_at IS NULL)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))" + scope.sql + ' ORDER BY started_at LIMIT 2',
+      owner ? [owner,...scope.params,...scope.params] : scope.params,
     );
   }
   async leaseRun(id: string) {
@@ -257,10 +259,9 @@ export class EmailIntakeStore implements OnModuleInit {
         const known = part.skip
           ? []
           : await this.query(
-              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND r.business_number=? AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
+              "SELECT i.imported_document_id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id JOIN imported_documents d ON d.id=i.imported_document_id WHERE r.firebase_id=? AND d.firebase_id=r.firebase_id AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state IN ('IMPORTED','DUPLICATE') AND d.email_work_state<>'STAGING' ORDER BY i.created_at DESC LIMIT 1",
               [
                 run.firebase_id,
-                run.business_number,
                 run.integration_id,
                 message.message_id,
                 part.path,
@@ -355,7 +356,7 @@ export class EmailIntakeStore implements OnModuleInit {
     if (!this.enabled()) return [];
     const scope = emailWorkScope(this.workerScope);
     return this.query(
-      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) " +
+      "SELECT * FROM imported_documents WHERE source='GMAIL' AND email_work_state IN ('MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','ROUTING_PENDING','MOVE_PROCESSED','DELETE_PENDING','DELETE_RETRY') AND (email_next_at IS NULL OR email_next_at<=UTC_TIMESTAMP(3)) AND (email_lease_token IS NULL OR email_lease_expires_at<UTC_TIMESTAMP(3)) " +
         scope.sql +
         ' ORDER BY id LIMIT 20',
       scope.params,
@@ -384,6 +385,7 @@ export class EmailIntakeStore implements OnModuleInit {
     changes: Record<string, any>,
   ) {
     const allowed = [
+      'email_routing_json',
       'email_work_state',
       'email_ai_state',
       'email_ai_attempt_id',

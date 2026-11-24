@@ -19,6 +19,32 @@ describe('Email connection lifecycle without a live mailbox', () => {
     expect(states.bindConnection).toHaveBeenCalledWith('single-use', 'ca-a', undefined);
     expect(composio.link).toHaveBeenCalledWith('user-a', expect.stringContaining('state=single-use'));
   });
+  it('binds an owned business to single-use server state before linking Google',async()=>{
+    const routing:any={connectionBusiness:jest.fn().mockResolvedValue('123456789')};
+    const scoped=new EmailConnectionsService(composio,states,integrations,routing);
+    await scoped.connect('user-a',undefined,'123456789');
+    expect(routing.connectionBusiness).toHaveBeenCalledWith('user-a','123456789');
+    expect(states.createState).toHaveBeenCalledWith('user-a',IntegrationProvider.GOOGLE,null,'123456789');
+    expect(composio.link.mock.calls[0][1]).not.toContain('123456789');
+  });
+  it('does not open Google when business selection is missing or foreign',async()=>{
+    const scoped=new EmailConnectionsService(composio,states,integrations,{connectionBusiness:jest.fn().mockRejectedValue(new Error('Select an owned business'))} as any);
+    await expect(scoped.connect('user-a')).rejects.toThrow('owned business');
+    expect(states.createState).not.toHaveBeenCalled();expect(composio.link).not.toHaveBeenCalled();
+  });
+  it('applies only the saved business on verified callback and rechecks ownership',async()=>{
+    states.consumeState.mockResolvedValue({...attempt,businessNumber:'123456789'});
+    const routing:any={connectionBusiness:jest.fn().mockResolvedValue('123456789')};
+    await new EmailConnectionsService(composio,states,integrations,routing).complete('single-use','ca-a','success');
+    expect(routing.connectionBusiness).toHaveBeenCalledTimes(2);
+    expect(integrations.upsertIntegration).toHaveBeenCalledWith(expect.objectContaining({businessNumber:'123456789',firebaseId:'user-a'}));
+  });
+  it('rejects a business removed during Google consent before invoking provider tools',async()=>{
+    states.consumeState.mockResolvedValue({...attempt,businessNumber:'deleted'});
+    const routing:any={connectionBusiness:jest.fn().mockRejectedValue(new Error('Business removed'))};
+    await expect(new EmailConnectionsService(composio,states,integrations,routing).complete('single-use','ca-a','success')).rejects.toThrow('removed');
+    expect(composio.assertAccount).not.toHaveBeenCalled();expect(integrations.upsertIntegration).not.toHaveBeenCalled();
+  });
   it('rejects forged callback account IDs before any tool execution', async () => {
     await expect(service.complete('single-use', 'ca-other', 'success')).rejects.toThrow();
     expect(composio.execute).not.toHaveBeenCalled();
@@ -56,7 +82,7 @@ describe('Email connection lifecycle without a live mailbox', () => {
   });
   it('creates provider-bound Outlook OAuth and saves verified Microsoft identity', async () => {
     process.env.COMPOSIO_OUTLOOK_CALLBACK_URL = 'http://localhost:3000/integrations/outlook/callback';
-    await service.connect('user-a', undefined, IntegrationProvider.MICROSOFT);
+    await service.connect('user-a', undefined, undefined, IntegrationProvider.MICROSOFT);
     expect(states.createState).toHaveBeenCalledWith('user-a', IntegrationProvider.MICROSOFT);
     expect(composio.link).toHaveBeenCalledWith('user-a', expect.stringContaining('/outlook/callback?state='), 'outlook');
     composio.execute.mockResolvedValue({id:'ms-id',mail:'mail@example.com'});
@@ -67,7 +93,7 @@ describe('Email connection lifecycle without a live mailbox', () => {
   });
   it('does not reconnect a Google row through Outlook', async () => {
     integrations.findOwnedByIdOrThrow.mockResolvedValue({provider:IntegrationProvider.GOOGLE});
-    await expect(service.connect('user-a', 1, IntegrationProvider.MICROSOFT)).rejects.toThrow();
+    await expect(service.connect('user-a', 1, undefined, IntegrationProvider.MICROSOFT)).rejects.toThrow();
     expect(composio.link).not.toHaveBeenCalled();
   });
   it('revokes Outlook using its own toolkit context', async () => {

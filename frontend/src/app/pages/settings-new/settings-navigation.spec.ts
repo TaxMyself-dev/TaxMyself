@@ -1,3 +1,5 @@
+import { of } from 'rxjs';
+import { convertToParamMap } from '@angular/router';
 import { signal } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { PERSONAL_SETTINGS_LINKS, SUBSCRIPTION_SETTINGS_LINKS, activeSettingsSection, SettingsSection } from './settings-navigation';
@@ -76,12 +78,12 @@ describe('restore settings section', () => {
     page.activeSection=signal('account');page.personalEditing=signal(false);page.spouseEditing=signal(false);page.childEditing=signal(null);
     page.activateSection=jasmine.createSpy('activate');page.navigationSession={remember:jasmine.createSpy('remember')};page.navigationContext='visit';
     const scrollTo=jasmine.createSpy('scroll');
-    page.scroller={nativeElement:{scrollTop:0,getBoundingClientRect:()=>({top:0}),querySelector:()=>({getBoundingClientRect:()=>({top:700})}),scrollTo}};
+    page.scroller={nativeElement:{scrollTop:0,scrollHeight:2000,clientHeight:500,getBoundingClientRect:()=>({top:0}),querySelector:()=>({getBoundingClientRect:()=>({top:700})}),scrollTo}};
     page.goTo('history',true);page.onScroll();
     expect(scrollTo).toHaveBeenCalledWith({behavior:'instant',top:668});
     expect(page.activeSection()).toBe('history');expect(page.personalEditing()).toBeFalse();expect(page.spouseEditing()).toBeFalse();expect(page.childEditing()).toBeNull();
-    page.stopRestoringSection();expect(page.restoringSection).toBeNull();
-    page.goTo('payment');expect(page.restoringSection).toBeNull();
+    page.stopRestoringSection();expect(page.scrollTarget).toBeNull();
+    page.goTo('payment');expect(page.scrollTarget).toBe('payment');
   });
 });
 
@@ -120,5 +122,15 @@ describe('admin-only agent settings',()=>{
   const page:any=Object.create(SettingsNewPage.prototype);page.agentAccess={isAdmin:()=>false};page.agentActivated=signal(false);
   expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeFalse();page.activateSection('agent');expect(page.agentActivated()).toBeFalse();
   page.agentAccess={isAdmin:()=>true};expect(page.personalLinks.some((link:any)=>link.key==='agent')).toBeTrue();page.activateSection('agent');expect(page.agentActivated()).toBeTrue();
+ });
+});
+
+describe('canonical settings OAuth return section',()=>{
+ it('opens permissions after an existing tab=permissions callback instead of restoring another section',()=>{
+  const page:any=Object.create(SettingsNewPage.prototype);
+  page.selectedTab='permissions';page.agentRoute={queryParamMap:of(convertToParamMap({})),snapshot:{queryParamMap:convertToParamMap({})}};
+  page.navigationSession={open:()=>({context:'visit',section:'history'})};page.goTo=jasmine.createSpy();
+  const parent=document.createElement('div');parent.appendChild(document.createElement('div'));page.scroller={nativeElement:parent};
+  page.ngAfterViewInit();expect(page.goTo).toHaveBeenCalledOnceWith('permissions',true);page.ngOnDestroy();
  });
 });

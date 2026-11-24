@@ -31,7 +31,7 @@ export function emailWorkScope(
 ): EmailScopeSql {
   return scope
     ? {
-        sql: ` AND EXISTS (SELECT 1 FROM email_import_runs scope_run WHERE scope_run.id=${alias}.email_run_id AND scope_run.firebase_id=${alias}.firebase_id AND scope_run.business_number=${alias}.business_number AND scope_run.worker_scope=?)`,
+        sql: ` AND EXISTS (SELECT 1 FROM email_import_runs scope_run WHERE scope_run.id=${alias}.email_run_id AND scope_run.firebase_id=${alias}.firebase_id AND scope_run.worker_scope=?)`,
         params: [scope],
       }
     : { sql: '', params: [] };
@@ -42,7 +42,7 @@ export function emailAnalysisScope(
 ): EmailScopeSql {
   return scope
     ? {
-        sql: ` AND (${alias}.purpose<>'GMAIL' OR EXISTS (SELECT 1 FROM imported_documents scope_doc JOIN email_import_runs scope_run ON scope_run.id=scope_doc.email_run_id AND scope_run.firebase_id=scope_doc.firebase_id AND scope_run.business_number=scope_doc.business_number WHERE scope_doc.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(${alias}.context_json,'$.importId')) AS UNSIGNED) AND scope_doc.firebase_id=${alias}.owner AND scope_doc.business_number=${alias}.business AND scope_run.worker_scope=?))`,
+        sql: ` AND (${alias}.purpose<>'GMAIL' OR EXISTS (SELECT 1 FROM imported_documents scope_doc JOIN email_import_runs scope_run ON scope_run.id=scope_doc.email_run_id AND scope_run.firebase_id=scope_doc.firebase_id WHERE scope_doc.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(${alias}.context_json,'$.importId')) AS UNSIGNED) AND scope_doc.firebase_id=${alias}.owner AND scope_doc.business_number=${alias}.business AND scope_run.worker_scope=?))`,
         params: [scope],
       }
     : { sql: '', params: [] };
@@ -53,7 +53,7 @@ export function emailProtectedRootScope(
 ): EmailScopeSql {
   return scope
     ? {
-        sql: ` AND (${alias}.source<>'GMAIL' OR EXISTS (SELECT 1 FROM email_import_runs scope_run WHERE scope_run.id=COALESCE((SELECT scope_doc.email_run_id FROM imported_documents scope_doc WHERE scope_doc.id=${alias}.original_import_id AND scope_doc.firebase_id=${alias}.firebase_id AND scope_doc.business_number=${alias}.business_number),JSON_UNQUOTE(JSON_EXTRACT(${alias}.metadata_json,'$.emailRunId'))) AND scope_run.firebase_id=${alias}.firebase_id AND scope_run.business_number=${alias}.business_number AND scope_run.worker_scope=?))`,
+        sql: ` AND (${alias}.source<>'GMAIL' OR EXISTS (SELECT 1 FROM email_import_runs scope_run WHERE scope_run.id=COALESCE((SELECT scope_doc.email_run_id FROM imported_documents scope_doc WHERE scope_doc.id=${alias}.original_import_id AND scope_doc.firebase_id=${alias}.firebase_id AND scope_doc.business_number=${alias}.business_number),JSON_UNQUOTE(JSON_EXTRACT(${alias}.metadata_json,'$.emailRunId'))) AND scope_run.firebase_id=${alias}.firebase_id AND scope_run.worker_scope=?))`,
         params: [scope],
       }
     : { sql: '', params: [] };

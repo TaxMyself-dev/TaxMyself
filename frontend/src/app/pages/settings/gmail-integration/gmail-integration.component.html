@@ -5,22 +5,6 @@
   <h3 class="subsection-title">חבר את תיבת המייל שלך לטובת משיכת מסמכים</h3>
   <p class="gmail-muted">החיבור מתבצע באמצעות Composio. השימוש ב־KeepInTax מיועד לחיפוש וקריאת מסמכים מהמייל.</p>
 
-  @for (run of syncState.status()?.runs ?? []; track run.id) {
-    <section class="gmail-card" aria-label="התקדמות משיכת מסמכים">
-      <p>סטטוס משיכה: {{durableState(run.pull_state)}}</p>
-      <p>סטטוס עיבוד: {{durableState(run.processing_state)}}</p>
-      <p>קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}}</p>
-      @if (showRunDiagnostics) {
-        <details>
-          <summary>פרטי ריצה לפיתוח</summary>
-      <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
-      <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
-      <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
-      <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
-        </details>
-      }
-    </section>
-  }
   @if (syncState.loading()) {
     <p class="gmail-muted">טוען...</p>
   } @else if (syncState.accounts().length === 0) {
@@ -32,10 +16,10 @@
     </p>
     <div class="gmail-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'GOOGLE'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="isConnectingProvider('GOOGLE')"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'MICROSOFT'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="isConnectingProvider('MICROSOFT')"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 
     </div>
@@ -56,6 +40,45 @@
           }
         </p>
 
+        <app-p-button [buttonText]="'הגדרות קליטה ושיוך לעסק'" [variant]="'outlined'" [buttonSize]="buttonSize.SMALL"
+          [disabled]="routingBusy()" (onButtonClicked)="openRouting(account.id)"></app-p-button>
+
+        @if (activeRunsFor(account.id).length) {
+          <div class="gmail-running" role="status" aria-live="polite">
+            <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+            <span>משיכת מסמכים פעילה</span>
+          </div>
+          @for (run of activeRunsFor(account.id); track run.id) {
+            <div class="gmail-run-stages">
+              <span>סטטוס משיכה: {{ durableState(run.pull_state) }}</span>
+              <span>סטטוס עיבוד: {{ durableState(run.processing_state) }}</span>
+            </div>
+          }
+        }
+        @if (latestRunFor(account.id); as run) {
+          @if (!activeRunsFor(account.id).length && account.lastSyncStatus !== 'ERROR' && (run.pull_state === 'PARTIAL' || run.processing_state === 'ATTENTION')) {
+            <div class="gmail-error" role="status">המשיכה או עיבוד המסמכים דורשים טיפול.</div>
+          }
+          <details class="gmail-last-run">
+            <summary>פרטי המשיכה האחרונה</summary>
+            <div class="gmail-run-summary">
+              <span>סטטוס משיכה: {{ durableState(run.pull_state) }}</span>
+              <span>סטטוס עיבוד: {{ durableState(run.processing_state) }}</span>
+              <span>כמות הודעות: {{ totalCount(run.messages) }}</span>
+              <span>כמות קבצים: {{ totalCount(run.attachments) }}</span>
+            </div>
+            @if (showRunDiagnostics) {
+              <div class="gmail-run-diagnostics">
+      <p><strong>ריצה {{run.id.slice(0,8)}} · עסק {{run.businessNumber}}</strong></p>
+      <p>הודעות שנמצאו: {{runCount(run.messages,['DISCOVERED','SCANNED','RETRY','BLOCKED'])}} · קבצים שנקלטו: {{runCount(run.attachments,['IMPORTED'])}} · כפולים: {{runCount(run.attachments,['DUPLICATE'])}} · דילוגים טכניים: {{runCount(run.attachments,['FILTERED'])}}</p>
+      <p>ממתינים לעיבוד: {{runCount(run.documents,['STAGING','PROTECTED_DELIVERY','MOVE_PENDING','READY','AI_PREPARED','AI_IN_FLIGHT','RESULT_SAVED','MOVE_PROCESSED'])}} · ממתינים לאישור: {{runCount(run.documents,['AWAITING_APPROVAL'])}} · נדרשת סיסמה: {{runCount(run.documents,['PASSWORD_REQUIRED'])}}</p>
+      <p>מחיקות ממתינות: {{runCount(run.documents,['DELETE_PENDING','DELETE_RETRY'])}} · נמחקו: {{runCount(run.documents,['DELETED'])}} · מחיקות חסומות/לא מאומתות: {{runCount(run.documents,['DELETE_BLOCKED','DELETE_UNCONFIRMED'])}} · כשלים: {{runCount(run.attachments,['BLOCKED','RETRY'])+runCount(run.messages,['BLOCKED','RETRY'])+runCount(run.documents,['BLOCKED_INVALID','BLOCKED_LIMIT','WORK_BLOCKED'])}}</p>
+                <pre>{{ run | json }}</pre>
+              </div>
+            }
+          </details>
+        }
+
         @if (account.remoteDisconnectPending) {
           <p class="gmail-error">הגישה ב־KeepInTax נעצרה, אך ביטול החיבור אצל ספק החיבור טרם הושלם.</p>
           <app-p-button [buttonText]="'נסה שוב לנתק'" [severity]="'danger'" [variant]="'outlined'"
@@ -72,7 +95,7 @@
           </div>
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
-              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === (account.provider || 'GOOGLE')"
+              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="isConnectingProvider(account.provider || 'GOOGLE')"
               (onButtonClicked)="connectGmail(account.id, account.provider)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
@@ -83,6 +106,7 @@
         } @else if (account.lastSyncStatus === 'RUNNING') {
 
           <!-- ייבוא רץ -->
+          @if (!activeRunsFor(account.id).length) {
           <div class="gmail-running">
             <i class="pi pi-spin pi-spinner"></i>
             <span>
@@ -90,6 +114,7 @@
               אפשר להמשיך לעבוד, המסך יתעדכן אוטומטית בסיום.
             </span>
           </div>
+          }
           <div class="gmail-actions">
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
@@ -101,16 +126,6 @@
 
           @if (account.syncErrorPredatesConnection) {
             <p class="gmail-muted">החיבור אומת מחדש בהצלחה. שגיאת הייבוא הקודמת קדמה לחיבור מחדש; טרם בוצע ייבוא נוסף.</p>
-          }
-          <!-- ייבוא ראשוני הושלם -->
-          <div class="gmail-success">
-            <i class="pi pi-check-circle"></i>
-            <span>הייבוא הראשוני הושלם בהצלחה.</span>
-          </div>
-          @if (account.lastSuccessfulSyncAt) {
-            <p class="gmail-text">
-              סנכרון אחרון: {{ account.lastSuccessfulSyncAt | date:'dd/MM/yyyy HH:mm' }}
-            </p>
           }
           @if (account.lastSyncStatus === 'ERROR' && !account.syncErrorPredatesConnection) {
             <div class="gmail-error">
@@ -181,10 +196,10 @@
     <!-- פעולות גלובליות -->
     <div class="gmail-actions gmail-global-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connectingProvider() === 'GOOGLE'"
+        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()||connectionLoading()" [isLoading]="isConnectingProvider('GOOGLE')"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'MICROSOFT'"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()||connectionLoading()" [isLoading]="isConnectingProvider('MICROSOFT')"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 
       <app-p-button [buttonText]="'משוך מסמכים עכשיו'" [variant]="'outlined'"
@@ -195,7 +210,75 @@
   }
 </div>
 
-<!-- דיאלוג "משוך מסמכים עכשיו" — בחירת חשבונות לייבוא ידני -->
+<p-dialog header="חיבור Gmail לעסק" [visible]="connectionDialogVisible()" [modal]="true" [rtl]="true"
+  styleClass="email-routing-dialog email-connect-dialog" [style]="{width:'min(500px,94vw)'}" [draggable]="false" [resizable]="false"
+  [closable]="!connecting()" (visibleChange)="!$event && connectionDialogVisible.set(false)">
+  <div class="email-routing-content">
+    <p class="email-routing-intro">בחרו לאיזה עסק ייכנסו המסמכים מהתיבה שתחברו.</p>
+    <app-input-select [parentForm]="connectionForm" controlName="businessNumber" [items]="connectionBusinesses()"
+      labelText="העסק לשיוך התיבה" placeholder="בחרו עסק" [size]="inputsSize.AUTO" [filter]="false" [disabled]="connecting()||connectionLoading()"></app-input-select>
+    <p class="email-routing-help">לאחר הבחירה תעברו ל־Google לבחירת חשבון המייל ולאישור החיבור.</p>
+    @if(connectionError()){<p role="alert" class="email-routing-error">{{connectionError()}}</p>}
+  </div>
+  <ng-template pTemplate="footer">
+    <div class="email-routing-footer">
+      <app-p-button buttonText="ביטול" [variant]="'text'" [buttonSize]="buttonSize.AUTO" [disabled]="connecting()||connectionLoading()" (onButtonClicked)="connectionDialogVisible.set(false)"></app-p-button>
+      <app-p-button buttonText="המשך לחיבור Google" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.AUTO"
+        [disabled]="connecting()||connectionLoading()||connectionForm.invalid" [isLoading]="connecting()" (onButtonClicked)="confirmConnection()"></app-p-button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<p-dialog header="הגדרות קליטת מסמכים" [visible]="routingAccountId() !== null" [modal]="true" [rtl]="true"
+  styleClass="email-routing-dialog" [style]="{width:'min(720px,94vw)'}" [contentStyle]="{'max-height':'65vh','overflow-y':'auto'}"
+  [draggable]="false" [resizable]="false" [closable]="!routingBusy()" (visibleChange)="!$event && routingAccountId.set(null)">
+  @if(routingBusy()&&!routingConfig()){<p role="status" class="email-routing-help">טוען את הגדרות התיבה...</p>}
+  @if(routingConfig()){
+    <div class="email-routing-content">
+      <section class="email-routing-default">
+        <app-input-select [parentForm]="routingForm" controlName="businessNumber" [items]="routingBusinesses()"
+          labelText="עסק ברירת המחדל לתיבה" placeholder="בחרו עסק" [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+        <p class="email-routing-help">מסמכים ייכנסו לעסק הזה, אלא אם כלל שולח או זיהוי במסמך מצביעים על עסק אחר.</p>
+      </section>
+      <section class="email-routing-rules" aria-label="כללי שולחים">
+        <div class="email-routing-section-heading"><div><h4>כללי שולחים</h4><p class="email-routing-help">בחרו איך לטפל במסמכים משולחים מסוימים.</p></div>
+          <app-p-button buttonText="הוסף כלל" icon="pi pi-plus" [variant]="'outlined'" [buttonSize]="buttonSize.SMALL"
+            [disabled]="routingBusy()||routingRules().length>=100" (onButtonClicked)="addRoutingRule()"></app-p-button>
+        </div>
+        @if(!routingRules().length){
+          <div class="email-routing-empty"><i class="pi pi-filter" aria-hidden="true"></i><div><strong>עדיין אין כללי שולחים</strong><p>אפשר לחסום ייבוא משולח או להגדיר עבורו עסק קבוע כברירת מחדל.</p></div></div>
+        }
+        @for(rule of routingRules();track rule;let index=$index){
+          <div class="email-routing-rule">
+            <div class="email-routing-rule-heading"><strong>כלל {{index+1}}</strong>
+              <app-p-button buttonText="הסר" icon="pi pi-trash" [severity]="'danger'" [variant]="'text'" [buttonSize]="buttonSize.SMALL"
+                [disabled]="routingBusy()" (onButtonClicked)="removeRoutingRule(index)"></app-p-button>
+            </div>
+            <div class="email-routing-rule-fields">
+              <app-input-text [parentForm]="rule" controlName="sender" labelText="כתובת השולח" placeholder="billing@example.com"
+                [size]="inputsSize.AUTO" [disabled]="routingBusy()"></app-input-text>
+              <app-input-select [parentForm]="rule" controlName="action" labelText="מה לעשות עם המסמכים?" [items]="ruleActions"
+                [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+              @if(rule.get('action')?.value==='BUSINESS'){
+                <app-input-select class="email-routing-rule-destination" [parentForm]="rule" controlName="businessNumber" labelText="העסק לשיוך"
+                  placeholder="בחרו עסק" [items]="routingBusinesses()" [size]="inputsSize.AUTO" [filter]="false" [disabled]="routingBusy()"></app-input-select>
+              }
+            </div>
+          </div>
+        }
+      </section>
+      <p class="email-routing-priority"><i class="pi pi-info-circle" aria-hidden="true"></i><span>חסימת שולח מונעת ייבוא. זיהוי עסק חד־משמעי באמצעות AI קודם להגדרות השיוך.</span></p>
+    </div>
+  }
+  @if(routingError()){<p role="alert" class="email-routing-error">{{routingError()}}</p>}
+  <ng-template pTemplate="footer">
+    <div class="email-routing-footer">
+      <app-p-button buttonText="ביטול" [variant]="'text'" [buttonSize]="buttonSize.SMALL" [disabled]="routingBusy()" (onButtonClicked)="routingAccountId.set(null)"></app-p-button>
+      <app-p-button buttonText="שמור הגדרות" [buttonColor]="buttonColor.BLACK" [buttonSize]="buttonSize.SMALL" [disabled]="routingBusy()||!routingConfig()"
+        [isLoading]="routingBusy()&&!!routingConfig()" (onButtonClicked)="saveRouting()"></app-p-button>
+    </div>
+  </ng-template>
+</p-dialog>
 <p-dialog header="משיכת מסמכים לפי תאריכים" [visible]="importDialogVisible()"
   [modal]="true" [rtl]="true" [closable]="false"
   [style]="{ width: 'min(440px, 95vw)' }"

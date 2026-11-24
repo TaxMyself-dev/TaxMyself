@@ -1,3 +1,4 @@
+import { SETTINGS_ROUTES } from './pages/settings/settings.routes';
 import { NgModule } from '@angular/core';
 import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 // route guard
@@ -64,16 +65,7 @@ const appRoutes: Routes = [
     loadComponent: () => import('./pages/my-account/my-account.page').then(m => m.MyAccountPage),
     canActivate: [AuthGuard, BillingGuard]
   },
-  {
-    path: 'settings-new',
-    loadComponent: () => import('./pages/settings-new/settings-new.page').then(m => m.SettingsNewPage),
-    canActivate: [AuthGuard, BillingGuard]
-  },
-  {
-    path: 'settings',
-    loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage),
-    canActivate: [AuthGuard, BillingGuard]
-  },
+  ...SETTINGS_ROUTES,
   {
     path: 'transactions',
     canActivate: [AuthGuard, BillingGuard, ModuleAccessGuard],

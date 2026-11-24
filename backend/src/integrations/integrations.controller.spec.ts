@@ -35,6 +35,21 @@ describe('Mailbox owner-only controller', () => {
     await expect(controller.connect({ user: { firebaseId: 'owner', actorFirebaseId: 'owner' } } as any, 'NaN')).rejects.toThrow();
     expect(connections.connect).not.toHaveBeenCalled();
   });
+  it('passes the selected business to the server-owned OAuth attempt',async()=>{
+    await controller.connect({user:{firebaseId:'owner'}} as any,undefined,'123456789');
+    expect(connections.connect).toHaveBeenCalledWith('owner',undefined,'123456789');
+    await expect(controller.connect({user:{firebaseId:'owner'}} as any,undefined,' ')).rejects.toThrow();
+  });
+  it('keeps mailbox routing reads and writes owner-only',async()=>{
+    const routing:any={get:jest.fn(),save:jest.fn()};
+    const guarded=new IntegrationsController(connections,{} as any,{} as any,{} as any,{} as any,undefined,routing);
+    const represented:any={user:{firebaseId:'client',actorFirebaseId:'agent'},isDelegatedAccess:true};
+    await expect(guarded.routing(represented,17)).rejects.toThrow('owner');
+    await expect(guarded.saveRouting(represented,17,{rules:[]})).rejects.toThrow('owner');
+    expect(routing.get).not.toHaveBeenCalled();expect(routing.save).not.toHaveBeenCalled();
+    await guarded.saveRouting({user:{firebaseId:'owner'}} as any,17,{rules:[]});
+    expect(routing.save).toHaveBeenCalledWith('owner',17,{rules:[]});
+  });
   it('constructs callback redirects with correct query delimiters', async () => {
     process.env.GMAIL_FRONTEND_URL = 'http://localhost:4200/settings?tab=permissions';
     const response = { redirect: jest.fn() };

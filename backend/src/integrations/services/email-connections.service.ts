@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { EmailRoutingService } from '../../email-intake/email-routing.service';
+import { routingSettings } from '../../email-intake/email-routing.policy';
+import { BadRequestException, ConflictException, Injectable, Optional } from '@nestjs/common';
 import { ComposioClientService, objectValue } from './composio-client.service';
 import { OauthStateService } from './oauth-state.service';
 import { UserIntegrationsService } from './user-integrations.service';
@@ -7,18 +9,21 @@ import { EmailAccountContext } from '../providers/email-provider';
 
 @Injectable()
 export class EmailConnectionsService {
-  constructor(private readonly composio: ComposioClientService, private readonly states: OauthStateService, private readonly integrations: UserIntegrationsService) {}
+  constructor(private readonly composio: ComposioClientService, private readonly states: OauthStateService, private readonly integrations: UserIntegrationsService, @Optional() private readonly routing?: EmailRoutingService) {}
 
-  async connect(firebaseId: string, targetIntegrationId?: number, provider = IntegrationProvider.GOOGLE): Promise<{ url: string }> {
+  async connect(firebaseId: string, targetIntegrationId?: number, businessNumber?: string, provider = IntegrationProvider.GOOGLE): Promise<{ url: string }> {
     this.composio.assertEnabled();
     this.assertEmailProvider(provider);
+    let previousBusiness: string | null = null;
     if (targetIntegrationId !== undefined) {
       const target = await this.integrations.findOwnedByIdOrThrow(targetIntegrationId, firebaseId);
       if (target.provider !== provider || target.lastSyncStatus === IntegrationSyncStatus.RUNNING) throw new ConflictException('Connection cannot be replaced');
+      previousBusiness=routingSettings(target.emailRouting).businessNumber;
     }
+    const selectedBusiness=this.routing?await this.routing.connectionBusiness(firebaseId,businessNumber||previousBusiness):null;
     const callback = new URL(process.env[provider === IntegrationProvider.MICROSOFT ? 'COMPOSIO_OUTLOOK_CALLBACK_URL' : 'COMPOSIO_GMAIL_CALLBACK_URL'] || '');
     if (callback.protocol !== 'https:' && !(this.composio.environment() === 'dev' && callback.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(callback.hostname))) throw new BadRequestException('Invalid callback configuration');
-    const state = await this.states.createState(firebaseId, provider);
+    const state = selectedBusiness?await this.states.createState(firebaseId,provider,null,selectedBusiness):await this.states.createState(firebaseId, provider);
     callback.searchParams.set('state', state);
     const request = provider === IntegrationProvider.GOOGLE
       ? await this.composio.link(firebaseId, callback.toString())
@@ -31,6 +36,7 @@ export class EmailConnectionsService {
     this.assertEmailProvider(provider);
     const attempt = await this.states.consumeState(state, provider);
     if (status !== 'success' || !connectedAccountId || attempt.connectedAccountId !== connectedAccountId) throw new BadRequestException('Connection was canceled or invalid');
+    const businessNumber=this.routing?await this.routing.connectionBusiness(attempt.firebaseId,attempt.businessNumber):null;
     const account: EmailAccountContext = { firebaseId: attempt.firebaseId, connectedAccountId, environment: this.composio.environment(), ...(provider === IntegrationProvider.MICROSOFT ? { toolkit: 'outlook' as const } : {}) };
     await this.composio.assertAccount(account);
     const microsoft = provider === IntegrationProvider.MICROSOFT;
@@ -42,7 +48,8 @@ export class EmailConnectionsService {
       const target = await this.integrations.findOwnedByIdOrThrow(attempt.targetIntegrationId, attempt.firebaseId);
       if (target.provider !== provider || target.accountId !== identity.sub) throw new ConflictException('A different mailbox was selected');
     }
-    const saved = await this.integrations.upsertIntegration({ firebaseId: attempt.firebaseId, provider, accountId: identity.sub, accountEmail: identity.email, connectedAccountId });
+    if(businessNumber)await this.routing.connectionBusiness(attempt.firebaseId,businessNumber);
+    const saved = await this.integrations.upsertIntegration({ firebaseId: attempt.firebaseId, provider, accountId: identity.sub, accountEmail: identity.email, connectedAccountId,...(businessNumber?{businessNumber}:{}) });
     if (saved.retiredConnectedAccountIds?.length) {
       try {
         for (const id of saved.retiredConnectedAccountIds) await this.composio.remove({ ...account, connectedAccountId: id });

@@ -81,6 +81,7 @@ export type ArchiveDocumentClassification =
  *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
  *  Expense/SlimTransaction ids can collide) — key rows by `${itemType}-${id}`. */
 export interface ArchivedItem {
+  routingNote?: string | null;
   protectedDocumentId?: number;
   originalDriveFileId?: string;
   canUploadOpenCopy?: boolean;

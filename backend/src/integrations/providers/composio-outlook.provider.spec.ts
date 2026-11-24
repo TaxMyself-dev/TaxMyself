@@ -45,8 +45,20 @@ describe('Outlook read adapter', () => {
   });
   it('rejects a Google row or local revocation before reading', async () => {
     integrations.findByConnectedAccountId.mockResolvedValue({ provider: IntegrationProvider.GOOGLE, status: IntegrationStatus.ACTIVE, connectionBackend: 'COMPOSIO' });
-    await expect(provider.getMessage(account, 'm1')).rejects.toMatchObject({category:'AUTH'});
+    await expect(provider.getMessage(account, 'm1')).rejects.toMatchObject({category:'ACCESS'});
     expect(client.execute).not.toHaveBeenCalled();
+  });
+  it('blocks a configured sender before requesting Outlook attachment metadata',async()=>{
+    integrations.findByConnectedAccountId.mockResolvedValue({provider:IntegrationProvider.MICROSOFT,status:IntegrationStatus.ACTIVE,connectionBackend:'COMPOSIO',emailRouting:{businessNumber:null,rules:[{sender:'blocked@example.com',action:'BLOCK'}]}});
+    client.execute.mockResolvedValue({id:'m1',from:{emailAddress:{address:'blocked@example.com'}}});
+    await expect(provider.getMessage(account,'m1')).rejects.toThrow();
+    expect(client.execute).toHaveBeenCalledTimes(1);expect(downloads.download).not.toHaveBeenCalled();
+  });
+  it('rejects missing or newly blocked sender at the download boundary',async()=>{
+    integrations.findByConnectedAccountId.mockResolvedValue({provider:IntegrationProvider.MICROSOFT,status:IntegrationStatus.ACTIVE,connectionBackend:'COMPOSIO',emailRouting:{businessNumber:null,rules:[{sender:'blocked@example.com',action:'BLOCK'}]}});
+    await expect(provider.downloadAttachment(account,'m1','a1','file.pdf')).rejects.toMatchObject({category:'CONTRACT'});
+    await expect(provider.downloadAttachment({...account,senderEmail:'blocked@example.com'},'m1','a1','file.pdf')).rejects.toThrow();
+    expect(client.execute).not.toHaveBeenCalled();expect(downloads.download).not.toHaveBeenCalled();
   });
   it('expires only the failed connected account on authentication failure', async () => {
     client.execute.mockRejectedValue(new EmailProviderError('AUTH'));

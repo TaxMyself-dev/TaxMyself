@@ -1,6 +1,21 @@
 import { EmailIntakeStore } from './email-intake.store';
 import { EmailIntakeStorage } from './email-intake.storage';
 describe('durable intake persistence boundaries (offline)', () => {
+  it('deduplicates the original source after business transfer without crossing mailbox or tenant boundaries',async()=>{
+    const query=jest.fn(async(sql:string)=>{
+      if(sql.includes('SELECT * FROM email_import_runs'))return [{lease_token:'token'}];
+      if(sql.includes('SELECT i.imported_document_id'))return [{imported_document_id:99}];
+      return {affectedRows:1};
+    });
+    const manager:any={query};const store=new EmailIntakeStore({transaction:async fn=>fn(manager)} as any);
+    await store.recordParts({id:'new-run',firebase_id:'owner',business_number:'new-default',integration_id:17} as any,'token',{id:'message-item',message_id:'mail-1'} as any,[{path:'root.0',filename:'invoice.pdf',mimeType:'application/pdf'}]);
+    const lookup=query.mock.calls.find(([sql])=>sql.includes('SELECT i.imported_document_id'));
+    expect(lookup[0]).toContain('d.firebase_id=r.firebase_id');
+    expect(lookup[0]).not.toContain('r.business_number=?');
+    expect((lookup as any)[1]).toEqual(['owner',17,'mail-1','root.0']);
+    const insert=query.mock.calls.find(([sql])=>sql.startsWith('INSERT IGNORE INTO email_import_items')) as any;
+    expect(insert[1][4]).toBe('DUPLICATE');expect(insert[1][8]).toBe(99);
+  });
   const old = process.env.GMAIL_DURABLE_INTAKE_ENABLED;
   beforeEach(() => {
     process.env.GMAIL_DURABLE_INTAKE_ENABLED = 'true';

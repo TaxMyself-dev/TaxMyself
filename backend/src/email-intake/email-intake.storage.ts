@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { EmailRoutingService } from './email-routing.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createHash, randomUUID } from 'crypto';
@@ -19,9 +20,14 @@ export class EmailIntakeStorage {
     readonly drive: GoogleDriveService,
     readonly protectedPdf: ProtectedPdfService,
     readonly pdf: PdfInspectionService,
+    @Optional() readonly routing?: EmailRoutingService,
   ) {}
   async accept(run: EmailRun, item: EmailItem, bytes: Buffer) {
     if (!this.store.enabled()) throw new Error('Durable intake disabled');
+    const metadata = typeof item.source_metadata_json==='string'?JSON.parse(item.source_metadata_json):item.source_metadata_json||{};
+    const decision = this.routing ? await this.routing.initial(run.firebase_id,run.integration_id,metadata.gmailFrom) : null;
+    // A run is a source cursor; individual messages may target different businesses.
+    if(decision)run={...run,business_number:decision.initialBusiness};
     const business = await this.businesses.findOneBy({
       firebaseId: run.firebase_id,
       businessNumber: run.business_number,
@@ -41,10 +47,6 @@ export class EmailIntakeStorage {
       bytes.length > 10 * 1024 * 1024
     )
       throw new Error('Attachment requires manual handling');
-    const metadata =
-      typeof item.source_metadata_json === 'string'
-        ? JSON.parse(item.source_metadata_json)
-        : item.source_metadata_json || {};
     const hash = createHash('sha256').update(bytes).digest('hex');
     const existing = await this.imports.findOneBy({
       firebaseId: run.firebase_id,
@@ -89,6 +91,7 @@ export class EmailIntakeStorage {
           run.business_number,
         ],
       );
+      if(decision)await this.store.query('UPDATE imported_documents SET email_routing_json=? WHERE id=? AND firebase_id=? AND business_number=?',[JSON.stringify(decision),result.importedDocumentId,run.firebase_id,run.business_number]);
       return {
         id: result.importedDocumentId,
         duplicate: result.status === 'ALREADY_IMPORTED',
@@ -96,6 +99,7 @@ export class EmailIntakeStorage {
     }
     const tag = randomUUID();
     const fields = {
+      ...(decision?{email_routing_json:JSON.stringify(decision)}:{}),
       firebase_id: run.firebase_id,
       business_number: run.business_number,
       source: 'GMAIL',

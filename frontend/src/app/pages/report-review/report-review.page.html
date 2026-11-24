@@ -129,6 +129,7 @@
        popup (matched/doc_only only; no document on tx_only rows). -->
   <ng-template #docTypeCell let-row>
     <span class="cell-readonly">{{ sourceTypeLabel(row) }}</span>
+    <small *ngIf="row.routingNote" class="cell-readonly" [title]="row.routingNote">{{row.routingNote}}</small>
   </ng-template>
 
   <ng-template #periodCell let-row>
@@ -289,6 +290,7 @@
   [driveFileId]="editDialogRow()?.driveFileId ?? null"
   [driveFileName]="editDialogRow()?.driveFileName ?? ''"
   [titleLabel]="editDialogTitleLabel()"
+  [routingNote]="editDialogRow()?.routingNote ?? null"
   [viewMode]="viewMode()"
   [fields]="editDraft()"
   [categoryOptions]="categoryOptions()"

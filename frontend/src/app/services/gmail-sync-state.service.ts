@@ -110,7 +110,11 @@ export class GmailSyncStateService {
   private applyStatus(status: GmailSyncStatus): void {
     for (const account of status.accounts) {
       const previous = this.previousStatuses.get(account.id);
-      if (previous === 'RUNNING' && account.lastSyncStatus === 'SUCCESS') {
+      const runs = status.runs?.filter(run => run.integrationId === account.id) ?? [];
+      const wasActive = this.status()?.runs?.some(run => run.integrationId === account.id && (run.processing_state === 'RUNNING' || ['RUNNING', 'RETRY'].includes(run.pull_state)));
+      const processing = runs.some(run => run.processing_state === 'RUNNING' || ['RUNNING', 'RETRY'].includes(run.pull_state));
+      const needsAttention = runs[0]?.processing_state === 'ATTENTION' || runs[0]?.pull_state === 'PARTIAL';
+      if ((previous === 'RUNNING' || wasActive) && account.lastSyncStatus === 'SUCCESS' && !processing && !needsAttention) {
         this.notifyFinished('success', account);
       } else if (previous === 'RUNNING' && account.lastSyncStatus === 'ERROR') {
         this.notifyFinished('error', account);
@@ -136,7 +140,7 @@ export class GmailSyncStateService {
       this.messageService.add({
         severity: 'success',
         summary: 'המשיכה מהמייל הושלמה',
-        detail: `המשיכה מהמייל הסתיימה; מצב עיבוד המסמכים מוצג בנפרד${email ? ` (${email})` : ''}`,
+        detail: `המשיכה ועיבוד המסמכים הסתיימו${email ? ` (${email})` : ''}`,
         life: 5000,
         key: 'br',
       });

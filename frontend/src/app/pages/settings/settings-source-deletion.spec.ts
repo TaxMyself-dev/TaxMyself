@@ -1,10 +1,10 @@
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
-import { SettingsPage } from './settings.page';
+import { SettingsFormBase } from './settings-form-base';
 
 describe('settings payment source deletion', () => {
   function setup() {
-    const page = Object.create(SettingsPage.prototype) as SettingsPage;
+    const page = Object.create(SettingsFormBase.prototype) as SettingsFormBase;
     page.deletingSourceId = signal<number | null>(null);
     page.accountSourcesLoading = signal(false);
     page.retryingSourceId = signal<string | null>(null);

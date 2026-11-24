@@ -32,6 +32,10 @@ programmatic hide that occurs during the transition.
 
 ## Main flows
 
+- Archive rows include the server's optional routingNote in a searchable 'שיוך
+  לעסק' column. AI-driven business transfers retain source-mail identities and
+  the existing Drive file ID; archive approval details show the same note.
+
 - All issued-document, expense, archive, client and supplier tables pass the
   unified generic-table `actions` input; mobile menus are automatic and use
   the same predicates as desktop. File-independent page actions have no file

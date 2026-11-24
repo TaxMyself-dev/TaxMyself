@@ -17,6 +17,10 @@ import { IntegrationProvider } from '../enums/integrations.enums';
 @Index('ux_oauth_states_state', ['state'], { unique: true })
 @Index('ix_oauth_states_expires', ['expiresAt'])
 export class OauthState {
+  /** Owned business selected before Google OAuth; never trust a callback query for it. */
+  @Column({name:'business_number',type:'varchar',length:32,nullable:true})
+  businessNumber: string | null;
+
   @Column({ name: 'connected_account_id', type: 'varchar', length: 255, nullable: true })
   connectedAccountId: string | null;
 

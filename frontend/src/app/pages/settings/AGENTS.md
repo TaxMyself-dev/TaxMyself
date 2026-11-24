@@ -1,9 +1,23 @@
 ## Purpose
-Account/profile settings hub: tabbed page for editing personal details, spouse details, children, businesses, category customization, permissions, and connected-account management.
+Shared account/settings logic and domain components used by the canonical screen in `../settings-new/`. The legacy tabbed page/template/styles were deleted; `/settings` now loads the canonical screen and `/settings-new` redirects to it.
 
 ## Gmail connection boundary
 
-- Gmail uses Composio Managed OAuth; retain the shared component in both settings pages.
+- A single owned business connects directly to Google without a selection or
+  confirmation dialog. Multiple businesses use the application business select
+  before OAuth; reconnect preselects the saved business. The server freezes the
+  choice in single-use state and applies it after mailbox identity verification.
+- Routing dialogs use InputSelect/InputText/Button, responsive rule fields and
+  separate cancel/save footer actions. Sender rules only; no recipient/subject
+  rules in this release. Rules stay intact through reconnect.
+
+- Each connected mailbox opens 'הגדרות קליטה ושיוך לעסק' for an owned-business
+  default and multiple exact sender rules. Sender is the address, not display name.
+  AI identity can override assignment defaults; blocking rules prevent new intake.
+  The server owns validation/ownership and conflicting rule rejection. See
+  [routing specification](../../../../../docs/features/gmail-business-routing.md).
+
+- Gmail uses Composio Managed OAuth; retain the shared component in the canonical settings page.
 - Pass the local integration ID for reconnect, never a provider connection ID from UI.
 - Callback query parameters only indicate a return; connection success comes from saved
   server-verified account state. Represented-client mode cannot manage/read mailboxes.
@@ -11,9 +25,9 @@ Account/profile settings hub: tabbed page for editing personal details, spouse d
 - Focused specs use `tsconfig.email-spec.json`; see `docs/features/composio-email.md`.
 
 ## Key entities/files
-- `settings.page.ts` — `SettingsPage` (standalone component, no module.ts — routed directly via `loadComponent` in `app-routing.module.ts`). Owns per-tab reactive forms (`personalFormGroup`, `spouseFormGroup`, `childrenFormArray`, `businessesFormArray`, `addBusinessFormGroup`, `addPermissionFormGroup`). Categories and permission management are available to every authenticated user; only the open-banking account-source subsection is entitlement-gated.
+- `settings-form-base.ts` — `SettingsFormBase` (viewless Angular directive inherited by the canonical settings screen). Owns per-tab reactive forms (`personalFormGroup`, `spouseFormGroup`, `childrenFormArray`, `businessesFormArray`, `addBusinessFormGroup`, `addPermissionFormGroup`). Categories and permission management are available to every authenticated user; only the open-banking account-source subsection is entitlement-gated.
 - `settings-access.policy.ts` — testable settings-tab policy and the narrow predicate that prevents users without `OPEN_BANKING` from loading bank account sources.
-- `settings.page.html` / `.scss` — tabbed layout (personal / businesses / categories / permissions / subscription).
+- `settings.routes.ts` — guarded canonical route and compatibility redirect.
 - `my-categories-tab/my-categories-tab.component.ts(+html/scss)` — child component for the "הקטגוריות שלי" tab; manages user category/subcategory rules (`UserCategoryGroup`, `UserRuleRow`) — custom recognition %, VAT %, tax %, equipment flag, comment-pattern rules per category/subcategory.
 
 ## Main flows

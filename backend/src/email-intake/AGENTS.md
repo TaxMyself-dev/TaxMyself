@@ -20,3 +20,15 @@ requires exact keepintax-dev identity and reviewed schema. NULL historical work 
 not adopted. Keep owner/business fences, global content dedup and retention intact.
 See docs/features/email-worker-scope.md for guarded DEV application and the required
 all-worker update before removing temporary exclusive ownership.
+## Business routing
+
+See ../../../docs/features/gmail-business-routing.md. Mailbox settings and sender
+rules are owner-only; every provider call and new AI call rechecks current rules.
+Block beats all defaults. Exact buyer tax identity beats sender/mailbox routing.
+Source dedup is owner + mailbox + message + MIME path, independent of final
+business; preserve immutable runs/items when moving the retained import row.
+ROUTING_PENDING freezes the saved result/decision before a same-file move to the
+existing target processed folder. Resume after Drive success/DB failure without
+AI or upload. Only unedited PROCESSING claims can move. Never delete duplicates
+in the target. Resolve classification against the final catalog or clear it.
+Three nullable JSON columns are prepared only; no database application authorized.

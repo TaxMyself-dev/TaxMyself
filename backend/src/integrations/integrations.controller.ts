@@ -1,5 +1,6 @@
 import { Optional } from '@nestjs/common';
 import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
+import { EmailRoutingService } from '../email-intake/email-routing.service';
 import {
   Body,
   BadRequestException,
@@ -43,6 +44,7 @@ export class IntegrationsController {
     private readonly gmailDriveImportService: GmailDriveImportService,
     private readonly gmailSyncService: GmailSyncService,
     @Optional() private readonly durableRuns?: EmailIntakeRunsService,
+    @Optional() private readonly emailRouting?: EmailRoutingService,
   ) {}
 
   private ownerId(request: AuthenticatedRequest): string {
@@ -56,11 +58,11 @@ export class IntegrationsController {
 
   @Get('outlook/connect')
   @UseGuards(FirebaseAuthGuard)
-  async connectOutlook(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string) {
+  async connectOutlook(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string, @Query('businessNumber') businessNumber?:string) {
     const owner = this.ownerId(request);
     const id = integrationId === undefined ? undefined : Number(integrationId);
     if (id !== undefined && (!Number.isSafeInteger(id) || id <= 0)) throw new NotFoundException('Integration not found');
-    return this.emailConnectionsService.connect(owner, id, IntegrationProvider.MICROSOFT);
+    return this.emailConnectionsService.connect(owner, id, businessNumber, IntegrationProvider.MICROSOFT);
   }
 
   @Get('outlook/callback')
@@ -83,16 +85,36 @@ export class IntegrationsController {
     return { id, connected: false, status: IntegrationStatus.REVOKED };
   }
 
+  @Get('google/:integrationId/routing')
+  @UseGuards(FirebaseAuthGuard)
+  async routing(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id: number) {
+    return this.emailRouting.get(this.ownerId(request),id);
+  }
+
+  @Get('google/routing-options')
+  @UseGuards(FirebaseAuthGuard)
+  async routingOptions(@Req() request: AuthenticatedRequest) {
+    const businesses=await this.emailRouting.ownedBusinesses(this.ownerId(request));
+    return {businesses:businesses.map(b=>({businessNumber:b.businessNumber,businessName:b.businessName}))};
+  }
+
+  @Post('google/:integrationId/routing')
+  @UseGuards(FirebaseAuthGuard)
+  async saveRouting(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id: number, @Body() body: unknown) {
+    return this.emailRouting.save(this.ownerId(request),id,body);
+  }
+
   /** Returns the Google consent-screen URL the frontend should navigate to. */
   @Get('google/connect')
   @UseGuards(FirebaseAuthGuard)
-  async connect(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string) {
+  async connect(@Req() request: AuthenticatedRequest, @Query('integrationId') integrationId?: string, @Query('businessNumber') businessNumber?:string) {
     const firebaseId = this.ownerId(request);
     if (!firebaseId) throw new NotFoundException('User not found in request');
 
     const targetId = integrationId === undefined ? undefined : Number(integrationId);
     if (targetId !== undefined && (!Number.isSafeInteger(targetId) || targetId <= 0)) throw new NotFoundException('Integration not found');
-    return this.emailConnectionsService.connect(firebaseId, targetId);
+    if(businessNumber!==undefined&&(typeof businessNumber!=='string'||!businessNumber.trim()||businessNumber.length>32))throw new BadRequestException('Invalid connection business');
+    return this.emailConnectionsService.connect(firebaseId, targetId,businessNumber?.trim());
   }
 
   /**

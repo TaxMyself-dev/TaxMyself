@@ -18,6 +18,8 @@ export type EmailToolkit = 'gmail' | 'outlook';
 
 export interface EmailAccountContext {
   toolkit?: EmailToolkit;
+  /** Known sender for rule checks at each attachment-provider boundary. */
+  senderEmail?: string | null;
   firebaseId: string;
   connectedAccountId: string;
   environment: string;

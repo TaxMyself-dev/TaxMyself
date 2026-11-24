@@ -1,4 +1,5 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, Optional, OnModuleDestroy } from '@nestjs/common';
+import { EmailRoutingService } from './email-routing.service';
 import { Cron } from '@nestjs/schedule';
 import { QueryRunner } from 'typeorm';
 import { EmailIntakeStore, EmailRun } from './email-intake.store';
@@ -14,6 +15,7 @@ import {
   IntegrationStatus,
 } from '../integrations/enums/integrations.enums';
 import { UserIntegration } from '../integrations/entities/user-integration.entity';
+import { EmailRuleBlockedError, EmailRulesChangedError } from './email-routing.policy';
 import { EmailProviderError } from '../integrations/providers/email-provider.error';
 @Injectable()
 export class EmailIntakeRunsService implements OnModuleDestroy {
@@ -26,6 +28,7 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
     readonly integrations: UserIntegrationsService,
     readonly importer: DocumentImportService,
     readonly storage: EmailIntakeStorage,
+    @Optional() readonly routing?: EmailRoutingService,
   ) {}
   enabled() {
     return this.store.enabled();
@@ -59,9 +62,10 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
         ? 'has:attachment after:' + (now - 90 * 86400) + ' before:' + (now + 1)
         : suppliedQuery +
           (options.type === 'NIGHTLY' ? ' before:' + (now + 1) : '');
+    const mailboxBusiness = this.routing ? (await this.routing.initial(integration.firebaseId,integration.id)).initialBusiness : options.businessNumber;
     const business = await this.importer.resolveEmailBusiness(
       integration.firebaseId,
-      options.businessNumber,
+      mailboxBusiness,
     );
     return this.store.createRun({
       owner: integration.firebaseId,
@@ -92,6 +96,7 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
         )
       )
         throw new Error('Mailbox unavailable');
+      if(this.routing)await this.routing.initial(owner,row.id);
       rows.push(row);
     }
     const runIds = [];
@@ -106,6 +111,7 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
         integrationId: run.integration_id,
         businessNumber: run.business_number,
         query: run.query_text,
+        startedAt: run.started_at,
         ...(await this.store.summary(run)),
         ...(
           await this.store.query(
@@ -227,6 +233,10 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
             await this.reader.durableParts(integration, item.message_id),
           );
         } catch (error) {
+          if (error instanceof EmailRuleBlockedError) {
+            await this.store.finishItem(run,token,item,'FILTERED');
+            continue;
+          }
           if (
             error instanceof EmailProviderError &&
             ['AUTH', 'ACCESS', 'CONFIG'].includes(error.category)
@@ -260,6 +270,10 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
               result.id,
             );
           } catch (error) {
+            if (error instanceof EmailRuleBlockedError) {
+              await this.store.finishItem(run,token,item,'FILTERED');
+              return;
+            }
             if (
               error instanceof EmailProviderError &&
               ['AUTH', 'ACCESS', 'CONFIG'].includes(error.category)
@@ -332,12 +346,19 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
           [run.id, token],
         );
       }
+      if (status.pull === 'COMPLETE' && run.sync_type === 'MANUAL') {
+        await this.integrations.finishManualSync(run.integration_id, false, undefined, run.started_at);
+      }
       if (status.pull === 'PARTIAL')
         await this.integrations.markSyncError(
           run.integration_id,
           'Documents retained for manual handling; the mail cursor was not advanced.',
         );
     } catch (error) {
+      if (error instanceof EmailRulesChangedError) {
+        await this.store.query("UPDATE email_import_runs SET query_text=?,page_token=NULL,page_history_json=NULL,scan_state='READY',error_code='RULES_CHANGED' WHERE id=? AND lease_token=?",[error.query,run.id,token]);
+        return;
+      }
       const category =
         error instanceof EmailProviderError ? error.category : 'TRANSIENT';
       this.logFailure(run, stage, error);

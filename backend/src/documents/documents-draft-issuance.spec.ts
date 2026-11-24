@@ -2,6 +2,30 @@ import { DocumentStatusType, DocumentType } from '../enum';
 import { DocumentsService } from './documents.service';
 
 describe('DocumentsService draft issuance', () => {
+  it('excludes saved OAuth drafts from the issued-documents query', async () => {
+    const query = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    const service = Object.create(DocumentsService.prototype) as any;
+    service.businessService = {
+      getBusinessByNumber: jest.fn().mockResolvedValue({ businessNumber: '777777715' }),
+    };
+    service.documentsRepo = {
+      createQueryBuilder: jest.fn().mockReturnValue(query),
+    };
+
+    await expect(service.getDocuments('777777715', 'owner')).resolves.toEqual([]);
+
+    expect(query.andWhere).toHaveBeenCalledWith(
+      'doc.docStatus != :draftStatus',
+      { draftStatus: DocumentStatusType.DRAFT },
+    );
+  });
+
   it('removes the saved draft transactionally before inserting the reserved document number', async () => {
     const updateDocument = jest.fn().mockResolvedValue(undefined);
     const manager = {
@@ -81,8 +105,11 @@ describe('DocumentsService draft issuance', () => {
     expect(service.generatePdfPair).not.toHaveBeenCalled();
   });
 
-  it('finalizes a current pending document without posting a duplicate journal entry', async () => {
-    const documentRepo = { save: jest.fn().mockResolvedValue(undefined) };
+  it('finalizes a current pending document, closes its transaction-invoice parent, and avoids a duplicate journal entry', async () => {
+    const documentRepo = {
+      save: jest.fn().mockResolvedValue(undefined),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     const queryRunner = {
       manager: { getRepository: jest.fn(() => documentRepo) },
       connect: jest.fn().mockResolvedValue(undefined),
@@ -98,9 +125,11 @@ describe('DocumentsService draft issuance', () => {
         issuerBusinessNumber: '777777715',
         docNumber: '20002',
         generalDocIndex: '700001',
-        docType: DocumentType.TAX_INVOICE,
+        docType: DocumentType.TAX_INVOICE_RECEIPT,
         docStatus: DocumentStatusType.PENDING_ALLOCATION,
         allocationNum: null,
+        parentDocType: DocumentType.TRANSACTION_INVOICE,
+        parentDocNumber: '40000',
         journalEntryId: 81,
         journalEntryNumber: 700081,
         docDate: '2026-11-17',
@@ -126,7 +155,7 @@ describe('DocumentsService draft issuance', () => {
     await expect(service.finalizeAllocation('owner', {
       issuerBusinessNumber: '777777715',
       docNumber: '20002',
-      docType: DocumentType.TAX_INVOICE,
+      docType: DocumentType.TAX_INVOICE_RECEIPT,
       allocationNum: '123456789',
     })).resolves.toEqual(expect.objectContaining({
       allocationNum: '123456789',
@@ -135,6 +164,15 @@ describe('DocumentsService draft issuance', () => {
     }));
 
     expect(service.bookkeepingService.createJournalEntry).not.toHaveBeenCalled();
+    expect(documentRepo.update).toHaveBeenCalledWith(
+      {
+        issuerBusinessNumber: '777777715',
+        docType: DocumentType.TRANSACTION_INVOICE,
+        docNumber: '40000',
+        docStatus: DocumentStatusType.OPEN,
+      },
+      { docStatus: DocumentStatusType.CLOSE },
+    );
     expect(queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
   });
   it('rolls back issuance after a partial upload failure and removes the successful file', async () => {

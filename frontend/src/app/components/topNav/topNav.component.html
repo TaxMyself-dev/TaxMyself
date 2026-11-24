@@ -4,13 +4,13 @@
     </ng-template>
     <ng-template pTemplate="end" >
         <div class="top-nav-buttons"><app-agent-bell />
-            @if (isInstalledPwa() && !isAdmin()) {
+            @if (isInstalledPwa()) {
                 <app-p-button icon="pi pi-refresh" buttonText="רענון" [iconOnly]="true" variant="text"
                     [buttonSize]="ButtonSize.SMALL" [disabled]="isRefreshing()" (onButtonClicked)="refreshApp()" />
             }
-            <app-menu-button icon="pi pi-cog" ariaLabel="תפריט הגדרות"
-                [buttonColor]="ButtonColor.TRANSPARET" variant="text" [items]="settingsMenuItems()" [menuEnabled]="isAdmin()"
-                (triggered)="onSettingsTrigger()" />
+            <app-p-button icon="pi pi-cog" buttonText="הגדרות" [iconOnly]="true"
+                [buttonColor]="ButtonColor.TRANSPARET" variant="text" [buttonSize]="ButtonSize.ICON"
+                (onButtonClicked)="openSettings()" />
             @if (!isOnDocCreate() && access.createDocument().visible) {
                 <app-p-button [buttonText]="'הפקת מסמך'" [buttonColor]="ButtonColor.BLACK" [buttonSize]="ButtonSize.SMALL" (onButtonClicked)="onCreateDocumentClick()"></app-p-button>
             }

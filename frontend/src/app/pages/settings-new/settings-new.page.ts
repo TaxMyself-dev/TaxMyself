@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, signal, ChangeDetectorRef, inject } from '@angular/core';
 import { FormGroup } from '@angular/forms';
 import { AccountImageComponent } from '../../components/account-image/account-image.component';
-import { SettingsPage } from '../settings/settings.page';
+import { SettingsFormBase } from '../settings/settings-form-base';
 import { SettingsField, SettingsNewFieldComponent } from './settings-new-field.component';
 import { Validators } from '@angular/forms';
 import { Business } from '../../shared/interface';
@@ -34,7 +34,7 @@ export function activePersonalSection(businessTop: number, viewportTop: number, 
   imports: [MyAgentComponent, SettingsNewCategoriesComponent, CommonModule, FormsModule, DialogModule, ConfirmDialogModule, AccountImageComponent, SettingsNewFieldComponent, SettingsNewSubscriptionComponent, GmailIntegrationComponent, InboundEmailComponent, OpenBankingManagementComponent, OpenBankingErrorComponent],
   templateUrl: './settings-new.page.html', styleUrls: ['./settings-new.page.scss', './settings-new-connections.scss'],
 })
-export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDestroy {
+export class SettingsNewPage extends SettingsFormBase implements AfterViewInit, OnDestroy {
   @ViewChild('scroller', { static: true }) scroller!: ElementRef<HTMLElement>;
   @ViewChild('businessSection', { static: true }) businessSection!: ElementRef<HTMLElement>;
   confirmLogout(): void {
@@ -56,7 +56,9 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   private readonly navigationCdr = inject(ChangeDetectorRef);
   private readonly navigationSession = inject(SettingsNavigationSessionService);
   private navigationContext: string | null = null;
-  private restoringSection: SettingsSection | null = null;
+  private scrollTarget: SettingsSection | null = null;
+  private scrollDestination: number | null = null;
+  private scrollingToTarget = false;
   readonly agentAccess=inject(MyAgentService);
   get personalLinks(){return PERSONAL_SETTINGS_LINKS.filter(link=>link.key!=='agent' || this.agentAccess.isAdmin());}
   readonly subscriptionLinks = SUBSCRIPTION_SETTINGS_LINKS;
@@ -122,14 +124,25 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     this.agentRouteSubscription=this.agentRoute.queryParamMap.subscribe(params=>{if(params.get('section')==='agent')this.goTo('agent',true);});
     const visit = this.navigationSession.open();
     this.navigationContext = visit.context;
-    if (this.agentRoute.snapshot.queryParamMap.get('section')!=='agent' && visit.section !== 'account') this.goTo(visit.section, true);
+    const returnSection = ({businesses:'businesses', permissions:'permissions', subscription:'subscription', categories:'categories'} as Partial<Record<string, SettingsSection>>)[this.selectedTab];
+    if (this.agentRoute.snapshot.queryParamMap.get('section') !== 'agent') {
+      if (returnSection) this.goTo(returnSection, true);
+      else if (visit.section !== 'account') this.goTo(visit.section, true);
+    }
     this.resizeObserver = new ResizeObserver(() => {
-      if (this.restoringSection) this.goTo(this.restoringSection, true);
+      if (this.scrollTarget) this.alignScrollTarget(this.scrollingToTarget ? 'smooth' : 'instant');
       else this.onScroll();
     });
-    this.resizeObserver.observe(this.scroller.nativeElement.firstElementChild!);
+    const el = this.scroller.nativeElement;
+    this.resizeObserver.observe(el);
+    this.resizeObserver.observe(el.firstElementChild!);
+    el.querySelectorAll<HTMLElement>('[data-settings-section]').forEach(section => this.resizeObserver!.observe(section));
   }
-  ngOnDestroy(): void { this.agentRouteSubscription?.unsubscribe();this.resizeObserver?.disconnect(); }
+  ngOnDestroy(): void {
+    this.agentRouteSubscription?.unsubscribe();
+    this.resizeObserver?.disconnect();
+    this.stopRestoringSection();
+  }
 
   private activateSection(section: SettingsSection): void {
     if(section==='agent' && this.agentAccess.isAdmin())this.agentActivated.set(true);
@@ -140,10 +153,23 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
     }
     if (section === 'banking') this.bankingActivated.set(true);
   }
-  stopRestoringSection(): void { this.restoringSection = null; }
+  stopRestoringSection(event?: Event): void {
+    if (event instanceof KeyboardEvent) {
+      if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab'].includes(event.key)) return;
+      if (event.key !== 'Tab' && event.target instanceof HTMLElement && event.target.closest('input,textarea,select,[contenteditable]')) return;
+    }
+    const el = this.scroller?.nativeElement;
+    if (this.scrollingToTarget && el) el.scrollTo({top: el.scrollTop, behavior: 'instant'});
+    this.scrollTarget = null;
+    this.scrollDestination = null;
+    this.scrollingToTarget = false;
+  }
   onScroll(): void {
-    if (this.restoringSection) return;
     const el = this.scroller.nativeElement;
+    if (this.scrollTarget) {
+      if (Math.abs(el.scrollTop - (this.scrollDestination ?? el.scrollTop)) <= 1) this.scrollingToTarget = false;
+      return;
+    }
     const sections = Array.from(el.querySelectorAll<HTMLElement>('[data-settings-section]')).map(node => ({
       key: node.dataset['settingsSection'] as SettingsSection, top: node.getBoundingClientRect().top,
     }));
@@ -155,17 +181,32 @@ export class SettingsNewPage extends SettingsPage implements AfterViewInit, OnDe
   }
   goTo(section: SettingsSection, restoring = false): void {
     if(section==='agent' && !this.agentAccess.isAdmin())section='account';
-    this.restoringSection = restoring ? section : null;
+    this.stopRestoringSection();
+    // Keep a clicked/restored anchor until real user interaction or a newer click.
+    // Intermediate scroll events must not activate or remember sections along the way.
+    this.scrollTarget = section;
+    this.scrollDestination = null;
     this.navigationSession?.remember(section, this.navigationContext);
     this.activeSection.set(section);
     this.activateSection(section);
     this.navigationCdr?.detectChanges();
+    this.alignScrollTarget(restoring || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth');
+  }
+  private alignScrollTarget(behavior: ScrollBehavior): void {
+    const section = this.scrollTarget;
+    if (!section) return;
     const el = this.scroller.nativeElement;
     const target = section === 'account' ? null : section === 'businesses' ? this.businessSection.nativeElement
       : el.querySelector<HTMLElement>('[data-settings-section="' + section + '"]');
-    const top = section === 'account' ? 0 : target ? target.getBoundingClientRect().top
-      - el.getBoundingClientRect().top + el.scrollTop - 32 : el.scrollTop;
-    el.scrollTo({ top, behavior: restoring || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    if (section !== 'account' && !target) return;
+    const requested = target ? target.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 32 : 0;
+    const top = Math.max(0, Math.min(requested, el.scrollHeight - el.clientHeight));
+    // ResizeObserver also fires at initialization and for unrelated resizes.
+    // Do not restart an in-flight smooth scroll when its destination is unchanged.
+    if (this.scrollDestination !== null && Math.abs(top - this.scrollDestination) <= 1) return;
+    this.scrollDestination = top;
+    this.scrollingToTarget = behavior === 'smooth' && Math.abs(top - el.scrollTop) > 1;
+    if (Math.abs(top - el.scrollTop) > 1) el.scrollTo({top, behavior});
   }
   submitNewPermission(): void {
     if (this.addingPermission() || !this.valid(this.addPermissionFormGroup)) return;

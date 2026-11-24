@@ -17,6 +17,10 @@ export class AnthropicDocumentProvider implements DocumentAiProvider {
   async analyze(input: AnalysisInput, model: string): Promise<AnalysisOutcome> {
     if (!model.startsWith('claude-'))
       throw new ProviderRejectedError('PROVIDER_MODEL_MISMATCH');
+    if (input.beforeAnalyze) {
+      try { await input.beforeAnalyze(); }
+      catch (error) { throw new ProviderRejectedError(error?.message === 'EMAIL_SENDER_BLOCKED' ? 'EMAIL_SENDER_BLOCKED' : 'EMAIL_RULE_CHECK_UNAVAILABLE'); }
+    }
     let usage: AnalysisUsage | undefined;
     let capacity: ProviderCapacitySnapshot | undefined;
     try {

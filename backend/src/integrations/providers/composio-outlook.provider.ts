@@ -1,3 +1,4 @@
+import { EmailRuleBlockedError, evaluateSender, routingSettings, senderAddress } from '../../email-intake/email-routing.policy';
 import { Injectable } from '@nestjs/common';
 import { IntegrationProvider, IntegrationStatus } from '../enums/integrations.enums';
 import { UserIntegrationsService } from '../services/user-integrations.service';
@@ -27,9 +28,16 @@ export function outlookDateFilter(query: string, now = Date.now()): string {
 export class ComposioOutlookProvider extends EmailProvider {
   constructor(private readonly composio: ComposioClientService, private readonly integrations: UserIntegrationsService, private readonly downloads: EmailAttachmentDownloadService) { super(); }
 
+  private async assertLocalAccount(account: EmailAccountContext, requireSender=false):Promise<void> {
+    const row=await this.integrations.findByConnectedAccountId(account.connectedAccountId, account.firebaseId);
+    if(account.toolkit!=='outlook'||!row||row.provider!==IntegrationProvider.MICROSOFT||row.status!==IntegrationStatus.ACTIVE||row.connectionBackend!=='COMPOSIO')throw new EmailProviderError('ACCESS');
+    const settings=routingSettings(row.emailRouting);
+    if(requireSender&&settings.rules.some(rule=>rule.action==='BLOCK')&&!senderAddress(account.senderEmail))throw new EmailProviderError('CONTRACT');
+    if(evaluateSender(settings,account.senderEmail).blocked)throw new EmailRuleBlockedError();
+  }
+
   private async read(account: EmailAccountContext, tool: OutlookReadTool, args: Record<string, unknown>) {
-    const row = await this.integrations.findByConnectedAccountId(account.connectedAccountId, account.firebaseId);
-    if (account.toolkit !== 'outlook' || !row || row.provider !== IntegrationProvider.MICROSOFT || row.status !== IntegrationStatus.ACTIVE || row.connectionBackend !== 'COMPOSIO') throw new EmailProviderError('AUTH');
+    await this.assertLocalAccount(account,tool==='OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT');
     try { return await this.composio.execute(account, tool, args); }
     catch (error) {
       if (error instanceof EmailProviderError && error.category === 'AUTH') await this.integrations.expireConnectedAccount(account.connectedAccountId, account.firebaseId);
@@ -52,6 +60,8 @@ export class ComposioOutlookProvider extends EmailProvider {
   async getMessage(account: EmailAccountContext, messageId: string): Promise<EmailMessage> {
     const message = await this.read(account, 'OUTLOOK_GET_MESSAGE', { message_id: messageId, select: ['id', 'subject', 'from', 'receivedDateTime', 'conversationId', 'bodyPreview'] });
     if (message.id !== messageId) throw new EmailProviderError('CONTRACT');
+    account={...account,senderEmail:message.from?.emailAddress?.address};
+    await this.assertLocalAccount(account,true);
     const response = await this.read(account, 'OUTLOOK_LIST_OUTLOOK_ATTACHMENTS', { message_id: messageId, response_detail: 'minimal' });
     // Both envelopes are explicitly described by the discovered Composio contract.
     const attachments = response.response_data ? objectValue(response.response_data) : response;
@@ -69,6 +79,7 @@ export class ComposioOutlookProvider extends EmailProvider {
     const data = await this.read(account, 'OUTLOOK_DOWNLOAD_OUTLOOK_ATTACHMENT', { message_id: messageId, attachment_id: attachmentId, file_name: filename });
     const file = objectValue(data.file);
     if (typeof file.s3url !== 'string') throw new EmailProviderError('CONTRACT');
+    await this.assertLocalAccount(account,true);
     return this.downloads.download(file.s3url);
   }
 }
