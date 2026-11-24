@@ -52,3 +52,14 @@ Elazar explicitly approved local main integration and focused post-integration c
 - This integration record is documentation only after the tested executable commit. GitHub push and deployment remain unapproved and were not performed.
 
 Cleanup completed: the document-retry feature worktree was removed with git worktree remove (no force). Its measured logical file size was 4,010,918,062 bytes (3.74 GiB across 170,799 files); private configuration backups were verified and the branch was retained.
+
+## Approved presentation follow-up (2026-11-25)
+
+Elazar requested a black mailbox-warning retry button labelled נסה שוב, removal of the explanatory paragraph, and immediate local main integration. Implemented in isolated codex/retry-button-style and fast-forwarded into main (final executable commit 353196fd; initial styling commit 2a2b2e0e). Runtime behavior is unchanged.
+
+- Main ports checked before integration: frontend 4200, backend 3000, API http://localhost:3000/.
+- Angular template parser accepted the changed template before integration.
+- On integrated main: `npx ng test --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.document-retry-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts` — 32 tests passed, including exact label, black class, removed text, click behavior and mobile/desktop warning layouts.
+- `npm run build -- --configuration production` — exit 0, hash 64807616e39fea16 (69.333s). Existing CommonJS and 3.16 MB initial-bundle warnings remain. Backend tests/builds were not repeated for this presentation-only change.
+- Worktree verified clean, fully integrated, correct branch/HEAD and no dependent server. Its ignored backend environment was backed up outside Git and hash-verified; worktree removed without force. Branch/commits retained. Removed logical file size: 109,877,135 bytes (about 105 MiB). Private backup location is recorded in local handoff evidence.
+- No GitHub push or deployment. This record is documentation-only after the tested executable commit.
