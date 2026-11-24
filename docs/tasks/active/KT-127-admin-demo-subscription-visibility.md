@@ -1,6 +1,6 @@
 # KT-127 - Admin demo subscription visibility
 
-- Status: `WORKER_COMPLETE`
+- Status: `PUSHED`
 - Task manager: Codex primary manager
 - Worker: Codex primary manager
 - Worktree: `C:/Users/harel/Elazar Harel/taxmyself/taxmyself-dev`
@@ -38,7 +38,7 @@ history no longer renders as nameless user rows.
 ## Handoff
 
 - Result: complete
-- Commit hash(es): pending commit
+- Commit hash(es): `3efbc98f2c260dac7bfa1d535bf8e228a866d4a2`
 - Changed files: backend admin billing controller/service/tests/docs; frontend
   admin billing service/component/tests/docs; this task record.
 - Tests and exact results: backend focused Jest 2 suites / 21 tests passed;
@@ -78,10 +78,10 @@ history no longer renders as nameless user rows.
 ## Integration
 
 - Reviewed by: Codex primary manager
-- Integrated commit: pending commit
+- Integrated commit: `3efbc98f2c260dac7bfa1d535bf8e228a866d4a2`
 - Combined verification: focused backend/frontend tests plus both builds passed
   on the final source.
-- `origin/main` verification: base matched local `main` after `git fetch origin`;
-  final pushed commit pending.
+- `origin/main` verification: local `main` and `origin/main` both resolved to
+  `3efbc98f2c260dac7bfa1d535bf8e228a866d4a2` after push.
 - User-visible run instructions: Admin Panel -> CardCom / subscriptions; toggle
   "הצג משתמשי דמו" to reveal demo accounts, then edit the intended user.
