@@ -20,11 +20,11 @@ agent model/tool calls, inputs and outputs to the configured local Langfuse.
 There is no separate extractor, responder, summarizer or tracing exporter.
 
 The UI explicitly chooses an owned business. For a new onboarding conversation,
-the backend verifies the persisted actor ADMIN role and owner access, and writes `data-onboardingContext` to stored
+the backend verifies the real actor's own AI subscription module and owner access, and writes `data-onboardingContext` to stored
 history. Future turns restore this binding, even when the client omits the mode.
 Changing a conversation's interface or bound business is rejected. The shared chat
-endpoint rechecks admin authorization on every onboarding turn, including stored
-mode restoration; profile HTTP endpoints use Firebase plus OnboardingAdminGuard. This never
+endpoint rechecks AI authorization on every onboarding turn, including stored
+mode restoration; profile HTTP endpoints use Firebase plus OnboardingAiGuard. This never
 uses the application's hidden business header. Incoming user parts cannot write
 the server marker. Delegates/admin impersonation cannot read or edit the owner's
 personal profile. Ordinary accounting tools retain their existing permissions.

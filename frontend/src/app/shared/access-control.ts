@@ -3,6 +3,7 @@
  * Values must stay in sync with backend/src/enum.ts > ModuleName.
  */
 export enum ModuleName {
+  AI = 'AI',
   INVOICES = 'INVOICES',
   EXPENSES = 'EXPENSES',
   OPEN_BANKING = 'OPEN_BANKING',
@@ -21,6 +22,7 @@ export enum BlockedBehavior {
 
 /** Logical identifiers for protected application routes. */
 export enum AppRoute {
+  AI = 'AI',
   BOOK_KEEPING_INCOMES        = 'BOOK_KEEPING_INCOMES',
   BOOK_KEEPING_EXPENSES       = 'BOOK_KEEPING_EXPENSES',
   TRANSACTIONS                = 'TRANSACTIONS',
@@ -37,6 +39,7 @@ export enum AppRoute {
  * Use this when you need the actual URL (e.g. routerLink, Router.navigate).
  */
 export const APP_ROUTE_PATHS: Record<AppRoute, string> = {
+  [AppRoute.AI]: '/ai',
   [AppRoute.BOOK_KEEPING_INCOMES]:        '/book-keeping/incomes',
   [AppRoute.BOOK_KEEPING_EXPENSES]:       '/book-keeping/expenses',
   [AppRoute.TRANSACTIONS]:                '/transactions',
@@ -67,6 +70,7 @@ export interface RouteAccessEntry {
  * module from it via AccessService.canAccessRoute().
  */
 export const ROUTE_ACCESS_CONFIG: Record<AppRoute, RouteAccessEntry> = {
+  [AppRoute.AI]: { requiredModule: ModuleName.AI, blockedBehavior: BlockedBehavior.HIDE, displayName: 'AI' },
   [AppRoute.BOOK_KEEPING_INCOMES]:        { requiredModule: ModuleName.INVOICES,     blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'ספר חשבונות - הכנסות' },
   [AppRoute.BOOK_KEEPING_EXPENSES]:       { requiredModule: ModuleName.EXPENSES,     blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'ספר חשבונות - הוצאות' },
   [AppRoute.TRANSACTIONS]:                { requiredModule: ModuleName.OPEN_BANKING, blockedBehavior: BlockedBehavior.UPGRADE_POPUP, displayName: 'תזרים' },

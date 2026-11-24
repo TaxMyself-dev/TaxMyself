@@ -1,4 +1,3 @@
-import { ONBOARDING_PATH } from '../agent-onboarding/onboarding-navigation';
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -20,20 +19,7 @@ import { SharedModule } from '../../shared/shared.module';
 import { AdminTaxFileComponent } from './admin-tax-file.component';
 import { AdminContentComponent } from './admin-content.component';
 import { AdminShaamAllocationsComponent } from './admin-shaam-allocations.component';
-import {
-  DEV_AGENT_FROM_ADMIN,
-  DEV_AGENT_PATH,
-  devAgentApiOverride,
-  devAgentRouteEnabled,
-} from '../dev-agent/dev-agent.route';
-
-// The tab that opens the AI agent's dev chat (its own route, not a panel).
-export const AI_CHAT_TAB = 'ai-chat';
-export const ONBOARDING_TAB = 'agent-onboarding';
-
-// Shown only while the chat's route exists (local development).
-export const aiChatTabs = (routeEnabled: boolean) =>
-  routeEnabled ? [{ label: 'צ׳אט AI', value: AI_CHAT_TAB }] : [];
+import { AdminFeezbackComponent } from './admin-feezback.component';
 
 
 @Component({
@@ -55,6 +41,7 @@ export const aiChatTabs = (routeEnabled: boolean) =>
       AdminContentComponent,
       AdminTaxFileComponent,
       AdminShaamAllocationsComponent,
+      AdminFeezbackComponent,
     ],
     providers: [ConfirmationService],
 })
@@ -69,10 +56,9 @@ export class AdminPanelPage implements OnInit {
     { label: 'ניהול תנועות', value: 'trans-management', component: TransManagementComponent },
     { label: 'נתוני דמו', value: 'demo-data', component: DemoDataComponent },
     { label: 'קארדקום / מנויים', value: 'billing', component: AdminBillingComponent },
+    { label: 'פיזבק', value: 'feezback', component: AdminFeezbackComponent },
     { label: 'תוכן', value: 'content', component: AdminContentComponent },
     { label: 'דוקומנטציה', value: 'documentation', component: AdminDocumentationComponent },
-    { label: 'היכרות עם הסוכן', value: ONBOARDING_TAB },
-    ...aiChatTabs(devAgentRouteEnabled()),
   ];
 
   selectedTab: string = 'clients-dashboard'; // Set default tab value
@@ -98,31 +84,7 @@ export class AdminPanelPage implements OnInit {
   ngOnInit() {}
 
   onTabChange(newTabValue: string) {
-    if (newTabValue === ONBOARDING_TAB) {
-      const api = devAgentApiOverride(this.route.snapshot.queryParamMap.get('api'));
-      void this.router.navigate([ONBOARDING_PATH], { queryParams: { from: DEV_AGENT_FROM_ADMIN, ...(api ? { api } : {}) } });
-      return;
-    }
-    if (newTabValue === AI_CHAT_TAB) {
-      this.openAiChat();
-      return;
-    }
     this.selectedTab = newTabValue;
-  }
-
-  // Opens the existing chat page (its AuthGuard and Firebase token apply),
-  // passing on a local ?api= backend override and a way back here.
-  private openAiChat(): void {
-    const previousTab = this.selectedTab;
-    // Let the segment show the choice, then restore it: the chat is another
-    // page, and the panel must not stay on an empty tab.
-    this.selectedTab = AI_CHAT_TAB;
-    const api = devAgentApiOverride(this.route.snapshot.queryParamMap.get('api'));
-    void this.router
-      .navigate(['/' + DEV_AGENT_PATH], {
-        queryParams: { from: DEV_AGENT_FROM_ADMIN, ...(api ? { api } : {}) },
-      })
-      .finally(() => (this.selectedTab = previousTab));
   }
 
   onCatalogTabChange(newTabValue: string): void {

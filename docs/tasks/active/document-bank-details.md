@@ -142,3 +142,23 @@ Presentation-only verification:
   the fields. Preserved it unchanged and excluded it from this commit. The build
   ran on the working tree including that edit; it is not a pristine-commit build.
 - No backend, PDF, schema, business behavior, main integration or push changes.
+
+
+## Authorized local-main integration preparation (2026-11-24)
+
+Elazar explicitly requested merging into local main. Remote state refreshed;
+local main `ef3ea18b` is clean and contains current origin/main. User's local
+main/push gates override automatic push wording in repository coordination docs.
+The previously preserved related HTML removal is included in `b9aec80e` so the
+integrated form matches the current tested working tree.
+
+Before integration, main launch configuration was verified with:
+- `node backend/scripts/start-watch.js --print-config`: backend 3000, synchronize false.
+- `node frontend/scripts/start-local.js --print-config`: frontend 4200, backend 3000, API `http://localhost:3000/`, main defaults.
+- Inspected angular serve/default configuration and source environment API; no shell PORT override.
+
+Merged current local main into the feature candidate. The only conflict was
+two appended independent blocks in cutover.sql; retained both complete blocks
+(document transfer JSON column and Feezback lifecycle schema). No application
+code conflict. Package/lockfiles unchanged from the installed feature base.
+No SQL executed and no database/provider/production access performed.

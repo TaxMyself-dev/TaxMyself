@@ -202,12 +202,16 @@ export class FeezbackDisconnectionService {
     return { consents, complete: errors.length === 0, hasOpenBanking, errors, verifiedSources, cacheProof, verifiedConnection:connected };
   }
 
-  async disconnect(firebaseId: string, request: DisconnectRequest) {
+  async disconnect(firebaseId: string, request: DisconnectRequest,
+    guard?: <T>(proceed: () => Promise<T>) => Promise<T | null>) {
     if (!request || !['all', 'consent'].includes(request.scope)) throw new BadRequestException('Invalid disconnect scope');
     if (request.scope === 'consent' && (!request.consentId || !['primary', 'spouse'].includes(request.connectionRole ?? ''))) {
       throw new BadRequestException('consentId and connectionRole are required');
     }
     return connectionOperation(firebaseId, async () => {
+      // Acquire the connection-operation lock before any subscription lock,
+      // matching source discovery/enrollment lock order.
+      const perform = async () => {
       const before = await this.readTargets(firebaseId);
       const targets = request.scope === 'all' ? before.consents : before.consents.filter(c =>
         c.consentId === request.consentId && c.connectionRole === request.connectionRole);
@@ -292,6 +296,8 @@ export class FeezbackDisconnectionService {
       return { status: success ? 'success' as const : 'partial' as const, results, ...(supportError ? {supportError} : {}),
         remainingConsents: after.consents, complete: after.complete,
         hasOpenBanking: after.hasOpenBanking, errors: [...before.errors, ...after.errors] };
+      };
+      return guard ? guard(perform) : perform();
     });
   }
 }

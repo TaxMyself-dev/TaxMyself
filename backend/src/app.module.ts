@@ -1,5 +1,6 @@
 import { assertDevCompletionEnvironment, devCompletionScheduleOptions } from './billing/domain/dev-completion-mode';
 import { Module, Logger } from '@nestjs/common';
+import { FeezbackLifecycle } from './feezback/lifecycle/feezback-lifecycle.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
@@ -183,7 +184,7 @@ new Logger('Bootstrap').log(
         DefaultCategory, DefaultSubCategory, UserCategory, UserSubCategory, Delegation, SettingDocuments,
         Clients, Documents, DocLines, DocPayments, ExtractedDocument, JournalEntry, JournalLine, BookingAccount,
         AccountingSection, AccountCodeMigration, Category, SubCategory,
-        FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
+        FeezbackLifecycle, FeezbackWebhookEvent, UserModuleSubscription, AccountantTask, AnnualReport, AnnualReportFile, ReportWorkflow,
         FxRate,
         SubscriptionPlan, Subscription, PaymentMethod, CardcomWebhookLog, BillingEvent,
         BillingObligation, BillingAttempt, BillingAttemptObligation, PaymentMethodUpdateAttempt,

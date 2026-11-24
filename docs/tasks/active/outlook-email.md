@@ -499,3 +499,35 @@ local Outlook settings and temporary DEV scanner ownership there, preserving all
 existing secrets and port defaults. EMAIL_WORKER_SCOPE remains unset: old shared
 DEV servers have not been upgraded, so the temporary protection is still needed.
 Final fast-forward, launch and cleanup evidence follows after completion.
+
+### Main delivered and runtime handoff
+
+Fast-forwarded primary local main from 2eedefa7 to abc960c9 after verifying main
+was unchanged/clean, candidate includes fetched origin/main, both package builds,
+combined/final focused tests and canonical port defaults. No push/deployment.
+Copied only the four approved local Outlook settings plus the existing temporary
+EMAIL_DEV_EXCLUSIVE_SCANNER=true protection into main's ignored backend/.env.
+Original main .env was privately backed up and hash-verified first. Existing
+credentials/Gmail configuration and port defaults were preserved; verified matching
+DEV Composio key and environment before copying. EMAIL_WORKER_SCOPE remains unset.
+No provider credential or remote callback configuration was changed.
+
+Main server launch was safely refused before starting processes: ports 3000 and
+4200 had meanwhile been claimed by TaxMyself-ai-module, app PID 29868 and Angular
+PID 30204. Verified both by full command lines; did not stop or restart them. Thus
+the listeners currently serving those ports are NOT main. Main's configuration is
+ready, but manual acceptance requires deliberately switching to its servers after
+that other task releases the ports. No claim of live main/OAuth acceptance is made.
+The user's Outlook disconnect stays confirmed; no mailbox was reconnected.
+
+Main cleanup preflight confirmed the feature checkout exactly matches abc960c9,
+branch codex/outlook-email, no tracked/untracked changes, and no node/cmd process
+still referencing it. Ignored inventory was only backend/.env, .local-ai-dev and
+reproducible dependencies/build caches. Backup verified all seven local config/log
+files and backend/.env under the private backup location above. Measured logical
+worktree file size before removal: 4,563,802,618 bytes (~4.56 GB). Started ordinary
+`git worktree remove C:/Users/user/Keepintax/TaxMyself-outlook-email`, without force;
+final removal verification is recorded below. Feature branch/commits are retained.
+Code tests/builds remain applicable: subsequent main edits are documentation only.
+
+Cleanup completed successfully: non-forced git worktree remove returned exit 0; the exact feature directory no longer exists and is absent from git worktree list. Branch codex/outlook-email remains at abc960c9, included in main. Private environment/config/log backup remains verified outside Git. Approximately 4.56 GB of logical worktree files/dependencies were removed. The primary checkout and other worktrees/servers were preserved. No push, remote branch deletion or production operation. Final delivery includes this documentation-only completion record.

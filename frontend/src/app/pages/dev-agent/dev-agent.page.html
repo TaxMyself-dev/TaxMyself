@@ -1,7 +1,8 @@
 <div class="dev-agent">
   <header class="bar">
     <div>
-      <h1>AI agent — dev test</h1>
+      <h1>צ׳אט AI</h1>
+      @if (diagnosticView) {
       <div class="meta">
         <span>agent user: <code>{{ agentUserId() ?? '…' }}</code></span>
         @if (clientId) {
@@ -9,11 +10,10 @@
         }
         <span>API: <code>{{ apiUrl }}</code></span>
       </div>
+      }
     </div>
     <div class="actions">
-      @if (fromAdminPanel) {
-        <button type="button" class="back" dir="rtl" (click)="backToAdminPanel()">→ חזרה לפאנל הניהול</button>
-      }
+      <button type="button" class="back" dir="rtl" (click)="backToAi()">חזרה ל־AI</button>
       <button type="button" [class.on]="locale() === 'he'" (click)="setLocale('he')">עברית</button>
       <button type="button" [class.on]="locale() === 'en'" (click)="setLocale('en')">English</button>
       <button type="button" (click)="newChat()" [disabled]="!agentUserId()">New chat</button>

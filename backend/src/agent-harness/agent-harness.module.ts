@@ -1,7 +1,7 @@
-import { OnboardingController, OnboardingAdminGuard } from '../agent-onboarding/onboarding.controller';
+import { OnboardingController, OnboardingAiGuard } from '../agent-onboarding/onboarding.controller';
 import { OnboardingService } from '../agent-onboarding/onboarding.service';
 import { Module } from '@nestjs/common';
-import { AgentAdminGuard } from './agent-admin.guard';
+import { AgentAiGuard } from './agent-ai.guard';
 import { AutoClassificationService } from '../auto-classification/auto-classification.service';
 import { AutoClassificationModel } from '../auto-classification/auto-classification.model';
 import { AutoClassificationController } from '../auto-classification/auto-classification.controller';
@@ -48,8 +48,8 @@ import { AgentHarnessService } from './agent-harness.service';
   controllers: [AgentHarnessController, OnboardingController, AutoClassificationController],
   providers: [AutoClassificationService, AutoClassificationModel,
     OnboardingService,
-    OnboardingAdminGuard,
-    AgentAdminGuard,
+    OnboardingAiGuard,
+    AgentAiGuard,
     AgentHarnessService,
     AgentDomainService,
     AgentBooksService,

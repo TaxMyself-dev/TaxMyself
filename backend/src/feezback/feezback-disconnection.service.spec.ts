@@ -4,8 +4,22 @@ import { FeezbackController } from './feezback.controller';
 import { FirebaseAuthGuard } from '../guards/firebase-auth.guard';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { FeezbackHttpError } from './core/feezback-errors';
+import { connectionOperation } from './consent/connection-operation';
 
 describe('Feezback disconnection', () => {
+  it('acquires the connection lock before the subscription guard and performs no provider work when guard rejects', async () => {
+    let release!: () => void;
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    const existing = connectionOperation('guard-owner', () => barrier);
+    const guarded = new FeezbackDisconnectionService({} as any,{} as any,{} as any,{} as any,{} as any);
+    const guard = jest.fn(async () => null);
+    const result = guarded.disconnect('guard-owner',{ scope: 'all' },guard);
+    await Promise.resolve();
+    expect(guard).not.toHaveBeenCalled();
+    release(); await existing;
+    expect(await result).toBeNull();
+    expect(guard).toHaveBeenCalledTimes(1);
+  });
   let api: any, users: any, sources: any, sync: any, service: FeezbackDisconnectionService, user: any;
   let cacheCleanup: any;
   let permissions: Record<string, any[]>;
