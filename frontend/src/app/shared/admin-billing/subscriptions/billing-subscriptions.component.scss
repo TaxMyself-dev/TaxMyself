@@ -85,6 +85,17 @@
   &--CANCELED      { background: #f3f4f6; color: #6b7280; }
 }
 
+.demo-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #f3e8ff;
+  color: #7e22ce;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 // ── Drawer ────────────────────────────────────────────────────────────────────
 
 .drawer-header {

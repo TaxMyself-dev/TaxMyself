@@ -5,6 +5,7 @@ import { Subscription } from '../entities/subscription.entity';
 import { BillingAttempt } from '../entities/billing-attempt.entity';
 import { BillingEvent } from '../entities/billing-event.entity';
 import { BillingAccessMode, BillingEventType, BillingAttemptStatus, SubscriptionStatus } from '../enums/billing.enums';
+import { User } from 'src/users/user.entity';
 
 describe('AdminBillingService.updateSubscriptionTrialEnd', () => {
   let service: AdminBillingService;
@@ -269,7 +270,7 @@ describe('AdminBillingService.findAllSubscriptions', () => {
     expect(userQuery.addSelect).toHaveBeenCalledWith('u.lastLoginAt', 'lastLoginAt');
   });
 
-  it('excludes ordinary demo users but includes the dedicated billing QA profile', async () => {
+  it('includes demo subscriptions only when the admin explicitly requests them', async () => {
     const subscriptionQuery = queryBuilder([
       {
         subscriptionId: 41,
@@ -301,6 +302,16 @@ describe('AdminBillingService.findAllSubscriptions', () => {
         createdAt: new Date('2026-09-03T00:00:00.000Z'),
         cardLast4: '1234',
       },
+      {
+        subscriptionId: 44,
+        firebaseId: 'orphan-client',
+        status: SubscriptionStatus.TRIAL_EXPIRED,
+        billingAccessMode: BillingAccessMode.STANDARD,
+        planId: null,
+        nextBillingDate: null,
+        createdAt: new Date('2026-09-04T00:00:00.000Z'),
+        cardLast4: null,
+      },
     ]);
     const userQuery = queryBuilder([
       {
@@ -327,12 +338,20 @@ describe('AdminBillingService.findAllSubscriptions', () => {
       {} as any, {} as any, dataSource, {} as any, {} as any, {} as any, {} as any, {} as any,
     );
 
-    const result = await service.findAllSubscriptions();
+    const result = await service.findAllSubscriptions(true);
 
     expect(result.map(subscription => subscription.firebaseId)).toEqual([
       'real-client',
+      'demo-client',
       'billing-qa-client',
     ]);
+    expect(result.find(subscription => subscription.firebaseId === 'demo-client')).toEqual(
+      expect.objectContaining({ isDemo: true, manualBillingActionsAllowed: false }),
+    );
+    expect(result.find(subscription => subscription.firebaseId === 'billing-qa-client')).toEqual(
+      expect.objectContaining({ isDemo: true, manualBillingActionsAllowed: true }),
+    );
+    expect(result.some(subscription => subscription.firebaseId === 'orphan-client')).toBe(false);
   });
 });
 
@@ -373,6 +392,15 @@ describe('AdminBillingService unresolved billing attempts (read-only)', () => {
     const { dataSource, createQueryBuilder } = makeDataSource(
       new Map<unknown, any[]>([
         [Subscription, [subscriptionRow(1), subscriptionRow(2), subscriptionRow(3)]],
+        [User, [1, 2, 3].map(id => ({
+          firebaseId: `client-${id}`,
+          userId: id,
+          fName: 'Client',
+          lName: String(id),
+          email: `client-${id}@example.com`,
+          hasOpenBanking: 0,
+          lastLoginAt: null,
+        }))],
         [BillingAttempt, [
           { subscriptionId: '1', unresolvedCount: '2', manualReviewCount: '1' },
           { subscriptionId: '2', unresolvedCount: '1', manualReviewCount: '0' },

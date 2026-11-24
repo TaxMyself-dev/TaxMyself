@@ -1,5 +1,20 @@
 # Primary manager state
 
+## KT-127 admin demo subscription visibility — 2026-11-24
+
+Admin Billing now hides demo subscriptions by default and exposes them through
+an explicit "הצג משתמשי דמו" toggle. Visible demos are labelled; manual debt
+and one-off charge actions remain available only for the dedicated billing-QA
+profile. Subscription history without a current User is omitted from the
+user-facing list, preventing old demo-reset subscriptions from rendering as
+nameless rows; no billing history was deleted. Integration `3efbc98f` passed
+21 focused backend tests, the final 14-test service rerun after the orphan
+fixture correction, 15 focused frontend tests, both production builds and
+`git diff --check`. Main's required local ports remain frontend 4200, backend
+3000 and API `http://localhost:3000/`, with no process override. No schema,
+production-data, accounting or provider change was made. Production deployment
+remains an operator action; generic-table floating action borders are unchanged.
+
 ## KT-126 Cloud Build Dockerfile compatibility — 2026-11-23
 
 The production source build stopped safely before creating a Cloud Run

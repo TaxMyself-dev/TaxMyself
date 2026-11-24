@@ -43,6 +43,14 @@
     <div class="table-title-and-filter">
       <p class="table-title">מנויים</p>
       <label class="status-filter">
+        <input
+          id="showDemoUsers"
+          type="checkbox"
+          [checked]="showDemoUsers()"
+          (change)="onShowDemoUsersChange($event)" />
+        <span>הצג משתמשי דמו</span>
+      </label>
+      <label class="status-filter">
         <span>סטטוס</span>
         <select
           aria-label="סינון מנויים לפי סטטוס"
@@ -62,6 +70,9 @@
     <span class="sub-status-badge sub-status-badge--{{ row['status'] }}">
       {{ statusLabels[row['status']] ?? row['status'] }}
     </span>
+    @if (row['isDemo']) {
+      <span class="demo-badge">דמו</span>
+    }
     @if (row['unresolvedBillingAttemptCount'] > 0) {
       <i class="pi pi-exclamation-triangle billing-exception-flag"
          role="img"

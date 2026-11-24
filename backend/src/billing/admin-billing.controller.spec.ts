@@ -3,6 +3,23 @@ import { AdminBillingController } from './admin-billing.controller';
 import { AdminBillingService } from './services/admin-billing.service';
 import { UsersService } from 'src/users/users.service';
 
+describe('AdminBillingController.getSubscriptions', () => {
+  it('hides demos by default and forwards an explicit includeDemo request', async () => {
+    const adminBillingService = { findAllSubscriptions: jest.fn().mockResolvedValue([]) };
+    const usersService = { isAdmin: jest.fn().mockResolvedValue(true) };
+    const controller = new AdminBillingController(
+      adminBillingService as unknown as AdminBillingService,
+      usersService as unknown as UsersService,
+    );
+
+    await controller.getSubscriptions({ user: { firebaseId: 'admin-user' } } as any);
+    await controller.getSubscriptions({ user: { firebaseId: 'admin-user' } } as any, 'true');
+
+    expect(adminBillingService.findAllSubscriptions).toHaveBeenNthCalledWith(1, false);
+    expect(adminBillingService.findAllSubscriptions).toHaveBeenNthCalledWith(2, true);
+  });
+});
+
 describe('AdminBillingController.updateSubscriptionTrialEnd', () => {
   it('rejects refund document access before reading the PDF for a non-admin', async () => {
     const refunds = { document: jest.fn() };

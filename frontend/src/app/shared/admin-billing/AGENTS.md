@@ -42,11 +42,11 @@ Admin-panel tab that hosts billing administration, split into two sub-tabs: plan
 - Plans: list/create/edit pricing plans and their included modules.
 - Complimentary access grant/revoke requires confirmation, is saved separately
   from ordinary plan edits, and hides manual-charge actions.
-- Subscriptions: list non-demo subscriptions plus the dedicated `billing-qa`
-  profile, including each user's current open-banking connection flag and latest
-  application login timestamp; all other demo profiles remain excluded. The QA
-  exception exists specifically to exercise debt settlement and one-off admin
-  charges against the test terminal. Filter locally by all, active, trial, or
+- Subscriptions: hide demo subscriptions by default and expose them through the
+  explicit "הצג משתמשי דמו" checkbox, including each user's current open-banking connection flag and latest
+  application login timestamp. The QA
+  profile alone may expose debt settlement and one-off admin charges against the
+  test terminal; those charge actions stay hidden for every other demo. Filter locally by all, active, trial, or
   expired-trial status; edit plan/trial end/discounts; and run renewal batches.
   The two accountant-referral plans are labeled from their canonical slugs
   (`referral-basic` and `referral-open-banking`), so they stay visibly distinct

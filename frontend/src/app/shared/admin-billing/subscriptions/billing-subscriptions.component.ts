@@ -136,6 +136,7 @@ export class BillingSubscriptionsComponent implements OnInit {
   private readonly statusTpl = viewChild<TemplateRef<any>>('statusTpl');
 
   subscriptions = signal<AdminSubscription[]>([]);
+  readonly showDemoUsers = signal(false);
   readonly statusFilter = signal<SubscriptionStatusFilter>('ALL');
   isLoading = signal(false);
   selectedSub = signal<AdminSubscription | null>(null);
@@ -271,6 +272,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       icon: 'pi pi-credit-card',
       title: 'גביית חוב בכרטיס השמור',
       showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        row['manualBillingActionsAllowed'] === true &&
         row['status'] === 'PAST_DUE' && row['cardTokenExists'] === true,
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.confirmChargeNow(row),
@@ -280,6 +282,7 @@ export class BillingSubscriptionsComponent implements OnInit {
       icon: 'pi pi-plus-circle',
       title: 'חיוב נוסף חד־פעמי',
       showWhen: row => row['billingAccessMode'] !== 'COMPLIMENTARY_FULL' &&
+        row['manualBillingActionsAllowed'] === true &&
         ['ACTIVE', 'PAST_DUE'].includes(String(row['status'])) && row['cardTokenExists'] === true,
       isLoading: () => this.chargingSubscriptionId() !== null,
       action: (_: any, row: IRowDataTable) => this.openOneOffCharge(row['subscriptionId'] as number),
@@ -298,6 +301,8 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.filteredSubscriptions().map(s => ({
       subscriptionId:          s.subscriptionId,
       userName:                s.userName ?? '—',
+      isDemo:                  s.isDemo,
+      manualBillingActionsAllowed: s.manualBillingActionsAllowed,
       searchText: [s.userName, s.userEmail, s.businessName].filter(Boolean).join(' '),
       businessName:            s.businessName ?? '—',
       hasOpenBanking:          s.hasOpenBanking,
@@ -329,6 +334,11 @@ export class BillingSubscriptionsComponent implements OnInit {
     this.statusFilter.set((event.target as HTMLSelectElement).value as SubscriptionStatusFilter);
   }
 
+  onShowDemoUsersChange(event: Event): void {
+    this.showDemoUsers.set((event.target as HTMLInputElement).checked);
+    this.loadSubscriptions();
+  }
+
   ngOnInit(): void {
     this.loadSubscriptions();
     this.loadPlans();
@@ -336,7 +346,7 @@ export class BillingSubscriptionsComponent implements OnInit {
 
   loadSubscriptions(): void {
     this.isLoading.set(true);
-    this.adminBillingService.getSubscriptions()
+    this.adminBillingService.getSubscriptions(this.showDemoUsers())
       .pipe(
         finalize(() => this.isLoading.set(false)),
         takeUntilDestroyed(this.destroyRef),
