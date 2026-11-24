@@ -70,7 +70,8 @@ owned notice ID. The shared bell and verified banking-return offer use the same
 owner-only API. Never keep a prior owner's data after owner/view-as changes.
 Rule source labels are additive; original creator and latest editor differ.
 
-ADMIN-only: hide the agent sidebar link and panel for non-admins, including
-section=agent deep links. MyAgentService gates status polling, the bell and
-banking-return consent offer using the actual signed-in profile. Ordinary
-settings remain available. Chat and onboarding routes require AdminRouteGuard.
+AI module: show the agent sidebar link and panel only with AI entitlement,
+including section=agent deep links. MyAgentService gates status polling, the
+bell and banking-return consent offer by module access and owner identity.
+Chat, onboarding and automation are also available under the main AI menu;
+their routes use ModuleAccessGuard. Ordinary settings remain available.

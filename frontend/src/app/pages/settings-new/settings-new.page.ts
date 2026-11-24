@@ -60,7 +60,7 @@ export class SettingsNewPage extends SettingsFormBase implements AfterViewInit, 
   private scrollDestination: number | null = null;
   private scrollingToTarget = false;
   readonly agentAccess=inject(MyAgentService);
-  get personalLinks(){return PERSONAL_SETTINGS_LINKS.filter(link=>link.key!=='agent' || this.agentAccess.isAdmin());}
+  get personalLinks(){return PERSONAL_SETTINGS_LINKS.filter(link=>link.key!=='agent' || this.agentAccess.canAccessAi());}
   readonly subscriptionLinks = SUBSCRIPTION_SETTINGS_LINKS;
   readonly subscriptionExpanded = signal(true);
   readonly connectionsActivated = signal(false);
@@ -145,7 +145,7 @@ export class SettingsNewPage extends SettingsFormBase implements AfterViewInit, 
   }
 
   private activateSection(section: SettingsSection): void {
-    if(section==='agent' && this.agentAccess.isAdmin())this.agentActivated.set(true);
+    if(section==='agent' && this.agentAccess.canAccessAi())this.agentActivated.set(true);
     if (section === 'categories') this.categoriesActivated.set(true);
     if ((section === 'permissions' || section === 'banking') && !this.connectionsActivated()) {
       this.connectionsActivated.set(true);
@@ -180,7 +180,7 @@ export class SettingsNewPage extends SettingsFormBase implements AfterViewInit, 
     this.navigationSession?.remember(active, this.navigationContext);
   }
   goTo(section: SettingsSection, restoring = false): void {
-    if(section==='agent' && !this.agentAccess.isAdmin())section='account';
+    if(section==='agent' && !this.agentAccess.canAccessAi())section='account';
     this.stopRestoringSection();
     // Keep a clicked/restored anchor until real user interaction or a newer click.
     // Intermediate scroll events must not activate or remember sections along the way.

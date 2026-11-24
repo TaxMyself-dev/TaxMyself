@@ -88,7 +88,7 @@ state is checked before replacement. Legacy signed cards authorize one-time only
 
 ## Owner onboarding profile
 
-OnboardingController serves /api/agent-profile through FirebaseAuthGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. Onboarding uses its own manual SQL migration, never synchronize; availability is controlled by persisted ADMIN access rather than environment flags. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.
+OnboardingController serves /api/agent-profile through FirebaseAuthGuard and OnboardingAiGuard; its service checks self-service identity and owned business scope again. Delegates and admin impersonation do not read or write another person's profile. AgentHarnessService supplies an optional readOnboardingContext callback to ordinary chat. Onboarding uses its own manual SQL migration, never synchronize; availability requires the real actor's own AI subscription module. See ../agent-onboarding/README.md for state, history, transaction, deletion and local verification contracts.
 
 ## Automatic classification
 
@@ -98,11 +98,12 @@ to chat; it cannot enable standing consent. Delegate/admin impersonation is
 denied by the automation service independently of normal chat classification.
 See ../auto-classification/AGENTS.md and the feature document.
 
-## ADMIN-only assistant access (2026-11-22)
+## AI module access (2026-11-24)
 
-All /api/agent/* endpoints require FirebaseAuthGuard then AgentAdminGuard.
-The guard reads the real actor ADMIN role from the database; represented-owner
-roles and client claims do not grant access. AgentHarnessService also checks
-this boundary. Profile and automation retain their independent owner checks.
-Automation checks ADMIN before reads/model work and locks/rechecks the owner role
-in the final write transaction. Saved consent alone cannot authorize non-admins.
+All /api/agent/* endpoints require FirebaseAuthGuard then AgentAiGuard.
+The guard verifies the real actor exists and resolves their own AI subscription
+module without delegated/admin-impersonation billing overrides. ADMIN alone
+does not grant AI. AgentHarnessService repeats the boundary. Profile and
+automation retain their independent owner checks. Automation checks AI before
+reads/model work and rechecks it in the final write transaction. Saved consent
+alone cannot authorize a revoked subscription. See docs/features/ai-module.md.

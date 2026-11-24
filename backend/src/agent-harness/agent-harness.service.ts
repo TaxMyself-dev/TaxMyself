@@ -80,7 +80,7 @@ export class AgentHarnessService implements OnModuleDestroy {
   }
 
   async handle(request: Request, user: AgentHarnessUser): Promise<Response> {
-    await this.agentDomain.assertAiAdmin(user);
+    await this.agentDomain.assertAiAccess(user);
     return await withAgentBackgroundContext(async () => {
       const bundle = await this.load();
       // Includes promises scheduled by the SDK after this response ends.
@@ -89,7 +89,7 @@ export class AgentHarnessService implements OnModuleDestroy {
         ...this.agentBooks.forUser(user),
         ...this.classification.forUser(user),
         startAutomaticClassification: () => this.automation ? this.automation.start(user) : Promise.reject(new Error('AUTOMATION_UNAVAILABLE')),
-        authorizeOnboarding: () => this.agentDomain.assertOnboardingAdmin(user),
+        authorizeOnboarding: () => this.agentDomain.assertOnboardingAccess(user),
         profile: this.onboarding
           ? {
               read: (businessNumber) =>

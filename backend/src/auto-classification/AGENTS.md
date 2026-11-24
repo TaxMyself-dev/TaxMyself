@@ -15,4 +15,7 @@ behavior, schema gates, API/UI and load limits.
   category/private consistency and bounded full input. No confidence threshold
   alone authorizes a write.
 - Keep notifications owner-scoped and read state separate from resolution.
+- Require the owner's AI subscription module before reads/model calls and
+  recheck it before writes. ADMIN does not bypass AI. Keep the independent
+  OPEN_BANKING module, connection, onboarding and consent requirements.
 - Schema scripts do not run on boot. Tests accept only disposable local MySQL.

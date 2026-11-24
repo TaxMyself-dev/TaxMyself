@@ -52,6 +52,7 @@ describe('AgentHarnessController', () => {
             } as never,
             {} as never,
             {findOne:async()=>({role:['ADMIN']})} as never,
+            {hasModuleAccess:async()=>true} as never,
           ),
         },
         {
