@@ -37,9 +37,9 @@ describe('automatic classification HTTP authorization', () => {
         {
           provide: AgentDomainService,
           useValue: {
-            assertAiAdmin: async (user: any) => {
+            assertAiAccess: async (user: any) => {
               if (user.actorFirebaseId === 'regular')
-                throw new ForbiddenException('Admin access required');
+                throw new ForbiddenException('AI module access required');
             },
           },
         },
@@ -125,7 +125,7 @@ describe('automatic classification HTTP authorization', () => {
       .expect(403);
     expect(write).not.toHaveBeenCalled();
   });
-  it('denies regular users all automation surfaces even with a valid token', async () => {
+  it('denies users without AI all automation surfaces even with a valid token', async () => {
     for (const path of [
       '/api/agent-automation',
       '/api/agent-automation/notifications',

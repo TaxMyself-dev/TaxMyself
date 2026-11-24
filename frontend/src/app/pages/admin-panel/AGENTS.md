@@ -8,6 +8,8 @@ record externally confirmed non-acceptance or a verified allocation number,
 together with a bounded evidence reference.
 
 ## Key entities/files
+- AI chat and onboarding are ordinary AI-module screens under `/ai`, not admin
+  tabs. The plan editor retains the administrative AI included-module option.
 - `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown.
 - `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`).
 - `admin-panel-routing.module.ts` — single root route rendering `AdminPanelPage`.

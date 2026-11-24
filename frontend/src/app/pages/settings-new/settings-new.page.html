@@ -159,7 +159,7 @@
         </div>
       </section>
 
-      @if (agentAccess.isAdmin()) {
+      @if (agentAccess.canAccessAi()) {
       <section class="panel agent-panel" data-settings-section="agent" id="new-agent" aria-label="הסוכן שלי">
         @if (agentActivated()) { <app-my-agent /> }
         @else {

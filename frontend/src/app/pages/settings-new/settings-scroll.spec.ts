@@ -30,7 +30,7 @@ describe('settings scroll coordination in the browser', () => {
     activated = jasmine.createSpy('activate');
     Object.assign(page, {
       scroller: {nativeElement: scroller}, businessSection: {nativeElement: section('businesses')},
-      agentAccess: {isAdmin: () => true}, activeSection: signal('account'),
+      agentAccess: {canAccessAi: () => true}, activeSection: signal('account'),
       navigationSession: {open: () => ({context:'owner',section:'account'}), remember:jasmine.createSpy('remember')},
       agentRoute: {queryParamMap:of(convertToParamMap({})),snapshot:{queryParamMap:convertToParamMap({})}},
       navigationCdr: {detectChanges: () => {}}, activateSection: activated,

@@ -4,7 +4,8 @@ import { Repository } from 'typeorm';
 import { Business } from 'src/business/business.entity';
 import { BusinessService } from 'src/business/business.service';
 import { Delegation, DelegationStatus } from 'src/delegation/delegation.entity';
-import { ExpenseApprovalStatus, UserRole } from 'src/enum';
+import { ExpenseApprovalStatus, ModuleName, UserRole } from 'src/enum';
+import { BillingService } from 'src/billing/services/billing.service';
 import { Expense } from 'src/expenses/expenses.entity';
 import { ExpensesService } from 'src/expenses/expenses.service';
 import { User } from 'src/users/user.entity';
@@ -249,15 +250,20 @@ export class AgentDomainService {
     private readonly delegationRepository: Repository<Delegation>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly billing: BillingService,
   ) {}
 
-  async assertOnboardingAdmin(user: AgentHarnessUser): Promise<void> {
-    return this.assertAiAdmin(user);
+  async assertOnboardingAccess(user: AgentHarnessUser): Promise<void> {
+    return this.assertAiAccess(user);
   }
-  async assertAiAdmin(user: Pick<AgentHarnessUser, 'actorFirebaseId'>): Promise<void> {
-    if (!user.actorFirebaseId) throw new ForbiddenException('Admin access required');
+  async assertAiAccess(user: Pick<AgentHarnessUser, 'actorFirebaseId'>): Promise<void> {
+    if (!user.actorFirebaseId) throw new ForbiddenException('AI module access required');
     const actor = await this.userRepository.findOne({ where: { firebaseId: user.actorFirebaseId } });
-    if (!actor?.role?.includes(UserRole.ADMIN)) throw new ForbiddenException('Admin access required');
+    // Always resolve the real actor's own subscription. A represented owner's
+    // modules, delegated billing overrides and ADMIN claims cannot grant AI.
+    if (!actor || !(await this.billing.hasModuleAccess(user.actorFirebaseId, ModuleName.AI, false, false))) {
+      throw new ForbiddenException('AI module access required');
+    }
   }
 
   forUser(user: AgentHarnessUser): AgentExpensesDomain {

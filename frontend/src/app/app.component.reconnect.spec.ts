@@ -8,6 +8,7 @@ import { NetworkStatusService } from './services/pwa/network-status.service';
 import { BillingStateService } from './services/billing-state.service';
 import { GenericService } from './services/generic.service';
 import { StartupService } from './services/startup.service';
+import { MyAgentService } from './components/my-agent/my-agent.service';
 
 describe('AppComponent reconnect recovery', () => {
   it('does not retrigger when the refresh reads or changes unrelated signals', () => {
@@ -21,6 +22,7 @@ describe('AppComponent reconnect recovery', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        { provide: MyAgentService, useValue: {context:()=>null} },
         {
           provide: GenericService,
           useValue: { businesses: signal([]) },

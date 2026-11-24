@@ -1,4 +1,4 @@
-import { AgentAdminGuard } from '../agent-harness/agent-admin.guard';
+import { AgentAiGuard } from '../agent-harness/agent-ai.guard';
 import {
   Body,
   Controller,
@@ -31,7 +31,7 @@ function identity(req: AuthenticatedRequest) {
   };
 }
 @Controller('api/agent-automation')
-@UseGuards(FirebaseAuthGuard, AgentAdminGuard)
+@UseGuards(FirebaseAuthGuard, AgentAiGuard)
 export class AutoClassificationController {
   constructor(private readonly service: AutoClassificationService) {}
   @Get() status(@Req() r: AuthenticatedRequest) {

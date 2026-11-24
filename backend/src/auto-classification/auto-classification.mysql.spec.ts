@@ -212,7 +212,7 @@ suite('automatic classifier on disposable real MySQL', () => {
       expenses,
     );
     const domain: any = {
-      assertAiAdmin: async () => undefined,
+      assertAiAccess: async () => undefined,
       assertAccessStillHolds: async () => undefined,
       ownerBusinesses: async () => [{ businessNumber: business }],
       resolveBusiness: async (user: any, bn: string) => {

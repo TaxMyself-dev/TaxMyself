@@ -24,6 +24,7 @@ import { FormTypes, ICellRenderer } from 'src/app/shared/enums';
 /** appendTo="body" is required on all overlay components inside a p-dialog
  *  to prevent the overlay from closing when the user scrolls inside the dialog. */
 const MODULE_OPTIONS = [
+  { label: 'AI', value: 'AI' },
   { label: 'הוצאות', value: 'EXPENSES' },
   { label: 'חשבוניות', value: 'INVOICES' },
   { label: 'בנקאות פתוחה', value: 'OPEN_BANKING' },

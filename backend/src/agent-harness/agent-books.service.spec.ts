@@ -130,6 +130,7 @@ const setup = (
     businessService as never,
     delegationRepository as never,
     userRepository as never,
+    { hasModuleAccess: async () => true } as never,
   );
 
   const deps = {

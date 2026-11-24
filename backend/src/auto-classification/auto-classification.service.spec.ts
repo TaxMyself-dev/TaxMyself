@@ -69,7 +69,7 @@ describe('standing-consent classifier', () => {
       ),
     };
     const domain: any = {
-      assertAiAdmin: jest.fn(async () => undefined),
+      assertAiAccess: jest.fn(async () => undefined),
       resolveBusiness: jest.fn(async () => ({})),
       ownerBusinesses: jest.fn(async () => [{ businessNumber: 'biz' }]),
     };
@@ -348,7 +348,7 @@ describe('standing-consent classifier', () => {
   });
   it('refuses regular owners before model calls or transaction reads', async () => {
     const f = setup();
-    f.domain.assertAiAdmin.mockRejectedValue(
+    f.domain.assertAiAccess.mockRejectedValue(
       new ForbiddenException('Admin access required'),
     );
     await expect(f.service.status(autoIdentity('owner'))).rejects.toThrow(
@@ -363,7 +363,7 @@ describe('standing-consent classifier', () => {
   });
   it('does not run background classification for a non-admin with old consent', async () => {
     const f = setup();
-    f.domain.assertAiAdmin.mockRejectedValue(
+    f.domain.assertAiAccess.mockRejectedValue(
       new ForbiddenException('Admin access required'),
     );
     f.db.createQueryRunner = () => ({
@@ -380,19 +380,20 @@ describe('standing-consent classifier', () => {
     expect(f.model.decide).not.toHaveBeenCalled();
     expect(f.db.query).toHaveBeenCalledWith(
       expect.stringContaining('last_error=?'),
-      ['ADMIN_REQUIRED', 'owner'],
+      ['AI_MODULE_REQUIRED', 'owner'],
     );
   });
-  it('rechecks the persisted admin role before committing a model result', async () => {
+  it('rechecks AI entitlement before committing a model result', async () => {
     const f = setup();
-    const original = f.db.getRepository.getMockImplementation();
-    f.db.getRepository.mockImplementation((entity: any) => {
-      const repo = original(entity);
-      if (entity !== FullTransactionCache && entity !== ClassifiedTransactions)
-        return { findOne: async () => ({ hasOpenBanking: true, role: [] }) };
-      return repo;
-    });
+    f.billing.hasModuleAccess.mockImplementation(async (_owner: string, module: string) => module !== 'AI');
     await f.service.process('owner', 1, 1);
     expect(f.write).not.toHaveBeenCalled();
+  });
+  it('classifies for an entitled regular owner', async () => {
+    const f=setup();const original=f.db.getRepository.getMockImplementation();
+    f.db.getRepository.mockImplementation((entity:any)=>entity!==FullTransactionCache && entity!==ClassifiedTransactions?{findOne:async()=>({hasOpenBanking:true,role:['REGULAR']})}:original(entity));
+    await f.service.process('owner',1,1);
+    expect(f.write).toHaveBeenCalled();
+    expect(f.billing.hasModuleAccess).toHaveBeenCalledWith('owner','AI',false,false);
   });
 });
