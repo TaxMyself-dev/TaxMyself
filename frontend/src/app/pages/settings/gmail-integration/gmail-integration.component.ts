@@ -1,7 +1,8 @@
+import { finalize } from 'rxjs';
 import { emailSyncErrorMessage, emailConnectionIssueMessage } from 'src/app/services/email-sync-messages';
 import { environment } from 'src/environments/environment';
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { CheckboxModule } from 'primeng/checkbox';
@@ -60,7 +61,8 @@ export class GmailIntegrationComponent implements OnInit {
   runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
   syncErrorMessage(account: GmailAccountSyncStatus): string { return emailSyncErrorMessage(account.lastSyncError); }
   connectionIssueMessage(account: GmailAccountSyncStatus): string { return emailConnectionIssueMessage(account.lastSyncError); }
-  readonly connecting = signal(false);
+  readonly connectingProvider = signal<'GOOGLE' | 'MICROSOFT' | null>(null);
+  readonly connecting = computed(() => this.connectingProvider() !== null);
   /** ייבוא ידני (מהדיאלוג) רץ כרגע — נועל את הדיאלוג ומונע שליחה כפולה. */
   readonly importing = signal(false);
   /** מזהי אינטגרציה שמתנתקים כרגע (spinner per-account). */
@@ -131,16 +133,18 @@ export class GmailIntegrationComponent implements OnInit {
   /** מפנה למסך ההסכמה של Google לחיבור חשבון (נוסף); החזרה נוחתת בהגדרות. */
   connectGmail(integrationId?: number, provider: 'GOOGLE' | 'MICROSOFT' = 'GOOGLE'): void {
     if (this.connecting() || this.authService.isViewingAsClient()) return;
-    this.connecting.set(true);
+    this.connectingProvider.set(provider);
     const request = provider === 'MICROSOFT'
       ? this.integrationsService.getOutlookConnectUrl(integrationId)
       : this.integrationsService.getGoogleConnectUrl(integrationId);
-    request.subscribe({
+    request.pipe(finalize(() => this.connectingProvider.set(null))).subscribe({
       next: ({ url }) => {
-        window.location.href = url;
+        // Back may restore this exact document; clear transient state before leaving.
+        this.connectingProvider.set(null);
+        this.navigateToProvider(url);
       },
       error: () => {
-        this.connecting.set(false);
+        this.connectingProvider.set(null);
         this.messageService.add({
           severity: 'error',
           summary: 'שגיאה',
@@ -150,6 +154,17 @@ export class GmailIntegrationComponent implements OnInit {
         });
       },
     });
+  }
+
+  private navigateToProvider(url: string): void {
+    window.location.href = url;
+  }
+
+  @HostListener('window:pageshow', ['$event'])
+  onPageShow(event: PageTransitionEvent): void {
+    if (!event.persisted) return;
+    this.connectingProvider.set(null);
+    if (!this.authService.isViewingAsClient()) this.syncState.refresh();
   }
 
   /** האם חשבון ניתן לבחירה בדיאלוג: מחובר (ACTIVE) וגם השלים משיכה ראשונית. */

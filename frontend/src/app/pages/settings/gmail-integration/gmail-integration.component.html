@@ -32,10 +32,10 @@
     </p>
     <div class="gmail-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'GOOGLE'"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'MICROSOFT'"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 
     </div>
@@ -72,7 +72,7 @@
           </div>
           <div class="gmail-actions">
             <app-p-button [buttonText]="'חבר מחדש'" [buttonColor]="buttonColor.BLACK"
-              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+              [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === (account.provider || 'GOOGLE')"
               (onButtonClicked)="connectGmail(account.id, account.provider)"></app-p-button>
             <app-p-button [buttonText]="'נתק הרשאה'" [severity]="'danger'" [variant]="'outlined'"
               [buttonSize]="buttonSize.SMALL" [disabled]="isDisconnecting(account.id)"
@@ -181,10 +181,10 @@
     <!-- פעולות גלובליות -->
     <div class="gmail-actions gmail-global-actions">
       <app-p-button [buttonText]="'חבר חשבון Gmail נוסף'" [class]="'gmail-connect-button'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.AUTO" [disabled]="connecting()" [isLoading]="connectingProvider() === 'GOOGLE'"
         (onButtonClicked)="connectGmail()"></app-p-button>
       <app-p-button [buttonText]="'חבר חשבון Outlook'" [icon]="'outlook-brand-icon'" [buttonColor]="buttonColor.BLACK"
-        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connecting()"
+        [buttonSize]="buttonSize.SMALL" [disabled]="connecting()" [isLoading]="connectingProvider() === 'MICROSOFT'"
         (onButtonClicked)="connectGmail(undefined, 'MICROSOFT')"></app-p-button>
 
       <app-p-button [buttonText]="'משוך מסמכים עכשיו'" [variant]="'outlined'"

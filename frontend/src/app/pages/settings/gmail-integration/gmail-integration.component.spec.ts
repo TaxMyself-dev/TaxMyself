@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { EMPTY, throwError } from 'rxjs';
+import { EMPTY, Subject, throwError } from 'rxjs';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { AuthService } from 'src/app/services/auth.service';
 import { GenericService } from 'src/app/services/generic.service';
@@ -38,6 +38,37 @@ describe('Gmail connection controls', () => {
     expect(component.syncErrorMessage({lastSyncError:'EMAIL_RETRY_PENDING'} as any)).toContain('אוטומטית');
     expect(component.syncErrorMessage({lastSyncError:'secret raw provider failure'} as any)).not.toContain('secret');
   });
+  it('clears Outlook loading before navigation and allows retry after Back', () => {
+    const response = new Subject<{url: string}>();
+    connect.and.returnValue(response);
+    const navigate = spyOn<any>(component, 'navigateToProvider').and.callFake(() => {
+      expect(component.connecting()).toBeFalse();
+    });
+    component.connectGmail(undefined, 'MICROSOFT');
+    expect(component.connectingProvider()).toBe('MICROSOFT');
+    component.connectGmail();expect(connect).toHaveBeenCalledTimes(1);
+    response.next({url:'https://connect.composio.dev/synthetic'});response.complete();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    connect.and.returnValue(EMPTY);component.connectGmail(undefined,'MICROSOFT');
+    expect(connect).toHaveBeenCalledTimes(2);
+  });
+  it('clears loading and refreshes verified state on browser-history restore', () => {
+    component.connectingProvider.set('MICROSOFT');
+    component.onPageShow({persisted:true} as PageTransitionEvent);
+    expect(component.connecting()).toBeFalse();expect(refresh).toHaveBeenCalledTimes(1);
+  });
+  it('preserves active requests on ordinary pageshow and owner-only refresh on restore', () => {
+    component.connectingProvider.set('GOOGLE');component.onPageShow({persisted:false} as PageTransitionEvent);
+    expect(component.connectingProvider()).toBe('GOOGLE');viewingAsClient=true;
+    component.onPageShow({persisted:true} as PageTransitionEvent);
+    expect(component.connecting()).toBeFalse();expect(refresh).not.toHaveBeenCalled();
+  });
+  it('clears loading on failed or empty connect responses', () => {
+    connect.and.returnValue(throwError(()=>new Error('unavailable')));
+    component.connectGmail(undefined,'MICROSOFT');expect(component.connecting()).toBeFalse();
+    connect.and.returnValue(EMPTY);component.connectGmail();expect(component.connecting()).toBeFalse();
+  });
+
   it('passes the selected Outlook row when reconnecting', () => {
     component.connectGmail(43, 'MICROSOFT');
     expect(connect).toHaveBeenCalledOnceWith(43);

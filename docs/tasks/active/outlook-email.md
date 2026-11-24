@@ -404,3 +404,34 @@ See docs/features/email-worker-scope.md for exact all-worker activation order an
 production compatibility/approval boundaries. No merge/main/push. Retain worktree.
 
 Runtime verification: canonical watch compilation 0 errors; DB keepintax-dev, synchronize=false; backend 3000 owned by feature app PID 28136 (watch root 7828), frontend 4200 preserved. No unexpected boot errors; existing unrelated orphan-business OCR warnings and unconfigured Document AI warning remain. Scope flag remains unset and temporary exclusive scanner protection remains configured. No new executable changes after the passing build/regression run.
+
+## OAuth Back/cancel leaves connection controls spinning — 2026-11-24
+
+User reported returning from Add Outlook without authorizing another account left
+both provider buttons spinning. The component set its shared connecting flag before
+requesting the hosted URL and only cleared it on HTTP error. Successful navigation
+left transient state true, which browser-history restoration can preserve.
+Acceptance: Back/cancel restores usable controls, retry is possible, loading is
+limited to the selected provider, and server-verified account refresh/owner-only
+mail access remain enforced. No backend, DB, credential or provider changes.
+
+Connecting state now records only the pending provider. It resets before external
+navigation and on request finalization (including error/empty completion). A window
+pageshow listener clears stale state on persisted history restoration and refreshes
+server state only for the owner. Ordinary pageshow does not cancel an active request.
+Both provider buttons still share the in-flight duplicate-request guard, but only
+the selected provider shows its spinner. Incoming callback parameters are not
+interpreted as proof of a connected account. No remote connection is deleted.
+
+Focused frontend command: CHROME_BIN set to installed Edge, then
+`npm test -- --watch=false --browsers=ChromeHeadless --karma-config=karma.email-icons.conf.cjs --ts-config=tsconfig.email-icons-spec.json --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts --include=src/app/pages/settings-new/email-provider-icons.spec.ts --progress=false`:
+exit 0, 19/19 passed on Edge 158 headless (16 component + 3 actual stylesheet/icon
+regressions). New tests cover reset before navigation, retry after Back, persisted
+restore, ordinary pageshow, represented-client guard and error/empty responses.
+Navigation and return events were simulated in browser tests; no real OAuth consent
+flow was executed. No backend suite/schema probe rerun: backend is unchanged.
+One existing comment was relocated after testing; executable inputs unchanged.
+`git diff --check` passed. Production frontend build result recorded below.
+No main integration, push, cloud deployment or local backend restart.
+
+Final frontend production command: CI=true, npm run build -- --configuration production --progress=false. Exit 0, hash 9ce56e0795be6f4f, 125035 ms. Existing CSS-budget/CommonJS/initial-bundle warnings remain. No repeated tests/build after comment-only relocation. Application diff reviewed and git diff --check passed.
