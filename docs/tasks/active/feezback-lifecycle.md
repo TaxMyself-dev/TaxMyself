@@ -1,6 +1,6 @@
 # Feezback lifecycle and admin control
 
-- Status: `IMPLEMENTED` (local feature only; integration pending user approval)
+- Status: `INTEGRATED_LOCAL` (manual main verification and push approval pending)
 - Worktree: `C:/Users/user/Keepintax/TaxMyself-feezback-lifecycle`
 - Branch: `codex/feezback-lifecycle`
 - Base commit: `ee9a43ec` (freshly fetched origin/main)
@@ -166,3 +166,40 @@ Risk tier: backend domain/controller/persistence and frontend component behavior
   50.504 seconds). Existing warning-only bundle/style/CommonJS notices remain.
 - No broad-suite repetition: focused domain/listing/browser checks cover changed
   behavior. Main integration, push and starting application servers remain unauthorized.
+
+## Local main integration (2026-11-24)
+
+- Explicit user approval: integrate into local main. No GitHub push approval.
+- Main before integration: 15d8ce5f5f641eb0aab43fe9f7d51d87abb05a45.
+  Feature before integration: 12ea4f59d27a2dd47aaa68278330442e0046e546.
+  Tested merge candidate and fast-forward main: 4e35dce10f6e246ba6a40047c0144a27df1eae94.
+- Merged current main into feature first. Resolved four conflicts in cutover.sql,
+  admin-panel/AGENTS.md, admin-panel.page.ts and admin-panel.page.spec.ts.
+  Preserved current main AI navigation, both additive schema/documentation sections,
+  current admin tests and the new Feezback tab. No schema SQL was executed.
+- Backend `npm ci --no-audit --no-fund` and `npm run build`: exit 0.
+- Frontend `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.feezback-lifecycle.spec.json --include=src/app/pages/admin-panel/admin-feezback.component.spec.ts --include=src/app/pages/admin-panel/admin-panel.page.spec.ts`: 24 passed.
+- Frontend production build with NG_BUILD_MAX_WORKERS=1:
+  `npm run build -- --configuration production`: exit 0, hash 654ba673502deb12.
+  Existing bundle/style/CommonJS warnings remain.
+- Backend `npm test -- --config=C:/Users/user/Documents/ChatGPT/Keepintax-Feezback/feezback-integration-jest.cjs feezback/lifecycle feezback/feezback-sync-reliability.spec.ts feezback/feezback-review-regression.spec.ts feezback/feezback-disconnection.service.spec.ts billing/services/subscription-access.service.spec.ts billing/services/ai-module-access.spec.ts --silent`:
+  10 suites passed, 1 skipped; 133 tests passed, 2 skipped (opt-in MySQL temporary
+  persistence tests, previously verified). External config retains package Jest
+  settings with one worker and workerIdleMemoryLimit=768MB.
+- Initial concurrent frontend build and in-band backend selection terminated without
+  a compiler/assertion failure or complete test summary under memory pressure.
+  They are not counted as passing runs. Serial build and bounded worker run above
+  completed with unchanged criteria. Exact tested candidate was fast-forwarded;
+  subsequent documentation-only changes do not require repeating these checks.
+- Main local environment preserved: frontend 4200, backend 3000. Lifecycle flags
+  remain unset/off; no scans, automatic disconnections or application servers started.
+  No provider mutations, production changes or remote pushes were performed.
+- Private backup verified with SHA-256 for 22 local files (205025 bytes):
+  C:/Users/user/.codex/worktree-backups/TaxMyself-feezback-lifecycle-20261124T144857Z.
+  Worktree logical file size before removal: 4937203137 bytes (regenerable caches
+  excluded from backup). Branch and commits retained. Main manual testing and
+  explicit push approval are still pending.
+- Cleanup completed: verified no development listeners on 4202/3002 and no matching
+  node/Chrome/editor process requiring the feature. git worktree remove without
+  force succeeded; exact feature path is absent. Approximately 4.60 GiB of logical
+  worktree files removed (physical free-space change not measured).
