@@ -332,8 +332,8 @@ describe('rendered retry warning',()=>{
   ]}).compileComponents();
   const fixture=TestBed.createComponent(GmailIntegrationComponent);fixture.nativeElement.style.display='block';fixture.nativeElement.style.width=width+'px';fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
   const warning=fixture.nativeElement.querySelector('.gmail-error') as HTMLElement;expect(warning).not.toBeNull();
-  const button=Array.from(warning.querySelectorAll('button')).find(b=>b.textContent?.includes('נסה לעבד שוב'))!;
-  expect(button).toBeTruthy();expect(button.disabled).toBeFalse();expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth+1);
+  const button=Array.from(warning.querySelectorAll('button')).find(b=>b.textContent?.trim() === 'נסה שוב')!;
+  expect(button).toBeTruthy();expect(button.classList.contains('black')).toBeTrue();expect(warning.textContent).not.toContain('יחודש עיבוד המסמכים');expect(button.disabled).toBeFalse();expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth+1);
   button.click();fixture.detectChanges();expect(send).toHaveBeenCalledOnceWith(17);expect(button.disabled).toBeTrue();fixture.destroy();
  });
 });

@@ -60,7 +60,7 @@
             <div class="gmail-error gmail-retry-warning" role="status">
               <span>המשיכה או עיבוד המסמכים דורשים טיפול.</span>
               @if (!authService.isViewingAsClient()) {
-                <app-p-button buttonText="נסה לעבד שוב את כל המסמכים החסומים" icon="pi pi-refresh"
+                <app-p-button buttonText="נסה שוב" [buttonColor]="buttonColor.BLACK" icon="pi pi-refresh"
                   [buttonSize]="buttonSize.SMALL" [disabled]="retryAccountId() !== null" [isLoading]="retryAccountId() === account.id"
                   (onButtonClicked)="retryMailboxProcessing(account.id)" />
                 <p>יחודש עיבוד המסמכים שניתן לשחרר בבטחה בחשבון מייל זה. מסמכים הדורשים סיסמה מטופלים בנפרד.</p>
