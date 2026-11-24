@@ -3124,3 +3124,12 @@ ALTER TABLE full_transactions_cache ADD COLUMN classificationSource varchar(10) 
 -- ASCII binary collation preserves opaque case-sensitive Gmail/Outlook identities.
 ALTER TABLE email_import_items
   MODIFY COLUMN message_id VARCHAR(512) CHARACTER SET ascii COLLATE ascii_bin NOT NULL;
+
+-- 2026-11-24: email worker routing, prepared for DEV and production.
+-- Only keepintax-dev execution authorized. No production execution performed.
+-- Standalone reviewed source: docs/features/email-worker-scope.sql.
+-- Nullable/no backfill. Deploy/configure all shared DEV workers before activation.
+ALTER TABLE email_import_runs
+  ADD COLUMN worker_scope VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NULL DEFAULT NULL,
+  ADD INDEX ix_email_runs_scope_due (worker_scope,pull_state,next_attempt_at,started_at),
+  ALGORITHM=INPLACE, LOCK=NONE;

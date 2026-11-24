@@ -76,6 +76,7 @@ export class EmailIntakeStorage {
         metadata: {
           ...metadata,
           integrationId: run.integration_id,
+          emailRunId: run.id,
           gmailMessageId: item.message_id,
         },
       });

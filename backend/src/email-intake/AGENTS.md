@@ -11,3 +11,12 @@ Read tools are allowlisted separately per toolkit. The persisted provider select
 reader; date windows, durable runs, owner restrictions and content-hash dedup are shared.
 Historical GMAIL source/metadata names identify this shared email pipeline internally.
 See `docs/features/outlook-email.md` for configuration and the verified DEV-only schema and pending live OAuth verification.
+## Shared DEV worker routing
+
+User-authorized email routing is separate from feature availability. Optional
+EMAIL_WORKER_SCOPE=local/test tags runs and filters both scan and downstream claims;
+unset preserves production SQL and does not require the new column. Scoped startup
+requires exact keepintax-dev identity and reviewed schema. NULL historical work is
+not adopted. Keep owner/business fences, global content dedup and retention intact.
+See docs/features/email-worker-scope.md for guarded DEV application and the required
+all-worker update before removing temporary exclusive ownership.

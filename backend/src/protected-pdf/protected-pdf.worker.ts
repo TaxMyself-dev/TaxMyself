@@ -1,3 +1,8 @@
+import {
+  emailWorkerScope,
+  emailProtectedRootScope,
+  emailProtectedOperationScope,
+} from '../email-intake/email-worker-scope';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { createHash, randomUUID } from 'crypto';
@@ -9,6 +14,7 @@ import { replacementProcessingOutcome } from '../documents/document-outcome.util
 
 @Injectable()
 export class ProtectedPdfWorker {
+  private readonly emailWorker = emailWorkerScope();
   private readonly logger = new Logger(ProtectedPdfWorker.name);
   constructor(
     private readonly service: ProtectedPdfService,
@@ -17,12 +23,14 @@ export class ProtectedPdfWorker {
   ) {}
   @Cron('*/30 * * * * *', { name: 'protectedPdfOutbox' })
   async tick(): Promise<void> {
-    if (!this.service.enabled())
-      return;
+    if (!this.service.enabled()) return;
     await this.recoverAbandonedUploads();
     // Bounded batch; every delivery gets a DB lease and an ownership/version recheck.
     const due: ReplacementOperation[] = await this.store.query(
-      "SELECT * FROM document_replacement_operations WHERE ((status IN ('PENDING','DELIVERY_FAILED') AND attempts<5 AND next_attempt_at<=UTC_TIMESTAMP(3)) OR (status='DISPATCHING' AND lease_expires_at<UTC_TIMESTAMP(3))) ORDER BY created_at LIMIT 5",
+      "SELECT * FROM document_replacement_operations WHERE ((status IN ('PENDING','DELIVERY_FAILED') AND attempts<5 AND next_attempt_at<=UTC_TIMESTAMP(3)) OR (status='DISPATCHING' AND lease_expires_at<UTC_TIMESTAMP(3)))" +
+        emailProtectedOperationScope(this.emailWorker).sql +
+        ' ORDER BY created_at LIMIT 5',
+      emailProtectedOperationScope(this.emailWorker).params,
     );
     for (const op of due)
       await this.deliver(op.id).catch(() =>
@@ -31,8 +39,7 @@ export class ProtectedPdfWorker {
     await this.reconcile();
   }
   async deliver(id: string): Promise<void> {
-    if (!this.service.enabled())
-      return;
+    if (!this.service.enabled()) return;
     const token = randomUUID();
     const initial = await this.store.operation(id);
     if (!initial) return;
@@ -46,6 +53,16 @@ export class ProtectedPdfWorker {
         true,
       );
       const op = await this.store.operation(id, manager, true);
+      if (this.emailWorker) {
+        const scope = emailProtectedOperationScope(this.emailWorker);
+        const allowed = await this.store.query(
+          'SELECT id FROM document_replacement_operations WHERE id=?' +
+            scope.sql,
+          [id, ...scope.params],
+          manager,
+        );
+        if (!allowed.length) return null;
+      }
       if (
         !op ||
         !['PENDING', 'DELIVERY_FAILED', 'DISPATCHING'].includes(op.status)
@@ -73,7 +90,17 @@ export class ProtectedPdfWorker {
       );
       // Reserve management before the external move so the generic INBOX scan cannot claim it.
       {
-        await this.store.query("UPDATE imported_documents r JOIN protected_documents p ON p.id=? JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='PROTECTED_DELIVERY',r.email_run_id=original.email_run_id,r.email_upload_tag=? WHERE r.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state='LEGACY' AND original.email_work_state='PASSWORD_REQUIRED'",[op.protected_id,id,op.replacement_import_id,op.firebase_id,op.business_number],manager);
+        await this.store.query(
+          "UPDATE imported_documents r JOIN protected_documents p ON p.id=? JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='PROTECTED_DELIVERY',r.email_run_id=original.email_run_id,r.email_upload_tag=? WHERE r.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state='LEGACY' AND original.email_work_state='PASSWORD_REQUIRED'",
+          [
+            op.protected_id,
+            id,
+            op.replacement_import_id,
+            op.firebase_id,
+            op.business_number,
+          ],
+          manager,
+        );
       }
       return op;
     });
@@ -125,8 +152,16 @@ export class ProtectedPdfWorker {
           manager,
         );
         {
-          await this.store.query("UPDATE imported_documents r JOIN document_replacement_operations o ON o.replacement_import_id=r.id JOIN protected_documents p ON p.id=o.protected_id JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='READY',r.email_run_id=original.email_run_id,r.email_upload_tag=o.id WHERE o.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state IN ('LEGACY','PROTECTED_DELIVERY') AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id,operation.business_number],manager);
-          await this.store.query("UPDATE imported_documents original JOIN protected_documents p ON p.original_import_id=original.id JOIN document_replacement_operations o ON o.protected_id=p.id JOIN imported_documents r ON r.id=o.replacement_import_id SET original.email_work_state='REPLACED' WHERE o.id=? AND original.firebase_id=? AND r.email_work_state='READY' AND original.email_work_state='PASSWORD_REQUIRED'",[id,operation.firebase_id],manager);
+          await this.store.query(
+            "UPDATE imported_documents r JOIN document_replacement_operations o ON o.replacement_import_id=r.id JOIN protected_documents p ON p.id=o.protected_id JOIN imported_documents original ON original.id=p.original_import_id SET r.email_work_state='READY',r.email_run_id=original.email_run_id,r.email_upload_tag=o.id WHERE o.id=? AND r.firebase_id=? AND r.business_number=? AND r.email_work_state IN ('LEGACY','PROTECTED_DELIVERY') AND original.email_work_state='PASSWORD_REQUIRED'",
+            [id, operation.firebase_id, operation.business_number],
+            manager,
+          );
+          await this.store.query(
+            "UPDATE imported_documents original JOIN protected_documents p ON p.original_import_id=original.id JOIN document_replacement_operations o ON o.protected_id=p.id JOIN imported_documents r ON r.id=o.replacement_import_id SET original.email_work_state='REPLACED' WHERE o.id=? AND original.firebase_id=? AND r.email_work_state='READY' AND original.email_work_state='PASSWORD_REQUIRED'",
+            [id, operation.firebase_id],
+            manager,
+          );
         }
         // The ledger records the intake destination; OCR may already have moved the file to processed.
         await this.store.query(
@@ -152,15 +187,18 @@ export class ProtectedPdfWorker {
    * name/hash association, no password input, and no DB lock held over Drive.
    */
   async recoverAbandonedUploads(): Promise<void> {
-    if (!this.service.enabled())
-      return;
+    if (!this.service.enabled()) return;
     const roots = await this.store.query(
-      "SELECT * FROM protected_documents WHERE status='IMPORTING' AND recovery_attempts<5 AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (recovery_next_at IS NULL OR recovery_next_at<=UTC_TIMESTAMP(3)) LIMIT 2",
+      "SELECT * FROM protected_documents WHERE status='IMPORTING' AND recovery_attempts<5 AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (recovery_next_at IS NULL OR recovery_next_at<=UTC_TIMESTAMP(3))" +
+        emailProtectedRootScope(this.emailWorker).sql +
+        ' LIMIT 2',
+      emailProtectedRootScope(this.emailWorker).params,
     );
     for (const root of roots) {
       const claimed = await this.store.query(
-        "UPDATE protected_documents SET recovery_attempts=recovery_attempts+1,recovery_next_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE) WHERE id=? AND status='IMPORTING' AND recovery_attempts<5 AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (recovery_next_at IS NULL OR recovery_next_at<=UTC_TIMESTAMP(3))",
-        [root.id],
+        "UPDATE protected_documents SET recovery_attempts=recovery_attempts+1,recovery_next_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE) WHERE id=? AND status='IMPORTING' AND recovery_attempts<5 AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (recovery_next_at IS NULL OR recovery_next_at<=UTC_TIMESTAMP(3))" +
+          emailProtectedRootScope(this.emailWorker).sql,
+        [root.id, ...emailProtectedRootScope(this.emailWorker).params],
       );
       if (claimed.affectedRows !== 1) continue;
       try {
@@ -194,7 +232,10 @@ export class ProtectedPdfWorker {
       }
     }
     const operations: ReplacementOperation[] = await this.store.query(
-      "SELECT * FROM document_replacement_operations WHERE status IN ('RESERVED','UPLOAD_FAILED') AND attempts<5 AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3)) LIMIT 2",
+      "SELECT * FROM document_replacement_operations WHERE status IN ('RESERVED','UPLOAD_FAILED') AND attempts<5 AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))" +
+        emailProtectedOperationScope(this.emailWorker).sql +
+        ' LIMIT 2',
+      emailProtectedOperationScope(this.emailWorker).params,
     );
     for (const operation of operations) {
       const root = await this.store.root(
@@ -205,8 +246,12 @@ export class ProtectedPdfWorker {
       if (!root || Number(root.version) !== Number(operation.expected_version))
         continue;
       const claimed = await this.store.query(
-        "UPDATE document_replacement_operations SET attempts=attempts+1,next_attempt_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE) WHERE id=? AND status IN ('RESERVED','UPLOAD_FAILED') AND attempts<5 AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))",
-        [operation.id],
+        "UPDATE document_replacement_operations SET attempts=attempts+1,next_attempt_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 1 MINUTE) WHERE id=? AND status IN ('RESERVED','UPLOAD_FAILED') AND attempts<5 AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND (next_attempt_at IS NULL OR next_attempt_at<=UTC_TIMESTAMP(3))" +
+          emailProtectedOperationScope(this.emailWorker).sql,
+        [
+          operation.id,
+          ...emailProtectedOperationScope(this.emailWorker).params,
+        ],
       );
       if (claimed.affectedRows !== 1) continue;
       try {
@@ -265,10 +310,12 @@ export class ProtectedPdfWorker {
     return null;
   }
   async reconcile(): Promise<void> {
-    if (!this.service.enabled())
-      return;
+    if (!this.service.enabled()) return;
     const queued: ReplacementOperation[] = await this.store.query(
-      "SELECT * FROM document_replacement_operations WHERE status='QUEUED' AND processing_status='PENDING' ORDER BY updated_at LIMIT 25",
+      "SELECT * FROM document_replacement_operations WHERE status='QUEUED' AND processing_status='PENDING'" +
+        emailProtectedOperationScope(this.emailWorker).sql +
+        ' ORDER BY updated_at LIMIT 25',
+      emailProtectedOperationScope(this.emailWorker).params,
     );
     for (const op of queued) {
       const rows = await this.store.query(

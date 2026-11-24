@@ -1,3 +1,4 @@
+import { emailWorkerScope } from '../../email-intake/email-worker-scope';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { GmailSyncService } from './gmail-sync.service';
@@ -37,7 +38,10 @@ export class GmailSyncCronService {
   ) {}
 
   /** Runs once a night at 02:00 Israel time (billing renewal runs at 03:00). */
-  @Cron('0 2 * * *', { name: 'gmailNightlySyncCron', timeZone: 'Asia/Jerusalem' })
+  @Cron('0 2 * * *', {
+    name: 'gmailNightlySyncCron',
+    timeZone: 'Asia/Jerusalem',
+  })
   async runNightlySyncCron(): Promise<void> {
     this.logger.log('Nightly Gmail sync cron starting');
     const summary = await this.processEligibleSyncs();
@@ -49,10 +53,14 @@ export class GmailSyncCronService {
 
   /**
    * Syncs every eligible integration in bounded-concurrency batches. Never
-   * throws — each user's outcome is contained by runIncrementalSync.
+   * throws ג€” each user's outcome is contained by runIncrementalSync.
    */
   async processEligibleSyncs(): Promise<GmailNightlySyncSummary> {
-    const candidates = await this.userIntegrationsService.findGmailSyncCandidates();
+    // Only test creates scheduled email runs when local/test routing is enabled.
+    if (emailWorkerScope() === 'local')
+      return { eligible: 0, succeeded: 0, skipped: 0, errors: 0 };
+    const candidates =
+      await this.userIntegrationsService.findGmailSyncCandidates();
     const summary: GmailNightlySyncSummary = {
       eligible: candidates.length,
       succeeded: 0,
@@ -63,7 +71,9 @@ export class GmailSyncCronService {
     for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
       const batch = candidates.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(
-        batch.map((integration) => this.gmailSyncService.runIncrementalSync(integration)),
+        batch.map((integration) =>
+          this.gmailSyncService.runIncrementalSync(integration),
+        ),
       );
       for (const result of results) {
         if (result.outcome === 'success') summary.succeeded += 1;

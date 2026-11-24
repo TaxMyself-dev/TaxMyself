@@ -1,4 +1,8 @@
 import {
+  emailWorkerScope,
+  emailAnalysisScope,
+} from '../email-intake/email-worker-scope';
+import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
@@ -39,6 +43,7 @@ export interface EnqueueAnalysis {
 }
 @Injectable()
 export class DocumentAiStore {
+  private readonly emailWorker = emailWorkerScope();
   constructor(readonly db: DataSource) {}
   private restoreJob(job: AnalysisJob, previous: AnalysisJob) {
     for (const key of Object.keys(job))
@@ -169,16 +174,22 @@ export class DocumentAiStore {
     return current;
   }
   async claimUpload(job: AnalysisJob): Promise<AnalysisJob | null> {
+    const scope = emailAnalysisScope(this.emailWorker);
     const token = randomUUID();
     const result = await this.query(
-      "UPDATE document_processing_jobs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND owner=? AND business=? AND state='UPLOADING' AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))",
-      [token, job.id, job.owner, job.business],
+      "UPDATE document_processing_jobs SET lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND owner=? AND business=? AND state='UPLOADING' AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))" +
+        scope.sql,
+      [token, job.id, job.owner, job.business, ...scope.params],
     );
     return result.affectedRows === 1 ? { ...job, lease_token: token } : null;
   }
   async unfinishedUploads(): Promise<AnalysisJob[]> {
+    const scope = emailAnalysisScope(this.emailWorker);
     return this.query(
-      "SELECT * FROM document_processing_jobs WHERE state='UPLOADING' AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) ORDER BY sequence LIMIT 10",
+      "SELECT * FROM document_processing_jobs WHERE state='UPLOADING' AND updated_at<DATE_SUB(UTC_TIMESTAMP(3),INTERVAL 5 MINUTE) AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3))" +
+        scope.sql +
+        ' ORDER BY sequence LIMIT 10',
+      scope.params,
     );
   }
   async pendingForBusiness(
@@ -231,6 +242,8 @@ export class DocumentAiStore {
     );
   }
   async claimNext(p: CapacityProfile): Promise<AnalysisJob | null> {
+    const scope = emailAnalysisScope(this.emailWorker, 'q');
+    const claimScope = emailAnalysisScope(this.emailWorker);
     return this.db.transaction(async (m) => {
       // Serialize admission across provider groups as well, so compatible content cannot be paid twice.
       await this.query(
@@ -257,9 +270,10 @@ export class DocumentAiStore {
          AND (q.next_at IS NULL OR q.next_at<=UTC_TIMESTAMP(3)) AND (q.expires_at IS NULL OR q.expires_at>UTC_TIMESTAMP(3))
          AND NOT EXISTS (SELECT 1 FROM document_processing_jobs active WHERE active.owner=q.owner AND active.business=q.business AND active.content_hash=q.content_hash
            AND active.policy_version=q.policy_version AND active.state IN ('PREPARING','IN_FLIGHT') AND active.lease_expires_at>UTC_TIMESTAMP(3))
+         ${scope.sql}
          GROUP BY q.owner,q.business,q.interactive) h ON h.head=j.sequence
         ORDER BY j.sequence`,
-        [p.key, p.provider],
+        [p.key, p.provider, ...scope.params],
         m,
       );
       const selected = chooseJob(heads, state);
@@ -267,8 +281,9 @@ export class DocumentAiStore {
       const token = randomUUID(),
         j = selected.job;
       const result = await this.query(
-        "UPDATE document_processing_jobs SET state='PREPARING',lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE),attempts=attempts+1,started_at=COALESCE(started_at,UTC_TIMESTAMP(3)) WHERE id=? AND state='READY'",
-        [token, j.id],
+        "UPDATE document_processing_jobs SET state='PREPARING',lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE),attempts=attempts+1,started_at=COALESCE(started_at,UTC_TIMESTAMP(3)) WHERE id=? AND state='READY'" +
+          claimScope.sql,
+        [token, j.id, ...claimScope.params],
         m,
       );
       if (result.affectedRows !== 1) throw new Error('Analysis claim raced');
@@ -523,6 +538,7 @@ export class DocumentAiStore {
     }
   }
   async claimCompletion(p: CapacityProfile): Promise<AnalysisJob | null> {
+    const scope = emailAnalysisScope(this.emailWorker);
     return this.db.transaction(async (m) => {
       // Serialize admission across provider groups as well, so compatible content cannot be paid twice.
       await this.query(
@@ -538,20 +554,24 @@ export class DocumentAiStore {
       await this.lockedCapacity(p, m);
       const [count] = await this.query(
         "SELECT COUNT(*) AS active FROM document_processing_jobs WHERE state IN ('PREPARING','IN_FLIGHT','RESULT_SAVED','COMPLETING') AND lease_expires_at>UTC_TIMESTAMP(3)",
-        [], m,
+        [],
+        m,
       );
       if (Number(count.active) >= Math.min(2, p.concurrency)) return null;
       const rows = await this.query(
-        "SELECT * FROM document_processing_jobs WHERE capacity_key=? AND state='RESULT_SAVED' AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND completion_attempts<5 AND (next_at IS NULL OR next_at<=UTC_TIMESTAMP(3)) ORDER BY sequence LIMIT 1 FOR UPDATE",
-        [p.key],
+        "SELECT * FROM document_processing_jobs WHERE capacity_key=? AND state='RESULT_SAVED' AND (lease_token IS NULL OR lease_expires_at<UTC_TIMESTAMP(3)) AND completion_attempts<5 AND (next_at IS NULL OR next_at<=UTC_TIMESTAMP(3)) " +
+          scope.sql +
+          ' ORDER BY sequence LIMIT 1 FOR UPDATE',
+        [p.key, ...scope.params],
         m,
       );
       if (!rows[0]) return null;
       const job = rows[0] as AnalysisJob,
         token = randomUUID();
       const result = await this.query(
-        "UPDATE document_processing_jobs SET state='COMPLETING',completion_attempts=completion_attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND state='RESULT_SAVED'",
-        [token, job.id],
+        "UPDATE document_processing_jobs SET state='COMPLETING',completion_attempts=completion_attempts+1,lease_token=?,lease_expires_at=DATE_ADD(UTC_TIMESTAMP(3),INTERVAL 3 MINUTE) WHERE id=? AND state='RESULT_SAVED'" +
+          scope.sql,
+        [token, job.id, ...scope.params],
         m,
       );
       if (result.affectedRows !== 1)
@@ -573,15 +593,25 @@ export class DocumentAiStore {
       throw new Error('Analysis heartbeat lost its lease');
   }
   async recoverExpired() {
+    const scope = emailAnalysisScope(this.emailWorker);
     // Never replay a possibly paid attempt. Source files and saved outcomes are retained.
     await this.query(
-      "UPDATE document_processing_jobs SET state='UNKNOWN',error_code='AI_UNKNOWN_OUTCOME',lease_token=NULL,lease_expires_at=NULL WHERE state='IN_FLIGHT' AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
+      "UPDATE document_processing_jobs SET state='UNKNOWN',error_code='AI_UNKNOWN_OUTCOME',lease_token=NULL,lease_expires_at=NULL WHERE state='IN_FLIGHT' AND lease_expires_at<UTC_TIMESTAMP(3)" +
+        scope.sql +
+        ' LIMIT 100',
+      scope.params,
     );
     await this.query(
-      "UPDATE document_processing_jobs SET state='READY',lease_token=NULL,lease_expires_at=NULL WHERE state='PREPARING' AND attempt_id IS NULL AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
+      "UPDATE document_processing_jobs SET state='READY',lease_token=NULL,lease_expires_at=NULL WHERE state='PREPARING' AND attempt_id IS NULL AND lease_expires_at<UTC_TIMESTAMP(3)" +
+        scope.sql +
+        ' LIMIT 100',
+      scope.params,
     );
     await this.query(
-      "UPDATE document_processing_jobs SET state='RESULT_SAVED',lease_token=NULL,lease_expires_at=NULL WHERE state='COMPLETING' AND lease_expires_at<UTC_TIMESTAMP(3) LIMIT 100",
+      "UPDATE document_processing_jobs SET state='RESULT_SAVED',lease_token=NULL,lease_expires_at=NULL WHERE state='COMPLETING' AND lease_expires_at<UTC_TIMESTAMP(3)" +
+        scope.sql +
+        ' LIMIT 100',
+      scope.params,
     );
     await this.query(
       "UPDATE document_processing_jobs SET state='BLOCKED',error_code='FORM_EXPIRED' WHERE purpose='FORM_FILL' AND state='READY' AND expires_at<UTC_TIMESTAMP(3) LIMIT 100",
@@ -600,8 +630,12 @@ export class DocumentAiStore {
     );
   }
   async unreportedGmailFailures(): Promise<AnalysisJob[]> {
+    const scope = emailAnalysisScope(this.emailWorker, 'j');
     return this.query(
-      "SELECT j.* FROM document_processing_jobs j WHERE j.state IN ('UNKNOWN','BLOCKED','PASSWORD_REQUIRED') AND ((j.purpose='GMAIL' AND EXISTS (SELECT 1 FROM imported_documents d WHERE d.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(j.context_json,'$.importId')) AS UNSIGNED) AND d.firebase_id=j.owner AND d.business_number=j.business AND d.email_work_state='AI_QUEUED')) OR (j.purpose IN ('DOCUMENT','TRANSACTION_LINK') AND EXISTS (SELECT 1 FROM extracted_document e WHERE e.id=j.claim_id AND e.drive_file_id=j.drive_file_id AND e.status='processing'))) ORDER BY j.sequence LIMIT 10",
+      "SELECT j.* FROM document_processing_jobs j WHERE j.state IN ('UNKNOWN','BLOCKED','PASSWORD_REQUIRED') AND ((j.purpose='GMAIL' AND EXISTS (SELECT 1 FROM imported_documents d WHERE d.id=CAST(JSON_UNQUOTE(JSON_EXTRACT(j.context_json,'$.importId')) AS UNSIGNED) AND d.firebase_id=j.owner AND d.business_number=j.business AND d.email_work_state='AI_QUEUED')) OR (j.purpose IN ('DOCUMENT','TRANSACTION_LINK') AND EXISTS (SELECT 1 FROM extracted_document e WHERE e.id=j.claim_id AND e.drive_file_id=j.drive_file_id AND e.status='processing')))" +
+        scope.sql +
+        ' ORDER BY j.sequence LIMIT 10',
+      scope.params,
     );
   }
   async claimCleanup(job: AnalysisJob): Promise<AnalysisJob | null> {

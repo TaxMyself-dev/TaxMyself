@@ -322,3 +322,85 @@ reuse the prior passing 16 focused tests and production build. Recovery helper
 syntax checked and live guarded inspect/apply completed. git diff --check passed.
 Local watcher root PID 17860 / app PID 31044 at verification; frontend listener
 4200 preserved. No merge/main/push/cloud service or schema change in this repair.
+
+## Prepared scoped email workers; DEV schema applied — 2026-11-24
+
+User authorization: implement local/test routing and prepare the same schema for
+DEV and production; apply only in DEV. Do not access/modify production, integrate
+main or push. No existing-work migration requested. Continue this existing Outlook
+feature worktree on codex/outlook-email (base for this change 5ed95648).
+
+Acceptance: server-owned local/test run tags; filter worker selections and direct
+claims; propagate email-origin processing/AI/protected-PDF routing; leave production
+no-flag behavior compatible; prepare additive SQL for both DBs, apply only DEV;
+verify actual MySQL isolation with rollback fixtures, preserve existing records;
+keep temporary scanner protection until every shared DEV worker is compatible.
+This task covers the email pipeline, not unrelated application background jobs.
+
+Implementation: nullable ASCII worker_scope on email_import_runs and a nonunique
+scope/due index. Scope is chosen from trusted server configuration, never request
+input. Scoped startup refuses production, non-dev Composio, a different actual DB,
+or missing reviewed column. Unset scope retains existing SQL without reading the
+new field, adding ORM columns or changing feature availability. Active cross-scope
+pulls for the same shared connection conflict instead of returning a foreign run.
+Scan/durable work claims are scoped. GMAIL-purpose AI jobs follow their imported
+document's owning run in admission, completion, recovery/reporting. Global paid
+capacity/two-slot ceiling and shared hash dedup are unchanged. Protected email roots
+inherit the run through original_import_id or server-authored metadata.emailRunId
+before that pointer exists; direct delivery and due/recovery paths are checked.
+Other document jobs/protected sources retain their prior behavior. Scoped local
+skips nightly creation; scoped test creates it. No-flag nightly behavior unchanged.
+
+Preflight: no RUNNING/RETRY pull or actionable imported work. Four historical runs
+are COMPLETE/PARTIAL with processing ATTENTION; they were not changed or adopted.
+Schema helper first refused because the stopped feature scanner's idle MySQL
+session still held the named lock. Read-only DB/process/socket checks isolated its
+exact same-peer keepintax-dev session 6364928; it was Sleep for 734 seconds with
+zero active transactions and no feature listener. Killed only that stale DEV
+connection, then reacquired the scanner lock. A separate fee-feature backend was
+identified and preserved; this further reinforces that all shared DEV workers,
+not only cloud test, must be updated/configured for routing.
+
+`node scripts/apply-email-worker-scope-dev.cjs`: inspect exit 0. Actual database
+keepintax-dev, MySQL 8.0.37-google, 14 runs, zero pending pulls. After the safe-lock
+refusal was resolved, `node scripts/apply-email-worker-scope-dev.cjs --apply`:
+exit 0, exactly one additive online ALTER applied, exact column/index verified,
+14 runs before/after, plan []. Final inspect also plan []. No data backfill,
+UPDATE/DELETE of historical rows or production operation. Standalone SQL is
+/docs/features/email-worker-scope.sql and the exact executable DDL is appended to
+/docs/redesign/cutover.sql as a preparation record, not an automatic runner.
+
+Verification (backend workdir unless path prefixed):
+- `node --test scripts/apply-email-worker-scope-dev.test.cjs`: exit 0, 6 tests,
+  93.9141 ms. Covers missing/existing schema, drift/partial shape, safe config and
+  actual DB refusal. No production access.
+- `npm test -- --runInBand --silent --runTestsByPath src/email-intake/email-worker-scope.spec.ts`:
+  exit 0, 12 tests, 70.932 s cold compilation.
+- `npm test -- --runInBand --silent --testPathPattern='src.email-intake|src.document-ai|src.protected-pdf|gmail-sync-cron.service.spec.ts'`:
+  exit 0, 30 suites / 234 tests, 85.850 s. Includes no-flag production behavior,
+  scoped claim/creation, nightly policy, failure/fencing, protected PDF and shared
+  AI admission/cancellation regressions. Expected synthetic cancellation logs are
+  not failures. No unrelated repository-wide tests were run.
+- `npm run build`: exit 0 on the final application sources. Later changes are
+  test/helper/documentation only. Frontend unchanged; no repeated Angular checks.
+- `node scripts/verify-email-worker-scope-dev.cjs --rollback-probe`: exit 0, then
+  repeated only after adding its idle-queue safety preflight (exit 0 again).
+  Compiled stores executed real MySQL local/test/NULL fixture selections and direct
+  claims, downstream work, AI admission/completion, stale recovery, protected roots
+  including metadata fallback, and operations. Foreign/unscoped claims rejected.
+  All fixtures verified absent after rollback; 0 provider/Drive/paid AI calls.
+  Synthetic auto-increment reservations may leave harmless ID gaps. All live
+  assertions ran against DEV, not production or a mocked SQL contract.
+- `node --check scripts/verify-email-worker-scope-dev.cjs`: exit 0.
+- `git diff --check`: passed. New documentation relative targets verified locally.
+
+Runtime activation is intentionally pending: old shared DEV binaries ignore the
+new column and would still consume other scopes. User asked to prepare code and
+apply schema, not deploy test/cloud. No live cloud setting or source delivery was
+changed. Ignored local .env keeps EMAIL_WORKER_SCOPE unset and the already-approved
+EMAIL_DEV_EXCLUSIVE_SCANNER=true protection. The canonical local watcher was
+restarted after verification; port and bootstrap verification recorded below.
+See docs/features/email-worker-scope.md for exact all-worker activation order and
+production compatibility/approval boundaries. No merge/main/push. Retain worktree.
+
+Runtime verification: canonical watch compilation 0 errors; DB keepintax-dev, synchronize=false; backend 3000 owned by feature app PID 28136 (watch root 7828), frontend 4200 preserved. No unexpected boot errors; existing unrelated orphan-business OCR warnings and unconfigured Document AI warning remain. Scope flag remains unset and temporary exclusive scanner protection remains configured. No new executable changes after the passing build/regression run.

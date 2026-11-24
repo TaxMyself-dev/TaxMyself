@@ -135,3 +135,10 @@ are upgraded compatibly. Shutdown releases ownership, allowing legacy workers to
 resume. No cloud deployment or remote setting was changed. Structured diagnostics,
 bounded retries and accurate Hebrew status messages are implemented. Full command
 and live acceptance evidence is in docs/tasks/active/outlook-email.md.
+## Prepared local/test routing (2026-11-24)
+
+[Email worker routing](email-worker-scope.md) adds server-owned run scopes, including
+email-origin processing/AI/protected-PDF work. The additive schema was applied to
+DEV only; production SQL is prepared, not executed. Every shared DEV worker must
+be updated/configured before replacing the temporary exclusive scanner protection.
+The coordinated runtime activation/cloud update was not performed in this task.
