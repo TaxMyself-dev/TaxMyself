@@ -1,3 +1,4 @@
+import { documentRetryMessage, documentRetryError } from 'src/app/services/document-retry';
 import { finalize } from 'rxjs';
 import { emailSyncErrorMessage, emailConnectionIssueMessage } from 'src/app/services/email-sync-messages';
 import { environment } from 'src/environments/environment';
@@ -49,6 +50,19 @@ import { inputsSize } from 'src/app/shared/enums';
   ],
 })
 export class GmailIntegrationComponent implements OnInit {
+  readonly retryAccountId=signal<number|null>(null);
+  readonly retryFeedback=signal<Record<number,string>>({});
+  retryMailboxProcessing(id:number):void {
+    if(this.authService.isViewingAsClient() || this.retryAccountId()!==null)return;
+    this.retryAccountId.set(id);this.retryFeedback.update(value=>({...value,[id]:''}));
+    this.integrationsService.retryMailboxProcessing(id).pipe(finalize(()=>this.retryAccountId.set(null))).subscribe({
+      next:result=>{const detail=documentRetryMessage(result);this.retryFeedback.update(value=>({...value,[id]:detail}));
+        this.messageService.add({severity:result.skipped?'warn':'success',summary:'ניסיון עיבוד חוזר',detail,key:'br',life:10000});this.syncState.refresh();},
+      error:error=>{const detail=documentRetryError(error.status);this.retryFeedback.update(value=>({...value,[id]:detail}));
+        this.messageService.add({severity:'error',summary:'העיבוד לא חודש',detail,key:'br'});this.syncState.refresh();}
+    });
+  }
+
   readonly authService = inject(AuthService);
   readonly syncState = inject(GmailSyncStateService);
   private readonly integrationsService = inject(IntegrationsService);

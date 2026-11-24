@@ -1,3 +1,4 @@
+import { Table } from 'primeng/table';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { signal } from '@angular/core';
@@ -33,6 +34,20 @@ describe('GenericTable unified row actions', () => {
     fixture.detectChanges();
   });
 
+  it('uses composite archive identities for mobile checkbox selection',()=>{
+    const a:any={id:7,archiveSelectionKey:'DOCUMENT-7'},b:any={id:7,archiveSelectionKey:'EXPENSE-7'};
+    fixture.componentRef.setInput('selectionKey','archiveSelectionKey');
+    component.onMobileRowChecked(a,true);expect(component.isMobileRowChecked(b)).toBeFalse();
+    component.onMobileRowChecked(b,true);expect(component.mobileSelectedRows().length).toBe(2);
+    component.onMobileRowChecked(a,false);expect(component.mobileSelectedRows()).toEqual([b]);
+  });
+  it('keeps desktop checkbox selection independent for equal numeric ids',()=>{
+    const a:any={id:7,archiveSelectionKey:'DOCUMENT-7',name:'מסמך'},b:any={id:7,archiveSelectionKey:'EXPENSE-7',name:'הוצאה'};
+    fixture.componentRef.setInput('selectionKey','archiveSelectionKey');fixture.componentRef.setInput('dataTable',[a,b]);fixture.componentRef.setInput('showCheckbox',true);fixture.componentRef.setInput('selectionModeCheckBox','multiple');fixture.detectChanges();
+    const table=fixture.debugElement.query(By.directive(Table)).componentInstance as Table;
+    table.toggleRowWithCheckbox({originalEvent:new MouseEvent('click'),rowIndex:0},a);table.toggleRowWithCheckbox({originalEvent:new MouseEvent('click'),rowIndex:1},b);
+    expect(component.selectedTrans.length).toBe(2);
+  });
   it('keeps opted-in hover actions inside a narrow table and aligned with its row', fakeAsync(() => {
     fixture.componentRef.setInput('rowActionsWithinTable', true);
     fixture.detectChanges();

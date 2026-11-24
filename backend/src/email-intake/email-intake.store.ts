@@ -490,6 +490,10 @@ export class EmailIntakeStore implements OnModuleInit {
         !hidden.has(item.driveFileId) &&
         !(item.itemType === 'DOCUMENT' && hiddenClaims.has(item.id)),
     );
+    for (const item of result) {
+      const row=work.find(w=>w.drive_file_id===item.driveFileId && w.email_work_state==='WORK_BLOCKED');
+      if(row) { item.canRetryProcessing=canManage; item.processingBlocked=true; }
+    }
     for (const row of work) {
       if (
         ['PASSWORD_REQUIRED', 'REPLACED', 'DELETED'].includes(
@@ -509,7 +513,9 @@ export class EmailIntakeStore implements OnModuleInit {
         documentDate: null,
         uploadDate: row.created_at,
         source: 'EMAIL',
-        status: row.email_work_state.startsWith('BLOCKED_')
+        canRetryProcessing: canManage && row.email_work_state === 'WORK_BLOCKED',
+        processingBlocked: row.email_work_state === 'WORK_BLOCKED',
+        status: row.email_work_state === 'WORK_BLOCKED' || row.email_work_state.startsWith('BLOCKED_')
           ? 'ERROR'
           : 'PENDING',
         canResolve: false,

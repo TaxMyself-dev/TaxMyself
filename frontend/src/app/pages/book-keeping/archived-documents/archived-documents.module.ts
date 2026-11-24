@@ -1,3 +1,4 @@
+import { ButtonComponent } from 'src/app/components/button/button.component';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -13,6 +14,7 @@ import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 @NgModule({
   imports: [
     CommonModule,
+    ButtonComponent,
     FormsModule,
     ReactiveFormsModule,
     ArchivedDocumentsPageRoutingModule,

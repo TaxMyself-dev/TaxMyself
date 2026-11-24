@@ -1,6 +1,8 @@
+import { GenericTableComponent } from 'src/app/components/generic-table/generic-table.component';
+import { documentRetryMessage, documentRetryError } from 'src/app/services/document-retry';
 import { ProtectedPdfUploadFlow } from 'src/app/services/protected-pdf-upload';
 import { IGenericTableAction } from 'src/app/components/generic-table/table-actions';
-import { Component, DestroyRef, OnInit, computed, signal, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, signal, inject, viewChild } from '@angular/core';
 import { of, timer } from 'rxjs';
 import { catchError, finalize, switchMap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -76,6 +78,27 @@ const TRANSACTION_TYPE_LABEL = 'הוצאה';
   standalone: false
 })
 export class ArchivedDocumentsPage implements OnInit {
+  readonly archiveTable=viewChild(GenericTableComponent);
+  readonly retryBusy=signal(false);
+  readonly selectedRetryFiles=signal<string[]>([]);
+  readonly retryFeedback=signal('');
+  readonly retrySelection=computed(()=>this.filteredItems().filter(row=>row.canRetryProcessing && row.driveFileId && this.selectedRetryFiles().includes(row.driveFileId)).map(row=>row.driveFileId!));
+  canRetryDocuments():boolean { return !this.authService.isViewingAsClient(); }
+  selectRetryRows(rows:IRowDataTable[]):void {
+    this.selectedRetryFiles.set(rows.filter(row=>row['canRetryProcessing'] && typeof row['driveFileId']==='string').map(row=>String(row['driveFileId'])));
+  }
+  retryProcessing(fileIds:string[]):void {
+    if(this.retryBusy() || !this.canRetryDocuments() || !fileIds.length)return;
+    this.retryBusy.set(true);this.retryFeedback.set('');
+    this.driveDocsService.retryProcessing(this.selectedBusinessNumber(),[...new Set(fileIds)])
+      .pipe(finalize(()=>this.retryBusy.set(false)),takeUntilDestroyed(this.destroyRef))
+      .subscribe({next:result=>{
+        this.retryFeedback.set(documentRetryMessage(result));this.selectedRetryFiles.set([]);this.archiveTable()?.clearSelection();
+        this.messageService.add({severity:result.skipped?'warn':'success',summary:'ניסיון עיבוד חוזר',detail:this.retryFeedback(),key:'br',life:10000});
+        this.fetchArchivedItems(this.selectedBusinessNumber());
+      },error:error=>{this.retryFeedback.set(documentRetryError(error.status));this.messageService.add({severity:'error',summary:'העיבוד לא חודש',detail:this.retryFeedback(),key:'br'});}});
+  }
+
   readonly replacementFlow = new ProtectedPdfUploadFlow();
   readonly protectedReplacement = this.replacementFlow.document;
   readonly replacementBusy = this.replacementFlow.busy;
@@ -225,6 +248,7 @@ export class ArchivedDocumentsPage implements OnInit {
         const sourceIcon = RECORD_SOURCE_ICONS[item.source];
         return {
           ...item,
+          archiveSelectionKey: item.itemType + '-' + item.id,
         documentTypeLabel: item.documentType
           ? (DOCUMENT_TYPE_LABELS[item.documentType] ?? item.documentType)
             : item.itemType === 'DOCUMENT'
@@ -235,7 +259,7 @@ export class ArchivedDocumentsPage implements OnInit {
         sourceIconUrl: sourceIcon?.iconUrl ?? null,
         statusLabel: item.status === 'ERROR' && item.rejectionReason === 'ai_uncertain'
           ? 'נדרשת בדיקה' : this.archiveStatusLabels[item.status] ?? item.status,
-        statusDetail: item.status === 'NO_INVOICE_FOUND'
+        statusDetail: item.processingBlocked ? 'העיבוד נעצר. אפשר לנסות שוב; תוצאה קיימת תישמר.' : item.status === 'NO_INVOICE_FOUND'
           ? 'העיבוד הסתיים ללא מסמך חשבונאי מזוהה. המסמך נשמר לבדיקה; זו אינה שגיאה טכנית.'
           : item.status === 'PASSWORD_REQUIRED'
           ? 'נדרש עותק PDF שניתן לפתוח ללא סיסמה. המקור נשמר.'
@@ -427,6 +451,9 @@ export class ArchivedDocumentsPage implements OnInit {
 
   private setFileActions(): void {
     this.fileActions.set([
+      { name:'retry-processing',desktopDisplay:'label',icon:'pi pi-refresh',title:'נסה לעבד שוב',
+        showWhen:row=>!!row['canRetryProcessing'] && this.canRetryDocuments(),
+        action:(_event,row)=>this.retryProcessing([String(row['driveFileId'])]) },
       { name: 'upload-open-copy', desktopDisplay: 'icon', icon: 'pi pi-lock-open', title: 'העלה עותק ללא הגנה',
         showWhen: row => !!(row as any).canUploadOpenCopy,
         action: (_event, row) => this.openProtectedReplacement(row as unknown as ArchivedItem) },

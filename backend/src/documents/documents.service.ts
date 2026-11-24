@@ -3510,8 +3510,11 @@ ${finalOwnerName}`;
     if(!this.analysisQueue)return items;
     const result=[...items];
     for(const job of await this.queueStore().pendingForBusiness(owner,business)){
+      const represented=result.find(item=>item.driveFileId===job.drive_file_id);
+      if(represented && ['BLOCKED','FAILED'].includes(job.state)) {represented.canRetryProcessing=canManage;represented.processingBlocked=true;}
+
       if(!job.drive_file_id||result.some(item=>item.driveFileId===job.drive_file_id)||job.state==='PASSWORD_REQUIRED')continue;
-      result.push({id:-(2**41+Number(job.sequence)),itemType:'DOCUMENT',documentType:null,documentKind:null,name:job.filename,documentDate:null,uploadDate:job.created_at,source:job.source==='GMAIL'?'EMAIL':'DRIVE',status:['BLOCKED','UNKNOWN','FAILED'].includes(job.state)?'ERROR':'PENDING',canResolve:false,canReclassify:false,canManageExpenses:canManage,driveFileId:job.drive_file_id,rejectionReason:null,vatReportPeriod:null,annualReportingYear:null,analysisJobId:job.id});
+      result.push({id:-(2**41+Number(job.sequence)),itemType:'DOCUMENT',documentType:null,documentKind:null,name:job.filename,documentDate:null,uploadDate:job.created_at,source:job.source==='GMAIL'?'EMAIL':'DRIVE',status:['BLOCKED','UNKNOWN','FAILED'].includes(job.state)?'ERROR':'PENDING',canResolve:false,canReclassify:false,canManageExpenses:canManage,driveFileId:job.drive_file_id,rejectionReason:null,vatReportPeriod:null,annualReportingYear:null,analysisJobId:job.id,canRetryProcessing:canManage&&['BLOCKED','FAILED'].includes(job.state),processingBlocked:['BLOCKED','FAILED','UNKNOWN'].includes(job.state)});
     }
     return result;
   }

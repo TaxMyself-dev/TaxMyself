@@ -1,3 +1,4 @@
+import { DocumentRetryService } from './document-retry.service';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Business } from '../business/business.entity';
@@ -13,7 +14,7 @@ import { EmailRoutingService } from './email-routing.service';
     GoogleDriveModule,
     ProtectedPdfModule,
   ],
-  providers: [EmailIntakeStore, EmailIntakeStorage, EmailRoutingService],
-  exports: [EmailIntakeStore, EmailIntakeStorage, EmailRoutingService],
+  providers: [DocumentRetryService, EmailIntakeStore, EmailIntakeStorage, EmailRoutingService],
+  exports: [DocumentRetryService, EmailIntakeStore, EmailIntakeStorage, EmailRoutingService],
 })
 export class EmailIntakeModule {}

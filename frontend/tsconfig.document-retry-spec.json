@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.spec.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "types": [
+      "jasmine",
+      "node"
+    ]
+  },
+  "include": [
+    "src/app/services/document-retry.spec.ts",
+    "src/app/pages/book-keeping/archived-documents/document-retry.spec.ts",
+    "src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts",
+    "src/**/*.d.ts",
+    "src/app/components/generic-table/generic-table.component.spec.ts"
+  ]
+}

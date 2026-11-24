@@ -57,8 +57,17 @@
         }
         @if (latestRunFor(account.id); as run) {
           @if (!activeRunsFor(account.id).length && account.lastSyncStatus !== 'ERROR' && (run.pull_state === 'PARTIAL' || run.processing_state === 'ATTENTION')) {
-            <div class="gmail-error" role="status">המשיכה או עיבוד המסמכים דורשים טיפול.</div>
+            <div class="gmail-error gmail-retry-warning" role="status">
+              <span>המשיכה או עיבוד המסמכים דורשים טיפול.</span>
+              @if (!authService.isViewingAsClient()) {
+                <app-p-button buttonText="נסה לעבד שוב את כל המסמכים החסומים" icon="pi pi-refresh"
+                  [buttonSize]="buttonSize.SMALL" [disabled]="retryAccountId() !== null" [isLoading]="retryAccountId() === account.id"
+                  (onButtonClicked)="retryMailboxProcessing(account.id)" />
+                <p>יחודש עיבוד המסמכים שניתן לשחרר בבטחה בחשבון מייל זה. מסמכים הדורשים סיסמה מטופלים בנפרד.</p>
+              }
+            </div>
           }
+          @if (retryFeedback()[account.id]) { <p role="status" aria-live="polite">{{retryFeedback()[account.id]}}</p> }
           <details class="gmail-last-run">
             <summary>פרטי המשיכה האחרונה</summary>
             <div class="gmail-run-summary">

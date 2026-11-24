@@ -147,3 +147,7 @@
 
 .protected-pdf-confirmation { display: flex; gap: .5rem; align-items: flex-start; margin-top: 1rem; }
 .protected-pdf-error { color: #b91c1c; margin-top: .75rem; }
+
+.retry-toolbar { display:flex;align-items:center;gap:12px;flex-wrap:wrap;direction:rtl; }
+.retry-toolbar span,.retry-feedback { font-size:0.9rem;line-height:1.6; }
+@media(max-width:600px) { .retry-toolbar { align-items:stretch;flex-direction:column; } }

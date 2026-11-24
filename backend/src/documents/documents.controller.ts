@@ -1,7 +1,8 @@
+import { DocumentRetryService } from '../email-intake/document-retry.service';
 import { measurePdfStage } from './pdf/pdf-diagnostics';
 import { ProtectedPdfService } from '../protected-pdf/protected-pdf.service';
 import { Optional } from '@nestjs/common';
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, Res, UploadedFile, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe, } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ArchiveDocumentClassification, DocumentType, DocumentStatusType, ModuleName } from 'src/enum';
@@ -24,7 +25,17 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     @Optional() private readonly protectedPdf?: ProtectedPdfService,
+    @Optional() private readonly documentRetry?: DocumentRetryService,
   ) { }
+
+  @Post('me/retry-processing')
+  async retryProcessing(@Req() request: AuthenticatedRequest, @Body() body: { businessNumber?: string; fileIds?: unknown }) {
+    const user=request.user;
+    if (!user?.firebaseId || request.isDelegatedAccess || request.isAdminImpersonation ||
+        (user.actorFirebaseId && user.actorFirebaseId!==user.firebaseId)) throw new ForbiddenException('Only the document owner can retry processing');
+    if (!this.documentRetry) throw new BadRequestException('Document retry unavailable');
+    return this.documentRetry.retryFiles(user.firebaseId,body?.businessNumber,body?.fileIds);
+  }
 
   @Post('me/protected/:documentId/replacement')
   @RequiredDelegationScope(DelegationScope.EXPENSES_APPROVE)

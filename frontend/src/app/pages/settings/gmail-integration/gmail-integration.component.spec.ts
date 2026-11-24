@@ -306,3 +306,34 @@ describe('Latest Gmail pull presentation',()=>{
     expect(host.querySelector('.gmail-running')).toBeNull();fixture.destroy();
   });
 });
+
+describe('mailbox-wide processing retries',()=>{
+ let component:GmailIntegrationComponent,send:jasmine.Spy,refresh:jasmine.Spy,viewing=false;
+ beforeEach(()=>{viewing=false;send=jasmine.createSpy().and.returnValue(new Subject());refresh=jasmine.createSpy();TestBed.configureTestingModule({providers:[
+  {provide:AuthService,useValue:{isViewingAsClient:()=>viewing}}, {provide:IntegrationsService,useValue:{retryMailboxProcessing:send}},
+  {provide:GmailSyncStateService,useValue:{refresh,status:signal(null),accounts:signal([])}},
+  {provide:GenericService,useValue:{isMobile:signal(false)}},{provide:MessageService,useValue:{add:jasmine.createSpy()}},{provide:ConfirmationService,useValue:{}}
+ ]});component=TestBed.runInInjectionContext(()=>new GmailIntegrationComponent())});
+ it('uses the clicked account and blocks repeated clicks',()=>{component.retryMailboxProcessing(17);component.retryMailboxProcessing(17);component.retryMailboxProcessing(18);expect(send).toHaveBeenCalledOnceWith(17);expect(component.retryAccountId()).toBe(17)});
+ it('does not mutate mailboxes in represented-client mode',()=>{viewing=true;component.retryMailboxProcessing(17);expect(send).not.toHaveBeenCalled()});
+ it('refreshes server state and reports unsafe skips',()=>{send.and.returnValue(of({results:[{fileId:'a',status:'UNKNOWN_OUTCOME'}],retried:2,skipped:1}));component.retryMailboxProcessing(17);expect(component.retryAccountId()).toBeNull();expect(refresh).toHaveBeenCalled();expect(component.retryFeedback()[17]).toContain('בדיקה ידנית')});
+ it('unlocks after configuration errors',()=>{send.and.returnValue(throwError(()=>({status:503})));component.retryMailboxProcessing(17);expect(component.retryAccountId()).toBeNull();expect(component.retryFeedback()[17]).toContain('הגדרות')});
+});
+
+describe('rendered retry warning',()=>{
+ for(const width of [375,1100])it('shows a working mailbox retry control at '+width+'px',async()=>{
+  document.body.style.display='block';const send=jasmine.createSpy().and.returnValue(new Subject());
+  const account={id:17,accountEmail:'mail@example.com',connected:true,status:'ACTIVE',initialImportCompleted:true,lastSyncStatus:'SUCCESS',passwordRequiredCount:8};
+  const status={runs:[{id:'run',integrationId:17,pull_state:'COMPLETE',processing_state:'ATTENTION',messages:{},attachments:{},documents:{WORK_BLOCKED:13}}]};
+  await TestBed.configureTestingModule({imports:[GmailIntegrationComponent],providers:[provideNoopAnimations(),provideRouter([]),providePrimeNG({theme:{preset:Aura}}),
+   {provide:AuthService,useValue:{isViewingAsClient:()=>false}}, {provide:IntegrationsService,useValue:{retryMailboxProcessing:send}},
+   {provide:GmailSyncStateService,useValue:{refresh:()=>{},status:signal(status),accounts:signal([account]),loading:signal(false),isStarting:()=>false}},
+   {provide:GenericService,useValue:{isMobile:signal(width<600)}},{provide:MessageService,useValue:{add:()=>{}}},{provide:ConfirmationService,useValue:{}}
+  ]}).compileComponents();
+  const fixture=TestBed.createComponent(GmailIntegrationComponent);fixture.nativeElement.style.display='block';fixture.nativeElement.style.width=width+'px';fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+  const warning=fixture.nativeElement.querySelector('.gmail-error') as HTMLElement;expect(warning).not.toBeNull();
+  const button=Array.from(warning.querySelectorAll('button')).find(b=>b.textContent?.includes('נסה לעבד שוב'))!;
+  expect(button).toBeTruthy();expect(button.disabled).toBeFalse();expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth+1);
+  button.click();fixture.detectChanges();expect(send).toHaveBeenCalledOnceWith(17);expect(button.disabled).toBeTrue();fixture.destroy();
+ });
+});

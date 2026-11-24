@@ -91,6 +91,7 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
    * existing single-column search behavior is preserved. */
   searchColumns = input<string[]>([]);
   tableHeight = input<string>('500px');
+  selectionKey = input<string>('id');
   selectionModeCheckBox = input<null | 'single' | 'multiple'>(null);
   placeholderSearch = input<string>();
   dataTable = input<IRowDataTable[]>([]);
@@ -134,17 +135,24 @@ export class GenericTableComponent<TFormColumns, TFormHebrewColumns> implements 
   });
 
   isMobileRowChecked(row: IRowDataTable): boolean {
-    return this.mobileSelectedRows().some(r => r['id'] === row['id']);
+    return this.mobileSelectedRows().some(r => r[this.selectionKey()] === row[this.selectionKey()]);
   }
 
   onMobileRowChecked(row: IRowDataTable, checked: boolean): void {
     this.mobileSelectedRows.update(rows =>
       checked
-        ? rows.some(r => r['id'] === row['id']) ? rows : [...rows, row]
-        : rows.filter(r => r['id'] !== row['id'])
+        ? rows.some(r => r[this.selectionKey()] === row[this.selectionKey()]) ? rows : [...rows, row]
+        : rows.filter(r => r[this.selectionKey()] !== row[this.selectionKey()])
     );
     this.isAllChecked.emit(this.mobileAllChecked());
     this.rowsChecked.emit(this.mobileSelectedRows());
+  }
+
+  clearSelection(): void {
+    this.selectedTrans=[];
+    this.mobileSelectedRows.set([]);
+    this.isAllChecked.emit(false);
+    this.rowsChecked.emit([]);
   }
 
   onMobileSelectAll(checked: boolean): void {

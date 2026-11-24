@@ -263,3 +263,8 @@
 .gmail-run-diagnostics { margin-top: 12px; overflow-wrap: anywhere; }
 
 .gmail-run-diagnostics pre { white-space: pre-wrap; direction: ltr; text-align: left; }
+
+.gmail-integration .gmail-retry-warning { flex-direction:column; align-items:stretch; }
+.gmail-retry-warning app-p-button { max-width:100%; min-width:0; }
+:host ::ng-deep .gmail-retry-warning button { max-width:100%; white-space:normal; }
+:host ::ng-deep .gmail-retry-warning .p-button-label { white-space:normal; }

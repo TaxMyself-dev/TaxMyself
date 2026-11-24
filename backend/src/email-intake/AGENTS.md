@@ -32,3 +32,6 @@ existing target processed folder. Resume after Drive success/DB failure without
 AI or upload. Only unedited PROCESSING claims can move. Never delete duplicates
 in the target. Resolve classification against the final catalog or clear it.
 Three nullable JSON columns are prepared only; no database application authorized.
+
+## Manual processing retry
+Owners can explicitly retry blocked imported files via DocumentRetryService. Preserve paid-call ambiguity guards, saved-result reuse, transaction/advisory locking, sender rules and worker scopes. Settings retries all eligible historical work of one exact mailbox; it must not reset scans or duplicate attachments. See ../../../docs/features/document-processing-retry.md.

@@ -10,10 +10,19 @@
         <span class="business-name">{{ selectedBusinessName() }}</span>
     </h2>
 
+    @if (canRetryDocuments()) {
+      <div class="retry-toolbar">
+        <app-p-button [buttonText]="'נסה לעבד שוב מסמכים מסומנים (' + retrySelection().length + ')'"
+          icon="pi pi-refresh" [disabled]="retryBusy() || !retrySelection().length || retrySelection().length > 100"
+          [isLoading]="retryBusy()" (onButtonClicked)="retryProcessing(retrySelection())" />
+        <span>בחר עד 100 מסמכים שהעיבוד שלהם נחסם.</span>
+      </div>
+    }
+    @if (retryFeedback()) { <p class="retry-feedback" role="status" aria-live="polite">{{retryFeedback()}}</p> }
     <!-- ARCHIVE TABLE -->
     <app-generic-table class="table" [isLoadingState]="isLoadingDataTable()" [columnsTitle]="archivedDocsTableFields()"
         [dataTable]="filteredItems()" [placeholderSearch]="'חיפוש חופשי בטבלה'"
-        [searchColumns]="archiveSearchColumns" [actions]="fileActions()" [selectionModeCheckBox]="null"
+        [searchColumns]="archiveSearchColumns" [actions]="fileActions()" [showCheckbox]="canRetryDocuments()" [selectionModeCheckBox]="'multiple'" [selectionKey]="'archiveSelectionKey'" (rowsChecked)="selectRetryRows($event)"
         [tableHeight]="'500px'" [mobileCardConfig]="mobileCardConfig">
     </app-generic-table>
 

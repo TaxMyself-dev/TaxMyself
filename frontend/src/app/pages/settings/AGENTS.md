@@ -183,3 +183,6 @@ Read tools are allowlisted separately per toolkit. The persisted provider select
 reader; date windows, durable runs, owner restrictions and content-hash dedup are shared.
 Historical GMAIL source/metadata names identify this shared email pipeline internally.
 See `docs/features/outlook-email.md` for configuration and the verified DEV-only schema and pending live OAuth verification.
+
+## Blocked document retry
+The mailbox processing warning offers an owner-only retry for all blocked files in that account, paging through server-selected historical imports. Show partial outcomes and refresh sync status; password replacement remains separate. See ../../../../../docs/features/document-processing-retry.md.

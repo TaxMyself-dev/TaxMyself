@@ -66,3 +66,6 @@ programmatic hide that occurs during the transition.
 - Frontend `doc-create` — `clients.page.ts` uses `DocCreateService` to fetch/delete clients (the client list feeds document creation).
 - Frontend shared `add-supplier`, `add-bill`/`AddClientComponent` (dialogs opened from these list pages).
 - Gated by `AppFeature`/`AppRoute` access-control (`ModuleAccessGuard`, `AccessService`) — ties into `billing` module plans.
+
+## Manual retry in archive
+Blocked file rows expose a server-validated retry action; selected retry uses Drive identities and itemType/id checkbox keys. Never infer a paid-call retry from ERROR alone or change accounting approval. See ../../../../../docs/features/document-processing-retry.md.

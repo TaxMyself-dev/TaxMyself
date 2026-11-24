@@ -168,7 +168,7 @@
               <span class="mobile-select-all__label">בחר הכל</span>
             </label>
           }
-          @for (row of filteredDataTable(); track row['id']) {
+          @for (row of filteredDataTable(); track row[selectionKey()]) {
             <app-mobile-row-card
               [row]="row"
               [columns]="$any(columnsTitle())"
@@ -197,7 +197,7 @@
   <div class="table" [class.table--contained-actions]="rowActionsWithinTable()">
     <p-table [(selection)]="selectedTrans" [selectionMode]="selectionModeCheckBox()"
       (onRowUnselect)="onSelectionChange($event)" (onRowSelect)="onSelectionChange($event)"
-      (onHeaderCheckboxToggle)="onSelectionChange($event)" dataKey="id"
+      (onHeaderCheckboxToggle)="onSelectionChange($event)" [dataKey]="selectionKey()"
       [loading]="effectiveIsLoading()"
       loadingIcon="pi pi-spin pi-spinner-dotted" [columns]="visibleColumns()" [value]="filteredDataTable()"
       [scrollable]="false" [scrollHeight]="tableHeight()" [virtualScroll]="false" [virtualScrollItemSize]="76">

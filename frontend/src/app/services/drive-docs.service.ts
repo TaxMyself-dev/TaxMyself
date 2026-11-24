@@ -1,3 +1,4 @@
+import { DocumentRetrySummary } from './document-retry';
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, switchMap } from 'rxjs';
@@ -81,6 +82,8 @@ export type ArchiveDocumentClassification =
  *  document. `id` is scoped per `itemType` (an ExtractedDocument.id and an
  *  Expense/SlimTransaction ids can collide) — key rows by `${itemType}-${id}`. */
 export interface ArchivedItem {
+  canRetryProcessing?: boolean;
+  processingBlocked?: boolean;
   routingNote?: string | null;
   protectedDocumentId?: number;
   originalDriveFileId?: string;
@@ -138,6 +141,11 @@ export interface OcrSingleFileResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DriveDocsService {
+  retryProcessing(businessNumber:string,fileIds:string[]):Observable<DocumentRetrySummary> {
+    return this.http.post<DocumentRetrySummary>(environment.apiUrl+'documents/me/retry-processing',{businessNumber,fileIds},
+      {headers:new HttpHeaders({businessnumber:businessNumber})});
+  }
+
   replaceProtectedPdf(documentId: number, businessNumber: string, file: File, key: string, confirmed: boolean): Observable<any> {
     const form = new FormData();
     form.append('file', file, file.name);

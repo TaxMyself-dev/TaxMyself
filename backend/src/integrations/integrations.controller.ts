@@ -1,3 +1,4 @@
+import { DocumentRetryService } from '../email-intake/document-retry.service';
 import { Optional } from '@nestjs/common';
 import { EmailIntakeRunsService } from '../email-intake/email-intake-runs.service';
 import { EmailRoutingService } from '../email-intake/email-routing.service';
@@ -45,7 +46,17 @@ export class IntegrationsController {
     private readonly gmailSyncService: GmailSyncService,
     @Optional() private readonly durableRuns?: EmailIntakeRunsService,
     @Optional() private readonly emailRouting?: EmailRoutingService,
+    @Optional() private readonly documentRetry?: DocumentRetryService,
   ) {}
+
+  @Post('email/:integrationId/retry-processing')
+  @UseGuards(FirebaseAuthGuard)
+  async retryEmailProcessing(@Req() request: AuthenticatedRequest, @Param('integrationId',ParseIntPipe) id:number,
+    @Body() body: { cursor?: number }) {
+    const owner=this.ownerId(request);
+    if (!this.documentRetry) throw new BadRequestException('Document retry unavailable');
+    return this.documentRetry.retryMailbox(owner,id,body?.cursor ?? 0);
+  }
 
   private ownerId(request: AuthenticatedRequest): string {
     const user = request.user;

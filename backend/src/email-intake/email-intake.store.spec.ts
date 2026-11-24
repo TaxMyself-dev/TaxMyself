@@ -229,3 +229,10 @@ describe('durable intake persistence boundaries (offline)', () => {
     expect(calls[2][0]).toContain('attempts>=4');
   });
 });
+
+describe('blocked archive retry capabilities',()=>{
+ function fixture(){const store=new EmailIntakeStore({} as any);jest.spyOn(store,'dispositions').mockResolvedValue([{id:400,filename:'invoice.pdf',drive_file_id:'file',email_work_state:'WORK_BLOCKED'}] as any);return store;}
+ it('offers retry on an existing extraction that represents the blocked file',async()=>{const rows=await fixture().decorateArchive('owner','business',[{id:7,itemType:'DOCUMENT',driveFileId:'file',status:'ERROR'}],true);expect(rows).toHaveLength(1);expect(rows[0].canRetryProcessing).toBe(true);expect(rows[0].processingBlocked).toBe(true)});
+ it('shows blocked imports as errors rather than indefinitely pending',async()=>{const rows=await fixture().decorateArchive('owner','business',[],true);expect(rows[0].status).toBe('ERROR');expect(rows[0].canRetryProcessing).toBe(true)});
+ it('does not grant retry to read-only viewers',async()=>{const rows=await fixture().decorateArchive('owner','business',[],false);expect(rows[0].canRetryProcessing).toBe(false)});
+});

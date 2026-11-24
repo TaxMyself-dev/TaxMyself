@@ -106,20 +106,24 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
   async status(owner: string) {
     const runs = await this.store.runs(owner);
     return Promise.all(
-      runs.map(async (run) => ({
+      runs.map(async (run) => {
+        // Duplicate attachments can make the latest run refer to older imported work.
+        // Refresh derived state so explicit retries cannot leave a stale ATTENTION banner.
+        const { summary } = await this.store.refreshRun(run);
+        return ({
         id: run.id,
         integrationId: run.integration_id,
         businessNumber: run.business_number,
         query: run.query_text,
         startedAt: run.started_at,
-        ...(await this.store.summary(run)),
+        ...summary,
         ...(
           await this.store.query(
             'SELECT pull_state,processing_state,scan_state,error_code FROM email_import_runs WHERE id=? AND firebase_id=?',
             [run.id, owner],
           )
         )[0],
-      })),
+      }); }),
     );
   }
   @Cron('*/10 * * * * *', { name: 'durableGmailScan' })

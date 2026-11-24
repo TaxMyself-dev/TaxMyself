@@ -1,3 +1,5 @@
+import { EMPTY, expand, reduce } from 'rxjs';
+import { DocumentRetrySummary } from './document-retry';
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -76,6 +78,14 @@ export interface GmailImportAllResult {
   providedIn: 'root',
 })
 export class IntegrationsService {
+  retryMailboxProcessing(integrationId:number):Observable<DocumentRetrySummary> {
+    const page=(cursor=0)=>this.http.post<DocumentRetrySummary>(environment.apiUrl+'integrations/email/'+integrationId+'/retry-processing',{cursor});
+    return page().pipe(
+      expand(result=>result.nextCursor!==undefined?page(result.nextCursor):EMPTY,1),
+      reduce((total,result)=>({results:[...total.results,...result.results],retried:total.retried+result.retried,skipped:total.skipped+result.skipped}),{results:[],retried:0,skipped:0} as DocumentRetrySummary)
+    );
+  }
+
   constructor(private http: HttpClient) {}
 
   getEmailRouting(id:number):Observable<EmailRoutingConfiguration>{
