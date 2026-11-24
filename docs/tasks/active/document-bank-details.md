@@ -1,6 +1,6 @@
 # Document bank transfer details
 
-- Status: `WORKER_COMPLETE`
+- Status: `INTEGRATED_LOCAL`
 - Worktree: dedicated document-bank-details checkout
 - Branch: `codex/document-bank-details`
 - Base commit: `abc960c914503a6d76480d5025aef83905f2dd39` (clean local main; remote refreshed)
@@ -191,3 +191,32 @@ candidate and removing the clean completed feature worktree after private
 environment backup. No SQL, external provider/DB access, production action,
 or remote push has been performed. The nullable transfer_details column still
 requires the prepared SQL before the changed backend is used against a database.
+
+
+## Local integration and required cleanup completed
+
+Fast-forwarded clean local main from `ef3ea18b` to the verified feature tip
+`8371ee3498c83ef5c36b1fea697695cd0166a54c` under Elazar's explicit merge approval. Source paths
+are identical to tested candidate `e9243b6d`; later commits record verification
+and cleanup only. Main remains configured for frontend 4200, backend 3000 and
+API http://localhost:3000/. No push or production deployment was performed.
+
+Before removal, verified the exact document-bank-details worktree path, branch
+`codex/document-bank-details`, clean tracked/staged/untracked status, HEAD and
+reachability from current main. No active Node development process referenced
+the completed worktree. The final ignored-file inventory found only backend/.env
+outside reproducible build/dependency caches. Copied it to private non-Git backup
+`<Keepintax>/.codex-private-backups/document-bank-details-20261124-171722/backend/.env` and verified SHA-256
+byte identity; backup manifest is private and contains no printed secret values.
+
+`git worktree remove` (without force) removed the completed feature worktree.
+Branch/commits preserved; primary checkout retained. Removed file logical size:
+4274283625 bytes (3.98 GiB),
+including its independent dependencies/build caches. This is logical file size,
+not a measurement of filesystem allocated/free-space change.
+
+Schema SQL remains prepared but unexecuted: apply document-bank-details.sql to
+the intended database before running the changed document backend. No actual DB
+or provider end-to-end test is claimed. Elazar must manually test current local
+main and explicitly approve push before any GitHub push; no such approval was
+inferred from the local merge request.
