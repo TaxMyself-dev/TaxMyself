@@ -119,3 +119,26 @@ Risk tier: component behavior. Final follow-up verification:
 - Static search confirmed no remaining bank-checkbox state/template/style references. Shared existing title/input components retained; template compiled by the production build.
 - Full diff and `git diff --check` reviewed. Updated feature guide and nearest frontend/backend instructions.
 - Backend executable code, PDF template, schema and private-service contract did not change; their earlier evidence above is reused, not claimed as rerun on this follow-up. No DB write, main integration, deployment or push.
+
+
+## Red validation message follow-up (2026-11-24; parent 58140014)
+
+User requested that the all-or-none bank-details validation message be red.
+Added one page-local CSS rule targeting the existing alert inside the bank
+section, using the page's existing red error color. No validation/state changes.
+
+Presentation-only verification:
+- Actual alert markup and the exact new SCSS rule rendered in local Chromium;
+  computed color was `rgb(255, 0, 0)`. Inspected the resulting screenshot; Hebrew
+  text was readable and entirely red. This was a fragment visual check, not a
+  full authenticated application/browser-flow test.
+- frontend: `npm run build -- --configuration production`: passed, exit 0,
+  hash `1ac76fd86da0731a`, 145614ms. Nonblocking warnings: 3.15 MB initial bundle,
+  document styles 7.87 kB vs 6 kB warning budget, other component style budgets,
+  CommonJS dependencies and unused SettingsNewPage import.
+- `git diff --check` passed. Behavioral tests were not rerun for this color-only
+  change; earlier 24-case form evidence remains recorded above.
+- A pre-existing uncommitted HTML edit removes the explanatory paragraph above
+  the fields. Preserved it unchanged and excluded it from this commit. The build
+  ran on the working tree including that edit; it is not a pristine-commit build.
+- No backend, PDF, schema, business behavior, main integration or push changes.
