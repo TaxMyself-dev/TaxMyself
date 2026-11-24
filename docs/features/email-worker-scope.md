@@ -22,7 +22,7 @@ stages without enabling DEV routing. This preserves behavior; it is not a promis
 of zero deployment risk. Production was neither accessed nor modified.
 
 Run listing and direct lease acquisition are both filtered. Downstream imported
-work follows its immutable email_run_id, with matching owner/business; AI jobs
+work follows its immutable email_run_id, with matching immutable run ownership; current work leases remain owner/business scoped. AI jobs
 with purpose GMAIL follow their context importId to the same run. Admission,
 completion, stale-lease recovery and terminal reporting retain these filters.
 Global AI concurrency/capacity and existing content dedup remain shared: identical
@@ -30,7 +30,9 @@ content does not create extra documents or extra paid attempts merely because a
 second environment imports it. Other document job purposes keep existing behavior.
 Protected email PDFs preserve emailRunId in server-authored metadata so upload
 recovery is routed even before original_import_id is available; later delivery and
-replacement processing inherit the original run. Unrelated protected PDFs retain
+replacement processing inherit the original run. A legitimate final-business move
+keeps the originating run scope; the mutable destination business is not used to
+reassign worker ownership. Unrelated protected PDFs retain
 their existing processing behavior.
 
 Two environments cannot overlap an active pull for the same integration because
