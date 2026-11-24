@@ -78,3 +78,27 @@ pdftotext was unavailable, so pypdf handled text verification instead.
 - Manual follow-up: apply schema before booting the changed backend; test the optional form and an actual draft/allocation flow in the intended environment.
 - Integration/push: awaiting Elazar's explicit local-main integration approval. No main modification or push. Manual main testing and a separate explicit push approval remain required.
 - Documentation: feature guide/SQL, nearest frontend/backend AGENTS.md, and this task record.
+
+## Layout follow-up (2026-11-24; parent d22eb0c9)
+
+User requested removing the bank-details frame, lowering the entire block, and
+keeping its heading plus all details together when it moves to the next page.
+The shared template now has no frame/padding, a 25 mm top margin, and both
+modern and legacy print break-inside avoidance on the complete section.
+
+Verification on this follow-up:
+- backend: `npm test -- --runInBand --silent --runTestsByPath src/documents/pdf/document-pdf.template.spec.ts`: 5/5 passed, exit 0, 26.501s.
+- pdf-service: `npm run build` then `npm test`: standalone template build passed and 23/23 tests passed, exit 0.
+- Synthetic local Chromium renders: one-item tax invoice and transaction preview,
+  6/8/10/12-item pagination boundaries, and 48-item copy (seven PDFs total).
+  pypdf verified the heading, bank, branch, account and beneficiary together on
+  one page per document: page 1 for the short samples, page 2 for all boundary
+  samples, and page 4 for the 48-item sample. Visual Poppler PNG review confirmed
+  the lower borderless layout and the complete block on the next page.
+- Initial text-check marker `001` also matched the synthetic invoice number
+  `20001`; corrected the diagnostic to require the branch on the block page
+  without treating incidental invoice-number substrings as split bank content.
+- `git diff --check` passed. No frontend, domain, schema or provider changes;
+  unrelated application builds and business-flow tests were not repeated for
+  this CSS-only follow-up. Prior evidence is recorded above, not claimed as a
+  full run on this follow-up. No main integration, DB execution or push.

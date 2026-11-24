@@ -12,7 +12,9 @@ document type and resetting after issuance clear the form. Other document types
 reject supplied instructions. Existing documents have null instructions.
 
 The preview, signed original and certified copy print an escaped RTL instruction
-block below totals, separately from received payments. Numeric identifiers use
+block 25 mm below totals, without a border, separately from received payments.
+The heading and all four details stay in one section with print page-break
+avoidance so the entire block moves to the next page if it cannot fit. Numeric identifiers use
 LTR isolation. Instructions never create payment rows, record a payment, change
 totals or journal behavior. Stored issued PDFs remain unchanged.
 
