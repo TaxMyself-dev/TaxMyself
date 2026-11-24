@@ -11,6 +11,8 @@ together with a bounded evidence reference.
 - `admin-feezback.component.*` — Feezback tab with all local users, saved consent
   evidence per primary/spouse identity, own entitlement, expected 0–2 billing units,
   global filters, month-end warning and queued admin checks/disconnections.
+  Row actions expose sending/queued/result feedback locally and in a fixed notice;
+  dialog X controls use visibleChange to clear their parent signals immediately.
   See ../../../../../docs/features/feezback-lifecycle.md for activation and limits.
 - `admin-panel.page.ts` — `AdminPanelPage`; holds the top-level tab list (`tabs`), the nested catalog tabs (`catalogTabs`: categories/cards), and drives which shared management component is shown.
 - `admin-panel.module.ts` — declares the page and imports the five embedded feature components (`ClientsDashboardComponent`, `CategoryManagementComponent`, `TransManagementComponent`, `DemoDataComponent`, `AdminBillingComponent`).

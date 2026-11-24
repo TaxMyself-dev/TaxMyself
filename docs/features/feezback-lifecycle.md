@@ -66,6 +66,15 @@ is checked server-side; effective impersonated/delegated identity never grants a
 authority. Provider/token errors are reduced to fixed operational codes. Existing
 user-facing disconnect endpoints are unchanged.
 
+Row actions immediately show a spinner and a sending label, then retain queued
+progress beside the affected user until a saved-state refresh reports completion
+or failure. A fixed status notice remains visible while scrolling. User-requested
+work polls saved state every five seconds; ordinary background pending work retains
+the thirty-second refresh cadence. Queue acceptance is never labeled completed
+provider work. An older in-flight table load cannot settle a newer action, and
+automatic reloads preserve the current display page. Both dialog X controls update
+their owning signals on PrimeNG `visibleChange`, rather than waiting for `onHide`.
+
 ## Schema, activation and rollback
 
 1. Apply [feezback-lifecycle.sql](feezback-lifecycle.sql) explicitly to the intended

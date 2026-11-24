@@ -106,3 +106,32 @@ Risk tier: backend domain/controller/persistence and frontend component behavior
   this diagnostic did not write user rows or manually erase errors.
 - Verification command: node C:/Users/user/Documents/ChatGPT/Keepintax-Feezback/diagnose-feezback-consent-check.cjs.
   No executable repository source changed, so application suites/builds were reused.
+
+## Admin action feedback and dialog closing (2026-11-24)
+
+- Base revision: bbb918e2. Continued in the existing feature worktree; no main
+  integration, push, server startup or provider action is authorized/performed.
+- Fixed the missing immediate feedback: sending labels/spinners, per-user queued
+  progress and a fixed accessible status notice remain visible while scrolling.
+  Saved-state polling reports provider completion/failure separately from queue
+  acceptance. Duplicate queued submissions are disabled. An older in-flight GET
+  cannot incorrectly complete newer work; background refresh preserves pagination.
+- Fixed X in both consent details and disconnect confirmation by handling PrimeNG
+  visibleChange. Installed PrimeNG emits false from close(); onHide occurs only
+  after visibility has already been changed, so the former binding never closed it.
+- Risk tier: component behavior. Added real DOM X-click/reopen tests, sending/queued/
+  completion and failure tests, duplicate prevention and concurrent table-load coverage.
+- Focused command: npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.feezback-lifecycle.spec.json --include=src/app/pages/admin-panel/admin-feezback.component.spec.ts
+  Final result: 14/14 passed in Chrome Headless 157.0.0.0, including explicit
+  provider-proof requirements before displaying successful disconnection. An initial 12/13 run exposed a
+  stale test DOM reference after ngFor rebuilt a row; inspected the failure and
+  re-queried the actual queued button without weakening the assertion, then reran.
+- Required production build: npm run build -- --configuration production
+  Result: passed on the final UI source, exit 0. Existing stylesheet/initial-bundle
+  warning budgets and CommonJS warnings remain; no new build failure. This final
+  checkpoint follows the provider-proof feedback guard; the earlier passing build
+  is not presented as final-revision evidence.
+- git diff --cached --check passed; both local Markdown links resolve. No secrets,
+  ignored environment/key files, generated output or diagnostic logs are staged.
+- Backend suites and external/DB checks were not repeated: no backend/API/schema/
+  accounting/auth changes. Documentation updated in feature guide and admin topic.

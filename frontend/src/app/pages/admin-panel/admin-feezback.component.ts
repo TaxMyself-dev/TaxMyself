@@ -55,6 +55,7 @@ interface FeezbackPage {
   rows: FeezbackAdminRow[];
   total: number;
 }
+type RowAction = "check" | "disconnect";
 
 @Component({
   selector: "app-admin-feezback",
@@ -76,6 +77,11 @@ export class AdminFeezbackComponent implements OnInit {
   readonly filter = signal("all");
   readonly search = signal("");
   readonly busy = signal<string | null>(null);
+  readonly busyAction = signal<RowAction | null>(null);
+  readonly queuedActions = signal<Record<string, RowAction>>({});
+  readonly rowFeedback = signal<Record<string, string>>({});
+  private actionVersion = 0;
+  private reloadAfterCurrent = false;
   readonly selected = signal<FeezbackAdminRow | null>(null);
   readonly confirmDisconnect = signal<FeezbackAdminRow | null>(null);
   readonly page = signal(0);
@@ -140,11 +146,12 @@ export class AdminFeezbackComponent implements OnInit {
   });
   ngOnInit() {
     this.reload();
-    timer(30_000, 30_000)
+    timer(5_000, 5_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+      .subscribe((tick) => {
         if (
-          this.rows().some((row) => row.pending) &&
+          (Object.keys(this.queuedActions()).length > 0 ||
+            ((tick + 1) % 6 === 0 && this.rows().some((row) => row.pending))) &&
           !this.busy() &&
           !this.loading()
         )
@@ -152,7 +159,11 @@ export class AdminFeezbackComponent implements OnInit {
       });
   }
   reload() {
-    if (this.loading()) return;
+    if (this.loading()) {
+      this.reloadAfterCurrent = true;
+      return;
+    }
+    const version = this.actionVersion;
     this.loading.set(true);
     this.error.set("");
     let nextPage = 1;
@@ -171,7 +182,13 @@ export class AdminFeezbackComponent implements OnInit {
           (all, result) => ({ ...result, rows: [...all.rows, ...result.rows] }),
           { rows: [] } as FeezbackPage
         ),
-        finalize(() => this.loading.set(false)),
+        finalize(() => {
+          this.loading.set(false);
+          if (this.reloadAfterCurrent) {
+            this.reloadAfterCurrent = false;
+            this.reload();
+          }
+        }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
@@ -179,7 +196,14 @@ export class AdminFeezbackComponent implements OnInit {
           this.rows.set(result.rows);
           this.enabled.set(result.enabled);
           this.automatic.set(result.automatic);
-          this.page.set(0);
+          this.page.set(
+            Math.min(
+              this.page(),
+              Math.max(0, Math.ceil(this.filtered().length / 50) - 1)
+            )
+          );
+          if (version === this.actionVersion)
+            this.updateActionFeedback(result.rows);
         },
         error: () =>
           this.error.set(
@@ -196,10 +220,17 @@ export class AdminFeezbackComponent implements OnInit {
     this.page.set(0);
   }
   action(row: FeezbackAdminRow, disconnect = false) {
-    if (this.busy()) return;
+    if (this.busy() || this.queuedActions()[row.firebaseId]) return;
+    const kind: RowAction = disconnect ? "disconnect" : "check";
+    const sending = disconnect ? "שולח בקשת ניתוק…" : "שולח בקשת בדיקה…";
     this.busy.set(row.firebaseId);
+    this.busyAction.set(kind);
     this.error.set("");
-    this.message.set("");
+    this.message.set(`${row.name}: ${sending}`);
+    this.rowFeedback.update((feedback) => ({
+      ...feedback,
+      [row.firebaseId]: sending,
+    }));
     this.http
       .post(
         `${this.base}/users/${encodeURIComponent(row.firebaseId)}/${
@@ -208,28 +239,97 @@ export class AdminFeezbackComponent implements OnInit {
         disconnect ? { confirm: true } : {}
       )
       .pipe(
-        finalize(() => this.busy.set(null)),
+        finalize(() => {
+          this.busy.set(null);
+          this.busyAction.set(null);
+        }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: () => {
+          this.actionVersion++;
+          this.queuedActions.update((actions) => ({
+            ...actions,
+            [row.firebaseId]: kind,
+          }));
           this.confirmDisconnect.set(null);
-          this.message.set(
-            disconnect
-              ? "בקשת הניתוק נשמרה ותאומת מול פיזבק ברקע."
-              : "הבדיקה נוספה לתור. התוצאות יתעדכנו בטבלה."
-          );
+          const queued = disconnect
+            ? "בקשת הניתוק נשמרה. ממתין לניתוק ולאימות מול פיזבק ברקע."
+            : "הבדיקה נוספה לתור. התוצאה תתעדכן כאן אוטומטית.";
+          this.message.set(`${row.name}: ${queued}`);
+          this.rowFeedback.update((feedback) => ({
+            ...feedback,
+            [row.firebaseId]: queued,
+          }));
           this.reload();
         },
-        error: () =>
-          this.error.set("הפעולה לא אושרה. רעננו את הנתונים ונסו שוב."),
+        error: () => {
+          const failed = "הבקשה לא התקבלה. נסו שוב.";
+          this.message.set("");
+          this.error.set(`${row.name}: ${failed}`);
+          this.rowFeedback.update((feedback) => ({
+            ...feedback,
+            [row.firebaseId]: failed,
+          }));
+        },
       });
+  }
+  private updateActionFeedback(rows: FeezbackAdminRow[]) {
+    const remaining = { ...this.queuedActions() };
+    for (const [firebaseId, kind] of Object.entries(remaining)) {
+      const row = rows.find((row) => row.firebaseId === firebaseId);
+      if (!row || row.pending || (!row.lastError && row.disconnectRequested))
+        continue;
+      const unverifiedDisconnect =
+        kind === "disconnect" &&
+        (row.lastAction !== "DISCONNECTED" || row.expectedUnits !== 0);
+      const finished = row.lastError
+        ? this.errorLabel(row.lastError)
+        : unverifiedDisconnect
+        ? "הניתוק טרם אומת. יש לבדוק את מצב ההרשאות."
+        : kind === "disconnect"
+        ? "ניתוק כל ההרשאות אומת מול פיזבק."
+        : "בדיקת ההרשאות הושלמה. הנתונים בטבלה עודכנו.";
+      this.rowFeedback.update((feedback) => ({
+        ...feedback,
+        [firebaseId]: finished,
+      }));
+      if (row.lastError || unverifiedDisconnect) {
+        this.message.set("");
+        this.error.set(`${row.name}: ${finished}`);
+      } else {
+        this.error.set("");
+        this.message.set(`${row.name}: ${finished}`);
+      }
+      delete remaining[firebaseId];
+    }
+    this.queuedActions.set(remaining);
+  }
+  checkLabel(row: FeezbackAdminRow) {
+    if (this.busy() === row.firebaseId && this.busyAction() === "check")
+      return "שולח בקשת בדיקה…";
+    return this.queuedActions()[row.firebaseId] === "check"
+      ? "ממתין לבדיקת פיזבק…"
+      : "בדיקה מול פיזבק";
+  }
+  disconnectLabel(row: FeezbackAdminRow) {
+    if (this.busy() === row.firebaseId && this.busyAction() === "disconnect")
+      return "שולח בקשת ניתוק…";
+    if (this.queuedActions()[row.firebaseId] === "disconnect")
+      return "ניתוק בתהליך…";
+    return row.lastAction === "DISCONNECT_PENDING"
+      ? "ניסיון ניתוק חוזר"
+      : "ניתוק כל ההרשאות";
   }
   unitsLabel(value: number | null) {
     return value === null ? "לא ידוע" : String(value);
   }
   status(row: FeezbackAdminRow) {
     if (row.synthetic) return "חשבון דמו";
+    if (this.queuedActions()[row.firebaseId])
+      return this.queuedActions()[row.firebaseId] === "disconnect"
+        ? "ניתוק בתהליך"
+        : "ממתין לבדיקת פיזבק";
     if (row.disconnectRequested) return "ניתוק ממתין";
     if (row.lastError) return "נדרש טיפול";
     if (row.mismatch) return "הרשאה ללא זכאות";

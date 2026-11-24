@@ -9,7 +9,23 @@
     </button>
   </header>
   <p *ngIf="error()" role="alert" class="alert">{{ error() }}</p>
-  <p *ngIf="message()" role="status">{{ message() }}</p>
+  <div
+    *ngIf="error() || message()"
+    class="action-notice"
+    [class.failed]="!!error()"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <span>{{ error() || message() }}</span>
+    <button
+      type="button"
+      aria-label="סגירת הודעה"
+      (click)="message.set(''); error.set('')"
+    >
+      סגירה
+    </button>
+  </div>
   <p *ngIf="!loading() && !enabled()">בקרת פיזבק טרם הופעלה.</p>
   <ng-container *ngIf="enabled()">
     <div class="summary">
@@ -119,23 +135,59 @@
                 ><button
                   type="button"
                   (click)="action(row)"
-                  [disabled]="!!busy() || row.synthetic"
+                  [disabled]="
+                    !!busy() ||
+                    !!queuedActions()[row.firebaseId] ||
+                    row.synthetic
+                  "
+                  [attr.aria-busy]="
+                    (busy() === row.firebaseId && busyAction() === 'check') ||
+                    queuedActions()[row.firebaseId] === 'check'
+                  "
                 >
-                  בדיקה מול פיזבק</button
+                  <i
+                    *ngIf="
+                      (busy() === row.firebaseId && busyAction() === 'check') ||
+                      queuedActions()[row.firebaseId] === 'check'
+                    "
+                    class="pi pi-spinner pi-spin"
+                    aria-hidden="true"
+                  ></i>
+                  {{ checkLabel(row) }}</button
                 ><button
                   type="button"
                   (click)="confirmDisconnect.set(row)"
                   [disabled]="
-                    !!busy() || row.synthetic || row.disconnectRequested
+                    !!busy() ||
+                    !!queuedActions()[row.firebaseId] ||
+                    row.synthetic ||
+                    row.disconnectRequested
+                  "
+                  [attr.aria-busy]="
+                    (busy() === row.firebaseId &&
+                      busyAction() === 'disconnect') ||
+                    queuedActions()[row.firebaseId] === 'disconnect'
                   "
                 >
-                  {{
-                    row.lastAction === "DISCONNECT_PENDING"
-                      ? "ניסיון ניתוק חוזר"
-                      : "ניתוק כל ההרשאות"
-                  }}
+                  <i
+                    *ngIf="
+                      (busy() === row.firebaseId &&
+                        busyAction() === 'disconnect') ||
+                      queuedActions()[row.firebaseId] === 'disconnect'
+                    "
+                    class="pi pi-spinner pi-spin"
+                    aria-hidden="true"
+                  ></i>
+                  {{ disconnectLabel(row) }}
                 </button>
               </div>
+              <small
+                *ngIf="rowFeedback()[row.firebaseId]"
+                class="row-feedback"
+                role="status"
+                aria-live="polite"
+                >{{ rowFeedback()[row.firebaseId] }}</small
+              >
             </td>
           </tr>
           <tr *ngIf="!filtered().length">
@@ -167,7 +219,7 @@
     [modal]="true"
     [draggable]="false"
     [style]="{ width: 'min(640px,95vw)' }"
-    (onHide)="selected.set(null)"
+    (visibleChange)="!$event && selected.set(null)"
     ><section *ngIf="selected() as row" dir="rtl">
       <h3>הסכמות — {{ row.name }}</h3>
       <ng-container *ngFor="let role of ['primary', 'spouse']"
@@ -202,7 +254,7 @@
     [modal]="true"
     [draggable]="false"
     [style]="{ width: 'min(520px,95vw)' }"
-    (onHide)="confirmDisconnect.set(null)"
+    (visibleChange)="!$event && confirmDisconnect.set(null)"
     ><section *ngIf="confirmDisconnect() as row" dir="rtl">
       <p>
         לנתק את כל ההרשאות של {{ row.name }} ושל בן/בת הזוג? משיכת מידע חדש
@@ -223,7 +275,12 @@
           (click)="action(row, true)"
           [disabled]="!!busy()"
         >
-          אישור ניתוק
+          <i
+            *ngIf="busy() === row.firebaseId"
+            class="pi pi-spinner pi-spin"
+            aria-hidden="true"
+          ></i>
+          {{ busy() === row.firebaseId ? "שולח בקשת ניתוק…" : "אישור ניתוק" }}
         </button>
       </div>
     </section></p-dialog

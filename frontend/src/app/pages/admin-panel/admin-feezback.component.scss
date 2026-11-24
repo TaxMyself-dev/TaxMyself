@@ -118,6 +118,34 @@ nav {
 }
 .actions button {
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.row-feedback {
+  max-width: 320px;
+  color: #245e76;
+}
+.action-notice {
+  position: fixed;
+  inset-inline-end: 20px;
+  bottom: 20px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(540px, calc(100vw - 40px));
+  padding: 14px 18px;
+  border: 1px solid #8cb0c0;
+  border-radius: 10px;
+  background: #edf7fc;
+  color: #214c60;
+  box-shadow: 0 4px 18px #0002;
+  &.failed {
+    background: #fff4e5;
+    color: #7b4512;
+    border-color: #d8ad7d;
+  }
 }
 .note {
   max-width: 900px;
