@@ -162,3 +162,32 @@ two appended independent blocks in cutover.sql; retained both complete blocks
 (document transfer JSON column and Feezback lifecycle schema). No application
 code conflict. Package/lockfiles unchanged from the installed feature base.
 No SQL executed and no database/provider/production access performed.
+
+
+## Combined candidate verification
+
+Tested merge candidate: `e9243b6d88b35faab05d82ce90206a9fe63335ec`.
+The subsequent verification-record commit changes this Markdown only.
+
+- backend: `npm test -- --runInBand --silent --runTestsByPath src/documents/transfer-details.spec.ts src/documents/pdf/document-pdf.template.spec.ts src/documents/pdf/document-pdf-routing.spec.ts src/documents/documents-draft-issuance.spec.ts`: 4 suites, 53/53 passed, exit 0 (82.811s).
+- backend: `npm run build`: passed, exit 0.
+- frontend: `npm test -- --watch=false --browsers=ChromeHeadless --ts-config=tsconfig.doc-transfer.spec.json --include=src/app/pages/doc-create/doc-create-transfer.spec.ts --progress=false`: 24/24 passed, exit 0.
+- frontend: `npm run build -- --configuration production`: passed, exit 0; hash `12fcd3562dc45815`, 141167ms. Nonblocking warnings: 3.16 MB initial bundle vs 2 MB warning budget, document styles 7.87 kB vs 6 kB, other style budgets and CommonJS/unused SettingsNewPage import.
+- pdf-service: `npm run build`: passed, exit 0.
+- pdf-service: `npm test`: 23/23 passed, exit 0.
+- Total: 100 distinct focused tests on the same combined candidate. No full repository suite claimed. Existing unrelated main features were preserved; no application code conflict.
+- Full task diff against current local main independently reviewed, including DTO/domain/tenant scope, null payload, group validation, snapshot retention, escaped non-splitting PDF output, private service contract and additive schema.
+- `git show --format= --check HEAD` and `git diff --check` passed. Executable paths remain identical to the tested candidate after this documentation record.
+
+An initial conflict-resolution helper referenced a runtime path removed by the
+desktop runtime update; corrected the unpublished local merge candidate and
+verified both SQL blocks/no conflict markers before running these checks. Main
+was never modified by the failed helper attempt. The ignored-file inventory
+was corrected to NUL-delimited Git input to avoid Windows newline conversion;
+it found only backend/.env outside reproducible dependency/build caches.
+
+Next authorized step is fast-forwarding clean local main to this verified
+candidate and removing the clean completed feature worktree after private
+environment backup. No SQL, external provider/DB access, production action,
+or remote push has been performed. The nullable transfer_details column still
+requires the prepared SQL before the changed backend is used against a database.
