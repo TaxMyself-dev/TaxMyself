@@ -10,6 +10,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -208,9 +209,12 @@ export class AdminBillingController {
   // ─── Subscriptions ───────────────────────────────────────────────────────────
 
   @Get('subscriptions')
-  async getSubscriptions(@Req() request: AuthenticatedRequest) {
+  async getSubscriptions(
+    @Req() request: AuthenticatedRequest,
+    @Query('includeDemo') includeDemo?: string,
+  ) {
     await this.assertAdmin(request);
-    return this.adminBillingService.findAllSubscriptions();
+    return this.adminBillingService.findAllSubscriptions(includeDemo === 'true');
   }
 
   /**

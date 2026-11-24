@@ -45,6 +45,8 @@ const subscription = (id: number, overrides: Partial<AdminSubscription> = {}): A
   userId: id,
   userName: `לקוח ${id}`,
   userEmail: null,
+  isDemo: false,
+  manualBillingActionsAllowed: true,
   hasOpenBanking: false,
   lastLoginAt: null,
   businessId: null,
@@ -150,6 +152,32 @@ describe('BillingSubscriptionsComponent billing exceptions', () => {
         add: { imports: [GenericTableStubComponent], schemas: [NO_ERRORS_SCHEMA] },
       })
       .compileComponents();
+  });
+
+  it('requests demo subscriptions only after the admin enables the checkbox', async () => {
+    await render([]);
+    expect(api.getSubscriptions).toHaveBeenCalledWith(false);
+
+    const checkbox = fixture.nativeElement.querySelector('#showDemoUsers') as HTMLInputElement;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change'));
+
+    expect(api.getSubscriptions).toHaveBeenCalledWith(true);
+  });
+
+  it('keeps manual charge actions hidden for ordinary demo profiles', async () => {
+    await render([]);
+    const charge = component.rowActions.find(action => action.name === 'chargeNow')!;
+    const oneOff = component.rowActions.find(action => action.name === 'oneOffCharge')!;
+    const demoRow = subscription(7, {
+      isDemo: true,
+      manualBillingActionsAllowed: false,
+      status: 'PAST_DUE',
+      cardTokenExists: true,
+    }) as any;
+
+    expect(charge.showWhen?.(demoRow)).toBeFalse();
+    expect(oneOff.showWhen?.(demoRow)).toBeFalse();
   });
 
   it('shows the warning indicator only for subscriptions with unresolved attempts', async () => {

@@ -72,6 +72,8 @@ export interface AdminSubscription {
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
+  isDemo: boolean;
+  manualBillingActionsAllowed: boolean;
   hasOpenBanking: boolean;
   lastLoginAt: string | null;
   businessId: number | null;
@@ -367,8 +369,10 @@ export class AdminBillingService {
     return this.http.patch<AdminSubscriptionPricing>(`${this.base}/subscriptions/${id}/pricing`, payload);
   }
 
-  getSubscriptions(): Observable<AdminSubscription[]> {
-    return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`);
+  getSubscriptions(includeDemo = false): Observable<AdminSubscription[]> {
+    return this.http.get<AdminSubscription[]>(`${this.base}/subscriptions`, {
+      params: includeDemo ? { includeDemo: 'true' } : {},
+    });
   }
 
   /** Read-only: this subscription's unresolved billing attempts, newest first. Loaded when the drawer opens. */

@@ -131,6 +131,8 @@ export interface AdminSubscriptionResponse extends AdminUnresolvedAttemptIndicat
   userId: number | null;
   userName: string | null;
   userEmail: string | null;
+  isDemo: boolean;
+  manualBillingActionsAllowed: boolean;
   hasOpenBanking: boolean;
   lastLoginAt: Date | null;
   businessId: number | null;
@@ -592,7 +594,7 @@ export class AdminBillingService {
 
   // ─── Subscriptions ───────────────────────────────────────────────────────────
 
-  async findAllSubscriptions(): Promise<AdminSubscriptionResponse[]> {
+  async findAllSubscriptions(includeDemo = false): Promise<AdminSubscriptionResponse[]> {
     // Q1: subscriptions + plan + payment method
     const raw: any[] = await this.dataSource
       .createQueryBuilder()
@@ -685,19 +687,20 @@ export class AdminBillingService {
     // Q4: one grouped query for every subscription's unresolved-attempt indicator
     const indicatorMap = await this.loadUnresolvedAttemptIndicators();
 
-    // Ordinary demo profiles stay out of billing operations. The dedicated
-    // billing QA profile is the single intentional exception: its purpose is
-    // to exercise these admin actions end-to-end against the test terminal.
-    const nonDemoSubscriptions = raw.filter(r => {
-      const email = userMap.get(r.firebaseId)?.email;
-      return !isDemoEmail(email) ||
-        email?.toLowerCase() === BILLING_QA_PROFILE.email.toLowerCase();
+    // Demo profiles are hidden by default. Admins may explicitly reveal them;
+    // only the dedicated billing-QA profile may expose manual charge actions.
+    // Orphaned subscription history has no account to administer and therefore
+    // stays out of this user-facing table in both modes.
+    const visibleSubscriptions = raw.filter(r => {
+      const user = userMap.get(r.firebaseId);
+      return !!user && (includeDemo || !isDemoEmail(user.email));
     });
 
-    return nonDemoSubscriptions.map((r): AdminSubscriptionResponse => {
+    return visibleSubscriptions.map((r): AdminSubscriptionResponse => {
       const user = userMap.get(r.firebaseId);
       const biz  = businessMap.get(r.firebaseId);
       const sid  = Number(r.subscriptionId);
+      const demo = isDemoEmail(user?.email);
       const planPriceAgorot = r.planPriceAgorot != null ? Number(r.planPriceAgorot) : null;
 
       const priceSub = { ...r, planId: r.planId == null ? null : Number(r.planId),
@@ -724,6 +727,9 @@ export class AdminBillingService {
         userId:             user ? Number(user.userId) : null,
         userName:           user ? `${user.fName ?? ''} ${user.lName ?? ''}`.trim() || null : null,
         userEmail:          user?.email ?? null,
+        isDemo:             demo,
+        manualBillingActionsAllowed: !demo ||
+          user?.email?.toLowerCase() === BILLING_QA_PROFILE.email.toLowerCase(),
         hasOpenBanking:     Number(user?.hasOpenBanking ?? 0) === 1,
         lastLoginAt:        user?.lastLoginAt ?? null,
         businessId:         biz ? Number(biz.id) : null,
