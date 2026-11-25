@@ -63,3 +63,7 @@ used after a synthetic signup test.
   acquiring it. Hold the lock through Drive/Firebase/database cleanup so an
   in-flight or queued provisioning call cannot recreate the removed user folder.
   No schema or general-user deletion permission is added.
+
+- Cleanup retries only advisory-lock timeouts up to four 30-second attempts
+  (120 seconds total). It logs busy attempts, never retries invalid lock results
+  or SQL errors, and never deletes before acquisition. HTTP lock timing is unchanged.

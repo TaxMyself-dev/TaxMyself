@@ -209,3 +209,9 @@ run before another signup deployment. Terminating the deployment parent itself
 can prevent automatic recovery; the saved state remains diagnostic evidence,
 not permission to delete a different run's user. This feature's verification
 uses offline mocks; no live production smoke or cleanup is part of its tests.
+
+Cleanup waits for the shared Drive lock in at most four 30-second attempts
+(up to 120 seconds), logging SMOKE_DRIVE_LOCK_BUSY between attempts. Only
+lock timeout results are retried; SQL errors and invalid results fail closed.
+The existing five-minute cleanup job timeout and rollback fallback remain.
+This bounds transient provisioning contention without skipping identity checks.

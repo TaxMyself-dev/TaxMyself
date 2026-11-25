@@ -18,7 +18,7 @@ import {
 } from './smoke-user-cleanup';
 import { requiredSmokeEnv } from './smoke-env';
 import { SmokeDriveFolderCleanup } from './smoke-drive-cleanup';
-import { ACQUIRE_DRIVE_LOCK, RELEASE_DRIVE_LOCK } from '../users/drive-provisioning-lock';
+import { withSmokeDriveLock } from './smoke-drive-lock';
 
 const EXPECTED_PRODUCTION_DATABASE = 'keepintax-prod';
 
@@ -50,10 +50,10 @@ class MysqlSmokeCleanupDatabase implements SmokeCleanupDatabase {
   }
 
   async withUserLock<T>(firebaseId: string, action: () => Promise<T>): Promise<T> {
-    const [rows] = await this.connection.execute<RowDataPacket[]>(ACQUIRE_DRIVE_LOCK, [firebaseId]);
-    if (Number(rows[0]?.acquired) !== 1) throw new Error('Smoke cleanup could not acquire the Drive provisioning lock');
-    try { return await action(); }
-    finally { await this.connection.execute(RELEASE_DRIVE_LOCK, [firebaseId]); }
+    return withSmokeDriveLock(async (sql, parameters) => {
+      const [rows] = await this.connection.execute<RowDataPacket[]>(sql, parameters);
+      return rows;
+    }, firebaseId, action);
   }
 
   async deleteSignupRows(
