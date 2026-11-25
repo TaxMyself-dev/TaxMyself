@@ -1,6 +1,6 @@
 import { documentRetryMessage, documentRetryError } from 'src/app/services/document-retry';
 import { finalize } from 'rxjs';
-import { emailSyncErrorMessage, emailConnectionIssueMessage } from 'src/app/services/email-sync-messages';
+import { emailSyncErrorMessage, emailConnectionIssueMessage, emailRunPullLabel, emailRunIssueLines } from 'src/app/services/email-sync-messages';
 import { environment } from 'src/environments/environment';
 import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
@@ -77,8 +77,13 @@ export class GmailIntegrationComponent implements OnInit {
   readonly inputsSize = inputsSize;
   readonly isMobile = computed(() => this.genericService.isMobile());
 
-  durableState(value:string):string {return ({WAITING:'ממתין לעיבוד',READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'נדרש טיפול',ATTENTION:'נדרש טיפול'} as Record<string,string>)[value]||value;}
+  durableState(value:string):string {return ({WAITING:'ממתין לעיבוד',READY:'ממתין',PAGING:'סורק הודעות',DONE:'הסריקה הסתיימה',RUNNING:'בתהליך',RETRY:'ממתין לניסיון נוסף',COMPLETE:'הושלם',PARTIAL:'המשיכה לא הושלמה',ATTENTION:'יש פריטים לטיפול'} as Record<string,string>)[value]||value;}
   runCount(counts:Record<string,number>, states:string[]):number {return states.reduce((sum,state)=>sum+(counts?.[state]||0),0);}
+  readonly pullLabel = emailRunPullLabel;
+  readonly issueLines = emailRunIssueLines;
+  hasBlockedLinks(run:GmailDurableRun):boolean {return (run.issues||[]).some(issue=>issue.scope==='link' && issue.state==='BLOCKED');}
+  hasProcessingRetry(run:GmailDurableRun):boolean {return this.runCount(run.documents,['WORK_BLOCKED','BLOCKED_INVALID','BLOCKED_LIMIT'])>0;}
+  runAttentionMessage(run:GmailDurableRun):string {return emailSyncErrorMessage(null,run);}
   latestRunFor(id: number): GmailDurableRun | undefined {
     return this.syncState.status()?.runs?.find(run => run.integrationId === id);
   }
@@ -92,7 +97,7 @@ export class GmailIntegrationComponent implements OnInit {
   readonly connectingProvider = signal<'GOOGLE' | 'MICROSOFT' | null>(null);
   readonly connecting = computed(() => this.connectingProvider() !== null);
   private readonly connectionProvider=signal<'GOOGLE'|'MICROSOFT'>('GOOGLE');
-  syncErrorMessage(account: GmailAccountSyncStatus): string { return emailSyncErrorMessage(account.lastSyncError); }
+  syncErrorMessage(account: GmailAccountSyncStatus): string { return emailSyncErrorMessage(account.lastSyncError,this.latestRunFor(account.id)); }
   connectionIssueMessage(account: GmailAccountSyncStatus): string { return emailConnectionIssueMessage(account.lastSyncError); }
   isConnectingProvider(provider:'GOOGLE'|'MICROSOFT'):boolean {return this.connectingProvider()===provider || (this.connectionLoading()&&this.connectionProvider()===provider);}
 

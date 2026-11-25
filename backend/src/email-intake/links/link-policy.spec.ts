@@ -366,3 +366,18 @@ describe('HTTP-first linked PDF intake', () => {
     expect(await service.checked(bytes)).toBe(bytes);
   });
 });
+
+describe('mail link relevance',()=>{
+  const mail=(subject:string,body:string):any=>({id:'m',payload:{mimeType:'text/html',headers:[{name:'Subject',value:subject}],body:{data:Buffer.from(body).toString('base64url')}}});
+  it.each(['לצפייה במשרה','לצפייה בכל המשרות','לצפייה בשיעור','לצפייה בדפדפן לחץ כאן'])('ignores unrelated view links: %s',label=>{
+    expect(extractDocumentLinks(mail('עדכונים חדשים', '<a href="https://example.org/view?token=invoice">'+label+'</a>'))).toEqual([]);
+  });
+  it('retains generic view actions in accounting mail and explicit PDF paths',()=>{
+    expect(extractDocumentLinks(mail('החשבונית שלך','<a href="https://example.org/view/opaque">לצפייה</a>'))).toHaveLength(1);
+    expect(extractDocumentLinks(mail('מסמך','<a href="https://example.org/files/a.pdf">פתח</a>'))).toHaveLength(1);
+  });
+});
+
+it('retains a generic view control within an already-discovered document page',()=>{
+ expect(chooseDeterministically([{id:'view',text:'לצפייה',tag:'BUTTON'}])).toBe('view');
+});

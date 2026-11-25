@@ -563,24 +563,28 @@ export class EmailIntakeStore implements OnModuleInit {
   }
   async summary(run: EmailRun) {
     const parts = await this.query(
-      "SELECT state,COUNT(*) AS count FROM email_import_items WHERE run_id=? AND part_path<>'@message' GROUP BY state",
+      "SELECT state,error_code,CASE WHEN part_path LIKE 'link:%' THEN 'link' ELSE 'attachment' END AS scope,COUNT(*) AS count FROM email_import_items WHERE run_id=? AND part_path<>'@message' GROUP BY state,error_code,scope",
       [run.id],
     );
     const messages = await this.query(
-      "SELECT state,COUNT(*) AS count FROM email_import_items WHERE run_id=? AND part_path='@message' GROUP BY state",
+      "SELECT state,error_code,COUNT(*) AS count FROM email_import_items WHERE run_id=? AND part_path='@message' GROUP BY state,error_code",
       [run.id],
     );
     const work = await this.query(
       "SELECT d.email_work_state AS state,COUNT(DISTINCT d.id) AS count FROM imported_documents d LEFT JOIN email_import_items i ON i.imported_document_id=d.id WHERE (d.email_run_id=? OR i.run_id=?) AND d.email_work_state<>'REPLACED' GROUP BY d.email_work_state",
       [run.id, run.id],
     );
+    const totals = (rows: any[]) => rows.reduce((out: Record<string,number>, row) => {
+      out[row.state] = (out[row.state] || 0) + Number(row.count); return out;
+    }, {});
     return {
-      messages: Object.fromEntries(
-        messages.map((r) => [r.state, Number(r.count)]),
-      ),
-      attachments: Object.fromEntries(
-        parts.map((r) => [r.state, Number(r.count)]),
-      ),
+      issues: [...parts, ...messages.map(row => ({...row, scope:'message'}))]
+        .filter(row => ['BLOCKED','RETRY'].includes(row.state))
+        .map(row => ({scope:row.scope, state:row.state, code:row.error_code || null, count:Number(row.count)})),
+      sourceCounts: { links: parts.filter(row=>row.scope==='link').reduce((sum,row)=>sum+Number(row.count),0),
+        attachments: parts.filter(row=>row.scope==='attachment').reduce((sum,row)=>sum+Number(row.count),0) },
+      messages: totals(messages),
+      attachments: totals(parts),
       documents: Object.fromEntries(
         work.map((r) => [r.state, Number(r.count)]),
       ),

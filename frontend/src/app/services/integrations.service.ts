@@ -34,6 +34,8 @@ export interface GmailAccountSyncStatus {
 /** Response of GET integrations/google/gmail/sync-status. */
 export interface GmailDurableRun {
  id:string;integrationId:number;businessNumber:string;scan_state:string;pull_state:string;processing_state:string;error_code:string|null;
+ issues?:{scope:'link'|'attachment'|'message';state:string;code:string|null;count:number}[];
+ sourceCounts?:{links:number;attachments:number};
  messages:Record<string,number>;attachments:Record<string,number>;documents:Record<string,number>;
 }
 export interface GmailSyncStatus {

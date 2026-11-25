@@ -2,13 +2,21 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/email-document-links-spec",
-    "types": ["jasmine", "node"],
+    "types": [
+      "jasmine",
+      "node"
+    ],
     "skipLibCheck": true
   },
   "files": [
     "src/test.ts",
     "src/polyfills.ts",
-    "src/app/pages/book-keeping/archived-documents/email-document-links.component.spec.ts"
+    "src/app/pages/book-keeping/archived-documents/email-document-links.component.spec.ts",
+    "src/app/services/email-sync-messages.spec.ts",
+    "src/app/services/gmail-sync-state.spec.ts",
+    "src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts"
   ],
-  "include": ["src/**/*.d.ts"]
+  "include": [
+    "src/**/*.d.ts"
+  ]
 }

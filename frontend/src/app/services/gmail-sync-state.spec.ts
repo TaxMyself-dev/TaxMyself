@@ -65,3 +65,17 @@ describe('Gmail completion follows processing', () => {
     service.refresh();expect(add).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('partial scan notification',()=>{
+ it('warns about retained items rather than announcing import failure',()=>{
+  let status:any={accounts:[{id:17,lastSyncStatus:'RUNNING'}],runs:[{integrationId:17,pull_state:'RUNNING',processing_state:'RUNNING'}]};
+  const add=jasmine.createSpy();
+  TestBed.configureTestingModule({providers:[{provide:IntegrationsService,useValue:{getGmailSyncStatus:()=>of(status)}},{provide:MessageService,useValue:{add}}]});
+  const service=TestBed.inject(GmailSyncStateService);service.refresh();
+  status={accounts:[{id:17,lastSyncStatus:'ERROR',lastSyncError:null}],runs:[{integrationId:17,scan_state:'DONE',pull_state:'PARTIAL',processing_state:'ATTENTION',error_code:null}]};
+  service.refresh();
+  expect(add).toHaveBeenCalledWith(jasmine.objectContaining({severity:'warn',summary:'הסריקה הסתיימה עם פריטים לטיפול'}));
+  expect(add.calls.mostRecent().args[0].detail).toContain('סריקת המיילים הסתיימה');
+  service.refresh();expect(add).toHaveBeenCalledTimes(1);
+ });
+});

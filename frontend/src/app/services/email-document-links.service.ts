@@ -10,11 +10,11 @@ export interface PendingEmailLink {
   reason: string;
 }
 export const EMAIL_LINK_REASONS: Record<string, string> = {
-  LINK_ACCESS_REQUIRED: "נדרשת התחברות או הרשאה למסמך",
-  LINK_EXPIRED: "המסמך לא נמצא או שהקישור פג תוקף",
+  LINK_ACCESS_REQUIRED: "נדרשת התחברות או הרשאה למסמך — פתחו את הקישור והעלו PDF ידנית",
+  LINK_EXPIRED: "הקישור הוחזר כלא זמין או כפג תוקף — בדקו במקור ובקשו קישור חדש לפי הצורך",
   LINK_INVALID_FILE: "לא התקבל קובץ PDF תקין",
   LINK_UNSAFE_DESTINATION: "לא ניתן לפתוח את כתובת המסמך באופן אוטומטי",
-  LINK_DOWNLOAD_UNAVAILABLE: "ההורדה האוטומטית לא הושלמה",
+  LINK_DOWNLOAD_UNAVAILABLE: "ההורדה לא הושלמה עקב זמן המתנה או תקלה בתקשורת — נסו לפתוח את המקור ולהעלות PDF ידנית",
   LINK_BUDGET_EXHAUSTED: "ההורדה לא הושלמה במסגרת הניסיון האוטומטי",
   LINK_BROWSER_UNAVAILABLE: "ההורדה האוטומטית אינה זמינה כעת",
   LINK_ATTEMPT_INTERRUPTED: "ניסיון ההורדה נקטע; נדרשת העלאה ידנית",

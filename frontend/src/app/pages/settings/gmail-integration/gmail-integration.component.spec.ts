@@ -297,13 +297,21 @@ describe('Latest Gmail pull presentation',()=>{
     expect(host.querySelector('.gmail-running')?.textContent).toContain('פעילה');
     expect(host.querySelector('.gmail-run-stages')?.textContent).toContain('בתהליך');
     expect(details.querySelectorAll('.gmail-run-summary span').length).toBe(4);
-    expect(details.textContent).toContain('כמות הודעות: 9');expect(details.textContent).toContain('כמות קבצים: 5');
+    expect(details.textContent).toContain('כמות הודעות: 9');expect(details.textContent).toContain('פריטי מקור (קבצים וקישורים): 5');
     expect(host.querySelector('.gmail-run-diagnostics')).toBeNull();
     details.open=true;fixture.detectChanges();expect(details.open).toBeTrue();
     Object.defineProperty(fixture.componentInstance,'showRunDiagnostics',{value:true});fixture.detectChanges();
     expect(host.querySelector('.gmail-run-diagnostics')).not.toBeNull();
     status.set({runs:[{...run,processing_state:'COMPLETE'}]});fixture.detectChanges();
-    expect(host.querySelector('.gmail-running')).toBeNull();fixture.destroy();
+    expect(host.querySelector('.gmail-running')).toBeNull();
+    status.set({runs:[{...run,scan_state:'DONE',pull_state:'PARTIAL',processing_state:'ATTENTION',error_code:null,attachments:{BLOCKED:2},documents:{PASSWORD_REQUIRED:1},issues:[{scope:'link',state:'BLOCKED',code:'LINK_ACCESS_REQUIRED',count:2}]}]});
+    fixture.detectChanges();
+    expect(details.textContent).toContain('נדרשת התחברות או הרשאה');
+    expect(details.textContent).toContain('מסמכים מוגנים בסיסמה');
+    expect(details.textContent).not.toContain('כשלים:');
+    expect(host.textContent).toContain('סריקת המיילים הסתיימה');
+    expect(Array.from(details.querySelectorAll('button')).some(b=>b.textContent?.includes('נסה שוב לעבד'))).toBeFalse();
+    fixture.destroy();
   });
 });
 
@@ -332,7 +340,7 @@ describe('rendered retry warning',()=>{
   ]}).compileComponents();
   const fixture=TestBed.createComponent(GmailIntegrationComponent);fixture.nativeElement.style.display='block';fixture.nativeElement.style.width=width+'px';fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
   const warning=fixture.nativeElement.querySelector('.gmail-error') as HTMLElement;expect(warning).not.toBeNull();
-  const button=Array.from(warning.querySelectorAll('button')).find(b=>b.textContent?.trim() === 'נסה שוב')!;
+  const button=Array.from(warning.querySelectorAll('button')).find(b=>b.textContent?.trim() === 'נסה שוב לעבד מסמכים')!;
   expect(button).toBeTruthy();expect(button.classList.contains('black')).toBeTrue();expect(warning.textContent).not.toContain('יחודש עיבוד המסמכים');expect(button.disabled).toBeFalse();expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth+1);
   button.click();fixture.detectChanges();expect(send).toHaveBeenCalledOnceWith(17);expect(button.disabled).toBeTrue();fixture.destroy();
  });

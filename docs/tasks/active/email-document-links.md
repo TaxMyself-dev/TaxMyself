@@ -130,3 +130,58 @@ On top of 0366659c5924704cf45713600850179bb552cc91:
   metadata, unlike ReportLab fixtures. Their source remains unconfirmed: passing
   synthetic containment checks do not establish their origin or fix that report.
 - No broad suite rerun, main integration or GitHub push in this follow-up.
+
+## Follow-up: accurate partial-run messages (2026-11-25)
+
+Acceptance: explain the 18 source blocks without treating all as download failures;
+show saved reason counts, distinguish completed scan from provider/processing
+failure, retain safe retry boundaries, exclude unrelated generic view links.
+
+Read-only DEV diagnostic of run 12d1b647-cc6d-4a79-b3d8-4e8c9fdbc7a7 found:
+8 unrelated job/lesson/newsletter links incorrectly discovered via generic view
+labels; 4 dynamic synthetic cases incorrectly recorded LINK_EXPIRED before the
+previous navigation fix; 6 expected cases (403, login, expired, invalid PDF,
+navigation limit, slow server). The 18 are source items across the date range,
+not 18 intentionally non-downloadable test scenarios. Historical states were
+not rewritten; no mail import/AI replay was triggered in this task.
+
+Implemented additive grouped issue/source counts using existing columns only;
+state totals sum all reason groups. UI displays reason-specific messages outside
+DEV diagnostics, separate retry/approval/password/processing/deletion results,
+accurate partial-scan banner and notification, and processing-only retry controls.
+Explicit provider auth/access/configuration errors override partial-run wording.
+No schema, accounting, production or permission change; existing tenant-scoped
+run selection and download isolation remain. API additions are backward compatible.
+
+Verification (feature branch on top of 1adc3dba; no main integration/push):
+- Backend: npm test -- --runInBand --runTestsByPath
+  src/email-intake/links/link-policy.spec.ts src/email-intake/email-run-summary.spec.ts
+  src/email-intake/email-intake.store.spec.ts src/email-intake/email-intake-runs.spec.ts
+  --globals '{"ts-jest":{"isolatedModules":true}}': 4 suites, 61 tests passed.
+- Backend npm run build: passed. node test/link-download-simulation.cjs:
+  12/12 expected outcomes, 9 PDF downloads, zero destructive requests; model
+  stubbed, no paid calls. Passing backend inputs remained unchanged afterward.
+- Frontend: npm test -- --watch=false --browsers=ChromeHeadless
+  --include=src/app/services/email-sync-messages.spec.ts
+  --include=src/app/services/gmail-sync-state.spec.ts
+  --include=src/app/pages/settings/gmail-integration/gmail-integration.component.spec.ts
+  --ts-config=tsconfig.email-document-links.spec.json
+  --karma-config=karma.email-document-links.conf.js --progress=false.
+  Includes rendered desktop/mobile retry checks and partial-source reason checks.
+  First expanded batch: 38/42, four expectations still asserted old wording;
+  reviewed failures and updated labels/configuration-specific expectation without
+  weakening behavioral checks. Next batch: 42/42 passed. Final check below.
+- Early isolated message/archive batch: 11/11. No full repository suite claimed.
+- Existing signed-in 4200 settings tab showed previous UI; reload returned
+  ERR_CONNECTION_REFUSED. Live final visual check unavailable because user server
+  stopped. Headless rendered component evidence is separate from live validation.
+
+Final revision verification before local commit:
+- Same focused backend command above: 4 suites, 62/62 passed after preserving
+  generic browser view controls separately from strict mail discovery.
+- Backend npm run build: exit 0 on final executable source.
+- Same frontend command above: 42/42 passed on final executable source.
+- Frontend npm run build -- --configuration production: exit 0, hash
+  0b3353602202e682; existing unused-import, style/initial-size and CommonJS warnings.
+- Final node test/link-download-simulation.cjs: 12/12, zero destructive requests.
+- git diff --check: passed. No live end-to-end mailbox rerun or paid model call.

@@ -34,10 +34,11 @@ export const unsafeAction = (text: string) =>
   /delete|remove|unsubscribe|\bpay(?:ment)?\b|checkout|purchase|מחיק|תשלום|הסרה|רכישה/i.test(
     text,
   );
-export const documentAction = (text: string) =>
-  /download|original|invoice|receipt|document|\bpdf\b|הורד|הורדה|הורדת|מקור|חשבונית|קבלה|מסמך|לצפייה/i.test(
+const explicitDocumentAction = (text: string) =>
+  /download|original|invoice|receipt|document|\bpdf\b|הורד|הורדה|הורדת|מקור|חשבונית|קבלה|מסמך/i.test(
     text,
   );
+export const documentAction = (text: string) => explicitDocumentAction(text) || /לצפייה/i.test(text);
 export const unrelatedAction = (text: string) =>
   /catalog|newsletter|privacy|terms of use|download (?:our )?app|קטלוג|אפליקציה|מדיניות|תנאי שימוש|sign in|log in/i.test(
     text,
@@ -75,9 +76,8 @@ export function extractDocumentLinks(message: EmailMessage) {
   const add = (value: string, label: string, context: string) => {
     if (unsafeAction(label) || unrelatedAction(label)) return;
     if (
-      !documentAction(label) &&
-      !matchesAccountingDocumentKeyword(value) &&
-      !/\.pdf(?:\?|$)/i.test(value) &&
+      !explicitDocumentAction(label) &&
+      !isDocumentCandidate({id:'',text:'',url:value,tag:'A'}) &&
       !(
         /click|view|open|לחצ|לחץ|כאן|צפייה|צפה|פתח/i.test(label) &&
         matchesAccountingDocumentKeyword(context)

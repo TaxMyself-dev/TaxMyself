@@ -105,3 +105,20 @@ Frontend component checks use `tsconfig.email-document-links.spec.json` and
 `karma.email-document-links.conf.js` (port 9893) because the default test tsconfig
 compiles unrelated legacy specs even with `--include`. An existing mismatched export
 in the supplier spec was reproduced using exact base-revision source files.
+
+## Run results and messages (2026-11-25)
+
+Run summaries expose additive `issues` (source scope, state, bounded error code,
+count) and `sourceCounts` (attachments/links). Existing state counts are preserved
+by summing grouped reason rows. No source URLs or mail bodies enter this summary.
+Settings displays reasons outside developer diagnostics, separates source intake,
+processing/password/approval and deletion outcomes, and no longer totals all of
+these as failures. DONE/PARTIAL means scanning finished with retained unimported
+items; provider access/configuration failures remain explicit. Processing retry
+controls apply only to retained imported documents, never blocked link downloads.
+The completion notification uses a warning for a completed partial scan.
+
+Generic view links need accounting context. Hostnames/query tokens alone do not
+make a link a document. This prevents job alerts, lesson links and newsletter
+browser-view links from being queued solely because their label says לצפייה.
+Historical source results are not rewritten or replayed by this presentation fix.

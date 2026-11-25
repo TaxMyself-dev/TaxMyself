@@ -1,10 +1,11 @@
-import { emailSyncErrorMessage } from './email-sync-messages';
+import { emailSyncErrorMessage, emailRunNeedsHandling } from './email-sync-messages';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { MessageService } from 'primeng/api';
 import { Subscription, interval } from 'rxjs';
 import {
   GmailAccountSyncStatus,
   GmailSyncStatus,
+  GmailDurableRun,
   IntegrationsService,
 } from './integrations.service';
 
@@ -117,7 +118,7 @@ export class GmailSyncStateService {
       if ((previous === 'RUNNING' || wasActive) && account.lastSyncStatus === 'SUCCESS' && !processing && !needsAttention) {
         this.notifyFinished('success', account);
       } else if (previous === 'RUNNING' && account.lastSyncStatus === 'ERROR') {
-        this.notifyFinished('error', account);
+        this.notifyFinished('error', account, runs[0]);
       }
     }
 
@@ -134,7 +135,7 @@ export class GmailSyncStateService {
   }
 
   /** התראה גלובלית — מגיעה למשתמש גם אם עזב את מסך ההגדרות. */
-  private notifyFinished(kind: 'success' | 'error', account: GmailAccountSyncStatus): void {
+  private notifyFinished(kind: 'success' | 'error', account: GmailAccountSyncStatus, run?:GmailDurableRun): void {
     const email = account.accountEmail ?? '';
     if (kind === 'success') {
       this.messageService.add({
@@ -146,10 +147,10 @@ export class GmailSyncStateService {
       });
     } else {
       this.messageService.add({
-        severity: 'error',
-        summary: 'הייבוא נכשל',
+        severity: emailRunNeedsHandling(run) ? 'warn' : 'error',
+        summary: emailRunNeedsHandling(run) ? 'הסריקה הסתיימה עם פריטים לטיפול' : 'משיכת המיילים לא הושלמה',
         detail:
-          emailSyncErrorMessage(account.lastSyncError),
+          emailSyncErrorMessage(account.lastSyncError,run),
         life: 6000,
         key: 'br',
       });
