@@ -100,6 +100,8 @@ $script:PowerShellCommand = $null
 $script:QuietConsole = $false
 $script:LogWriter = $null
 $script:LogPath = $null
+$script:SmokeStatePath = $null
+. (Join-Path $PSScriptRoot 'rollback-smoke-cleanup.ps1')
 $script:BuildCacheKey = $null
 $script:BuildCacheDirectory = $null
 $script:ReusableBackendImage = $null
@@ -909,7 +911,10 @@ try {
   # login/dashboard, and guaranteed private cleanup.
   Invoke-Stage 'Full production signup, login, and cleanup smoke' {
     $previousGate = $env:SMOKE_RUN_PRODUCTION
+    $previousSmokeState = $env:SMOKE_STATE_PATH
+    $script:SmokeStatePath = Join-Path $logDirectory "smoke-state-$($script:ReleaseId).json"
     try {
+      $env:SMOKE_STATE_PATH = $script:SmokeStatePath
       $env:SMOKE_RUN_PRODUCTION = 'app.keepintax.co.il'
       Invoke-Native $script:PowerShellCommand @(
         '-NoProfile',
@@ -920,6 +925,7 @@ try {
       )
     } finally {
       $env:SMOKE_RUN_PRODUCTION = $previousGate
+      $env:SMOKE_STATE_PATH = $previousSmokeState
     }
   }
 
@@ -967,6 +973,12 @@ try {
       Write-ReleaseStatus 'ROLLBACK FAILED' "Backend rollback failed: $($_.Exception.Message)" Red
     }
   }
+
+  # Recovery is independent: always restore both versions before trying cleanup
+  # again, and never replace the original deployment failure with its outcome.
+  try { Invoke-SmokeCleanupAfterRollback }
+  catch { Write-ReleaseStatus 'CLEANUP FAILED' "Smoke cleanup still needs attention: $($_.Exception.Message)" Red }
+  Write-ReleaseLog "Original failure: $failedStage - $originalError"
 
   # Return a real non-zero process status without making PowerShell repeat the
   # same failure as a long stack trace. Invoke-Stage already printed the exact

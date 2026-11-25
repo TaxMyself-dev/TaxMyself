@@ -24,8 +24,10 @@ function dependencies() {
   };
   const database: jest.Mocked<SmokeCleanupDatabase> = {
     assertDatabase: jest.fn().mockResolvedValue(undefined),
+    withUserLock: jest.fn((_uid, action) => action()) as any,
     findUsers: jest
       .fn()
+      .mockResolvedValueOnce([smokeUser])
       .mockResolvedValueOnce([smokeUser])
       .mockResolvedValue([]),
     deleteSignupRows: jest.fn().mockResolvedValue({
@@ -195,6 +197,7 @@ describe('SmokeUserCleanup', () => {
     deps.database.findUsers
       .mockReset()
       .mockResolvedValueOnce([stale, current])
+      .mockResolvedValueOnce([stale, current])
       .mockResolvedValueOnce([stale]);
 
     await expect(
@@ -214,4 +217,25 @@ describe('SmokeUserCleanup', () => {
       new SmokeUserCleanup(deps).run(input, 'keepintax-prod'),
     ).rejects.toThrow('was not deleted exactly once');
   });
+  it('refuses all deletion if the shared provisioning lock cannot be acquired', async () => {
+    const deps = dependencies();
+    deps.database.withUserLock.mockRejectedValueOnce(new Error('lock unavailable'));
+    await expect(new SmokeUserCleanup(deps).run(input, 'keepintax-prod')).rejects.toThrow('lock unavailable');
+    expect(deps.drive.deleteUserFolder).not.toHaveBeenCalled();
+    expect(deps.firebase.deleteUser).not.toHaveBeenCalled();
+    expect(deps.database.deleteSignupRows).not.toHaveBeenCalled();
+  });
+
+  it('revalidates the run identity after waiting for provisioning before deleting', async () => {
+    const deps = dependencies();
+    deps.database.findUsers.mockReset().mockResolvedValueOnce([{
+      firebaseId: input.firebaseId, email: input.email, fName: 'Keepintax', lName: 'Smokeabcdefghijkl', driveFolderId: 'id',
+    }]).mockResolvedValueOnce([{
+      firebaseId: input.firebaseId, email: input.email, fName: 'Real', lName: 'Customer', driveFolderId: 'id',
+    }]);
+    await expect(new SmokeUserCleanup(deps).run(input, 'keepintax-prod')).rejects.toThrow('No database user matches');
+    expect(deps.database.withUserLock).toHaveBeenCalledWith(input.firebaseId, expect.any(Function));
+    expect(deps.drive.deleteUserFolder).not.toHaveBeenCalled();
+  });
+
 });

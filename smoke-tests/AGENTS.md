@@ -72,3 +72,13 @@ release path does not set this switch and retains readiness/read-only gates.
 - `frontend/src/app/pages/register/AGENTS.md` and
   `frontend/src/app/pages/login/AGENTS.md` — browser flows exercised by the
   suite.
+
+## Rollback cleanup recovery
+
+The signup runner optionally writes a non-secret SMOKE_STATE_PATH record before
+browser execution and marks cleanupCompleted only after the cleanup job succeeds.
+The deployment parent chooses a per-release path under ignored deployment-logs/.
+State contains only version, run ID, project, region, cleanup job and completion;
+never persist the generated password or cloud credentials. A primary browser
+failure must remain visible when cleanup also fails. Offline tests inject process
+execution rather than running Playwright or Cloud Run jobs.

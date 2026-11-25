@@ -17,6 +17,8 @@ import {
   SmokeUserCleanup,
 } from './smoke-user-cleanup';
 import { requiredSmokeEnv } from './smoke-env';
+import { SmokeDriveFolderCleanup } from './smoke-drive-cleanup';
+import { ACQUIRE_DRIVE_LOCK, RELEASE_DRIVE_LOCK } from '../users/drive-provisioning-lock';
 
 const EXPECTED_PRODUCTION_DATABASE = 'keepintax-prod';
 
@@ -45,6 +47,13 @@ class MysqlSmokeCleanupDatabase implements SmokeCleanupDatabase {
       [email],
     );
     return rows;
+  }
+
+  async withUserLock<T>(firebaseId: string, action: () => Promise<T>): Promise<T> {
+    const [rows] = await this.connection.execute<RowDataPacket[]>(ACQUIRE_DRIVE_LOCK, [firebaseId]);
+    if (Number(rows[0]?.acquired) !== 1) throw new Error('Smoke cleanup could not acquire the Drive provisioning lock');
+    try { return await action(); }
+    finally { await this.connection.execute(RELEASE_DRIVE_LOCK, [firebaseId]); }
   }
 
   async deleteSignupRows(
@@ -156,50 +165,9 @@ class GoogleSmokeCleanupDrive implements SmokeCleanupDrive {
     expectedFolderName: string,
     waitForProvisioning: boolean,
   ): Promise<boolean> {
-    let folderId: string | null = null;
-    const settleMs = Number(process.env.SMOKE_DRIVE_SETTLE_MS ?? 60_000);
-    if (!Number.isFinite(settleMs) || settleMs < 0 || settleMs > 60_000) {
-      throw new Error('SMOKE_DRIVE_SETTLE_MS must be between 0 and 60000');
-    }
-    const deadline = Date.now() + settleMs;
-    while (!folderId) {
-      folderId = await this.findExactFolder(expectedFolderName);
-      if (folderId || !waitForProvisioning || Date.now() >= deadline) break;
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
-    }
-    if (!folderId) return false;
-    try {
-      await this.drive.files.delete({
-        fileId: folderId,
-        supportsAllDrives: true,
-      });
-    } catch (error: any) {
-      const status = error?.code ?? error?.response?.status;
-      if (status !== 404) throw error;
-    }
-    return true;
-  }
-
-  private async findExactFolder(name: string): Promise<string | null> {
-    const safeName = name.replace(/'/g, "\\'");
-    const response = await this.drive.files.list({
-      q: [
-        `name = '${safeName}'`,
-        `mimeType = 'application/vnd.google-apps.folder'`,
-        `'${this.rootFolderId}' in parents`,
-        'trashed = false',
-      ].join(' and '),
-      fields: 'files(id, name)',
-      spaces: 'drive',
-      supportsAllDrives: true,
-      includeItemsFromAllDrives: true,
-      pageSize: 2,
-    });
-    const matches = response.data.files ?? [];
-    if (matches.length > 1) {
-      throw new Error('More than one exact smoke Drive folder was found');
-    }
-    return matches[0]?.id ?? null;
+    return new SmokeDriveFolderCleanup(this.drive, this.rootFolderId).deleteUserFolder(
+      expectedFolderName, waitForProvisioning, Number(process.env.SMOKE_DRIVE_SETTLE_MS ?? 60_000),
+    );
   }
 }
 

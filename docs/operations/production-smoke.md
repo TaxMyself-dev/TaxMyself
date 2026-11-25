@@ -181,3 +181,31 @@ Each attempt gets a new release ID and its own three-day backup channel.
 
 Use `scripts\deploy -Rebuild` to force both local and cloud builds. Reuse prints
 `REUSE` messages in the terminal; it is not a jump to a previously failed stage.
+
+### Duplicate folders and cleanup after rollback
+
+Drive provisioning from signup, signin and lazy backfill is serialized per user
+across application instances using a database-scoped MySQL advisory lock. The
+private cleanup job shares this lock and revalidates DB/Firebase/run identity
+inside it. This prevents late provisioning from recreating test folders after
+cleanup. No database migration or public cleanup endpoint is introduced.
+
+The fixed synthetic user may have legacy duplicate folders from a previous
+creation race. Cleanup validates all exact-run folder names, root parents and
+types (up to 20, with pagination) before deleting them. It does not match similar
+names, choose a first arbitrary match, or use a stored folder ID as authority.
+Foreign identities or unexpected data still stop cleanup.
+
+The signup runner writes smoke-state-<release-id>.json under deployment-logs/,
+without passwords or credentials. Cleanup success is recorded only after the
+private job succeeds. If full smoke fails, deployment attempts both frontend
+and backend rollback first, then retries unfinished cleanup for that exact run.
+Rollback failure never prevents the other rollback or cleanup attempt; cleanup
+failure never replaces the original release error. Already-completed cleanup is
+not rerun. Missing or invalid recovery state never authorizes a guessed target.
+
+If recovery still fails, retain the release log/state and investigate the exact
+run before another signup deployment. Terminating the deployment parent itself
+can prevent automatic recovery; the saved state remains diagnostic evidence,
+not permission to delete a different run's user. This feature's verification
+uses offline mocks; no live production smoke or cleanup is part of its tests.

@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, forwardRef, HttpException, Http
 import { Any, DataSource, EntityManager, Repository } from 'typeorm';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
+import { withDriveProvisioningLock } from './drive-provisioning-lock';
 import { Child } from './child.entity';
 import { UserRole, BusinessProprietorRole, BusinessType, VATReportingType, TaxReportingType, FamilyStatus, EmploymentType, BusinessStatus, DocumentType, isBusinessTypeAllowedForUser } from '../enum';
 import { AuthService } from './auth.service';
@@ -682,9 +683,25 @@ export class UsersService {
    * Called after businesses are saved in signup() so we already know their
    * names. Idempotent: skips anything that already has all four folder ids.
    */
-  async provisionDriveStructure(
+  async provisionDriveStructure(user: User, additionalShareEmails: string[] = []): Promise<void> {
+    if (!user.firebaseId) return;
+    await withDriveProvisioningLock(this.dataSource, user.firebaseId, async runner => {
+      const userRepo = runner.manager.getRepository(User);
+      const businessRepo = runner.manager.getRepository(Business);
+      // Re-read under the cross-instance lock: callers may hold a stale signup
+      // snapshot. A user removed by cleanup must never create new folders.
+      const current = await userRepo.findOne({ where: { index: user.index, firebaseId: user.firebaseId } });
+      if (!current) return;
+      await this.provisionDriveStructureUnlocked(current, additionalShareEmails, userRepo, businessRepo);
+      user.driveFolderId = current.driveFolderId;
+    });
+  }
+
+  private async provisionDriveStructureUnlocked(
     user: User,
     additionalShareEmails: string[] = [],
+    userRepo: Repository<User> = this.user_repo,
+    businessRepo: Repository<Business> = this.business_repo,
   ): Promise<void> {
     if (!user.firebaseId) return;
 
@@ -755,7 +772,7 @@ export class UsersService {
         // Use a constrained UPDATE rather than save(entity). If a concurrent
         // account cleanup deleted this row while Drive was creating the
         // folder, TypeORM save() would INSERT the stale entity again.
-        const update = await this.user_repo.update(
+        const update = await userRepo.update(
           { index: user.index, firebaseId: user.firebaseId },
           { driveFolderId: folderId },
         );
@@ -763,7 +780,7 @@ export class UsersService {
           // Some MySQL configurations report zero changed rows when the same
           // folder ID was already stored. Distinguish that benign case from a
           // row deleted by cleanup before removing the newly created folder.
-          const persisted = await this.user_repo.findOne({
+          const persisted = await userRepo.findOne({
             where: { index: user.index, firebaseId: user.firebaseId },
             select: ['driveFolderId'],
           });
@@ -800,7 +817,7 @@ export class UsersService {
     }
 
     // 2) Per-business sub-folders
-    const businesses = await this.business_repo.find({
+    const businesses = await businessRepo.find({
       where: { firebaseId: user.firebaseId },
     });
     for (const business of businesses) {
@@ -895,7 +912,7 @@ export class UsersService {
           );
         }
 
-        await this.business_repo.save(business);
+        await businessRepo.save(business);
       } catch (error) {
         failedBusinessFolders++;
         this.logger.error(

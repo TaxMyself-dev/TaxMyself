@@ -61,6 +61,9 @@ function Get-NamedFunctionTextInvoker([string]$ScriptPath, [string[]]$FunctionNa
 $cacheTests = Join-Path $PSScriptRoot 'deploy-build-cache.Tests.ps1'
 & (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File $cacheTests
 if ($LASTEXITCODE -ne 0) { throw 'Build reuse regression tests failed' }
+& (Get-Process -Id $PID).Path -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'rollback-smoke-cleanup.Tests.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Rollback cleanup regression tests failed' }
+
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
   $releaseScript,

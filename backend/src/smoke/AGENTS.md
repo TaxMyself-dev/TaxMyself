@@ -43,8 +43,11 @@ used after a synthetic signup test.
   deletion target, and a Firebase identity without an attributable exact DB
   row is not deletion authority.
 - Delete Drive content only by the exact guarded folder name under the system
-  root. A stored folder ID alone is never deletion authority, and duplicate
-  exact-name folders are a hard failure.
+  root. A stored folder ID alone is never deletion authority. Multiple exact-run
+  folders are allowed only after validating every candidate's name, MIME type,
+  parent and non-trashed state; pagination is bounded to 20 targets and every
+  candidate is checked before any deletion. Foreign or excessive results fail
+  closed. A missing folder (404) is retry-safe.
 - Do not disable foreign keys. Unexpected user data must block cleanup rather
   than broaden deletion.
 - External deletion is retry-safe; database deletion is transactional and
@@ -54,3 +57,9 @@ used after a synthetic signup test.
   that the exact run row is absent before reporting success.
 - Unit tests and builds use mocks only. Live production execution, credentials,
   and job deployment require explicit production approval.
+
+- Cleanup shares the database-scoped, per-UID MySQL advisory lock with HTTP
+  provisioning, and resolves the guarded DB/Firebase identity again after
+  acquiring it. Hold the lock through Drive/Firebase/database cleanup so an
+  in-flight or queued provisioning call cannot recreate the removed user folder.
+  No schema or general-user deletion permission is added.

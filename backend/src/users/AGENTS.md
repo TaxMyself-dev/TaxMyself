@@ -78,3 +78,13 @@ Only the verified owner's session can carry an IP into its immediate async
 banking sync; admin/delegated sessions and independent background work cannot.
 No IP is persisted on User. See
 [Feezback activity](../../../docs/features/feezback-user-activity.md).
+
+## Serialized Drive provisioning
+
+Signup, fresh login and lazy backfill acquire the same database-scoped per-UID
+MySQL advisory lock used by the private smoke cleanup job. Re-read the user after
+acquisition to observe the saved folder ID or a deleted account. Use repositories
+bound to that lock's QueryRunner, rather than reserving a second pool connection.
+Release the lock and connection on all paths; timeout must not proceed unlocked.
+The existing constrained UPDATE/deleted-user guard remains in force. This adds no
+schema and does not hold a row transaction open while waiting for Google Drive.

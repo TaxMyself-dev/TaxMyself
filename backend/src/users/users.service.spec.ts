@@ -28,7 +28,10 @@ describe('UsersService', () => {
   it('does not recreate a user deleted while Drive provisioning is in flight', async () => {
     const userRepo = {
       update: jest.fn().mockResolvedValue({ affected: 0 }),
-      findOne: jest.fn().mockResolvedValue(null),
+      findOne: jest.fn().mockResolvedValueOnce({
+        index: 64, firebaseId: 'firebase-smoke-uid', email: 'smoke-test@keepintax.co.il',
+        fName: 'Keepintax', lName: 'Smokeabcdefghijkl', driveFolderId: null,
+      }).mockResolvedValue(null),
     };
     const businessRepo = { find: jest.fn() };
     const drive = {
@@ -44,7 +47,7 @@ describe('UsersService', () => {
       {} as any,
       drive as any,
       {} as any,
-      {} as any,
+      { createQueryRunner: () => ({ connect: jest.fn(), query: jest.fn().mockResolvedValue([{ acquired: 1 }]), release: jest.fn(), manager: { getRepository: (entity: any) => entity.name === 'User' ? userRepo : businessRepo } }) } as any,
     );
     const user = {
       index: 64,

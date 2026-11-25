@@ -24,6 +24,7 @@ export type SmokeCleanupResult = {
 export interface SmokeCleanupDatabase {
   assertDatabase(expectedDatabase: string): Promise<void>;
   findUsers(email: string): Promise<SmokeDbUser[]>;
+  withUserLock<T>(firebaseId: string, action: () => Promise<T>): Promise<T>;
   deleteSignupRows(
     firebaseId: string,
     email: string,
@@ -80,9 +81,22 @@ export class SmokeUserCleanup {
       throw new Error('Expected database name is required');
     }
 
-    const { database, firebase, drive } = this.dependencies;
+    const { database } = this.dependencies;
     await database.assertDatabase(expectedDatabase);
 
+    const first = await this.resolveIdentity(input);
+    if (!first.firebaseId) return this.deleteResolved(input, first);
+    return database.withUserLock(first.firebaseId, async () => {
+      const current = await this.resolveIdentity(input);
+      if (current.firebaseId && current.firebaseId !== first.firebaseId) {
+        throw new Error('Smoke identity changed while waiting for provisioning');
+      }
+      return this.deleteResolved(input, current);
+    });
+  }
+
+  private async resolveIdentity(input: SmokeCleanupInput) {
+    const { database, firebase } = this.dependencies;
     const dbUsers = await database.findUsers(input.email);
     const exactDbUsers = dbUsers.filter((user) => {
       const fullName = [user.fName, user.lName].filter(Boolean).join(' ').trim();
@@ -127,6 +141,12 @@ export class SmokeUserCleanup {
     }
     const firebaseId = firebaseIds[0] ?? null;
 
+    return { dbUser, firebaseUser, firebaseId };
+  }
+
+  private async deleteResolved(input: SmokeCleanupInput, identity: Awaited<ReturnType<SmokeUserCleanup['resolveIdentity']>>): Promise<SmokeCleanupResult> {
+    const { database, firebase, drive } = this.dependencies;
+    const { dbUser, firebaseUser, firebaseId } = identity;
     const driveFolderDeleted = await drive.deleteUserFolder(
       input.folderName,
       !!dbUser,

@@ -130,3 +130,14 @@ and promotion, live compatibility smoke, and frontend rollback.
   Invoke login directly in the terminal without capture/pipelines; recheck the
   exact service/Hosting access once before builds. Cancellation or persistent
   failure stops; no retry loop, credential storage, or unrelated-provider login.
+
+## Failed production smoke cleanup
+
+After smoke begins, deployment records its exact non-secret run identity under
+deployment-logs/. On failure, attempt frontend rollback and backend rollback
+independently, then retry unfinished exact-run cleanup even if a rollback fails.
+Validate the state version, lowercase run ID, fixed production project/region,
+fixed private cleanup job and boolean completion before invoking any job. No
+state or completed cleanup means no extra cleanup operation. Report cleanup
+failure separately and retain the original failed deployment exit status/reason.
+Do not use a remembered run from another release or guess a user by email alone.

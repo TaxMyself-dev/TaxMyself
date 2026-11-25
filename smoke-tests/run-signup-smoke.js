@@ -1,3 +1,4 @@
+const { saveRunState } = require('./smoke-run-state');
 const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
@@ -25,13 +26,16 @@ function run(command, args, options = {}) {
   });
 }
 
-async function main() {
+async function main({ runProcess = run, createRunId = randomLetters } = {}) {
   loadSmokeConfig();
   const cleanupJob = requiredCloudResource("SMOKE_CLEANUP_JOB");
   const verifyJob = requiredCloudResource("SMOKE_VERIFY_JOB");
   const gcpProject = requiredCloudResource("SMOKE_GCP_PROJECT");
   const gcpRegion = requiredCloudResource("SMOKE_GCP_REGION");
-  const runId = randomLetters();
+  const runId = createRunId();
+  if (!/^[a-z]{12,32}$/.test(runId)) throw new Error("Invalid smoke run id");
+  const recoveryState = {runId, project: gcpProject, region: gcpRegion, cleanupJob, cleanupCompleted: false};
+  saveRunState(process.env.SMOKE_STATE_PATH, recoveryState, true);
   const email = "smoke-test@keepintax.co.il";
   const folderName = `Keepintax Smoke${runId}`;
   const password = `Smoke${randomLetters(14)}1`;
@@ -62,7 +66,7 @@ async function main() {
     (process.platform === "win32" ? "gcloud.cmd" : "gcloud");
   let primaryError = null;
   try {
-    const signupExitCode = await run(
+    const signupExitCode = await runProcess(
       process.execPath,
       [
         playwrightCli,
@@ -83,7 +87,8 @@ async function main() {
       verifyJob,
       gcpProject,
       gcpRegion,
-      ["SMOKE_VERIFY_ENABLED=true", `SMOKE_RUN_ID=${runId}`]
+      ["SMOKE_VERIFY_ENABLED=true", `SMOKE_RUN_ID=${runId}`],
+      runProcess
     );
     if (verifyExitCode !== 0) {
       throw new Error(
@@ -91,7 +96,7 @@ async function main() {
       );
     }
 
-    const loginExitCode = await run(
+    const loginExitCode = await runProcess(
       process.execPath,
       [playwrightCli, "test", "tests/production-login.spec.js"],
       { env: testEnv }
@@ -110,20 +115,23 @@ async function main() {
       cleanupJob,
       gcpProject,
       gcpRegion,
-      ["SMOKE_CLEANUP_ENABLED=true", `SMOKE_RUN_ID=${runId}`]
+      ["SMOKE_CLEANUP_ENABLED=true", `SMOKE_RUN_ID=${runId}`],
+      runProcess
     );
   } catch (cleanupError) {
-    throw new Error(`Smoke cleanup could not start: ${cleanupError.message}`);
+    throw new Error(`${primaryError ? primaryError.message + "; " : ""}Smoke cleanup could not start: ${cleanupError.message}`);
   }
 
   if (cleanupExitCode !== 0) {
-    throw new Error(`Smoke cleanup failed with exit code ${cleanupExitCode}`);
+    throw new Error(`${primaryError ? primaryError.message + "; " : ""}Smoke cleanup failed with exit code ${cleanupExitCode}`);
   }
+  recoveryState.cleanupCompleted = true;
+  saveRunState(process.env.SMOKE_STATE_PATH, recoveryState);
   if (primaryError) throw primaryError;
 }
 
-function executeJob(command, job, project, region, overrides) {
-  return run(
+function executeJob(command, job, project, region, overrides, runProcess = run) {
+  return runProcess(
     command,
     [
       "run",
@@ -159,4 +167,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { randomLetters, requiredCloudResource };
+module.exports = { randomLetters, requiredCloudResource, main };
