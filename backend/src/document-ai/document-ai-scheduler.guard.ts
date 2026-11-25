@@ -60,10 +60,11 @@ export class DocumentSchedulerGuard implements CanActivate, OnModuleInit {
       capacityProfile();
     }
   }
+  protected dispatchEnabled(): boolean { return schedulerDispatch(); }
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const header = context.switchToHttp().getRequest().headers.authorization;
     if (
-      !schedulerDispatch() ||
+      !this.dispatchEnabled() ||
       typeof header !== 'string' ||
       !/^Bearer [^ ]+$/.test(header)
     )

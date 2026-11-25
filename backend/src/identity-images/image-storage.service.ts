@@ -13,6 +13,24 @@ const OWNED_PATH =
 
 @Injectable()
 export class ImageStorageService {
+  private readonly downloads = new Map<string, {
+    value: { buffer: Buffer; contentType: string }; expires: number;
+  }>();
+  private readonly pendingDownloads = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>();
+  private cachedBytes = 0;
+  private readonly maxCachedBytes = 32 * 1024 * 1024;
+  private readonly maxCachedImages = 128;
+  private readonly cacheTtlMs = 10 * 60 * 1000;
+
+  private expireDownloads() {
+    for (const [key, entry] of this.downloads) {
+      if (entry.expires <= Date.now()) {
+        this.cachedBytes -= entry.value.buffer.length;
+        this.downloads.delete(key);
+      }
+    }
+  }
+
   async normalize(buffer: Buffer, kind: 'business' | 'user'): Promise<Buffer> {
     if (!buffer?.length || buffer.length > IMAGE_MAX_BYTES) {
       throw new BadRequestException('Image must be at most 5 MB');
@@ -78,6 +96,41 @@ export class ImageStorageService {
   ): Promise<{ buffer: Buffer; contentType: string }> {
     if (!OWNED_PATH.test(path ?? ''))
       throw new BadRequestException('Invalid image path');
+    this.expireDownloads();
+    const cached = this.downloads.get(path);
+    if (cached) {
+      this.downloads.delete(path);
+      this.downloads.set(path, cached);
+      return { ...cached.value, buffer: Buffer.from(cached.value.buffer) };
+    }
+    let pending = this.pendingDownloads.get(path);
+    if (!pending) {
+      pending = this.downloadUncached(path);
+      // Bound in-flight dedup bookkeeping as well as the retained image cache.
+      if (this.pendingDownloads.size < 128) this.pendingDownloads.set(path, pending);
+    }
+    try {
+      const value = await pending;
+      if (!this.downloads.has(path)) {
+        this.expireDownloads();
+        while (this.downloads.size && (this.cachedBytes + value.buffer.length > this.maxCachedBytes
+          || this.downloads.size >= this.maxCachedImages)) {
+          const key = this.downloads.keys().next().value;
+          this.cachedBytes -= this.downloads.get(key).value.buffer.length;
+          this.downloads.delete(key);
+        }
+        if (value.buffer.length <= this.maxCachedBytes) {
+          this.downloads.set(path, { value, expires: Date.now() + this.cacheTtlMs });
+          this.cachedBytes += value.buffer.length;
+        }
+      }
+      return { ...value, buffer: Buffer.from(value.buffer) };
+    } finally {
+      if (this.pendingDownloads.get(path) === pending) this.pendingDownloads.delete(path);
+    }
+  }
+
+  private async downloadUncached(path: string): Promise<{ buffer: Buffer; contentType: string }> {
     try {
       const file = admin.storage().bucket().file(path);
       const [metadata] = await file.getMetadata();

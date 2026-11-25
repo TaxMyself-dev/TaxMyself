@@ -1,3 +1,6 @@
+import { DocumentEmailSchedulerGuard } from './document-email-scheduler.guard';
+import { DocumentEmailQueue } from './document-email-queue.service';
+import { DocumentEmailSchedulerController } from './document-email-scheduler.controller';
 import { DocumentSchedulerController } from '../document-ai/document-ai-scheduler.controller';
 import { DocumentSchedulerGuard } from '../document-ai/document-ai-scheduler.guard';
 import { EmailIntakeModule } from '../email-intake/email-intake.module';
@@ -68,7 +71,7 @@ import { FullTransactionCache } from '../transactions/full-transaction-cache.ent
     forwardRef(() => UsersModule),
     forwardRef(() => BillingModule),
   ],
-  controllers: [DocumentsController, DocumentSchedulerController],
+  controllers: [DocumentsController, DocumentSchedulerController, DocumentEmailSchedulerController],
   providers: [
     AnthropicDocumentProvider,
     {provide:DOCUMENT_AI_PROVIDERS,useFactory:(provider:AnthropicDocumentProvider)=>[provider],inject:[AnthropicDocumentProvider]},
@@ -79,6 +82,8 @@ import { FullTransactionCache } from '../transactions/full-transaction-cache.ent
     DocumentPdfClient,
     DocumentPdfRenderer,
     FillFasterSigner,
+    DocumentEmailQueue,
+    DocumentEmailSchedulerGuard,
     DocumentsService,
     SharedService,
     FxRateService,

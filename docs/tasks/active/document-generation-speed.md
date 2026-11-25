@@ -1,0 +1,112 @@
+# Document generation speed
+
+- Status: `WORKER_COMPLETE` (verified locally; awaiting separate integration approval)
+- Task manager / implementer: Codex
+- Worktree: C:/Users/user/Keepintax/TaxMyself-document-generation-speed
+- Branch: codex/document-generation-speed
+- Base commit: c46490a71dca24ca07250b1ae9233047b72b4a41 (main = origin/main after fetch)
+
+## Business outcome and acceptance criteria
+
+- Recipient email can be queued atomically with issuance and sent after commit,
+  without delaying issuance on Brevo. Opt-in until SQL/application is separately approved.
+- Reuse the in-memory signed original for initial delivery; recover pending work
+  after restart using the saved original. Bounded retries and explicit unknown outcomes.
+- No email when recipient sending was not selected; rollback never dispatches mail.
+- Cache immutable normalized identity images with bounded memory/TTL; replacements
+  and removals affect subsequent PDF generation immediately via current identity lookup.
+- Allocation finalization uses shared preparation, render/sign overlap and parallel uploads.
+- Optional parallel signing preserves both signed outputs and settles in-flight work
+  before failure; default serial signing until provider/plan limits are verified.
+- Focused behavior tests, backend build, docs and local commit; no main integration/push.
+
+## Scope and approval boundaries
+
+User explicitly approved preparing one outbox table and SQL only on 2026-11-25.
+No DB connections, schema execution, production access, live email or paid signing calls.
+No change to journal logic, numbering, amounts, existing PDF files or authentication.
+New scheduler route shares the existing OIDC identity verification with independent email activation. AI dispatch activation/policy is unchanged.
+Main integration and GitHub push require the user's separate explicit approvals.
+
+## Verification evidence (2026-11-25)
+
+Backend service/controller/domain tier: focused changed-behavior and direct-caller
+tests plus Nest build. No frontend changes, renderer/template changes or accounting
+calculation changes; frontend production build, real Chromium layout checks and
+repository-wide Jest were not applicable. No snapshots were updated.
+
+All npm commands below ran in this worktree's `backend/` directory. Dependencies
+were independently installed with `npm ci --no-audit --no-fund` (exit 0; 1177
+packages; existing dependency deprecation warnings). No shared node_modules,
+dependency updates, copied build caches or package-lock changes.
+
+1. Initial implementation batch (exit 0, 6 suites / 77 tests, 66.436s):
+
+```powershell
+npm test -- --runInBand --silent --runTestsByPath src/identity-images/image-cache.spec.ts src/documents/document-email-queue.spec.ts src/documents/document-email-issuance.spec.ts src/documents/pdf/document-pdf-routing.spec.ts src/documents/documents-draft-issuance.spec.ts src/documents/transfer-details.spec.ts
+```
+
+2. Direct regression and extra transport/queue boundary batch (exit 0,
+   7 suites / 82 tests, 30.118s):
+
+```powershell
+npm test -- --runInBand --silent --runTestsByPath src/mail/mail-attachment-options.spec.ts src/documents/document-email-queue.spec.ts src/identity-images/identity-images.spec.ts src/documents/pdf/fillfaster-signer.service.spec.ts src/shaam/services/shaam-allocation-orchestrator.service.spec.ts src/shaam/services/shaam-document-allocation.service.spec.ts src/document-ai/document-ai-scheduler.spec.ts
+```
+
+3. Final affected suites after decoupling email activation from AI scheduling
+   and adding silent-stream-close handling (exit 0, 3 suites / 62 tests, 19.540s):
+
+```powershell
+npm test -- --runInBand --silent --runTestsByPath src/document-ai/document-ai-scheduler.spec.ts src/documents/document-email-scheduler.guard.spec.ts src/documents/document-email-queue.spec.ts
+```
+
+These are overlapping focused batches, not one full-suite run on the final
+revision. Unaffected results from earlier batches were reused; affected queue
+and shared guard suites were rerun after the final executable changes. Existing
+Nest logger fixture output in the SHAAM tests is expected; no live service calls.
+No failing focused checks or known baseline failures were encountered.
+
+`npm run build`: exit 0 on the final executable revision (also passed at the
+initial implementation checkpoint). Application was not bootstrapped.
+`git diff --check`: exit 0. Static verification: five local Markdown links,
+matching migration/cutover SQL, expected columns/indexes, no automatic ORM schema
+registration, and instruction discovery passed. No DB grammar/execution test is
+claimed. No repository Markdown-link runner was found; targeted link existence
+checks covered changed/new operational documentation links.
+
+## Handoff
+
+- Result: implementation and permitted automated verification complete.
+- Base: `c46490a71dca24ca07250b1ae9233047b72b4a41`; fetched origin/main matched.
+- Local commit: see the tip of `codex/document-generation-speed` (this task file is included in it).
+- Changes: document issuance/pair orchestration, recipient outbox/worker and
+  guarded scheduler route, shared scheduler activation hook, bounded identity
+  image cache, optional mail SDK timeout/sanitized logs, focused tests, prepared
+  SQL, and nearest topic/feature operational documentation.
+- Schema: one approved prepared-only table; SQL not executed. No entity is
+  registered, so synchronize cannot create this table. Flag remains disabled.
+- Production: no access, deployment, restart, scheduler creation or env changes.
+- Security: existing exact OIDC audience/email/sub/verified-email/issuer/expiry
+  policy reused. Existing AI mode/policy unchanged; new email route activation
+  is independent. Tenant/controller ownership and storage paths are unchanged.
+- Accounting: no numbering, amounts, journal, tax/allocation or parent-close
+  behavior changes. The allocation PDF pair/upload orchestration is optimized.
+- External impact: no paid signing requests, live email or provider contract/
+  credential changes; parallel signing is implemented but off pending limits
+  validation. Other MailService callers retain their existing transport settings.
+- Runtime checks still required before queue activation: separately authorized
+  isolated DB DDL/transaction/competing-worker checks, intentional test-email
+  recovery and authenticated scheduler invocation; no current end-to-end latency
+  or production speedup percentage is claimed.
+- Main remains at the base, clean and untouched. No merge, push or deployment.
+- Worktree attached to this chat; retained for review because it is not integrated.
+- Local ignored `backend/.env` copied without exposing values; tracked landing
+  environment file already supplied by the checkout. No env file is committed.
+
+## Integration
+
+Await Elazar's explicit approval before local main integration. SQL execution
+and queue/scheduler activation require separate authorization. After authorized
+main integration, his personal test of that exact main revision and explicit
+push approval remain required. Cleanup applies only after approved integration
+and its required checks, not at this feature-ready checkpoint.

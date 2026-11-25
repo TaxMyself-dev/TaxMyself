@@ -1,3 +1,4 @@
+import { DocumentEmailQueue } from './document-email-queue.service';
 import { normalizeTransferDetails } from './transfer-details';
 import { EmailIntakeStore, EmailWork } from '../email-intake/email-intake.store';
 import { EmailRoutingService } from '../email-intake/email-routing.service';
@@ -230,6 +231,7 @@ export class DocumentsService {
     @Optional() private readonly analysisQueue?: DocumentAiStore,
     @Optional() private readonly queuedMatching?: MatchingService,
     @Optional() private readonly emailRouting?: EmailRoutingService,
+    @Optional() private readonly documentEmailQueue?: DocumentEmailQueue,
   ) { }
 
   isIncrement: boolean = false;
@@ -755,14 +757,22 @@ export class DocumentsService {
   private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
     const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
     const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
-    // Only one render at a time. Settle both operations before rollback on either failure.
-    const [original, copyPdf] = await Promise.allSettled([
-      measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf)),
-      measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' })),
-    ]);
+    // Rendering stays sequential. Parallel signing is opt-in until provider limits
+    // are verified for this deployment. Neither path retries paid signing calls.
+    const parallelSigning = process.env.PDF_PARALLEL_SIGNING === 'true';
+    const originalSigning = measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf));
+    const copyWork = async () => {
+      const rendered = await measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' }));
+      if (parallelSigning) {
+        return measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(rendered));
+      }
+      return rendered;
+    };
+    const [original, copyResult] = await Promise.allSettled([originalSigning, copyWork()]);
     if (original.status === 'rejected') throw original.reason;
-    if (copyPdf.status === 'rejected') throw copyPdf.reason;
-    const copy = await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyPdf.value));
+    if (copyResult.status === 'rejected') throw copyResult.reason;
+    const copy = parallelSigning ? copyResult.value
+      : await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyResult.value));
     return { original: original.value, copy };
   }
 
@@ -1221,6 +1231,7 @@ export class DocumentsService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     pdfTimings.mark('DB_CONNECT_BEGIN');
+    let queuedEmail: { id: number; original: Buffer } | undefined;
 
     try {
 
@@ -1377,90 +1388,22 @@ export class DocumentsService {
           await this.closeLinkedTransactionInvoiceParent(data.docData, documentsRepo);
 
           pdfTimings.mark('PARENT_STATUS_UPDATE');
-          // 11. Send email to recipient if requested
-          console.log(new Date().toLocaleTimeString(), "Step 11 - Checking email sending conditions:");
-          console.log("  - sendEmailToRecipient:", data.docData.sendEmailToRecipient);
-          console.log("  - recipientEmail:", data.docData.recipientEmail);
-          console.log("  - originalFilePath:", originalFilePath);
-
-          if (data.docData.sendEmailToRecipient && data.docData.recipientEmail && originalFilePath) {
-            try {
-              console.log(new Date().toLocaleTimeString(), "Step 11.1 - Starting email sending process");
-              console.log("  📧 Email will be sent to:", data.docData.recipientEmail);
-
-              // Get business info for email content
-              const business = await this.businessService.getBusinessByNumber(data.docData.issuerBusinessNumber);
-              const businessName = business?.businessName || data.docData.issuerBusinessNumber;
-              console.log("  📧 Business name:", businessName);
-
-              // Get Hebrew document type name
-              const docTypeNames: Partial<Record<DocumentType, string>> = {
-                [DocumentType.RECEIPT]: 'קבלה',
-                [DocumentType.TAX_INVOICE]: 'חשבונית מס',
-                [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה',
-                [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
-                [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה',
-                [DocumentType.PRICE_QUOTE]: 'הצעת מחיר',
-                [DocumentType.WORK_ORDER]: 'הזמנת עבודה',
-                [DocumentType.GENERAL]: 'מסמך כללי',
-              };
-              const docTypeName = docTypeNames[data.docData.docType] || data.docData.docType;
-              console.log("  📧 Document type:", docTypeName, "Number:", data.docData.docNumber);
-
-              // Download PDF from Firebase
-              console.log("  📧 Downloading PDF from Firebase:", originalFilePath);
-              const pdfBuffer = await this.downloadFromFirebase(originalFilePath);
-              console.log("  📧 PDF downloaded successfully, size:", pdfBuffer.length, "bytes");
-
-              // Get owner name - use issuerName from transformed data if available, otherwise get from user
-              let ownerName = data.docData.issuerName;
-              if (!ownerName && business?.firebaseId) {
-                const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
-                ownerName = user ? [user.fName, user.lName].filter(Boolean).join(' ').trim() : null;
+          // Queue atomically with the document. Only dispatch after commit below.
+          if (data.docData.sendEmailToRecipient && data.docData.recipientEmail) {
+            if (this.documentEmailQueue?.enabled()) {
+              const payload = await this.prepareRecipientEmail(data, originalFilePath);
+              const id = await this.documentEmailQueue.enqueue(queryRunner.manager, newDoc.id, payload);
+              queuedEmail = { id, original: originalBuffer };
+            } else {
+              // Compatibility path until the explicitly prepared outbox SQL is applied.
+              try {
+                const payload = await this.prepareRecipientEmail(data, originalFilePath);
+                await this.mailService.sendMailWithAttachment(payload.to, payload.subject,
+                  payload.text, originalBuffer, payload.attachmentName);
+              } catch {
+                console.error('DOCUMENT_RECIPIENT_EMAIL_FAILED');
               }
-              const finalOwnerName = ownerName?.trim() || businessName;
-              console.log("  📧 Owner name:", finalOwnerName);
-
-              // Prepare email content
-              const recipientName = data.docData.recipientName || 'לקוח נכבד';
-
-              const emailSubject = `${docTypeName} #${data.docData.docNumber}`;
-              const emailText = `שלום ${recipientName},
-
-מצורף בזאת ${docTypeName} מספר ${data.docData.docNumber}.
-
-בברכה,
-${finalOwnerName}`;
-
-              // Generate attachment filename
-              const attachmentName = `${data.docData.docType}_${data.docData.docNumber}_${data.docData.generalDocIndex}.pdf`;
-              console.log("  📧 Email subject:", emailSubject);
-              console.log("  📧 Attachment name:", attachmentName);
-
-              // Send email with attachment
-              console.log("  📧 Sending email via BREVO...");
-              const emailResponse = await this.mailService.sendMailWithAttachment(
-                data.docData.recipientEmail,
-                emailSubject,
-                emailText,
-                pdfBuffer,
-                attachmentName
-              );
-
-              console.log(new Date().toLocaleTimeString(), "✅ Step 11 complete - Email sent successfully to:", data.docData.recipientEmail);
-              console.log("  📧 Email response:", JSON.stringify(emailResponse, null, 2));
-            } catch (emailError) {
-              // Don't fail document creation if email fails - just log the error
-              console.error(new Date().toLocaleTimeString(), "❌ Error sending email to recipient:", data.docData.recipientEmail);
-              console.error("  Error details:", emailError);
-              if (emailError instanceof Error) {
-                console.error("  Error message:", emailError.message);
-                console.error("  Error stack:", emailError.stack);
-              }
-              console.error("  Document was created successfully, but email sending failed");
             }
-          } else {
-            console.log(new Date().toLocaleTimeString(), "Step 11 skipped - Email sending conditions not met");
           }
 
         } catch (uploadError) {
@@ -1480,6 +1423,7 @@ ${finalOwnerName}`;
       // ✅ All good – commit the transaction
       await queryRunner.commitTransaction();
       pdfTimings.mark('COMMIT');
+      if (queuedEmail) this.documentEmailQueue.kick(queuedEmail.id, queuedEmail.original);
 
       console.log(`📄 Document created — docType: ${data.docData.docType}`);
 
@@ -1491,7 +1435,8 @@ ${finalOwnerName}`;
         generalDocIndex: data.docData.generalDocIndex,
         docNumber: data.docData.docNumber,
         file: originalFilePath,
-        copyFile: copyFilePath
+        copyFile: copyFilePath,
+        ...(queuedEmail ? { emailStatus: 'QUEUED' } : {}),
       };
 
     } catch (error) {
@@ -1510,6 +1455,29 @@ ${finalOwnerName}`;
     }
   }
 
+
+  private async prepareRecipientEmail(data: any, filePath: string) {
+    const doc = data.docData;
+    const business = await this.businessService.getBusinessByNumber(doc.issuerBusinessNumber);
+    const businessName = business?.businessName || doc.issuerBusinessNumber;
+    let ownerName = doc.issuerName;
+    if (!ownerName && business?.firebaseId) {
+      const user = await this.userRepo.findOne({ where: { firebaseId: business.firebaseId } });
+      ownerName = user ? [user.fName, user.lName].filter(Boolean).join(' ').trim() : null;
+    }
+    const names: Partial<Record<DocumentType, string>> = {
+      [DocumentType.RECEIPT]: 'קבלה', [DocumentType.TAX_INVOICE]: 'חשבונית מס',
+      [DocumentType.TAX_INVOICE_RECEIPT]: 'חשבונית מס קבלה', [DocumentType.CREDIT_INVOICE]: 'חשבונית זיכוי',
+      [DocumentType.TRANSACTION_INVOICE]: 'חשבון עסקה', [DocumentType.PRICE_QUOTE]: 'הצעת מחיר',
+      [DocumentType.WORK_ORDER]: 'הזמנת עבודה', [DocumentType.GENERAL]: 'מסמך כללי',
+    };
+    const typeName = names[doc.docType] || doc.docType;
+    return {
+      to: doc.recipientEmail, subject: `${typeName} #${doc.docNumber}`,
+      text: `שלום ${doc.recipientName || 'לקוח נכבד'},\n\nמצורף בזאת ${typeName} מספר ${doc.docNumber}.\n\nבברכה,\n${ownerName?.trim() || businessName}`,
+      attachmentName: `${doc.docType}_${doc.docNumber}_${doc.generalDocIndex}.pdf`, filePath,
+    };
+  }
 
   async previewDoc(data: any, generatePdf: boolean = true): Promise<any> {
 
@@ -1654,32 +1622,8 @@ ${finalOwnerName}`;
     let copyFilePath: string | null = null;
 
     try {
-      // Generate PDFs
-      const originalPdfBlob = await this.generatePDF(dataForPdf, 'createDoc');
-      if (!originalPdfBlob) throw new Error('Original PDF generation failed');
-      const originalBuffer = Buffer.from(originalPdfBlob as any);
-
-      const copyPdfBlob = await this.generatePDF(dataForPdf, 'createDoc', true);
-      if (!copyPdfBlob) throw new Error('Copy PDF generation failed');
-      const copyBuffer = Buffer.from(copyPdfBlob as any);
-
-      // Upload both
-      originalFilePath = await this.uploadToFirebase(
-        originalBuffer,
-        issuerBusinessNumber,
-        doc.generalDocIndex,
-        doc.docType,
-        doc.docDescription,
-        'original',
-      );
-      copyFilePath = await this.uploadToFirebase(
-        copyBuffer,
-        issuerBusinessNumber,
-        doc.generalDocIndex,
-        doc.docType,
-        doc.docDescription,
-        'copy',
-      );
+      const { original, copy } = await this.generatePdfPair(dataForPdf);
+      [originalFilePath, copyFilePath] = await this.uploadPdfPair(dataForPdf, original, copy);
 
       // Persist file paths, allocation #. For pending docs flip status to
       // OPEN/CLOSE; for already-issued docs leave the existing status alone.

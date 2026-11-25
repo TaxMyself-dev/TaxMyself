@@ -66,13 +66,13 @@ describe('document bank transfer instructions', () => {
     service.shaamAllocationAttemptRepo = {findOne: jest.fn().mockResolvedValue(null)};
     service.docLinesRepo = service.docPaymentsRepo = {find: jest.fn().mockResolvedValue([])};
     service.dataSource = {createQueryRunner: () => runner};
-    service.generatePDF = jest.fn().mockResolvedValue(Buffer.from('signed'));
+    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy') });
     service.uploadToFirebase = jest.fn().mockResolvedValueOnce('original').mockResolvedValueOnce('copy');
     service.deleteFromFirebase = jest.fn();
     await service.finalizeAllocation('owner', {issuerBusinessNumber: '123456789', docType: DocumentType.TAX_INVOICE,
       docNumber: '1', allocationNum: '123456789'});
-    expect(service.generatePDF).toHaveBeenCalledTimes(2);
-    for (const [input] of service.generatePDF.mock.calls) expect(input.docData.transferDetails).toEqual(details);
+    expect(service.generatePdfPair).toHaveBeenCalledTimes(1);
+    expect(service.generatePdfPair.mock.calls[0][0].docData.transferDetails).toEqual(details);
     expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
   });
   it.each([true, false])('renders escaped instructions in preview=%s and copies from the document snapshot', async preview => {

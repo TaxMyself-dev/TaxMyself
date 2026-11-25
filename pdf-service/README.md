@@ -279,3 +279,14 @@ merely to probe readiness. No cloud IAM/cold-start/CPU behavior is simulated her
   multipage 700ms, large amounts 777ms. These are isolated checks, not full
   document latency or a guarantee of production improvement. Full manual dev
   comparison against 26,060ms remains pending the user's next test.
+
+## 2026-11-25 issuance latency follow-up
+
+[Document generation speed](../docs/features/document-generation-speed.md)
+describes the prepared opt-in recipient outbox, removal of the immediate PDF
+redownload, bounded immutable image cache, shared allocation-finalization pair
+pipeline and opt-in parallel signing. Renderer code and layout are unchanged.
+The 2026-10-18 statement that allocation finalization retains its prior
+orchestration is superseded by this implementation. Default signing remains
+serial; parallel signing requires provider/plan validation. Outbox SQL is
+prepared only and its activation is separately gated.

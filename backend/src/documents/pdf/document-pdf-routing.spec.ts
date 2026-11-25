@@ -216,6 +216,47 @@ describe('local PDF document routing', () => {
     await expect(service.generatePdfPair(data())).rejects.toThrow('copy failed');
     expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
   });
+  it('opt-in parallel signing starts copy signing while original signing is pending', async () => {
+    const saved = process.env.PDF_PARALLEL_SIGNING;
+    process.env.PDF_PARALLEL_SIGNING = 'true';
+    try {
+      let releaseOriginal: (bytes: Buffer) => void;
+      service.fillFasterSigner.sign.mockImplementationOnce(() => new Promise(resolve => { releaseOriginal = resolve; }))
+        .mockImplementationOnce(async () => {
+          releaseOriginal(Buffer.from('%PDF-signed-original'));
+          return Buffer.from('%PDF-signed-copy');
+        });
+      const result = await service.generatePdfPair(data());
+      expect(result.original.toString()).toBe('%PDF-signed-original');
+      expect(result.copy.toString()).toBe('%PDF-signed-copy');
+    } finally {
+      if (saved === undefined) delete process.env.PDF_PARALLEL_SIGNING;
+      else process.env.PDF_PARALLEL_SIGNING = saved;
+    }
+  });
+  it('waits for in-flight parallel copy signing before propagating original failure', async () => {
+    const saved = process.env.PDF_PARALLEL_SIGNING;
+    process.env.PDF_PARALLEL_SIGNING = 'true';
+    try {
+      let releaseCopy: (bytes: Buffer) => void;
+      let started: () => void;
+      const copyStarted = new Promise<void>(resolve => { started = resolve; });
+      const error = Error('sign failed');
+      service.fillFasterSigner.sign.mockRejectedValueOnce(error)
+        .mockImplementationOnce(() => { started(); return new Promise(resolve => { releaseCopy = resolve; }); });
+      const operation = service.generatePdfPair(data());
+      let settled = false;
+      operation.catch(() => { settled = true; });
+      await copyStarted;
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      releaseCopy(Buffer.from('%PDF-signed-copy'));
+      await expect(operation).rejects.toBe(error);
+    } finally {
+      if (saved === undefined) delete process.env.PDF_PARALLEL_SIGNING;
+      else process.env.PDF_PARALLEL_SIGNING = saved;
+    }
+  });
   it('starts both uploads before either finishes and preserves original/copy paths', async () => {
     let releaseOriginal: (path: string) => void;
     const original = new Promise<string>(resolve => { releaseOriginal = resolve; });

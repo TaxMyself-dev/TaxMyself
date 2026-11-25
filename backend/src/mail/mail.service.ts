@@ -46,18 +46,21 @@ export class MailService {
     text: string,
     attachmentBuffer: Buffer,
     attachmentName: string,
-    attachmentContentType: string = 'application/pdf'
+    attachmentContentType: string = 'application/pdf',
+    options?: { timeoutMs?: number; sanitizedLogs?: boolean }
   ) {
-    console.log('📧 [MailService] Preparing email with attachment:');
-    console.log('  To:', to);
-    console.log('  Subject:', subject);
-    console.log('  Attachment name:', attachmentName);
-    console.log('  Attachment size:', attachmentBuffer.length, 'bytes');
-    console.log('  Sender:', process.env.BREVO_SENDER);
+    const log = (...args: any[]) => { if (!options?.sanitizedLogs) console.log(...args); };
+    const logError = (...args: any[]) => { if (!options?.sanitizedLogs) console.error(...args); };
+    log('📧 [MailService] Preparing email with attachment:');
+    log('  To:', to);
+    log('  Subject:', subject);
+    log('  Attachment name:', attachmentName);
+    log('  Attachment size:', attachmentBuffer.length, 'bytes');
+    log('  Sender:', process.env.BREVO_SENDER);
 
     // Convert buffer to base64
     const attachmentContent = attachmentBuffer.toString('base64');
-    console.log('  Attachment converted to base64, length:', attachmentContent.length);
+    log('  Attachment converted to base64, length:', attachmentContent.length);
 
     // Convert text to HTML with RTL support
     const htmlContent = `
@@ -119,39 +122,46 @@ export class MailService {
     };
 
     try {
-      console.log('📧 [MailService] Sending email via BREVO API...');
-      const response = await this.client.sendTransacEmail(email);
-      console.log('✅ [MailService] Email sent successfully!');
-      console.log('  Response message ID:', response.messageId);
-      console.log('  Response:', JSON.stringify(response, null, 2));
+      log('📧 [MailService] Sending email via BREVO API...');
+      let client = this.client;
+      if (options?.timeoutMs) {
+        const apiClient = new Brevo.ApiClient();
+        apiClient.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+        apiClient.timeout = options.timeoutMs;
+        client = new Brevo.TransactionalEmailsApi(apiClient);
+      }
+      const response = await client.sendTransacEmail(email);
+      log('✅ [MailService] Email sent successfully!');
+      log('  Response message ID:', response.messageId);
+      log('  Response:', JSON.stringify(response, null, 2));
       return response;
     } catch (error: any) {
-      console.error('❌ [MailService] Error sending email with attachment:');
-      console.error('  To:', to);
-      console.error('  Subject:', subject);
+      logError('❌ [MailService] Error sending email with attachment:');
+      logError('  To:', to);
+      logError('  Subject:', subject);
       
       // Check for BREVO specific errors
       if (error?.response?.body) {
         const brevoError = error.response.body;
-        console.error('  BREVO Error Code:', brevoError.code);
-        console.error('  BREVO Error Message:', brevoError.message);
+        logError('  BREVO Error Code:', brevoError.code);
+        logError('  BREVO Error Message:', brevoError.message);
         
         if (error.status === 401) {
-          console.error('  ⚠️  Unauthorized - Check BREVO API key and IP whitelist');
+          logError('  ⚠️  Unauthorized - Check BREVO API key and IP whitelist');
           if (brevoError.message?.includes('IP address')) {
-            console.error('  📝 Action required: Add your IP address to BREVO authorized IPs');
-            console.error('  🔗 Link: https://app.brevo.com/security/authorised_ips');
+            logError('  📝 Action required: Add your IP address to BREVO authorized IPs');
+            logError('  🔗 Link: https://app.brevo.com/security/authorised_ips');
           }
         }
       }
       
       if (error instanceof Error) {
-        console.error('  Error message:', error.message);
-        console.error('  Error stack:', error.stack);
+        logError('  Error message:', error.message);
+        logError('  Error stack:', error.stack);
       } else if (error?.text) {
-        console.error('  Error response text:', error.text);
+        logError('  Error response text:', error.text);
       } else {
-        console.error('  Error object:', JSON.stringify(error, null, 2));
+        logError('  Error object:', JSON.stringify(error, null, 2));
       }
       throw error;
     }

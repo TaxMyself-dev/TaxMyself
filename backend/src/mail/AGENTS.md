@@ -12,3 +12,13 @@ Sends transactional email (plain or with a PDF attachment) via the Brevo (Sendin
 
 ## Related topics
 No dependencies on other backend topics (reads only `BREVO_API_KEY`/`BREVO_SENDER` env vars). Consumed by: documents, billing, delegation (each injects `MailService` to send notifications/receipts/invites), and Feezback (best-effort provider-duplicate operational alerts containing transient response timestamps).
+
+## Queued document attachments
+
+`sendMailWithAttachment` accepts optional `{ timeoutMs, sanitizedLogs }` after
+the existing content-type argument. Outbox sends use a separate SDK client with
+a 30-second request timeout and suppress content/provider-detail logs. Other
+callers keep the existing client/settings. Delivery status/retries belong to
+`documents/document-email-queue.service.ts`, not the mail wrapper; ambiguous
+outcomes must not be automatically resent. See
+[document generation](../../../docs/features/document-generation-speed.md).

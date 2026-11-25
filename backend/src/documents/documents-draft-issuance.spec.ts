@@ -145,7 +145,7 @@ describe('DocumentsService draft issuance', () => {
       getBusinessByNumber: jest.fn().mockResolvedValue({ businessType: 'LICENSED' }),
     };
     service.dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
-    service.generatePDF = jest.fn().mockResolvedValue(Buffer.from('signed-pdf'));
+    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy') });
     service.uploadToFirebase = jest.fn()
       .mockResolvedValueOnce('original-path')
       .mockResolvedValueOnce('copy-path');
