@@ -12,17 +12,25 @@ if(args.includes('--baseline')){
   createRenderer=entry.exports.createRenderer;
 }else ({createRenderer}=require('../src/renderer.cjs'));
 const warmup=args.includes('--warmup');
-const png=(()=>{
+const logoSize=args.includes('--logo-size')?Number(value('--logo-size')):512;
+if(!Number.isInteger(logoSize)||logoSize<1||logoSize>1024)throw Error('logo size must be 1..1024');
+let png=(()=>{
   const crc=bytes=>{let c=0xffffffff;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^(c&1?0xedb88320:0);}return(c^0xffffffff)>>>0;};
   const chunk=(name,data)=>{const type=Buffer.from(name),size=Buffer.alloc(4),check=Buffer.alloc(4);size.writeUInt32BE(data.length);check.writeUInt32BE(crc(Buffer.concat([type,data])));return Buffer.concat([size,type,data,check]);};
-  const header=Buffer.alloc(13);header.writeUInt32BE(512);header.writeUInt32BE(512,4);header[8]=8;header[9]=2;
-  const pixels=Buffer.alloc(512*1537);let seed=12345;
-  for(let y=0;y<512;y++)for(let x=1;x<1537;x++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;pixels[y*1537+x]=seed>>>24;}
+  const header=Buffer.alloc(13);header.writeUInt32BE(logoSize);header.writeUInt32BE(logoSize,4);header[8]=8;header[9]=2;
+  const stride=logoSize*3+1,pixels=Buffer.alloc(logoSize*stride);let seed=12345;
+  for(let y=0;y<logoSize;y++)for(let x=1;x<stride;x++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;pixels[y*stride+x]=seed>>>24;}
   return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header),chunk('IDAT',require('node:zlib').deflateSync(pixels)),chunk('IEND',Buffer.alloc(0))]);
 })();
 const records=[];
 (async()=>{
  fs.mkdirSync(output,{recursive:true});
+ const sourceLogoBytes=png.length,logoPrepStarted=performance.now();
+ if(args.includes('--pdf-logo')) {
+   const {ImageStorageService}=require(path.join(root,'backend/dist/identity-images/image-storage.service.js'));
+   png=await new ImageStorageService().normalize(png,'business',true);
+ }
+ const logoPrepMs=Math.round(performance.now()-logoPrepStarted),renderLogoBytes=png.length;
  for(let repetition=1;repetition<=2;repetition++){
   const stages=[];
   const render=createRenderer({puppeteer:require('puppeteer-core'),template:require('../dist/document-pdf.template.js'),
@@ -46,6 +54,6 @@ const records=[];
    }
   }finally{await render.close();}
  }
- fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({node:process.version,warmup,records},null,2)+'\n');
+ fs.writeFileSync(path.join(output,'report.json'),JSON.stringify({node:process.version,warmup,logoSize,sourceLogoBytes,renderLogoBytes,logoPrepMs,records},null,2)+'\n');
  console.log(JSON.stringify({warmup,records:records.map(({files,...r})=>r)}));
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

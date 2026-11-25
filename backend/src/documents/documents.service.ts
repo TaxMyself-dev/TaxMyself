@@ -687,7 +687,7 @@ export class DocumentsService {
     } : { ...doc, logoPath: null };
     let logoDataUri: string;
     if (identity.logoPath) {
-      const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath));
+      const logo = await measurePdfStage('LOGO_DOWNLOAD', () => this.imageStorage.download(identity.logoPath, 'pdf'));
       logoDataUri = `data:${logo.contentType};base64,${logo.buffer.toString('base64')}`;
     }
     const lines = data.linesData ?? [];

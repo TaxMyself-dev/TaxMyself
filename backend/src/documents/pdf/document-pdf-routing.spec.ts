@@ -127,7 +127,7 @@ describe('local PDF document routing', () => {
     });
     await service.generatePDF(pending, 'createDoc');
     expect(service.imageStorage.download).toHaveBeenLastCalledWith(
-      'identity-images/business/1/replacement.png',
+      'identity-images/business/1/replacement.png', 'pdf',
     );
     expect(service.documentPdfRenderer.render).toHaveBeenLastCalledWith(
       expect.objectContaining({ issuerName: 'שם העסק: changed name' }),

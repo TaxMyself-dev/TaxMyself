@@ -30,6 +30,17 @@ describe('Identity images', () => {
     expect(meta.hasAlpha).toBe(true);
     expect(meta.width).toBe(20);
   });
+  it('makes a PDF-only centered cover thumbnail, preserves alpha and leaves original sizing intact', async () => {
+    const source = await sharp({create:{width:1600,height:900,channels:4,background:'#00ff0080'}}).png().toBuffer();
+    const original = await sharp(await images.normalize(source, 'business')).metadata();
+    const pdf = await sharp(await images.normalize(source, 'business', true)).metadata();
+    expect([original.width, original.height]).toEqual([1600,900]);
+    expect([pdf.width, pdf.height]).toEqual([640,640]);
+    expect(pdf.hasAlpha).toBe(true);
+    const small = await sharp(await images.normalize(await png(), 'business', true)).metadata();
+    expect(small.width).toBeLessThanOrEqual(20);
+    expect(small.height).toBeLessThanOrEqual(12);
+  });
   it('rejects SVG, spoofed/truncated PNG, oversized bytes and pixels', async () => {
     for (const buffer of [
       Buffer.from('<svg width="10" height="10"></svg>'),

@@ -226,3 +226,26 @@ this new executable source. No DB/schema/mail/signature/cloud changes.
 See [startup evidence/report](../../features/pdf-startup-2026-11-25.md) for exact
 commands, batches, final/mixed revision distinction and cold-start cost caveat.
 Local feature commit only; awaiting separate main integration approval.
+
+
+## Actual rendering follow-up (2026-11-25)
+
+Added PDF-only center-cover 640px logo variant; ordinary/stored originals remain
+unchanged. Variants share existing bounded memory/TTL/in-flight budget and have
+separate keys. Current identity path still handles replacements/removal.
+
+Compared bfe8baac vs final source: 12 actual DEV UI documents, 24 additional
+authorized signatures, no mail/live SHAAM/SQL. All succeeded. Renderer pair mean
+1.804s -> 1.212s (32.8%); warm-logo full mean 5.843s -> 4.614s (21%, n=5 each).
+All-request full mean 6.252s -> 5.117s; first after cache miss still 7.627s.
+One baseline preview deliberately warmed its second-run cache, separately logged.
+
+Build passed; focused 5 suites/69 tests plus 3 suites/32 tests passed (101 total).
+12 optimized synthetic PDFs match baseline text/page count; actual signed source
+and copy downloaded/visually inspected with 640px logo and signature envelopes.
+See [rendering report](../../features/pdf-logo-rendering-2026-11-25.md) and linked
+sanitized evidence for commands, source hashes, initial corrected mock failure,
+small-sample/provider-noise limits and remaining integration boundaries.
+
+Final 3004 backend restored to optimized source, 4204/8082 unchanged and healthy.
+Local feature only; no main integration, push, deployment or cloud cost change.

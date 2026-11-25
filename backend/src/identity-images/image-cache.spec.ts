@@ -43,6 +43,17 @@ describe('bounded immutable identity image cache', () => {
     ).rejects.toThrow('Invalid image path');
     expect(download).toHaveBeenCalledTimes(2);
   });
+  it('isolates PDF variants from original downloads under the same shared cache budget', async () => {
+    await Promise.all([service.download(first, 'pdf'), service.download(first, 'pdf')]);
+    expect(download).toHaveBeenCalledTimes(1);
+    expect(service.normalize).toHaveBeenLastCalledWith(expect.any(Buffer), 'business', true);
+    await service.download(first);
+    expect(download).toHaveBeenCalledTimes(2);
+    expect(service.normalize).toHaveBeenLastCalledWith(expect.any(Buffer), 'business', false);
+    expect((service as any).cachedBytes).toBe(28);
+    await service.download(first, 'pdf');
+    expect(download).toHaveBeenCalledTimes(2);
+  });
   it('does not cache a failed download', async () => {
     download.mockRejectedValueOnce(Error('storage down'));
     await expect(service.download(first)).rejects.toThrow('storage down');

@@ -1,5 +1,7 @@
 # Full DEV document issuance measurement - 2026-11-25
 
+A subsequent [PDF-logo rendering comparison](pdf-logo-rendering-2026-11-25.md) measures the next executable change against bfe8baac. The historical results below retain their original source scope.
+
 The UI reproduction confirmed the reported 10-20 second waits: the first baseline request took 24.974s, receipt 10.485s and quote 15.313s. Twelve real DEV test documents completed successfully (HTTP 201 and visible UI success), six per variant, with 24 new live signing requests. This is separate from the earlier authorized 24 synthetic signatures.
 
 ## Observed before/after results

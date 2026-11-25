@@ -1,0 +1,1606 @@
+{
+  "date": "2026-11-25",
+  "baseline": "bfe8baacb1385dfb3e67a4e908198f7fe78f58d5",
+  "candidateSourceHashes": {
+    "backend/src/identity-images/image-storage.service.ts": "39d9b18b66366d8861ea6a799417900c29c094938439aaf48d7bc2e4b4e7c4b5",
+    "backend/src/documents/documents.service.ts": "e0fa5143a1a4ab44b8d625a32983f9ddc6b33fe0d1854af92e8a4967be2427a0",
+    "pdf-service/src/renderer.cjs": "36c921e9779f207df079308217294a1589980727a70e5398dea26c417e7a6157"
+  },
+  "scope": "12 full DEV UI issuances, actual database/storage/FillFaster, no email or live SHAAM; separate 24 synthetic local PDFs.",
+  "newSigningRequests": 24,
+  "previewRequests": 1,
+  "summary": {
+    "before": {
+      "renderPairMeanMs": 1803.5,
+      "httpMeanMs": 6251.833333333333,
+      "warmHttpMeanMs": 5842.8
+    },
+    "after": {
+      "renderPairMeanMs": 1211.8333333333333,
+      "httpMeanMs": 5116.5,
+      "warmHttpMeanMs": 4614.4
+    }
+  },
+  "runs": [
+    {
+      "scenario": "transaction-invoice",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "d737e5a7-0295-45d4-ae01-54660ec900e5",
+      "httpMs": 8297,
+      "renderPairMs": 1472,
+      "logoMs": 2473,
+      "sqlCount": 20,
+      "sqlSumMs": 405,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 98,
+        "RESERVE_DOCUMENT_NUMBER": 74,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 74,
+        "LINES_SAVE": 44,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 6462,
+        "UPLOAD_PAIR": 1378,
+        "FILE_PATHS_SAVE": 42,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 26
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 26
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2473
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 2506
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 699
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 701
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 769
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 771
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 3167
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2469
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1367
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1376
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "129c8877-f3a6-4ab8-b7b4-a53101c5df85",
+      "httpMs": 5184,
+      "renderPairMs": 1652,
+      "logoMs": 1,
+      "sqlCount": 36,
+      "sqlSumMs": 793,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 22,
+        "RESERVE_GENERAL_INDEX": 88,
+        "RESERVE_DOCUMENT_NUMBER": 84,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 77,
+        "LINES_SAVE": 47,
+        "PAYMENTS_SAVE": 22,
+        "JOURNAL": 335,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3122,
+        "UPLOAD_PAIR": 1277,
+        "FILE_PATHS_SAVE": 36,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 29,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 19
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 19
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 23
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 732
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 734
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 915
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 918
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1994
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1428
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1256
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1277
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "f5d70425-a4bc-4d9f-beb7-09c3c19ac76d",
+      "httpMs": 5244,
+      "renderPairMs": 1447,
+      "logoMs": 3,
+      "sqlCount": 20,
+      "sqlSumMs": 413,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 17,
+        "RESERVE_GENERAL_INDEX": 118,
+        "RESERVE_DOCUMENT_NUMBER": 99,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 75,
+        "LINES_SAVE": 40,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3316,
+        "UPLOAD_PAIR": 1476,
+        "FILE_PATHS_SAVE": 43,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 17,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 19
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 19
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 3
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 28
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 754
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 757
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 687
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 690
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2016
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1821
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1432
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1475
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "7b9ae2a7-3cf6-4259-aa56-e9542e5b296e",
+      "httpMs": 7627,
+      "renderPairMs": 1300,
+      "logoMs": 2938,
+      "sqlCount": 20,
+      "sqlSumMs": 445,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 24,
+        "RESERVE_GENERAL_INDEX": 130,
+        "RESERVE_DOCUMENT_NUMBER": 77,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 87,
+        "LINES_SAVE": 51,
+        "PAYMENTS_SAVE": 2,
+        "JOURNAL": 1,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 5798,
+        "UPLOAD_PAIR": 1293,
+        "FILE_PATHS_SAVE": 47,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 26
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 41
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2938
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 2992
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 709
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 713
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 584
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 587
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1759
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1473
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1270
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1288
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "af361732-edc6-4eeb-8ac6-63b98c14d86f",
+      "httpMs": 4876,
+      "renderPairMs": 1278,
+      "logoMs": 1,
+      "sqlCount": 36,
+      "sqlSumMs": 861,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 17,
+        "RESERVE_GENERAL_INDEX": 182,
+        "RESERVE_DOCUMENT_NUMBER": 85,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 68,
+        "LINES_SAVE": 42,
+        "PAYMENTS_SAVE": 30,
+        "JOURNAL": 372,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2704,
+        "UPLOAD_PAIR": 1250,
+        "FILE_PATHS_SAVE": 50,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 19,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 25
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 32
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 41
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 641
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 645
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 630
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 633
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1564
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1362
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1238
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1247
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "840bb43c-b7c1-4bb1-ad4c-b7328d94fabe",
+      "httpMs": 4222,
+      "renderPairMs": 1172,
+      "logoMs": 2,
+      "sqlCount": 20,
+      "sqlSumMs": 397,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 20,
+        "RESERVE_GENERAL_INDEX": 87,
+        "RESERVE_DOCUMENT_NUMBER": 87,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 64,
+        "LINES_SAVE": 36,
+        "PAYMENTS_SAVE": 0,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2471,
+        "UPLOAD_PAIR": 1327,
+        "FILE_PATHS_SAVE": 45,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 24
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 23
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 32
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 629
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 632
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 537
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 540
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1492
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1242
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1200
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1325
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "6dac51fd-4864-41de-9377-5f6c66f35b8e",
+      "httpMs": 4573,
+      "renderPairMs": 1010,
+      "logoMs": 0,
+      "sqlCount": 20,
+      "sqlSumMs": 431,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 82,
+        "RESERVE_DOCUMENT_NUMBER": 85,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 79,
+        "LINES_SAVE": 41,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2685,
+        "UPLOAD_PAIR": 1426,
+        "FILE_PATHS_SAVE": 69,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 26,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 25
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 30
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 0
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 32
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 565
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 566
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 443
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 444
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1766
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1628
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1259
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1411
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "4698e7cf-fd25-4d65-a42e-450fe2d9aba7",
+      "httpMs": 5182,
+      "renderPairMs": 1544,
+      "logoMs": 0,
+      "sqlCount": 36,
+      "sqlSumMs": 844,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 101,
+        "RESERVE_DOCUMENT_NUMBER": 97,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 69,
+        "LINES_SAVE": 51,
+        "PAYMENTS_SAVE": 29,
+        "JOURNAL": 349,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3056,
+        "UPLOAD_PAIR": 1248,
+        "FILE_PATHS_SAVE": 79,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 32,
+        "RELEASE_OR_ERROR_CLEANUP": 3
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 21
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 23
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 0
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 30
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 732
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 738
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 805
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 806
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1597
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1463
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1231
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1232
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "99a4a008-5776-4a99-b637-6a2ab5e11fc7",
+      "httpMs": 4219,
+      "renderPairMs": 967,
+      "logoMs": 1,
+      "sqlCount": 20,
+      "sqlSumMs": 526,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 30,
+        "RESERVE_GENERAL_INDEX": 117,
+        "RESERVE_DOCUMENT_NUMBER": 105,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 81,
+        "LINES_SAVE": 50,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2410,
+        "UPLOAD_PAIR": 1251,
+        "FILE_PATHS_SAVE": 56,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 23,
+        "RELEASE_OR_ERROR_CLEANUP": 3
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 32
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 26
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 33
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 503
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 506
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 459
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 461
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1378
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1376
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1105
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1248
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "0967c95d-a0dd-4ef8-94e6-9a7783692c00",
+      "httpMs": 5736,
+      "renderPairMs": 1729,
+      "logoMs": 1,
+      "sqlCount": 20,
+      "sqlSumMs": 533,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 103,
+        "RESERVE_DOCUMENT_NUMBER": 123,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 135,
+        "LINES_SAVE": 81,
+        "PAYMENTS_SAVE": 2,
+        "JOURNAL": 1,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3682,
+        "UPLOAD_PAIR": 1427,
+        "FILE_PATHS_SAVE": 46,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 27,
+        "RELEASE_OR_ERROR_CLEANUP": 5
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 21
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 57
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 63
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 782
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 785
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 943
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 944
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2801
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1868
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1385
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1426
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "ebb42bd2-79cb-4a6f-968a-ed2e4ff94b69",
+      "httpMs": 6685,
+      "renderPairMs": 2389,
+      "logoMs": 1,
+      "sqlCount": 36,
+      "sqlSumMs": 701,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 25,
+        "RESERVE_GENERAL_INDEX": 94,
+        "RESERVE_DOCUMENT_NUMBER": 84,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 64,
+        "LINES_SAVE": 35,
+        "PAYMENTS_SAVE": 18,
+        "JOURNAL": 294,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 4507,
+        "UPLOAD_PAIR": 1414,
+        "FILE_PATHS_SAVE": 56,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 26,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 25
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 16
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 21
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1183
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1186
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1199
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1203
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1824
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2065
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1318
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1411
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "4725524d-9c8d-4d74-83fe-3fbad42c31d3",
+      "httpMs": 6365,
+      "renderPairMs": 2132,
+      "logoMs": 1,
+      "sqlCount": 20,
+      "sqlSumMs": 476,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 26,
+        "RESERVE_GENERAL_INDEX": 159,
+        "RESERVE_DOCUMENT_NUMBER": 113,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 64,
+        "LINES_SAVE": 47,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 2,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 4178,
+        "UPLOAD_PAIR": 1617,
+        "FILE_PATHS_SAVE": 42,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 30
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 24
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 35
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1075
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1080
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1048
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1052
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2587
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1983
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1435
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1612
+        }
+      ]
+    }
+  ],
+  "synthetic": {
+    "before": {
+      "node": "v24.13.0",
+      "warmup": true,
+      "logoSize": 1024,
+      "sourceLogoBytes": 3147780,
+      "renderLogoBytes": 3147780,
+      "logoPrepMs": 0,
+      "records": [
+        {
+          "scenario": "short",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 1546,
+          "pairMs": 1017,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "short-1-original.pdf",
+              "bytes": 20795,
+              "elapsedMs": 501,
+              "stages": {
+                "PREPARE": 2,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 28,
+                "PAGE_CREATE": 216,
+                "PAGE_SECURITY": 6,
+                "HTML_LOAD": 92,
+                "ASSET_READY": 7,
+                "PDF_PRINT": 138,
+                "CONTEXT_CLOSE": 11
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "short-1-copy.pdf",
+              "bytes": 20966,
+              "elapsedMs": 514,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 29,
+                "PAGE_CREATE": 221,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 97,
+                "ASSET_READY": 5,
+                "PDF_PRINT": 144,
+                "CONTEXT_CLOSE": 12
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "logo",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 1546,
+          "pairMs": 2577,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "logo-1-original.pdf",
+              "bytes": 3169100,
+              "elapsedMs": 1329,
+              "stages": {
+                "PREPARE": 45,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 11,
+                "PAGE_CREATE": 286,
+                "PAGE_SECURITY": 9,
+                "HTML_LOAD": 673,
+                "ASSET_READY": 10,
+                "PDF_PRINT": 283,
+                "CONTEXT_CLOSE": 8
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "logo-1-copy.pdf",
+              "bytes": 3169271,
+              "elapsedMs": 1242,
+              "stages": {
+                "PREPARE": 31,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 5,
+                "PAGE_CREATE": 172,
+                "PAGE_SECURITY": 5,
+                "HTML_LOAD": 635,
+                "ASSET_READY": 9,
+                "PDF_PRINT": 365,
+                "CONTEXT_CLOSE": 14
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "allocated-multipage",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 1546,
+          "pairMs": 1968,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "allocated-multipage-1-original.pdf",
+              "bytes": 3269709,
+              "elapsedMs": 1028,
+              "stages": {
+                "PREPARE": 42,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 17,
+                "PAGE_CREATE": 179,
+                "PAGE_SECURITY": 7,
+                "HTML_LOAD": 470,
+                "ASSET_READY": 6,
+                "PDF_PRINT": 292,
+                "CONTEXT_CLOSE": 12
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "allocated-multipage-1-copy.pdf",
+              "bytes": 3269774,
+              "elapsedMs": 931,
+              "stages": {
+                "PREPARE": 33,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 5,
+                "PAGE_CREATE": 152,
+                "PAGE_SECURITY": 3,
+                "HTML_LOAD": 471,
+                "ASSET_READY": 6,
+                "PDF_PRINT": 246,
+                "CONTEXT_CLOSE": 10
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "short",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 879,
+          "pairMs": 774,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "short-2-original.pdf",
+              "bytes": 20795,
+              "elapsedMs": 410,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 23,
+                "PAGE_CREATE": 179,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 74,
+                "ASSET_READY": 7,
+                "PDF_PRINT": 107,
+                "CONTEXT_CLOSE": 12
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "short-2-copy.pdf",
+              "bytes": 20966,
+              "elapsedMs": 364,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 28,
+                "PAGE_CREATE": 161,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 59,
+                "ASSET_READY": 3,
+                "PDF_PRINT": 99,
+                "CONTEXT_CLOSE": 8
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "logo",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 879,
+          "pairMs": 1862,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "logo-2-original.pdf",
+              "bytes": 3169100,
+              "elapsedMs": 827,
+              "stages": {
+                "PREPARE": 46,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 5,
+                "PAGE_CREATE": 169,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 385,
+                "ASSET_READY": 8,
+                "PDF_PRINT": 200,
+                "CONTEXT_CLOSE": 8
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "logo-2-copy.pdf",
+              "bytes": 3169271,
+              "elapsedMs": 1029,
+              "stages": {
+                "PREPARE": 31,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 4,
+                "PAGE_CREATE": 106,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 553,
+                "ASSET_READY": 14,
+                "PDF_PRINT": 297,
+                "CONTEXT_CLOSE": 11
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "allocated-multipage",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 879,
+          "pairMs": 1872,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "allocated-multipage-2-original.pdf",
+              "bytes": 3269709,
+              "elapsedMs": 1065,
+              "stages": {
+                "PREPARE": 49,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 15,
+                "PAGE_CREATE": 195,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 497,
+                "ASSET_READY": 6,
+                "PDF_PRINT": 288,
+                "CONTEXT_CLOSE": 7
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "allocated-multipage-2-copy.pdf",
+              "bytes": 3269774,
+              "elapsedMs": 803,
+              "stages": {
+                "PREPARE": 28,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 5,
+                "PAGE_CREATE": 124,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 407,
+                "ASSET_READY": 6,
+                "PDF_PRINT": 217,
+                "CONTEXT_CLOSE": 6
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "after": {
+      "node": "v24.13.0",
+      "warmup": true,
+      "logoSize": 1024,
+      "sourceLogoBytes": 3147780,
+      "renderLogoBytes": 1147530,
+      "logoPrepMs": 250,
+      "records": [
+        {
+          "scenario": "short",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 818,
+          "pairMs": 759,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "short-1-original.pdf",
+              "bytes": 20795,
+              "elapsedMs": 400,
+              "stages": {
+                "PREPARE": 2,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 33,
+                "PAGE_CREATE": 193,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 64,
+                "ASSET_READY": 2,
+                "PDF_PRINT": 94,
+                "CONTEXT_CLOSE": 8
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "short-1-copy.pdf",
+              "bytes": 20966,
+              "elapsedMs": 358,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 34,
+                "PAGE_CREATE": 159,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 54,
+                "ASSET_READY": 3,
+                "PDF_PRINT": 91,
+                "CONTEXT_CLOSE": 11
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "logo",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 818,
+          "pairMs": 936,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "logo-1-original.pdf",
+              "bytes": 1167249,
+              "elapsedMs": 488,
+              "stages": {
+                "PREPARE": 23,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 14,
+                "PAGE_CREATE": 132,
+                "PAGE_SECURITY": 3,
+                "HTML_LOAD": 175,
+                "ASSET_READY": 8,
+                "PDF_PRINT": 120,
+                "CONTEXT_CLOSE": 6
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "logo-1-copy.pdf",
+              "bytes": 1167420,
+              "elapsedMs": 444,
+              "stages": {
+                "PREPARE": 12,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 11,
+                "PAGE_CREATE": 102,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 155,
+                "ASSET_READY": 9,
+                "PDF_PRINT": 138,
+                "CONTEXT_CLOSE": 12
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "allocated-multipage",
+          "repetition": 1,
+          "warmup": true,
+          "warmupMs": 818,
+          "pairMs": 1232,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "allocated-multipage-1-original.pdf",
+              "bytes": 1267858,
+              "elapsedMs": 642,
+              "stages": {
+                "PREPARE": 11,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 11,
+                "PAGE_CREATE": 110,
+                "PAGE_SECURITY": 3,
+                "HTML_LOAD": 232,
+                "ASSET_READY": 19,
+                "PDF_PRINT": 243,
+                "CONTEXT_CLOSE": 10
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "allocated-multipage-1-copy.pdf",
+              "bytes": 1267923,
+              "elapsedMs": 588,
+              "stages": {
+                "PREPARE": 16,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 17,
+                "PAGE_CREATE": 143,
+                "PAGE_SECURITY": 2,
+                "HTML_LOAD": 182,
+                "ASSET_READY": 15,
+                "PDF_PRINT": 190,
+                "CONTEXT_CLOSE": 20
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "short",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 1048,
+          "pairMs": 707,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "short-2-original.pdf",
+              "bytes": 20795,
+              "elapsedMs": 367,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 30,
+                "PAGE_CREATE": 152,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 56,
+                "ASSET_READY": 4,
+                "PDF_PRINT": 109,
+                "CONTEXT_CLOSE": 10
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "short-2-copy.pdf",
+              "bytes": 20966,
+              "elapsedMs": 339,
+              "stages": {
+                "PREPARE": 1,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 25,
+                "PAGE_CREATE": 151,
+                "PAGE_SECURITY": 6,
+                "HTML_LOAD": 54,
+                "ASSET_READY": 2,
+                "PDF_PRINT": 92,
+                "CONTEXT_CLOSE": 8
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "logo",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 1048,
+          "pairMs": 1049,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "logo-2-original.pdf",
+              "bytes": 1167249,
+              "elapsedMs": 538,
+              "stages": {
+                "PREPARE": 13,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 13,
+                "PAGE_CREATE": 126,
+                "PAGE_SECURITY": 4,
+                "HTML_LOAD": 218,
+                "ASSET_READY": 8,
+                "PDF_PRINT": 146,
+                "CONTEXT_CLOSE": 7
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "logo-2-copy.pdf",
+              "bytes": 1167420,
+              "elapsedMs": 508,
+              "stages": {
+                "PREPARE": 11,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 11,
+                "PAGE_CREATE": 120,
+                "PAGE_SECURITY": 3,
+                "HTML_LOAD": 169,
+                "ASSET_READY": 9,
+                "PDF_PRINT": 173,
+                "CONTEXT_CLOSE": 9
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "allocated-multipage",
+          "repetition": 2,
+          "warmup": true,
+          "warmupMs": 1048,
+          "pairMs": 1284,
+          "files": [
+            {
+              "kind": "original",
+              "filename": "allocated-multipage-2-original.pdf",
+              "bytes": 1267858,
+              "elapsedMs": 627,
+              "stages": {
+                "PREPARE": 16,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 10,
+                "PAGE_CREATE": 152,
+                "PAGE_SECURITY": 3,
+                "HTML_LOAD": 215,
+                "ASSET_READY": 12,
+                "PDF_PRINT": 209,
+                "CONTEXT_CLOSE": 8
+              }
+            },
+            {
+              "kind": "copy",
+              "filename": "allocated-multipage-2-copy.pdf",
+              "bytes": 1267923,
+              "elapsedMs": 655,
+              "stages": {
+                "PREPARE": 14,
+                "BROWSER_LAUNCH": 0,
+                "CONTEXT_CREATE": 8,
+                "PAGE_CREATE": 170,
+                "PAGE_SECURITY": 8,
+                "HTML_LOAD": 209,
+                "ASSET_READY": 20,
+                "PDF_PRINT": 197,
+                "CONTEXT_CLOSE": 24
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "syntheticOutputChecks": [
+    {
+      "file": "allocated-multipage-1-copy.pdf",
+      "pages": 4,
+      "textMatches": true,
+      "beforeBytes": 3269774,
+      "afterBytes": 1267923
+    },
+    {
+      "file": "allocated-multipage-1-original.pdf",
+      "pages": 4,
+      "textMatches": true,
+      "beforeBytes": 3269709,
+      "afterBytes": 1267858
+    },
+    {
+      "file": "allocated-multipage-2-copy.pdf",
+      "pages": 4,
+      "textMatches": true,
+      "beforeBytes": 3269774,
+      "afterBytes": 1267923
+    },
+    {
+      "file": "allocated-multipage-2-original.pdf",
+      "pages": 4,
+      "textMatches": true,
+      "beforeBytes": 3269709,
+      "afterBytes": 1267858
+    },
+    {
+      "file": "logo-1-copy.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 3169271,
+      "afterBytes": 1167420
+    },
+    {
+      "file": "logo-1-original.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 3169100,
+      "afterBytes": 1167249
+    },
+    {
+      "file": "logo-2-copy.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 3169271,
+      "afterBytes": 1167420
+    },
+    {
+      "file": "logo-2-original.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 3169100,
+      "afterBytes": 1167249
+    },
+    {
+      "file": "short-1-copy.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 20966,
+      "afterBytes": 20966
+    },
+    {
+      "file": "short-1-original.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 20795,
+      "afterBytes": 20795
+    },
+    {
+      "file": "short-2-copy.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 20966,
+      "afterBytes": 20966
+    },
+    {
+      "file": "short-2-original.pdf",
+      "pages": 1,
+      "textMatches": true,
+      "beforeBytes": 20795,
+      "afterBytes": 20795
+    }
+  ],
+  "downloadChecks": [
+    {
+      "filename": "ction-1.pdf",
+      "bytes": 759876,
+      "pages": 1,
+      "signatureEnvelope": true,
+      "expectedDocument": true,
+      "expectedAmount": true,
+      "syntheticMarker": true,
+      "imageSizes": [
+        [
+          640,
+          640
+        ]
+      ]
+    },
+    {
+      "filename": "ction-1 (1).pdf",
+      "bytes": 759972,
+      "pages": 1,
+      "signatureEnvelope": true,
+      "expectedDocument": true,
+      "expectedAmount": true,
+      "syntheticMarker": true,
+      "imageSizes": [
+        [
+          640,
+          640
+        ]
+      ]
+    }
+  ]
+}

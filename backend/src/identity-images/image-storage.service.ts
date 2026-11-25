@@ -31,7 +31,7 @@ export class ImageStorageService {
     }
   }
 
-  async normalize(buffer: Buffer, kind: 'business' | 'user'): Promise<Buffer> {
+  async normalize(buffer: Buffer, kind: 'business' | 'user', forPdf = false): Promise<Buffer> {
     if (!buffer?.length || buffer.length > IMAGE_MAX_BYTES) {
       throw new BadRequestException('Image must be at most 5 MB');
     }
@@ -50,11 +50,13 @@ export class ImageStorageService {
       ) {
         throw new Error('Unsupported raster image');
       }
-      const size = kind === 'business' ? 1600 : 512;
+      // PDF template displays a centered cover crop at 38 mm. 640 pixels
+      // retain approximately 428 pixels/inch there; never enlarge small logos.
+      const size = forPdf ? 640 : kind === 'business' ? 1600 : 512;
       // Full decode + re-encode removes metadata and rejects corrupt payloads.
       const normalized = await image
         .rotate()
-        .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+        .resize(size, size, { fit: forPdf ? 'cover' : 'inside', position: 'centre', withoutEnlargement: true })
         .png()
         .toBuffer();
       if (normalized.length > IMAGE_MAX_BYTES)
@@ -93,25 +95,27 @@ export class ImageStorageService {
   /** Only accepts server-owned immutable asset paths, never URLs or arbitrary bucket paths. */
   async download(
     path: string,
+    purpose: 'original' | 'pdf' = 'original',
   ): Promise<{ buffer: Buffer; contentType: string }> {
     if (!OWNED_PATH.test(path ?? ''))
       throw new BadRequestException('Invalid image path');
+    const cacheKey = purpose === 'pdf' ? `pdf:${path}` : path;
     this.expireDownloads();
-    const cached = this.downloads.get(path);
+    const cached = this.downloads.get(cacheKey);
     if (cached) {
-      this.downloads.delete(path);
-      this.downloads.set(path, cached);
+      this.downloads.delete(cacheKey);
+      this.downloads.set(cacheKey, cached);
       return { ...cached.value, buffer: Buffer.from(cached.value.buffer) };
     }
-    let pending = this.pendingDownloads.get(path);
+    let pending = this.pendingDownloads.get(cacheKey);
     if (!pending) {
-      pending = this.downloadUncached(path);
+      pending = this.downloadUncached(path, purpose === 'pdf');
       // Bound in-flight dedup bookkeeping as well as the retained image cache.
-      if (this.pendingDownloads.size < 128) this.pendingDownloads.set(path, pending);
+      if (this.pendingDownloads.size < 128) this.pendingDownloads.set(cacheKey, pending);
     }
     try {
       const value = await pending;
-      if (!this.downloads.has(path)) {
+      if (!this.downloads.has(cacheKey)) {
         this.expireDownloads();
         while (this.downloads.size && (this.cachedBytes + value.buffer.length > this.maxCachedBytes
           || this.downloads.size >= this.maxCachedImages)) {
@@ -120,17 +124,17 @@ export class ImageStorageService {
           this.downloads.delete(key);
         }
         if (value.buffer.length <= this.maxCachedBytes) {
-          this.downloads.set(path, { value, expires: Date.now() + this.cacheTtlMs });
+          this.downloads.set(cacheKey, { value, expires: Date.now() + this.cacheTtlMs });
           this.cachedBytes += value.buffer.length;
         }
       }
       return { ...value, buffer: Buffer.from(value.buffer) };
     } finally {
-      if (this.pendingDownloads.get(path) === pending) this.pendingDownloads.delete(path);
+      if (this.pendingDownloads.get(cacheKey) === pending) this.pendingDownloads.delete(cacheKey);
     }
   }
 
-  private async downloadUncached(path: string): Promise<{ buffer: Buffer; contentType: string }> {
+  private async downloadUncached(path: string, forPdf: boolean): Promise<{ buffer: Buffer; contentType: string }> {
     try {
       const file = admin.storage().bucket().file(path);
       const [metadata] = await file.getMetadata();
@@ -141,6 +145,7 @@ export class ImageStorageService {
         buffer: await this.normalize(
           buffer,
           path.startsWith('identity-images/business/') ? 'business' : 'user',
+          forPdf,
         ),
         contentType: 'image/png',
       };
