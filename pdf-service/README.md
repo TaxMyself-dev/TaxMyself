@@ -285,8 +285,10 @@ merely to probe readiness. No cloud IAM/cold-start/CPU behavior is simulated her
 [Document generation speed](../docs/features/document-generation-speed.md)
 describes the prepared opt-in recipient outbox, removal of the immediate PDF
 redownload, bounded immutable image cache, shared allocation-finalization pair
-pipeline and opt-in parallel signing. Renderer code and layout are unchanged.
+pipeline and parallel signing. Renderer code and layout are unchanged.
 The 2026-10-18 statement that allocation finalization retains its prior
-orchestration is superseded by this implementation. Default signing remains
-serial; parallel signing requires provider/plan validation. Outbox SQL is
+orchestration is superseded by this implementation. Provider confirmation
+supplied on 2026-11-25 permits two parallel signature requests even on the same
+template, so this is now the default (`PDF_PARALLEL_SIGNING=false` opts out).
+Numeric quotas remain unspecified; no automatic signing retries are added. Outbox SQL is
 prepared only and its activation is separately gated.

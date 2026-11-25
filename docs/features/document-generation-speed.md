@@ -107,17 +107,24 @@ manual issuance. The shared upload helper waits for both outcomes and cleans a
 successful sibling before propagating failure. Existing allocation, journal,
 parent-document and transaction behavior is retained.
 
-`PDF_PARALLEL_SIGNING=true` permits copy signing as soon as copy rendering is
-ready while original signing may still be in flight. Both settle before success
+By default, copy signing starts as soon as copy rendering is ready while
+original signing may still be in flight. `PDF_PARALLEL_SIGNING=false` restores
+sequential signing; unset or `true` enables the parallel path. Both settle before success
 or failure is returned. Rendering remains sequential; no paid request retries,
 unsigned fallback, template changes or new signing service are introduced.
-Default remains serial signing until the deployment's provider/plan concurrency
-allowance is verified. There is no new account-wide concurrency coordinator;
-each pair can overlap two calls, on top of already concurrent issuance requests.
+On 2026-11-25 at 10:54 Asia/Jerusalem, Elazar supplied the provider's reply
+from Banal Sadon explicitly confirming that two requests can run in parallel
+on either the same template or separate templates. This supersedes the original
+opt-in restriction. The provider did not supply a numeric quota, request-rate
+limit or exact over-limit response in that reply. No account-wide allowance was
+inferred; each pair overlaps at most two calls, on top of already concurrent
+issuance requests. No new retries or automatic serial fallback are added on a
+provider error, so ambiguous/paid outcomes cannot be replayed automatically.
 
-Official [developer reference](https://help.fillfaster.com/developers/api/) did
-not establish the account's parallel-signing allowance. Keep the flag off until
-that is confirmed. This task performed no paid provider experiment.
+The official [developer reference](https://help.fillfaster.com/developers/api/)
+alone did not establish concurrency support; the user-supplied provider reply
+is the evidence for this default change. No paid provider experiment or runtime
+environment/deployment change was performed.
 
 ## Verification and measurement limits
 
@@ -132,6 +139,5 @@ DDL, create an intentional test document, verify rollback/nonselection, restart
 pending-job recovery, competing worker claims and the authenticated scheduler.
 Compare development `pdf_http_total`, `pdf_create_stages` and per-operation spans
 for intentional successful documents, with/without logo and email, cold/warm.
-Do not sum overlapping parent/child spans. Measure signing separately before
-enabling parallel signing; never create an extra numbered document solely to
+Do not sum overlapping parent/child spans. Measure successful signing separately to quantify the real saving; never create an extra numbered document solely to
 probe readiness. No new production speedup percentage is claimed.

@@ -3,7 +3,14 @@ import { DocumentType } from '../../enum';
 
 describe('local PDF document routing', () => {
   let service: any;
+  const initialParallelSigning = process.env.PDF_PARALLEL_SIGNING;
+  afterEach(() => {
+    if (initialParallelSigning === undefined) delete process.env.PDF_PARALLEL_SIGNING;
+    else process.env.PDF_PARALLEL_SIGNING = initialParallelSigning;
+  });
   beforeEach(() => {
+    // Retain coverage of the explicit serial-signing rollback switch.
+    process.env.PDF_PARALLEL_SIGNING = 'false';
     service = Object.create(DocumentsService.prototype);
     service.documentPdfRenderer = {
       render: jest.fn().mockResolvedValue(Buffer.from('%PDF-local')),
@@ -216,9 +223,10 @@ describe('local PDF document routing', () => {
     await expect(service.generatePdfPair(data())).rejects.toThrow('copy failed');
     expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(1);
   });
-  it('opt-in parallel signing starts copy signing while original signing is pending', async () => {
+  it.each([undefined, 'true'])('parallel signing starts the copy before the original finishes with setting %s', async setting => {
     const saved = process.env.PDF_PARALLEL_SIGNING;
-    process.env.PDF_PARALLEL_SIGNING = 'true';
+    if (setting === undefined) delete process.env.PDF_PARALLEL_SIGNING;
+    else process.env.PDF_PARALLEL_SIGNING = setting;
     try {
       let releaseOriginal: (bytes: Buffer) => void;
       service.fillFasterSigner.sign.mockImplementationOnce(() => new Promise(resolve => { releaseOriginal = resolve; }))
@@ -256,6 +264,15 @@ describe('local PDF document routing', () => {
       if (saved === undefined) delete process.env.PDF_PARALLEL_SIGNING;
       else process.env.PDF_PARALLEL_SIGNING = saved;
     }
+  });
+  it('surfaces quota rejection after both parallel calls settle without retrying or returning unsigned bytes', async () => {
+    delete process.env.PDF_PARALLEL_SIGNING;
+    const quotaError = Object.assign(Error('quota rejected'), {status: 429});
+    service.fillFasterSigner.sign.mockRejectedValueOnce(quotaError)
+      .mockResolvedValueOnce(Buffer.from('%PDF-signed-copy'));
+    await expect(service.generatePdfPair(data())).rejects.toBe(quotaError);
+    expect(service.fillFasterSigner.sign).toHaveBeenCalledTimes(2);
+    expect(service.documentPdfRenderer.render).toHaveBeenCalledTimes(2);
   });
   it('starts both uploads before either finishes and preserves original/copy paths', async () => {
     let releaseOriginal: (path: string) => void;

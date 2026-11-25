@@ -16,8 +16,9 @@
 - Cache immutable normalized identity images with bounded memory/TTL; replacements
   and removals affect subsequent PDF generation immediately via current identity lookup.
 - Allocation finalization uses shared preparation, render/sign overlap and parallel uploads.
-- Optional parallel signing preserves both signed outputs and settles in-flight work
-  before failure; default serial signing until provider/plan limits are verified.
+- Parallel signing preserves both signed outputs and settles in-flight work
+  before failure; enabled by default after the user supplied provider confirmation
+  on 2026-11-25. Explicit false restores sequential signing.
 - Focused behavior tests, backend build, docs and local commit; no main integration/push.
 
 ## Scope and approval boundaries
@@ -92,8 +93,10 @@ checks covered changed/new operational documentation links.
 - Accounting: no numbering, amounts, journal, tax/allocation or parent-close
   behavior changes. The allocation PDF pair/upload orchestration is optimized.
 - External impact: no paid signing requests, live email or provider contract/
-  credential changes; parallel signing is implemented but off pending limits
-  validation. Other MailService callers retain their existing transport settings.
+  credential changes. Provider approval for two parallel requests (same or
+  different templates) supplied by Elazar on 2026-11-25 permits the new parallel
+  default. Numeric quotas remain unspecified. Other MailService callers retain
+  their existing transport settings.
 - Runtime checks still required before queue activation: separately authorized
   isolated DB DDL/transaction/competing-worker checks, intentional test-email
   recovery and authenticated scheduler invocation; no current end-to-end latency
@@ -110,3 +113,33 @@ and queue/scheduler activation require separate authorization. After authorized
 main integration, his personal test of that exact main revision and explicit
 push approval remain required. Cleanup applies only after approved integration
 and its required checks, not at this feature-ready checkpoint.
+
+## Provider confirmation follow-up (2026-11-25)
+
+Elazar supplied Banal Sadon's 10:54 reply explicitly allowing two parallel
+requests with either the same or separate templates. Numeric quota limits and
+the precise failure response were not supplied. Change the default to parallel
+while preserving `PDF_PARALLEL_SIGNING=false` as a rollback switch. No automatic
+signing retries, runtime env changes, main integration, DB execution or push.
+
+Acceptance: prove default and explicit-true overlap, explicit-false sequential
+behavior, draining on failure and no quota-error retry; run affected PDF routing
+and signing tests, direct issuance/allocation callers and Nest build. Existing
+queue/cache verification is reused because those inputs are unchanged.
+
+
+Follow-up verification on the executable revision after `6aa16408`:
+
+```powershell
+npm test -- --runInBand --silent --runTestsByPath src/documents/pdf/document-pdf-routing.spec.ts src/documents/pdf/fillfaster-signer.service.spec.ts src/documents/documents-draft-issuance.spec.ts src/documents/transfer-details.spec.ts src/documents/document-email-issuance.spec.ts
+```
+
+Exit 0: 5 suites / 65 tests passed, 35.738s; zero snapshots. Covers unset/true
+parallel overlap, false serial mode, in-flight failure draining and no quota-error
+retry, plus direct issuance/allocation/email transaction callers. `npm run build`
+passed on this executable revision (exit 0). Static local-link/SQL/instruction
+checks and `git diff --check` passed. No live provider requests or actual latency
+measurement. Earlier queue/cache/guard tests remain applicable to unchanged code;
+they were not rerun. No database or runtime/deployment configuration was changed.
+The local feature branch remains separate from main and has not been pushed.
+`main` independently advanced to `7cdc8580` by the final read-only check. This follow-up does not integrate/rebase that main revision or claim verification on it; integration review must use current main.

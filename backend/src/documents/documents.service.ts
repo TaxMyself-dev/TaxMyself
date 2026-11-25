@@ -757,9 +757,9 @@ export class DocumentsService {
   private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
     const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
     const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
-    // Rendering stays sequential. Parallel signing is opt-in until provider limits
-    // are verified for this deployment. Neither path retries paid signing calls.
-    const parallelSigning = process.env.PDF_PARALLEL_SIGNING === 'true';
+    // Provider confirmed two parallel signing requests, including the same template.
+    // Rendering stays sequential. Set false to opt out; never retry paid signing calls.
+    const parallelSigning = process.env.PDF_PARALLEL_SIGNING !== 'false';
     const originalSigning = measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf));
     const copyWork = async () => {
       const rendered = await measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' }));
