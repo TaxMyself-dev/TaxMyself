@@ -8,7 +8,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
-import { REQUEST_TIMEOUT_MS } from '../shaam.constants';
+import { REQUEST_TIMEOUT_MS, ShaamEnvironment } from '../shaam.constants';
 import {
   UNIFORM_FILE_OAUTH_CONFIG,
   UniformFileOauthConfig,
@@ -111,6 +111,10 @@ export class UniformFileOauthService {
   }
 
   private scopeParameter(): string {
-    return this.config.scopes.join(',');
+    // Approved tsandbox experiment after an invalid_scope callback. Keep the
+    // production contract unchanged until sandbox acceptance is reviewed.
+    return this.config.scopes.join(
+      this.config.environment === ShaamEnvironment.TSANDBOX ? ' ' : ',',
+    );
   }
 }

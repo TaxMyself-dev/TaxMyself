@@ -151,8 +151,13 @@ them. Every new SHAAM product must use `ShaamConnection` and durable state.
 The uniform-file API must not reuse the current `/longtimetoken/` flow or
 literal `scope`: the active sandbox portal specifies a 12-hour Daily Token and
 separate `UniStructFileUploadLinks_scope` and `FilesStatus_scope` scopes. Send
-the complete Daily Token scope value comma-delimited in both authorization and
-code exchange. It may reuse only hardened server-side HTTP, encryption and
+the complete Daily Token scope value space-delimited in tsandbox for both
+authorization and code exchange, as explicitly approved by Elazar on
+2026-11-25 after an `invalid_scope` callback. This is a controlled experiment
+pending interactive verification; production retains its existing comma
+serialization and stays disabled. The trial supersedes older sandbox comma
+instructions in KT-061 and the integration lessons; see KT-090. Invoice Long
+Time Token serialization is unchanged. It may reuse only hardened server-side HTTP, encryption and
 environment primitives. Uniform-file production remains disabled until
 verified portal configuration is provided; see KT-061 through KT-063.
 

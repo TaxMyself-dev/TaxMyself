@@ -75,8 +75,9 @@ tokens or upload capabilities to the browser.
   Daily Token foundation. Active sandbox portal screenshots confirmed the exact
   `UniStructFileUploadLinks_scope` and `FilesStatus_scope` names, both product
   subscriptions and the shared callback. Per Elazar's support-call evidence and
-  explicit direction, authorize and token exchange use one comma-delimited
-  scope value; controlled tsandbox acceptance must confirm this assumption.
+  explicit direction, authorize and token exchange initially used one
+  comma-delimited scope value. Following the observed `invalid_scope`, Elazar
+  approved a tsandbox-only space-delimited trial on 2026-11-25 (see below).
 - Security/state: `ShaamSecureController`, `ShaamOauthStateService` and
   `ShaamConnectionService` provide authenticated product-aware infrastructure.
 - API/orchestration: the disabled-by-default client reserves and validates one
@@ -107,8 +108,8 @@ tokens or upload capabilities to the browser.
 - Dev schema was verified read-only. No DDL was run and production DB was not
   queried.
 - Remaining gate: configure non-production variables locally, perform the
-  interactive Daily Token authorization, confirm the comma-delimited scope
-  assumption, and run controlled tsandbox acceptance with official/synthetic
+  interactive Daily Token authorization, confirm the scope delimiter through
+  the approved sandbox trial, and run acceptance with official/synthetic
   test data. Production remains fail-closed.
 
 ## Sandbox continuation — 2026-11-25
@@ -159,3 +160,30 @@ tokens or upload capabilities to the browser.
 - Delivery: local callback diagnostic fix only. Runtime restart/retry and the
   actual authorization failure diagnosis remain pending; no external request,
   main integration, push or production action was performed in this fix.
+
+### Approved Daily Token scope delimiter trial — 2026-11-25
+
+- Elazar's subsequent screenshot confirms a provider `invalid_scope` callback.
+  This identifies the OAuth failure category, not its root cause.
+- Elazar explicitly approved trying a space between the same two Daily Token
+  scopes in tsandbox. Exact decoded request value:
+  `UniStructFileUploadLinks_scope FilesStatus_scope`.
+- Acceptance: authorization and code exchange send that identical value in
+  tsandbox; production serialization retains its existing comma, production
+  activation stays blocked, and invoice Long Time Token behavior is unchanged.
+- This scoped experiment supersedes the older comma requirement for tsandbox
+  in KT-061 and the integration lessons. It is not a verified provider contract
+  until interactive authorization and token exchange succeed.
+- Validation tier: backend service. Run focused Daily Token service/config
+  tests covering both environments, both request stages, returned-scope
+  validation and disabled mode; run Nest build. No frontend code changed.
+- No credentials, callback registration, database records or external product
+  subscriptions are changed. The user must initiate a fresh connection; never
+  replay the consumed callback URL or alter its state.
+- Focused validation: `npm test -- --runInBand --silent --runTestsByPath
+  src/shaam/uniform-file/uniform-file-oauth.service.spec.ts
+  src/shaam/uniform-file/uniform-file-oauth.config.spec.ts` passed, 2 suites /
+  14 tests, exit 0. Initial parallel Nest build failed with Node native
+  `Fatal process out of memory: Zone`; sequential `npm run build` retry after
+  Jest exited passed with exit 0. `git diff --check` passed. Live authorization
+  with the space delimiter remains pending; no external request was automated.

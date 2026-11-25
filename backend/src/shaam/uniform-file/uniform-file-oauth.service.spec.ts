@@ -25,7 +25,7 @@ describe('UniformFileOauthService', () => {
     scopes: ['UniStructFileUploadLinks_scope', 'FilesStatus_scope'],
   };
 
-  function setup(response?: unknown) {
+  function setup(response?: unknown, environment = ShaamEnvironment.TSANDBOX) {
     const httpService = {
       post: jest.fn().mockReturnValue(
         of({
@@ -42,24 +42,28 @@ describe('UniformFileOauthService', () => {
       ),
     };
     return {
-      service: new UniformFileOauthService(httpService as any, config),
+      service: new UniformFileOauthService(httpService as any, { ...config, environment }),
       httpService,
     };
   }
 
-  it('builds an authorization URL with only the uniform-file scopes', () => {
-    const { service } = setup();
+  it.each([
+    [ShaamEnvironment.TSANDBOX, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
+    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope,FilesStatus_scope'],
+  ])('builds the exact authorization scopes for %s', (environment, scopes) => {
+    const { service } = setup(undefined, environment as ShaamEnvironment);
     const url = new URL(service.buildAuthorizeUrl('signed-state'));
 
     expect(url.searchParams.get('client_id')).toBe('uniform-client');
-    expect(url.searchParams.get('scope')).toBe(
-      'UniStructFileUploadLinks_scope,FilesStatus_scope',
-    );
+    expect(url.searchParams.get('scope')).toBe(scopes);
     expect(url.searchParams.get('state')).toBe('signed-state');
   });
 
-  it('exchanges a code using fixed server-side configuration', async () => {
-    const { service, httpService } = setup();
+  it.each([
+    [ShaamEnvironment.TSANDBOX, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
+    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope,FilesStatus_scope'],
+  ])('exchanges a code with the same scopes as authorization for %s', async (environment, scopes) => {
+    const { service, httpService } = setup(undefined, environment as ShaamEnvironment);
 
     await expect(service.exchangeCodeForDailyToken('one-time-code')).resolves.toMatchObject({
       access_token: 'daily-token',
@@ -68,8 +72,9 @@ describe('UniformFileOauthService', () => {
     const [url, body, options] = httpService.post.mock.calls[0];
     expect(url).toBe(config.tokenUrl);
     expect(body).toContain('code=one-time-code');
+    expect(new URLSearchParams(body).get('scope')).toBe(scopes);
     expect(new URLSearchParams(body).get('scope')).toBe(
-      'UniStructFileUploadLinks_scope,FilesStatus_scope',
+      new URL(service.buildAuthorizeUrl('state')).searchParams.get('scope'),
     );
     expect(options.headers.Authorization).toMatch(/^Basic /);
   });
