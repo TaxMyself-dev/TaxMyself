@@ -1,11 +1,11 @@
 # KT-090 - Complete the SHAAM Uniform File API
 
-- Status: `IMPLEMENTED_LOCAL_AWAITING_TSANDBOX`
-- Task manager: next Codex chat
+- Status: `SANDBOX_ACCEPTED_BY_ELAZAR_PRODUCTION_BLOCKED`
+- Task manager: Codex primary chat
 - Worker: unassigned
-- Worktree: `C:/Users/harel/Elazar Harel/taxmyself/taxmyself-dev`
-- Branch: `main`
-- Base commit: `c1b34918ce73b41e64f726460b57f4aeaafe255e` plus this documentation commit
+- Worktree: `C:/Users/harel/Elazar Harel/taxmyself/eharel-branch-0`
+- Branch: `eharel-branch-0`
+- Continuation base commit: `7cdc8580` (2026-11-25)
 
 ## Business outcome
 
@@ -16,7 +16,7 @@ tokens or upload capabilities to the browser.
 
 ## Acceptance criteria
 
-- [ ] Reconfirm the active portal/support contract for Daily Token authorize
+- [x] Reconfirm the active portal/support contract for Daily Token authorize
       and token URLs, delimiter for the two scopes, callback, subscriptions and
       sandbox identities before enabling external calls.
 - [x] Reserve upload links with the documented case/period/representative
@@ -39,8 +39,9 @@ tokens or upload capabilities to the browser.
 - [x] Add focused client/orchestrator/controller/frontend tests for success,
       partial pair, rejection, authorization errors, timeouts, restart,
       concurrency and unknown outcomes.
-- [ ] Run controlled tsandbox acceptance with synthetic/official test data and
-      retain only redacted evidence.
+- [x] Run controlled tsandbox acceptance with synthetic/official test data and
+      retain only redacted evidence. Accepted by Elazar as described below;
+      `Mocked Status` is sufficient for sandbox acceptance, not production approval.
 - [ ] Keep production disabled until explicit activation approval, verified
       production configuration, a real inspector demand and an authorized
       canary business are available.
@@ -93,6 +94,23 @@ tokens or upload capabilities to the browser.
   never presents `Uploaded` as approved.
 
 ## Current verification / handoff
+
+- Sandbox stage accepted by Elazar on 2026-11-25. Daily Token with
+  space-delimited scopes succeeded; the user-driven submission screen showed
+  both files uploaded and the pair processing. Elazar confirmed that a
+  `Mocked Status` response satisfies SHAAM sandbox acceptance and closed this
+  stage. Raw upstream status was not independently captured in this chat;
+  the UI normalizes both `Uploaded` and `Mocked Status` to `UPLOADED`.
+- Support confirmation relayed by Elazar: send the normal INI/BKM file pair,
+  not PDFs. This supersedes the older PDF-only sandbox instruction for this test.
+- Production remains blocked. Remaining work: dev/staging MFA acceptance,
+  monitoring/security audit, verified production contract/configuration/schema,
+  activation approval and an authorized inspector-demand canary. Sandbox
+  acceptance does not authorize any production action.
+- Local follow-up commits: `d7edda60` (safe callback errors), `ef4b603a`
+  (sandbox space delimiter), `afe49ef1` (restore selection after OAuth).
+
+### Earlier implementation handoff (before the November sandbox run)
 
 - Result: upload client, restart-safe orchestration, secure API and UI are
   implemented locally. The feature remains disabled by default; no external
