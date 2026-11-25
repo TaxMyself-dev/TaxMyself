@@ -1,5 +1,7 @@
 # Document generation before/after measurement — 2026-11-25
 
+Full real DEV UI measurements (actual database, storage and signatures) are now recorded separately in [the end-to-end report](document-generation-dev-e2e-2026-11-25.md). The isolated results below do not represent user-visible full issuance latency.
+
 Measured source revisions: before `c46490a71dca24ca07250b1ae9233047b72b4a41`, after `bd2476be39e6f2ee9a1f39a7dd21ee3537579b93`.
 The after application source was unchanged during measurement; only diagnostic scripts/docs were added.
 

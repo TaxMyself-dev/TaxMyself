@@ -187,3 +187,22 @@ focused Jest batch: 7 suites / 96 tests passed, exit 0, 44.524s. Node syntax,
 local Markdown links/JSON integrity and whitespace checks passed. Prior build
 evidence is reused because product code was unchanged. Local feature commit
 contains reproducible scripts, sanitized evidence and docs only.
+
+
+## Full DEV UI reproduction (2026-11-25)
+
+Completed 12 real DEV UI issuances (three types x before/after x two repetitions),
+24 additional user-authorized signatures, no emails/SHAAM/schema execution.
+All HTTP 201 and UI success. Warm repetition: transaction invoice 9.176s -> 6.307s,
+cash receipt 8.002s -> 5.578s, quote 7.640s -> 6.295s. Cold first transaction
+24.974s -> 13.378s; kept separate from warm comparison. Logo cache hits 1-2ms
+versus baseline 1.331-3.137s downloads. Real storage/signing variation remains.
+
+See [full DEV report](../../features/document-generation-dev-e2e-2026-11-25.md)
+and linked sanitized request/stage evidence for exact source loading, commands,
+PDF verification, setup interruptions and limits. No product code changed.
+Existing unit/build evidence reused; pdf-service npm ci/build succeeded locally.
+Allocation-number live UI remains unverified because authorized issuer is exempt
+and sandbox allocation requires its dedicated issuer. Queue remains off and SQL
+unapplied. Final 3004 backend restored to optimized after mode; 4204/3004 tabs
+remain open. No main integration, push or deployment was performed.

@@ -1,0 +1,988 @@
+{
+  "date": "2026-11-25",
+  "applicationRevision": "f147ff14",
+  "baselineServiceRevision": "c46490a71dca24ca07250b1ae9233047b72b4a41",
+  "optimizedServiceRevision": "bd2476be39e6f2ee9a1f39a7dd21ee3537579b93",
+  "scope": "Full local DEV UI issuance; real DEV DB, Firebase storage, standalone Chromium PDF, FillFaster signing; no emails or SHAAM calls.",
+  "sequence": [
+    "before-1",
+    "after-1",
+    "after-2",
+    "before-2"
+  ],
+  "liveSigningRequests": 24,
+  "successfulDocuments": 12,
+  "sourceMethod": "Only DocumentsService and ImageStorageService are loaded from historical baseline in before mode; other dependencies remain current. This is not a full historical checkout comparison.",
+  "metric": "Backend HTTP receive-to-response-finish; excludes user form filling, browser-control waits and subsequent download.",
+  "pdfCheck": {
+    "pages": 1,
+    "bytes": 1387807,
+    "pdfHeader": true,
+    "signatureEnvelope": true,
+    "expectedDocumentNumber": true,
+    "expectedAmount": true,
+    "expectedSyntheticMarker": true,
+    "sha256": "8f78436632bb53a4a623654c613724a0b8914aa9aa00188ec72a99f13fabb745"
+  },
+  "summary": [
+    {
+      "scenario": "transaction-invoice",
+      "beforeMs": [
+        24974,
+        9176
+      ],
+      "afterMs": [
+        13378,
+        6307
+      ],
+      "beforeMeanMs": 17075,
+      "afterMeanMs": 9842.5,
+      "reductionPercent": 42.357247437774525,
+      "warmRepeatReductionPercent": 31.266346992153448
+    },
+    {
+      "scenario": "receipt-cash",
+      "beforeMs": [
+        10485,
+        8002
+      ],
+      "afterMs": [
+        8635,
+        5578
+      ],
+      "beforeMeanMs": 9243.5,
+      "afterMeanMs": 7106.5,
+      "reductionPercent": 23.118948450262344,
+      "warmRepeatReductionPercent": 30.29242689327668
+    },
+    {
+      "scenario": "price-quote",
+      "beforeMs": [
+        15313,
+        7640
+      ],
+      "afterMs": [
+        7370,
+        6295
+      ],
+      "beforeMeanMs": 11476.5,
+      "afterMeanMs": 6832.5,
+      "reductionPercent": 40.46529865377075,
+      "warmRepeatReductionPercent": 17.604712041884817
+    }
+  ],
+  "runs": [
+    {
+      "scenario": "transaction-invoice",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "d1abc4d3-3ae5-4366-b570-831e94b8fbd9",
+      "status": 201,
+      "httpMs": 24974,
+      "sqlCount": 20,
+      "sqlSumMs": 792,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 73,
+        "RESERVE_DOCUMENT_NUMBER": 74,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 98,
+        "LINES_SAVE": 41,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 1,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 21131,
+        "UPLOAD_PAIR": 2926,
+        "FILE_PATHS_SAVE": 482,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 2,
+        "COMMIT": 20,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 29
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 19
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 3137
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 3306
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 5794
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 5810
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 2403
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 2407
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 3926
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 8084
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 2905
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 2917
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "fd63da35-4c33-4521-b1d3-c7799d06c8b0",
+      "status": 201,
+      "httpMs": 10485,
+      "sqlCount": 36,
+      "sqlSumMs": 753,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 15,
+        "RESERVE_GENERAL_INDEX": 73,
+        "RESERVE_DOCUMENT_NUMBER": 77,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 67,
+        "LINES_SAVE": 38,
+        "PAYMENTS_SAVE": 51,
+        "JOURNAL": 361,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 7751,
+        "UPLOAD_PAIR": 1900,
+        "FILE_PATHS_SAVE": 50,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 2,
+        "COMMIT": 23,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 27
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 29
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1861
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 1899
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1708
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1713
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1903
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1905
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2357
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1773
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1351
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1895
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "before",
+      "repetition": 1,
+      "requestId": "7afd033c-487e-40f9-a1ec-dd1ea2c41c52",
+      "status": 201,
+      "httpMs": 15313,
+      "sqlCount": 20,
+      "sqlSumMs": 468,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 140,
+        "RESERVE_DOCUMENT_NUMBER": 78,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 91,
+        "LINES_SAVE": 36,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 12628,
+        "UPLOAD_PAIR": 2177,
+        "FILE_PATHS_SAVE": 47,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 3,
+        "COMMIT": 23,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 26
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 30
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2971
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 3009
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 3325
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 3332
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 2934
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 2938
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 3920
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2340
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1975
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 2171
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "4b2bd44f-7e04-472a-9980-3798f5e9ff3c",
+      "status": 201,
+      "httpMs": 13378,
+      "sqlCount": 20,
+      "sqlSumMs": 457,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 108,
+        "RESERVE_DOCUMENT_NUMBER": 83,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 87,
+        "LINES_SAVE": 57,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 10976,
+        "UPLOAD_PAIR": 1822,
+        "FILE_PATHS_SAVE": 67,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 38,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 33
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 25
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2547
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 2593
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 3951
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 3957
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 2361
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 2365
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2769
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2011
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1606
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1814
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "c94e26fa-8d68-4c3d-b15e-ac6749a1e5b1",
+      "status": 201,
+      "httpMs": 8635,
+      "sqlCount": 36,
+      "sqlSumMs": 791,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 76,
+        "RESERVE_DOCUMENT_NUMBER": 75,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 71,
+        "LINES_SAVE": 46,
+        "PAYMENTS_SAVE": 39,
+        "JOURNAL": 356,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 5460,
+        "UPLOAD_PAIR": 2364,
+        "FILE_PATHS_SAVE": 49,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 26
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 32
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 44
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1898
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1901
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1253
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1255
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1944
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2238
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 2280
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 2359
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "after",
+      "repetition": 1,
+      "requestId": "76462d45-756a-4a8a-b9e5-3ad0c2cdbcdb",
+      "status": 201,
+      "httpMs": 7370,
+      "sqlCount": 20,
+      "sqlSumMs": 391,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 84,
+        "RESERVE_DOCUMENT_NUMBER": 91,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 88,
+        "LINES_SAVE": 41,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 5304,
+        "UPLOAD_PAIR": 1631,
+        "FILE_PATHS_SAVE": 39,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 17,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 23
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 27
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 35
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1687
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1689
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1543
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1545
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2626
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2016
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1578
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1628
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "5e371ee4-126c-4da1-be81-b165a7ad3791",
+      "status": 201,
+      "httpMs": 6307,
+      "sqlCount": 20,
+      "sqlSumMs": 338,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 55,
+        "RESERVE_GENERAL_INDEX": 66,
+        "RESERVE_DOCUMENT_NUMBER": 60,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 66,
+        "LINES_SAVE": 40,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 4578,
+        "UPLOAD_PAIR": 1336,
+        "FILE_PATHS_SAVE": 44,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 20,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 17
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 17
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 20
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1012
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1014
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1078
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1080
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2286
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 2444
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1305
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1331
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "7586f22f-84e8-40b2-a63a-daa24f188028",
+      "status": 201,
+      "httpMs": 5578,
+      "sqlCount": 36,
+      "sqlSumMs": 727,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 16,
+        "RESERVE_GENERAL_INDEX": 82,
+        "RESERVE_DOCUMENT_NUMBER": 81,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 70,
+        "LINES_SAVE": 45,
+        "PAYMENTS_SAVE": 22,
+        "JOURNAL": 323,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3409,
+        "UPLOAD_PAIR": 1414,
+        "FILE_PATHS_SAVE": 43,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 22
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 24
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 28
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 752
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 753
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 845
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 847
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 2082
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1763
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1407
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1412
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "after",
+      "repetition": 2,
+      "requestId": "d01dbdf2-02f9-41f5-b02e-977f6108f512",
+      "status": 201,
+      "httpMs": 6295,
+      "sqlCount": 20,
+      "sqlSumMs": 455,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 17,
+        "RESERVE_GENERAL_INDEX": 83,
+        "RESERVE_DOCUMENT_NUMBER": 74,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 93,
+        "LINES_SAVE": 123,
+        "PAYMENTS_SAVE": 15,
+        "JOURNAL": 1,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 4233,
+        "UPLOAD_PAIR": 1526,
+        "FILE_PATHS_SAVE": 44,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 20,
+        "RELEASE_OR_ERROR_CLEANUP": 2
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 31
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 26
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 35
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1538
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1540
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1084
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1088
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1464
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1539
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1459
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1526
+        }
+      ]
+    },
+    {
+      "scenario": "transaction-invoice",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "e42f62c9-d195-4974-bf85-61978adce75a",
+      "status": 201,
+      "httpMs": 9176,
+      "sqlCount": 20,
+      "sqlSumMs": 394,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 20,
+        "RESERVE_GENERAL_INDEX": 97,
+        "RESERVE_DOCUMENT_NUMBER": 74,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 87,
+        "LINES_SAVE": 38,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 7190,
+        "UPLOAD_PAIR": 1515,
+        "FILE_PATHS_SAVE": 52,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 1,
+        "COMMIT": 21,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 26
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 23
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 2940
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 2974
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 879
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 882
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 949
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 950
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1972
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1359
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1299
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1513
+        }
+      ]
+    },
+    {
+      "scenario": "receipt-cash",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "00f8337a-dea2-48bd-ab16-181e4b176d9c",
+      "status": 201,
+      "httpMs": 8002,
+      "sqlCount": 36,
+      "sqlSumMs": 836,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 25,
+        "RESERVE_GENERAL_INDEX": 98,
+        "RESERVE_DOCUMENT_NUMBER": 168,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 68,
+        "LINES_SAVE": 44,
+        "PAYMENTS_SAVE": 25,
+        "JOURNAL": 335,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 5637,
+        "UPLOAD_PAIR": 1478,
+        "FILE_PATHS_SAVE": 44,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 3,
+        "COMMIT": 18,
+        "RELEASE_OR_ERROR_CLEANUP": 0
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 25
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 18
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1331
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 1355
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1021
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1026
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 976
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 979
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1829
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1423
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1273
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1478
+        }
+      ]
+    },
+    {
+      "scenario": "price-quote",
+      "variant": "before",
+      "repetition": 2,
+      "requestId": "22e0879b-3aae-4aa6-8386-083b05a21d39",
+      "status": 201,
+      "httpMs": 7640,
+      "sqlCount": 20,
+      "sqlSumMs": 359,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 79,
+        "RESERVE_DOCUMENT_NUMBER": 88,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 65,
+        "LINES_SAVE": 34,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 5692,
+        "UPLOAD_PAIR": 1531,
+        "FILE_PATHS_SAVE": 51,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 1,
+        "COMMIT": 22,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "operations": [
+        {
+          "stage": "DTO_TRANSFORM",
+          "durationMs": 20
+        },
+        {
+          "stage": "BUSINESS_LOOKUP",
+          "durationMs": 18
+        },
+        {
+          "stage": "LOGO_DOWNLOAD",
+          "durationMs": 1337
+        },
+        {
+          "stage": "SHARED_PREPARE",
+          "durationMs": 1362
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1036
+        },
+        {
+          "stage": "ORIGINAL_RENDER",
+          "durationMs": 1040
+        },
+        {
+          "stage": "SERVICE_HTTP",
+          "durationMs": 1155
+        },
+        {
+          "stage": "COPY_RENDER",
+          "durationMs": 1160
+        },
+        {
+          "stage": "ORIGINAL_SIGN",
+          "durationMs": 1930
+        },
+        {
+          "stage": "COPY_SIGN",
+          "durationMs": 1351
+        },
+        {
+          "stage": "UPLOAD_ORIGINAL",
+          "durationMs": 1477
+        },
+        {
+          "stage": "UPLOAD_COPY",
+          "durationMs": 1523
+        }
+      ]
+    }
+  ]
+}
