@@ -26,6 +26,15 @@ export interface ReportDetails {
   // structureLink: string;
 }
 
+export const UNIFORM_FILE_OAUTH_SELECTION_KEY = 'uniform_file_oauth_selection';
+
+interface UniformFileOauthSelection {
+  userFirebaseId: string;
+  businessNumber: string;
+  startDate: string;
+  endDate: string;
+}
+
 @Component({
     selector: 'app-uniform-file',
     templateUrl: './uniform-file.page.html',
@@ -127,7 +136,8 @@ export class UniformFilePage implements OnInit {
     this.userData = this.authService.getUserDataFromLocalStorage();
     this.businessStatus = this.userData.businessStatus;
     const businesses = this.gs.businesses();
-    this.businessNumber.set(businesses[0].businessNumber);
+    const restoredSelection = this.consumeOauthSelection();
+    this.businessNumber.set(restoredSelection?.businessNumber ?? businesses[0]?.businessNumber ?? '');
 
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
@@ -149,16 +159,25 @@ export class UniformFilePage implements OnInit {
         periodDefaults: {
           periodMode: ReportingPeriodType.DATE_RANGE,
           year: currentYear,
+          startDate: restoredSelection?.startDate,
+          endDate: restoredSelection?.endDate,
         }
       },
     ];
 
-    this.loadUniformConnectionStatus();
+    if (restoredSelection) {
+      void this.onSubmit({
+        ...restoredSelection,
+        periodMode: ReportingPeriodType.DATE_RANGE,
+      }, false);
+    } else {
+      this.loadUniformConnectionStatus();
+    }
 
   }
 
 
-  async onSubmit(formValues?: any) {
+  async onSubmit(formValues?: any, downloadZip = true) {
 
     this.generatedAt = new Date();
 
@@ -226,21 +245,20 @@ export class UniformFilePage implements OnInit {
     const selectedBusiness = businesses.find(b => b.businessNumber === businessNumber);
     const businessName = selectedBusiness?.businessName || '';
 
-    // Initialize reportDetails before using it
+    this.reportDetails = null;
+    const { document_summary, list_summary, filePath } =
+    await this.createUniformFile(startDate, endDate, businessNumber, downloadZip);
+
     this.reportDetails = {
       businessNumber: businessNumber,
       businessName: businessName,
       startDate: startDate,
       endDate: endDate,
-      downloadLink: '',
+      downloadLink: filePath,
     };
-
-    const { document_summary, list_summary, filePath } =
-    await this.createUniformFile(startDate, endDate, businessNumber);
 
     this.uniformFileDocumentSummary = document_summary;
     this.uniformFileListSummary = list_summary;
-    this.reportDetails.downloadLink = filePath;
 
     } catch (err: any) {
       const message = err?.message ?? 'אירעה שגיאה בהפקת הדוח';
@@ -276,12 +294,63 @@ export class UniformFilePage implements OnInit {
   }
 
   connectUniformFile(): void {
+    this.saveOauthSelection();
     this.shaamService.initiateOAuthFlow(
       this.businessNumber(),
-      () => this.showShaamError('לא ניתן להתחיל את החיבור לרשות המסים'),
+      () => {
+        this.clearOauthSelection();
+        this.showShaamError('לא ניתן להתחיל את החיבור לרשות המסים');
+      },
       'uniform-file',
       'UNIFORM_FILE',
     );
+  }
+
+  private saveOauthSelection(): void {
+    this.clearOauthSelection();
+    if (!this.userData?.firebaseId || !this.reportDetails) return;
+    try {
+      sessionStorage.setItem(UNIFORM_FILE_OAUTH_SELECTION_KEY, JSON.stringify({
+        userFirebaseId: this.userData.firebaseId,
+        businessNumber: this.reportDetails.businessNumber,
+        startDate: this.reportDetails.startDate,
+        endDate: this.reportDetails.endDate,
+      } satisfies UniformFileOauthSelection));
+    } catch {
+      // Storage may be unavailable; the OAuth connection can still proceed.
+    }
+  }
+
+  private consumeOauthSelection(): UniformFileOauthSelection | null {
+    try {
+      const raw = sessionStorage.getItem(UNIFORM_FILE_OAUTH_SELECTION_KEY);
+      this.clearOauthSelection();
+      if (!raw || !this.userData?.firebaseId) return null;
+      const selection = JSON.parse(raw) as UniformFileOauthSelection;
+      if (
+        selection?.userFirebaseId !== this.userData.firebaseId ||
+        !this.gs.businesses().some(b => b.businessNumber === selection.businessNumber) ||
+        !this.isIsoDate(selection.startDate) || !this.isIsoDate(selection.endDate) ||
+        selection.startDate > selection.endDate
+      ) return null;
+      return selection;
+    } catch {
+      return null;
+    }
+  }
+
+  private clearOauthSelection(): void {
+    try {
+      sessionStorage.removeItem(UNIFORM_FILE_OAUTH_SELECTION_KEY);
+    } catch {
+      // The optional return selection must not block the connection.
+    }
+  }
+
+  private isIsoDate(value: unknown): value is string {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }
 
   submitUniformFileToShaam(): void {
@@ -382,10 +451,10 @@ export class UniformFilePage implements OnInit {
     });
   }
 
-  createUniformFile(startDate: string, endDate: string, businessNumber: string): Promise<{ document_summary: any[]; list_summary: any[]; filePath: string; file: string }> {
+  createUniformFile(startDate: string, endDate: string, businessNumber: string, downloadZip = true): Promise<{ document_summary: any[]; list_summary: any[]; filePath: string; file: string }> {
     return firstValueFrom(
       this.fileService.createUniformFile(startDate, endDate, businessNumber).pipe(
-        tap((response) => this.downloadBase64Zip(response.file)),
+        tap((response) => { if (downloadZip) this.downloadBase64Zip(response.file); }),
         map((response) => {
           console.log("response in uniform file page: ", response);
           const document_summary = (response.document_summary ?? []).map(row => ({

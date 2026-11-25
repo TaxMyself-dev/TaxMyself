@@ -14,6 +14,14 @@ Generates the "מבנה קבצים אחיד" (Israeli Uniform File Format) expor
   offered. Submission is enabled only after a successful generation and an
   active `UNIFORM_FILE` connection. OAuth uses the `uniform-file` callback
   origin so the user can return directly to this page.
+- Before OAuth, the page saves only the generated selection (user, business,
+  ISO start/end dates) in tab-scoped `sessionStorage`. On return it consumes
+  that selection once, verifies the current user and accessible business,
+  restores filter defaults and regenerates the local report without another
+  ZIP download or an automatic SHAAM submission. Malformed dates, a different
+  user or a removed business discard the selection. Failed OAuth initiation
+  clears it. A regeneration failure preserves the filter choices and reports
+  the error without displaying a successful report or offering submission.
 - The page displays only safe persisted pair/file states. `Uploaded` is
   rendered as waiting for processing, never as approval; both files must be
   `Approved` for the pair to appear approved. Polling is an explicit user

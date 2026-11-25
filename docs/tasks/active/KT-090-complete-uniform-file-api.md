@@ -187,3 +187,34 @@ tokens or upload capabilities to the browser.
   `Fatal process out of memory: Zone`; sequential `npm run build` retry after
   Jest exited passed with exit 0. `git diff --check` passed. Live authorization
   with the space delimiter remains pending; no external request was automated.
+
+### User-confirmed OAuth success and return selection — 2026-11-25
+
+- Elazar confirmed the space-delimited trial worked and supplied the local
+  Uniform File screen showing `מחובר לרשות המסים` for the ledger-test business.
+  This is interactive Daily Token connection evidence; upload-links, upload,
+  status and production acceptance remain unverified.
+- Follow-up defect: returning from OAuth reset business/date filters. Approved
+  scope: retain the generated report's business and date range across this
+  navigation, so the user does not have to select them again.
+- Implementation acceptance: save only user-bound business/start/end values
+  in tab-scoped session storage before OAuth; consume once on return and
+  validate the current user, accessible business and date range. Restore
+  filter defaults and regenerate the local report without downloading another
+  ZIP or automatically submitting files. Explicit generation still downloads.
+- Failed restoration retains the filters and surfaces the generation error;
+  no successful-report card or submit action is shown until generation succeeds.
+  Failed OAuth initiation clears the saved return selection.
+- Verification tier: frontend component behavior, focused Uniform File page
+  tests plus Angular production build. No database/schema/accounting or
+  backend behavior changes, and no external submission.
+- `npm test -- --watch=false --browsers=ChromeHeadless
+  --ts-config=tsconfig.uniform-file.spec.json
+  --include=src/app/pages/uniform-file/uniform-file.page.spec.ts` passed:
+  12 tests executed in ChromeHeadless, exit 0. The dedicated tsconfig avoids
+  the historical broad-spec compilation blocker; this run is execution
+  evidence rather than only TypeScript validation.
+- `npm run build -- --configuration=production` passed, exit 0. Warnings:
+  unrelated settings unused import, SCSS/initial bundle budgets and CommonJS
+  dependencies. `git diff --check` passed. Local fix only; no main integration,
+  push, production deployment or external file submission was performed.
