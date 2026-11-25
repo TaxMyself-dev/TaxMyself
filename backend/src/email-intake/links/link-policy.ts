@@ -141,11 +141,28 @@ export function chooseDeterministically(
     (c) =>
       !unsafeAction(c.text) &&
       !unrelatedAction(c.text) &&
-      documentAction(c.text + ' ' + (c.url || '')),
+      isDocumentCandidate(c),
   );
   const original = safe.filter(
     (c) => /original|מקור/i.test(c.text) && !/copy|העתק/i.test(c.text),
   );
   if (original.length === 1) return original[0].id;
   return safe.length === 1 ? safe[0].id : null;
+}
+
+export function isDocumentCandidate(candidate: LinkCandidate): boolean {
+  if (documentAction(candidate.text)) return true;
+  // Hostnames and signed query tokens are not evidence that a link is a document.
+  // In particular a "back to all scenarios" link on an invoice-named host must
+  // never take precedence over a JavaScript download button.
+  try {
+    const pathname = decodeURIComponent(
+      new URL(candidate.url, 'https://relative.example').pathname,
+    );
+    return (
+      matchesAccountingDocumentKeyword(pathname) || /\.pdf$/i.test(pathname)
+    );
+  } catch {
+    return false;
+  }
 }

@@ -106,3 +106,27 @@ Await Elazar's explicit approval before local main integration. After approved
 integration, his personal test of that exact main revision and separate push
 approval are still required. Retain the feature worktree until approved integration
 and its required checks/cleanup; do not delete the branch.
+
+## Follow-up: download containment and public fixture navigation (2026-11-25)
+
+On top of 0366659c5924704cf45713600850179bb552cc91:
+- Deny downloads in the browser default context; only the explicit isolated job
+  context can download into its temporary directory, removed in finally.
+- Document selection considers action text and URL pathname, not hostname/query
+  keywords. Public fixture navigation previously matched the document-named host
+  and led dynamic scenarios to the index and a false LINK_EXPIRED result.
+- Focused command: npm test -- --runInBand --runTestsByPath
+  src/email-intake/links/link-policy.spec.ts --globals
+  '{"ts-jest":{"isolatedModules":true}}': 34/34 tests passed.
+- Backend npm run build: passed. node test/link-download-simulation.cjs:
+  12/12 expected outcomes, 9 PDF downloads, zero destructive requests; asserts
+  default-context download denial. No paid model calls.
+- Public synthetic Site direct/javascript/blob/two-step probe using actual compiled
+  downloader: 4/4 passed, 2085/2093/2083/2088 bytes; zero model calls. Downloads
+  directory snapshot had zero added/modified files. Three browser job temporary
+  directories were removed. Probe lives outside Git in the original workspace
+  tmp/verify-link-download-location.cjs; it does not import mail or write Drive.
+- User-reported Downloads ction-1.pdf, ction-1 (1).pdf and tion-2.pdf have FillFaster
+  metadata, unlike ReportLab fixtures. Their source remains unconfirmed: passing
+  synthetic containment checks do not establish their origin or fix that report.
+- No broad suite rerun, main integration or GitHub push in this follow-up.

@@ -76,6 +76,11 @@ if (process.argv[2] !== '--child') {
   // Trust only this generated fixture certificate in the test browser.
   let browserDiagnostics = [];
   puppeteer.launch = async (options) => {
+    require('node:assert/strict').equal(
+      options.downloadBehavior?.policy,
+      'deny',
+      'Default browser downloads must be disabled',
+    );
     const browser = await realLaunch({
       ...options,
       args: [

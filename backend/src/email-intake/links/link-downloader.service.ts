@@ -10,7 +10,6 @@ import { LinkNetwork } from './link-network';
 import { LinkMetrics, LinkSelector } from './link-selector';
 import {
   chooseDeterministically,
-  documentAction,
   LinkCandidate,
   LinkDownloadError,
   LINK_MAX_BYTES,
@@ -18,6 +17,7 @@ import {
   publicLink,
   unsafeAction,
   unrelatedAction,
+  isDocumentCandidate,
 } from './link-policy';
 
 export function staticCandidates(html: string, base: string) {
@@ -212,6 +212,9 @@ export class LinkDownloader {
       browser = await puppeteer.launch({
         executablePath,
         headless: true,
+        // Fail closed for the default context and any unexpected new context.
+        // Only the explicit per-job context below may write to its private temp dir.
+        downloadBehavior: { policy: 'deny' },
         timeout: 10000,
         env: {
           PATH: process.env.PATH,
@@ -371,7 +374,7 @@ export class LinkDownloader {
         const selected = candidates.find((c) => c.id === choice);
         if (
           !selected ||
-          !documentAction(selected.text + ' ' + (selected.url || '')) ||
+          !isDocumentCandidate(selected) ||
           unsafeAction(selected.text)
         )
           throw new LinkDownloadError('LINK_MANUAL_REQUIRED');

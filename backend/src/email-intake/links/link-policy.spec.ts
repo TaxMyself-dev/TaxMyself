@@ -110,6 +110,26 @@ describe('linked-document discovery and selection', () => {
     ).toBe('a');
     expect(chooseDeterministically([copy, { ...copy, id: 'c' }])).toBeNull();
   });
+  it('does not follow navigation just because the host or query contains document keywords', () => {
+    const navigation = {
+      id: 'back',
+      text: 'כל התרחישים',
+      tag: 'A',
+      url: 'https://email-document-test-lab.example/?token=invoice',
+    };
+    expect(chooseDeterministically([navigation])).toBeNull();
+    expect(
+      chooseDeterministically([
+        navigation,
+        {
+          id: 'pdf',
+          text: '',
+          tag: 'A',
+          url: 'https://docs.example/files/invoice.pdf',
+        },
+      ]),
+    ).toBe('pdf');
+  });
   it.each([
     'http://docs.example/a.pdf',
     'https://user:secret@docs.example/a.pdf',
