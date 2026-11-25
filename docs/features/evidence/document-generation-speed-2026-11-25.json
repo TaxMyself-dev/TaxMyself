@@ -1,0 +1,3290 @@
+{
+  "date": "2026-11-25",
+  "timezone": "Asia/Jerusalem",
+  "beforeRevision": "c46490a71dca24ca07250b1ae9233047b72b4a41",
+  "afterRevision": "bd2476be39e6f2ee9a1f39a7dd21ee3537579b93",
+  "comparisons": {
+    "liveSigner": [
+      {
+        "scenario": "receipt-no-allocation",
+        "repeats": 2,
+        "beforeMeanMs": 2793,
+        "afterMeanMs": 2739,
+        "beforeMedianMs": 2793,
+        "afterMedianMs": 2739,
+        "improvementPct": 1.933404940923738,
+        "beforeRangeMs": [
+          2253,
+          3333
+        ],
+        "afterRangeMs": [
+          2308,
+          3170
+        ],
+        "fasterPairs": 1,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 3333,
+            "afterMs": 3170,
+            "changePct": 4.8904890489048904
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2253,
+            "afterMs": 2308,
+            "changePct": -2.4411895250776743
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 2464.0492000000013,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 602.490600000001,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 967.5458999999973,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1773.9796999999962,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "allocation-finalization",
+        "repeats": 2,
+        "beforeMeanMs": 2491,
+        "afterMeanMs": 2367,
+        "beforeMedianMs": 2491,
+        "afterMedianMs": 2367,
+        "improvementPct": 4.97792051384986,
+        "beforeRangeMs": [
+          2483,
+          2499
+        ],
+        "afterRangeMs": [
+          2056,
+          2678
+        ],
+        "fasterPairs": 1,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2499,
+            "afterMs": 2678,
+            "changePct": -7.162865146058423
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2483,
+            "afterMs": 2056,
+            "changePct": 17.196939186467983
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 628.6863999999987,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 574.8577000000005,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 623.8808999999965,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 622.1448000000019,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "multipage-allocation-logo",
+        "repeats": 2,
+        "beforeMeanMs": 4655.5,
+        "afterMeanMs": 3448,
+        "beforeMedianMs": 4655.5,
+        "afterMedianMs": 3448,
+        "improvementPct": 25.937063688110836,
+        "beforeRangeMs": [
+          4132,
+          5179
+        ],
+        "afterRangeMs": [
+          3146,
+          3750
+        ],
+        "fasterPairs": 2,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 5179,
+            "afterMs": 3750,
+            "changePct": 27.59219926626762
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 4132,
+            "afterMs": 3146,
+            "changePct": 23.862536302032915
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1347.2330999999976,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1117.9077000000107,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1608.8405000000057,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 987.1803999999975,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      }
+    ],
+    "controlledLocal": [
+      {
+        "scenario": "receipt-no-allocation",
+        "repeats": 3,
+        "beforeMeanMs": 1701.6666666666667,
+        "afterMeanMs": 1711.6666666666667,
+        "beforeMedianMs": 1661,
+        "afterMedianMs": 1628,
+        "improvementPct": -0.5876591576885406,
+        "beforeRangeMs": [
+          1619,
+          1825
+        ],
+        "afterRangeMs": [
+          1617,
+          1890
+        ],
+        "fasterPairs": 1,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 1619,
+            "afterMs": 1628,
+            "changePct": -0.5558987029030266
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 1825,
+            "afterMs": 1890,
+            "changePct": -3.5616438356164384
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 1661,
+            "afterMs": 1617,
+            "changePct": 2.6490066225165565
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 936.8667000000005,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1011.2354999999989,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 1167.306099999998,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1009.5002999999997,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 981.2171999999991,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1013.1849000000002,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 954.4411,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1021.0953000000009,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 1221.4553000000014,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1006.1836000000003,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 948.0063000000009,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1009.9142000000029,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "invoice-no-allocation",
+        "repeats": 3,
+        "beforeMeanMs": 1712.3333333333333,
+        "afterMeanMs": 1597.3333333333333,
+        "beforeMedianMs": 1631,
+        "afterMedianMs": 1600,
+        "improvementPct": 6.715982090714425,
+        "beforeRangeMs": [
+          1607,
+          1899
+        ],
+        "afterRangeMs": [
+          1510,
+          1682
+        ],
+        "fasterPairs": 2,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 1899,
+            "afterMs": 1510,
+            "changePct": 20.48446550816219
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 1631,
+            "afterMs": 1682,
+            "changePct": -3.126916002452483
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 1607,
+            "afterMs": 1600,
+            "changePct": 0.4355942750466708
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 1233.5676999999996,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1020.3942999999999,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 891.6893000000055,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1018.4732000000004,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 873.6731000000073,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1010.7206000000006,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 856.8526000000056,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1025.4218,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 992.3315999999977,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1010.5123000000021,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 902.9505999999965,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1025.758099999999,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "allocation-finalization",
+        "repeats": 3,
+        "beforeMeanMs": 2151,
+        "afterMeanMs": 1621.6666666666667,
+        "beforeMedianMs": 2102,
+        "afterMedianMs": 1632,
+        "improvementPct": 24.608709127537576,
+        "beforeRangeMs": [
+          2095,
+          2256
+        ],
+        "afterRangeMs": [
+          1601,
+          1632
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2256,
+            "afterMs": 1632,
+            "changePct": 27.659574468085108
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2095,
+            "afterMs": 1632,
+            "changePct": 22.100238663484486
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2102,
+            "afterMs": 1601,
+            "changePct": 23.83444338725024
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "renders": 2,
+              "renderSumMs": 954.6700999999957,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1019.7674000000043,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "renders": 2,
+              "renderSumMs": 789.9226999999955,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1025.8819999999978,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "renders": 2,
+              "renderSumMs": 793.2502999999997,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1021.4426999999996,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 977.2762000000002,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1019.7774999999965,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 970.9801999999981,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1017.4239999999991,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 941.1025999999911,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1009.2353999999978,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "allocation-with-logo",
+        "repeats": 3,
+        "beforeMeanMs": 2298.3333333333335,
+        "afterMeanMs": 1684.3333333333333,
+        "beforeMedianMs": 2314,
+        "afterMedianMs": 1590,
+        "improvementPct": 26.715010877447433,
+        "beforeRangeMs": [
+          2217,
+          2364
+        ],
+        "afterRangeMs": [
+          1372,
+          2091
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2364,
+            "afterMs": 2091,
+            "changePct": 11.548223350253807
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2314,
+            "afterMs": 1590,
+            "changePct": 31.28781331028522
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2217,
+            "afterMs": 1372,
+            "changePct": 38.114569237708615
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 825.4715999999971,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1015.4968999999983,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 740.6203999999998,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1018.8712999999989,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 678.1873999999953,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1021.5427999999811,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 1309.6624999999913,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1011.9061000000002,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 929.2912999999971,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1002.3689000000013,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 720.7788,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1011.4406999999919,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "multipage-allocation-logo",
+        "repeats": 3,
+        "beforeMeanMs": 2353.3333333333335,
+        "afterMeanMs": 1553.3333333333333,
+        "beforeMedianMs": 2334,
+        "afterMedianMs": 1534,
+        "improvementPct": 33.9943342776204,
+        "beforeRangeMs": [
+          2312,
+          2414
+        ],
+        "afterRangeMs": [
+          1484,
+          1642
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2414,
+            "afterMs": 1642,
+            "changePct": 31.980115990057996
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2312,
+            "afterMs": 1534,
+            "changePct": 33.65051903114187
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2334,
+            "afterMs": 1484,
+            "changePct": 36.41816623821765
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 843.3370999999897,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1022.8606,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 744.5936000000074,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1003.5761999999959,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "logoMetadata": 2,
+              "logoDownload": 2,
+              "renders": 2,
+              "renderSumMs": 749.875199999995,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1016.9393999999884,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 816.5060999999987,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1013.3087000000087,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 847.5123000000021,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1006.8002000000124,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "renders": 2,
+              "renderSumMs": 803.452500000014,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1024.056099999987,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "receipt-email-compatible",
+        "repeats": 3,
+        "beforeMeanMs": 2342.3333333333335,
+        "afterMeanMs": 2140.6666666666665,
+        "beforeMedianMs": 2374,
+        "afterMedianMs": 2171,
+        "improvementPct": 8.609648498648085,
+        "beforeRangeMs": [
+          2212,
+          2441
+        ],
+        "afterRangeMs": [
+          1871,
+          2380
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2374,
+            "afterMs": 2171,
+            "changePct": 8.550968828980624
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2212,
+            "afterMs": 1871,
+            "changePct": 15.415913200723327
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2441,
+            "afterMs": 2380,
+            "changePct": 2.498975829578042
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 774.0320000000065,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1017.5143999999855,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 619.0077000000165,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1010.7485000000161,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 988.1676000000152,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1011.7537000000011,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 825.1974999999948,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1009.2242999999871,
+              "uploads": 2,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 663.4231000000145,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1010.4197999999888,
+              "uploads": 2,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 1185.7995000000083,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1011.1984000000084,
+              "uploads": 2,
+              "mail": 1,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "receipt-email-queued",
+        "repeats": 3,
+        "beforeMeanMs": 2451.6666666666665,
+        "afterMeanMs": 1511,
+        "beforeMedianMs": 2210,
+        "afterMedianMs": 1592,
+        "improvementPct": 38.36845683208701,
+        "beforeRangeMs": [
+          2188,
+          2957
+        ],
+        "afterRangeMs": [
+          1346,
+          1595
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2957,
+            "afterMs": 1592,
+            "changePct": 46.16165032127156
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2210,
+            "afterMs": 1595,
+            "changePct": 27.828054298642535
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2188,
+            "afterMs": 1346,
+            "changePct": 38.482632541133455
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 1530.284400000004,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1011.7577000000019,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 622.2103999999963,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1010.8201999999874,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 648.6772999999957,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1014.5697000000073,
+              "uploads": 2,
+              "pdfRedownload": 1,
+              "mail": 1,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 782.011400000003,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1003.982199999984,
+              "uploads": 2,
+              "enqueue": 1,
+              "commit": 1,
+              "kick": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 889.2320000000036,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1017.9604999999865,
+              "uploads": 2,
+              "enqueue": 1,
+              "commit": 1,
+              "kick": 1
+            },
+            {
+              "businessLookup": 3,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 643.0400000000227,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1016.562699999995,
+              "uploads": 2,
+              "enqueue": 1,
+              "commit": 1,
+              "kick": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "warm-logo-preview",
+        "repeats": 3,
+        "beforeMeanMs": 604,
+        "afterMeanMs": 481.3333333333333,
+        "beforeMedianMs": 546,
+        "afterMedianMs": 434,
+        "improvementPct": 20.309050772626932,
+        "beforeRangeMs": [
+          500,
+          766
+        ],
+        "afterRangeMs": [
+          332,
+          678
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 500,
+            "afterMs": 434,
+            "changePct": 13.2
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 766,
+            "afterMs": 678,
+            "changePct": 11.488250652741515
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 546,
+            "afterMs": 332,
+            "changePct": 39.1941391941392
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 1,
+              "renderSumMs": 346.0481
+            },
+            {
+              "businessLookup": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 1,
+              "renderSumMs": 619.9937000000064
+            },
+            {
+              "businessLookup": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 1,
+              "renderSumMs": 393.1850000000122
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 1,
+              "renders": 1,
+              "renderSumMs": 425.65740000001097
+            },
+            {
+              "businessLookup": 1,
+              "renders": 1,
+              "renderSumMs": 664.1913999999961
+            },
+            {
+              "businessLookup": 1,
+              "renders": 1,
+              "renderSumMs": 317.40190000001166
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "cold-browser-receipt",
+        "repeats": 3,
+        "beforeMeanMs": 2479.6666666666665,
+        "afterMeanMs": 2703,
+        "beforeMedianMs": 2564,
+        "afterMedianMs": 2384,
+        "improvementPct": -9.006586906842324,
+        "beforeRangeMs": [
+          2228,
+          2647
+        ],
+        "afterRangeMs": [
+          2074,
+          3651
+        ],
+        "fasterPairs": 2,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 2647,
+            "afterMs": 3651,
+            "changePct": -37.92973177181715
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 2564,
+            "afterMs": 2384,
+            "changePct": 7.02028081123245
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 2228,
+            "afterMs": 2074,
+            "changePct": 6.912028725314183
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 1871.29770000001,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1008.1857000000018,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1012.2477000000072,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1015.682300000015,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 2962.223499999993,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1005.4628000000084,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1013.4695000000211,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1006.8984999999811,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      },
+      {
+        "scenario": "tax-invoice-receipt-payment",
+        "repeats": 3,
+        "beforeMeanMs": 1749.6666666666667,
+        "afterMeanMs": 1449.6666666666667,
+        "beforeMedianMs": 1686,
+        "afterMedianMs": 1426,
+        "improvementPct": 17.146123071061155,
+        "beforeRangeMs": [
+          1628,
+          1935
+        ],
+        "afterRangeMs": [
+          1366,
+          1557
+        ],
+        "fasterPairs": 3,
+        "pairs": [
+          {
+            "repeat": 0,
+            "beforeMs": 1628,
+            "afterMs": 1426,
+            "changePct": 12.407862407862408
+          },
+          {
+            "repeat": 1,
+            "beforeMs": 1935,
+            "afterMs": 1557,
+            "changePct": 19.53488372093023
+          },
+          {
+            "repeat": 2,
+            "beforeMs": 1686,
+            "afterMs": 1366,
+            "changePct": 18.979833926453143
+          }
+        ],
+        "counters": {
+          "before": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 637.0547999999835,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1022.5654999999679,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 1046.525800000003,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1021.8602000000246,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 750.4585000000079,
+              "signCalls": 2,
+              "maxSigns": 1,
+              "activeSigns": 0,
+              "signSumMs": 1002.0851000000257,
+              "uploads": 2,
+              "commit": 1
+            }
+          ],
+          "after": [
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "logoMetadata": 1,
+              "logoDownload": 1,
+              "renders": 2,
+              "renderSumMs": 615.9456000000064,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1018.4125000000058,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 878.7229999999981,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1007.1993000000075,
+              "uploads": 2,
+              "commit": 1
+            },
+            {
+              "businessLookup": 2,
+              "journal": 1,
+              "renders": 2,
+              "renderSumMs": 697.3570999999938,
+              "signCalls": 2,
+              "maxSigns": 2,
+              "activeSigns": 0,
+              "signSumMs": 1008.5821999999753,
+              "uploads": 2,
+              "commit": 1
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "liveSignerCalls": 24,
+  "signatureEnvelopeChecks": 24,
+  "pdfChecks": [
+    {
+      "file": "diagnostic-receipt-no-allocation-0-after-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "diagnostic-receipt-no-allocation-0-after-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "diagnostic-receipt-no-allocation-0-before-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "diagnostic-receipt-no-allocation-0-before-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "remaining-allocation-finalization-0-after-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-0-after-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-0-before-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-0-before-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-1-after-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-1-after-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-1-before-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-allocation-finalization-1-before-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-0-after-0.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-0-after-1.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-0-before-0.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-0-before-1.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-1-after-0.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-1-after-1.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-1-before-0.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-multipage-allocation-logo-1-before-1.pdf",
+      "pages": 5,
+      "signatureEnvelope": true,
+      "allocationExpected": true,
+      "allocationPresent": true
+    },
+    {
+      "file": "remaining-receipt-no-allocation-1-after-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "remaining-receipt-no-allocation-1-after-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "remaining-receipt-no-allocation-1-before-0.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    },
+    {
+      "file": "remaining-receipt-no-allocation-1-before-1.pdf",
+      "pages": 1,
+      "signatureEnvelope": true,
+      "allocationExpected": false,
+      "allocationPresent": false
+    }
+  ],
+  "localFailureChecks": [
+    {
+      "scenario": "sign-quota-failure",
+      "variant": "before",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1104.216999999975,
+        "signCalls": 1,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 0.15529999998398125,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "sign-quota-failure",
+      "variant": "after",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1178.9275000000198,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 0.11159999997471459,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "partial-upload-failure",
+      "variant": "before",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1444.3859999999986,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1008.5494999999937,
+        "uploads": 2,
+        "cleanup": 1,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "partial-upload-failure",
+      "variant": "after",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1235.7445000000007,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1016.3773000000219,
+        "uploads": 2,
+        "cleanup": 1,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "invalid-image",
+      "variant": "before",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 1,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "invalid-image",
+      "variant": "after",
+      "status": "passed",
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 1,
+        "rollback": 1
+      }
+    },
+    {
+      "scenario": "unresolved-allocation",
+      "variant": "before",
+      "status": "passed",
+      "metrics": {}
+    },
+    {
+      "scenario": "unresolved-allocation",
+      "variant": "after",
+      "status": "passed",
+      "metrics": {}
+    }
+  ],
+  "environment": {
+    "node": "v24.13.0",
+    "platform": "win32",
+    "renderer": "real local Chromium",
+    "signer": "simulated 500ms (controlled assumption; not live)",
+    "database": "isolated simulation",
+    "logo": "synthetic storage 120ms + real sharp; before uncached / after real cache",
+    "upload": "isolated 100ms each",
+    "mail": "isolated 500ms; queued-after uses transaction/kick spy",
+    "shaam": "not contacted; existing synthetic allocation number"
+  },
+  "harnessSha256": "59ee2faee09f0c1c71c51ee9e60d31d90e591fbcd66536e0426eec4413c49ebd",
+  "caveats": [
+    "Real Chromium and real before/after orchestration; no real DB/storage/mail/SHAAM or Cloud Run.",
+    "Live signer table: only 2 paired repetitions per scenario, not a statistical significance or p95 claim.",
+    "Live cases retained up to 6 browser instances over the three cases. Do not infer precise production speedups.",
+    "Initial live baseline includes the first provider connection; later paired order alternates.",
+    "Final controlled local run is bounded to two comparison browsers and alternates order; 3 repetitions per scenario.",
+    "Controlled local sign=500ms, logo storage=120ms, each upload=100ms, SMTP=500ms, business lookup=5ms; these are assumptions.",
+    "Queue-on comparison uses enqueue/commit/kick spies. It is not a MySQL durability/scheduler integration test; table remains unapplied/queue disabled.",
+    "Allocation cases use a stored synthetic number. Actual tax-authority allocation request time is excluded.",
+    "PDF checks validate envelope presence/page parsing/content, not cryptographic certificate trust.",
+    "Preliminary local runs were interrupted after detecting accumulated browser resources; their results are preserved separately and excluded from final local summary."
+  ],
+  "rawLiveRows": [
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 3333,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 2464.0492000000013,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 3170,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 967.5458999999973,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 2308,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1773.9796999999962,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2253,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 602.490600000001,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2499,
+      "metrics": {
+        "businessLookup": 3,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 628.6863999999987,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 2678,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 623.8808999999965,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 2056,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 622.1448000000019,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2483,
+      "metrics": {
+        "businessLookup": 3,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 574.8577000000005,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 5179,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1347.2330999999976,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 3750,
+      "metrics": {
+        "businessLookup": 2,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1608.8405000000057,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 3146,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 987.1803999999975,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 4132,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1117.9077000000107,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    }
+  ],
+  "rawLocalRows": [
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 1619,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 936.8667000000005,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1011.2354999999989,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1628,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 954.4411,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1021.0953000000009,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1890,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1221.4553000000014,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1006.1836000000003,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 1825,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1167.306099999998,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1009.5002999999997,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 1661,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 981.2171999999991,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1013.1849000000002,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "receipt-no-allocation",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1617,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 948.0063000000009,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1009.9142000000029,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 1899,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1233.5676999999996,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1020.3942999999999,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1510,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 856.8526000000056,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1025.4218,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1682,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 992.3315999999977,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1010.5123000000021,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 1631,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 891.6893000000055,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1018.4732000000004,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 1607,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 873.6731000000073,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1010.7206000000006,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "invoice-no-allocation",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1600,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 902.9505999999965,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1025.758099999999,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26137,
+        26186
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2256,
+      "metrics": {
+        "businessLookup": 3,
+        "renders": 2,
+        "renderSumMs": 954.6700999999957,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1019.7674000000043,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1632,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 977.2762000000002,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1019.7774999999965,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1632,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 970.9801999999981,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1017.4239999999991,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2095,
+      "metrics": {
+        "businessLookup": 3,
+        "renders": 2,
+        "renderSumMs": 789.9226999999955,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1025.8819999999978,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2102,
+      "metrics": {
+        "businessLookup": 3,
+        "renders": 2,
+        "renderSumMs": 793.2502999999997,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1021.4426999999996,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-finalization",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1601,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 941.1025999999911,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1009.2353999999978,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26667,
+        26718
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2364,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 825.4715999999971,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1015.4968999999983,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 2091,
+      "metrics": {
+        "businessLookup": 2,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 1309.6624999999913,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1011.9061000000002,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1590,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 929.2912999999971,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1002.3689000000013,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2314,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 740.6203999999998,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1018.8712999999989,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2217,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 678.1873999999953,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1021.5427999999811,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "allocation-with-logo",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1372,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 720.7788,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1011.4406999999919,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        28358,
+        28411
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2414,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 843.3370999999897,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1022.8606,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1642,
+      "metrics": {
+        "businessLookup": 2,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 816.5060999999987,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1013.3087000000087,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1534,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 847.5123000000021,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1006.8002000000124,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2312,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 744.5936000000074,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1003.5761999999959,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2334,
+      "metrics": {
+        "businessLookup": 3,
+        "logoMetadata": 2,
+        "logoDownload": 2,
+        "renders": 2,
+        "renderSumMs": 749.875199999995,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1016.9393999999884,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "multipage-allocation-logo",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1484,
+      "metrics": {
+        "businessLookup": 2,
+        "renders": 2,
+        "renderSumMs": 803.452500000014,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1024.056099999987,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        158964,
+        159013
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2374,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 774.0320000000065,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1017.5143999999855,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 2171,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 825.1974999999948,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1009.2242999999871,
+        "uploads": 2,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1871,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 663.4231000000145,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1010.4197999999888,
+        "uploads": 2,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2212,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 619.0077000000165,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1010.7485000000161,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2441,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 988.1676000000152,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1011.7537000000011,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-compatible",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 2380,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1185.7995000000083,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1011.1984000000084,
+        "uploads": 2,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2957,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 1530.284400000004,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1011.7577000000019,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1592,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 782.011400000003,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1003.982199999984,
+        "uploads": 2,
+        "enqueue": 1,
+        "commit": 1,
+        "kick": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1595,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 889.2320000000036,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1017.9604999999865,
+        "uploads": 2,
+        "enqueue": 1,
+        "commit": 1,
+        "kick": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2210,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 622.2103999999963,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1010.8201999999874,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2188,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 648.6772999999957,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1014.5697000000073,
+        "uploads": 2,
+        "pdfRedownload": 1,
+        "mail": 1,
+        "commit": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "receipt-email-queued",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1346,
+      "metrics": {
+        "businessLookup": 3,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 643.0400000000227,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1016.562699999995,
+        "uploads": 2,
+        "enqueue": 1,
+        "commit": 1,
+        "kick": 1
+      },
+      "pdfBytes": [
+        26997,
+        27047
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 500,
+      "metrics": {
+        "businessLookup": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 1,
+        "renderSumMs": 346.0481
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 434,
+      "metrics": {
+        "businessLookup": 1,
+        "renders": 1,
+        "renderSumMs": 425.65740000001097
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 678,
+      "metrics": {
+        "businessLookup": 1,
+        "renders": 1,
+        "renderSumMs": 664.1913999999961
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 766,
+      "metrics": {
+        "businessLookup": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 1,
+        "renderSumMs": 619.9937000000064
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 546,
+      "metrics": {
+        "businessLookup": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 1,
+        "renderSumMs": 393.1850000000122
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "warm-logo-preview",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 332,
+      "metrics": {
+        "businessLookup": 1,
+        "renders": 1,
+        "renderSumMs": 317.40190000001166
+      },
+      "pdfBytes": [
+        28155
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 2647,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 1871.29770000001,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1008.1857000000018,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 3651,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 2962.223499999993,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1005.4628000000084,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 2384,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1013.4695000000211,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 2564,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1012.2477000000072,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 2228,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1015.682300000015,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "cold-browser-receipt",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 2074,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1006.8984999999811,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        25302,
+        25348
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 0,
+      "variant": "before",
+      "totalMs": 1628,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 637.0547999999835,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1022.5654999999679,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 0,
+      "variant": "after",
+      "totalMs": 1426,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 615.9456000000064,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1018.4125000000058,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 1,
+      "variant": "after",
+      "totalMs": 1557,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 878.7229999999981,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1007.1993000000075,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 1,
+      "variant": "before",
+      "totalMs": 1935,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 1046.525800000003,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1021.8602000000246,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 2,
+      "variant": "before",
+      "totalMs": 1686,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "logoMetadata": 1,
+        "logoDownload": 1,
+        "renders": 2,
+        "renderSumMs": 750.4585000000079,
+        "signCalls": 2,
+        "maxSigns": 1,
+        "activeSigns": 0,
+        "signSumMs": 1002.0851000000257,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    },
+    {
+      "scenario": "tax-invoice-receipt-payment",
+      "repeat": 2,
+      "variant": "after",
+      "totalMs": 1366,
+      "metrics": {
+        "businessLookup": 2,
+        "journal": 1,
+        "renders": 2,
+        "renderSumMs": 697.3570999999938,
+        "signCalls": 2,
+        "maxSigns": 2,
+        "activeSigns": 0,
+        "signSumMs": 1008.5821999999753,
+        "uploads": 2,
+        "commit": 1
+      },
+      "pdfBytes": [
+        33838,
+        33875
+      ]
+    }
+  ]
+}

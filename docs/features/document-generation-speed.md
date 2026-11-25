@@ -1,8 +1,10 @@
 # Document generation speed
 
 Implemented on `codex/document-generation-speed`, based on `c46490a7`.
-Schema SQL is prepared only. No database application, production access, paid
-signing calls, live mail or deployment was performed for this task.
+Schema SQL is prepared only. No database application, production access, live
+mail or deployment was performed. A later user-authorized comparison consumed
+exactly 24 synthetic FillFaster signature calls; see the
+[before/after report](document-generation-speed-benchmark-2026-11-25.md).
 
 ## Issuance and email
 
@@ -123,10 +125,15 @@ provider error, so ambiguous/paid outcomes cannot be replayed automatically.
 
 The official [developer reference](https://help.fillfaster.com/developers/api/)
 alone did not establish concurrency support; the user-supplied provider reply
-is the evidence for this default change. No paid provider experiment or runtime
-environment/deployment change was performed.
+is the evidence for this default change. The later authorized before/after
+comparison used 24 paid/quota-consuming synthetic signatures; it made no runtime
+environment/deployment change.
 
 ## Verification and measurement limits
+
+The [measured comparison](document-generation-speed-benchmark-2026-11-25.md)
+separates actual FillFaster requests from controlled local I/O and includes small
+or negative results. It does not establish complete production request latency.
 
 Focused tests use controlled promises to prove overlap, transaction ordering,
 failure draining, retry/unknown policies and cache invalidation. They do not

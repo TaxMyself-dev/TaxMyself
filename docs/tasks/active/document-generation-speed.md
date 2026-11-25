@@ -143,3 +143,47 @@ measurement. Earlier queue/cache/guard tests remain applicable to unchanged code
 they were not rerun. No database or runtime/deployment configuration was changed.
 The local feature branch remains separate from main and has not been pushed.
 `main` independently advanced to `7cdc8580` by the final read-only check. This follow-up does not integrate/rebase that main revision or claim verification on it; integration review must use current main.
+
+
+## Requested before/after measurement (2026-11-25)
+
+Elazar explicitly approved **up to 24 synthetic live signature requests** in chat.
+Exactly 24 were made: diagnostic batch 4, inspected successfully, remaining 20.
+No automatic retry, live app document, DB/schema write, storage upload, email,
+SHAAM call, main integration or deployment. Original quota/DDL gates remain.
+
+Measured application revisions: before `c46490a71dca24ca07250b1ae9233047b72b4a41`,
+after `bd2476be39e6f2ee9a1f39a7dd21ee3537579b93`. Actual historical DocumentsService
+and ImageStorageService were compiled in isolation with the unchanged current
+renderer/template dependencies. The app was not bootstrapped. DB initialization
+was explicitly forbidden, Firebase was mocked, and only the existing signer
+could make live requests during the explicitly selected live phases.
+
+Evidence is in [the measurement report](../../features/document-generation-speed-benchmark-2026-11-25.md)
+and its linked sanitized JSON. Real signatures/Chromium were combined with
+simulated non-signing I/O for three scenarios, two paired repetitions each.
+Final controlled local run covered ten scenarios x three repetitions x two
+variants, plus eight failure checks. All 24 signed PDFs passed envelope/page/
+synthetic-content checks; allocated PDFs contained the synthetic number. No
+cryptographic certificate-trust result or production end-to-end improvement is
+claimed. The live matrix preceded the two-browser resource refinement.
+
+Findings: allocated multipage document with logo improved 4.656s -> 3.448s
+(25.9%) with real signing; ordinary receipt 2.793s -> 2.739s (1.9%) and short
+allocation finalization 2.491s -> 2.367s (5.0%) were inconsistent between pairs.
+Controlled queue-on creation improved 2.452s -> 1.511s (38.4%), but queue DB/
+scheduler activation is unverified and still disabled. Cold start and simple
+issuance did not show a consistent benefit; negative samples are retained.
+
+Two preliminary local runs were intentionally interrupted; inspection found
+idle Chromium processes accumulating by scenario. Their results are excluded
+from final local aggregates and retained privately. Diagnostic harness cleanup
+was changed to bound the comparison window to two browsers; no product code,
+fixture acceptance criterion or threshold was weakened. A PDF verifier filename
+mapping error was corrected after its failed run; no new paid requests followed.
+
+Exact commands, results, skips, ranges and caveats are in the report. Final
+focused Jest batch: 7 suites / 96 tests passed, exit 0, 44.524s. Node syntax,
+local Markdown links/JSON integrity and whitespace checks passed. Prior build
+evidence is reused because product code was unchanged. Local feature commit
+contains reproducible scripts, sanitized evidence and docs only.
