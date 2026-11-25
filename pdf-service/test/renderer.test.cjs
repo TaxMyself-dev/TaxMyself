@@ -117,7 +117,7 @@ test("development diagnostics report stages without document content", async (t)
   await f.render(job);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].event, "pdf_render_stages");
-  assert.deepEqual(Object.keys(logs[0].stagesMs), ["PREPARE", "BROWSER_LAUNCH", "PAGE_SETUP", "HTML_LOAD", "ASSET_READY", "PDF_PRINT", "CONTEXT_CLOSE"]);
+  assert.deepEqual(Object.keys(logs[0].stagesMs), ["PREPARE", "BROWSER_LAUNCH", "CONTEXT_CREATE", "PAGE_CREATE", "PAGE_SECURITY", "HTML_LOAD", "ASSET_READY", "PDF_PRINT", "CONTEXT_CLOSE"]);
   assert.equal(logs[0].document, undefined);
 });
 test("diagnostic logger errors cannot fail rendering", async (t) => {
@@ -192,4 +192,15 @@ test("asset failure fails closed and releases the context", async (t) => {
   await assert.rejects(f.render(job), e => e.code === "RENDER_ASSET_READY_FAILED");
   assert.equal(f.state().closed, 1);
   assert.equal(f.state().killed, 1);
+});
+
+test("warmup exercises PDF pipeline but preserves fresh document isolation", async (t) => {
+  const f = fixture(t);
+  assert.equal(await f.render.warmup(), undefined);
+  await f.render(job);
+  assert.equal(f.state().launches, 1);
+  assert.equal(f.state().contexts, 2);
+  assert.equal(f.state().closed, 2);
+  await f.render.close();
+  await assert.rejects(f.render.warmup(), e => e.code === "RENDERER_CLOSED");
 });

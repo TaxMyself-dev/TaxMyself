@@ -100,10 +100,12 @@ function createRenderer({
             throw new RenderError("RENDER_TIMEOUT", 504);
           }
           phase = "PAGE_SETUP";
-          mark(phase);
+          mark("CONTEXT_CREATE");
           context = await browser.createBrowserContext();
           if (finished) { await context.close(); throw new RenderError("RENDER_TIMEOUT", 504); }
+          mark("PAGE_CREATE");
           const page = await context.newPage();
+          mark("PAGE_SECURITY");
           await page.setJavaScriptEnabled(false);
           await page.setRequestInterception(true);
           page.on("requestfinished", (request) => { requestCounts.finished++; requests.delete(request); });
@@ -212,6 +214,14 @@ function createRenderer({
         } catch {}
       }
     }
+  };
+  // Exercise fonts, layout, print and cleanup before accepting customer jobs.
+  // No caller data, external I/O, signed document, or reusable page/context.
+  render.warmup = async () => {
+    await render({ version: 1, requestId: "startup-warmup", document: {
+      title: "PDF warmup", documentType: "preview", date: "",
+      preview: true, items: [], totals: [], payments: [], paymentTotals: [],
+    } });
   };
   render.close = async () => {
     disposed = true;

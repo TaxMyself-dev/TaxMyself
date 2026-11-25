@@ -112,11 +112,8 @@ if (require.main === module) {
     fontDirectory: path.join(__dirname, "../fonts"),
   });
   const server = createServer({ render });
-  server.listen(Number(process.env.PORT || 8080), "0.0.0.0", () =>
-    console.log(
-      JSON.stringify({ event: "pdf_service_ready", node: process.version })
-    )
-  );
+  require("./start.cjs").startServer({render, server, port:Number(process.env.PORT || 8080), host:"0.0.0.0"})
+    .catch(() => { console.error(JSON.stringify({event:"pdf_startup_failed"})); process.exitCode = 1; });
   process.once("SIGTERM", () => {
     const stop = setTimeout(() => process.exit(1), 8000);
     stop.unref();

@@ -1,0 +1,1340 @@
+{
+  "before": {
+    "node": "v24.13.0",
+    "warmup": false,
+    "records": [
+      {
+        "scenario": "short",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1449,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-1-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 1075,
+            "stages": {
+              "PREPARE": 4,
+              "BROWSER_LAUNCH": 603,
+              "PAGE_SETUP": 286,
+              "HTML_LOAD": 39,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 114,
+              "CONTEXT_CLOSE": 18
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-1-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 374,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 201,
+              "HTML_LOAD": 67,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 88,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1025,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-1-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 496,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 173,
+              "HTML_LOAD": 155,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 138,
+              "CONTEXT_CLOSE": 9
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-1-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 527,
+            "stages": {
+              "PREPARE": 12,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 188,
+              "HTML_LOAD": 164,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 145,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1133,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-1-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 517,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 147,
+              "HTML_LOAD": 137,
+              "ASSET_READY": 11,
+              "PDF_PRINT": 197,
+              "CONTEXT_CLOSE": 10
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-1-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 614,
+            "stages": {
+              "PREPARE": 8,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 199,
+              "HTML_LOAD": 194,
+              "ASSET_READY": 12,
+              "PDF_PRINT": 188,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "short",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1027,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-2-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 707,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 391,
+              "PAGE_SETUP": 179,
+              "HTML_LOAD": 37,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 80,
+              "CONTEXT_CLOSE": 14
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-2-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 320,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 169,
+              "HTML_LOAD": 56,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 81,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 917,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-2-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 470,
+            "stages": {
+              "PREPARE": 10,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 155,
+              "HTML_LOAD": 150,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 141,
+              "CONTEXT_CLOSE": 7
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-2-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 445,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 151,
+              "HTML_LOAD": 135,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 131,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1118,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-2-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 521,
+            "stages": {
+              "PREPARE": 15,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 169,
+              "HTML_LOAD": 151,
+              "ASSET_READY": 10,
+              "PDF_PRINT": 161,
+              "CONTEXT_CLOSE": 12
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-2-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 593,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 185,
+              "HTML_LOAD": 197,
+              "ASSET_READY": 10,
+              "PDF_PRINT": 177,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "node": "v24.13.0",
+    "warmup": true,
+    "records": [
+      {
+        "scenario": "short",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 778,
+        "pairMs": 553,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-1-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 249,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 21,
+              "PAGE_CREATE": 116,
+              "PAGE_SECURITY": 1,
+              "HTML_LOAD": 29,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 67,
+              "CONTEXT_CLOSE": 8
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-1-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 303,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 21,
+              "PAGE_CREATE": 131,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 63,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 71,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 778,
+        "pairMs": 767,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-1-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 397,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 23,
+              "PAGE_CREATE": 123,
+              "PAGE_SECURITY": 1,
+              "HTML_LOAD": 107,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 112,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-1-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 368,
+            "stages": {
+              "PREPARE": 10,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 12,
+              "PAGE_CREATE": 104,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 111,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 108,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 778,
+        "pairMs": 975,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-1-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 461,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 17,
+              "PAGE_CREATE": 115,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 148,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 149,
+              "CONTEXT_CLOSE": 9
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-1-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 511,
+            "stages": {
+              "PREPARE": 6,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 14,
+              "PAGE_CREATE": 141,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 167,
+              "ASSET_READY": 12,
+              "PDF_PRINT": 154,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "short",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 738,
+        "pairMs": 567,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-2-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 288,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 23,
+              "PAGE_CREATE": 115,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 40,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 92,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-2-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 279,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 26,
+              "PAGE_CREATE": 111,
+              "PAGE_SECURITY": 1,
+              "HTML_LOAD": 60,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 68,
+              "CONTEXT_CLOSE": 7
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 738,
+        "pairMs": 964,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-2-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 538,
+            "stages": {
+              "PREPARE": 14,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 9,
+              "PAGE_CREATE": 186,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 157,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 147,
+              "CONTEXT_CLOSE": 13
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-2-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 424,
+            "stages": {
+              "PREPARE": 9,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 14,
+              "PAGE_CREATE": 109,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 161,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 113,
+              "CONTEXT_CLOSE": 6
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 738,
+        "pairMs": 1183,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-2-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 564,
+            "stages": {
+              "PREPARE": 18,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 11,
+              "PAGE_CREATE": 107,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 173,
+              "ASSET_READY": 11,
+              "PDF_PRINT": 220,
+              "CONTEXT_CLOSE": 17
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-2-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 618,
+            "stages": {
+              "PREPARE": 15,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 19,
+              "PAGE_CREATE": 164,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 213,
+              "ASSET_READY": 13,
+              "PDF_PRINT": 178,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "after-no-warmup": {
+    "node": "v24.13.0",
+    "warmup": false,
+    "records": [
+      {
+        "scenario": "short",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1678,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-1-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 1285,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 692,
+              "CONTEXT_CREATE": 15,
+              "PAGE_CREATE": 261,
+              "PAGE_SECURITY": 32,
+              "HTML_LOAD": 109,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 150,
+              "CONTEXT_CLOSE": 14
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-1-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 393,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 23,
+              "PAGE_CREATE": 177,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 50,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 112,
+              "CONTEXT_CLOSE": 16
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 894,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-1-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 479,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 30,
+              "PAGE_CREATE": 166,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 146,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 104,
+              "CONTEXT_CLOSE": 7
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-1-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 410,
+            "stages": {
+              "PREPARE": 10,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 16,
+              "PAGE_CREATE": 126,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 116,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 126,
+              "CONTEXT_CLOSE": 7
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1020,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-1-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 591,
+            "stages": {
+              "PREPARE": 8,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 13,
+              "PAGE_CREATE": 139,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 205,
+              "ASSET_READY": 19,
+              "PDF_PRINT": 191,
+              "CONTEXT_CLOSE": 6
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-1-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 427,
+            "stages": {
+              "PREPARE": 9,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 16,
+              "PAGE_CREATE": 131,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 135,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 116,
+              "CONTEXT_CLOSE": 7
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "short",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1583,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-2-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 908,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 501,
+              "CONTEXT_CREATE": 13,
+              "PAGE_CREATE": 199,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 49,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 116,
+              "CONTEXT_CLOSE": 16
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-2-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 675,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 34,
+              "PAGE_CREATE": 356,
+              "PAGE_SECURITY": 10,
+              "HTML_LOAD": 93,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 163,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1289,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-2-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 642,
+            "stages": {
+              "PREPARE": 17,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 26,
+              "PAGE_CREATE": 188,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 213,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 159,
+              "CONTEXT_CLOSE": 12
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-2-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 645,
+            "stages": {
+              "PREPARE": 7,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 12,
+              "PAGE_CREATE": 169,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 208,
+              "ASSET_READY": 10,
+              "PDF_PRINT": 197,
+              "CONTEXT_CLOSE": 32
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1670,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-2-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 868,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 1,
+              "CONTEXT_CREATE": 35,
+              "PAGE_CREATE": 251,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 283,
+              "ASSET_READY": 23,
+              "PDF_PRINT": 241,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-2-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 800,
+            "stages": {
+              "PREPARE": 14,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 22,
+              "PAGE_CREATE": 265,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 230,
+              "ASSET_READY": 14,
+              "PDF_PRINT": 242,
+              "CONTEXT_CLOSE": 8
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "before-repeat": {
+    "node": "v24.13.0",
+    "warmup": false,
+    "records": [
+      {
+        "scenario": "short",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1494,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-1-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 1056,
+            "stages": {
+              "PREPARE": 3,
+              "BROWSER_LAUNCH": 501,
+              "PAGE_SETUP": 342,
+              "HTML_LOAD": 48,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 140,
+              "CONTEXT_CLOSE": 16
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-1-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 437,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 242,
+              "HTML_LOAD": 71,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 107,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1101,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-1-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 581,
+            "stages": {
+              "PREPARE": 14,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 209,
+              "HTML_LOAD": 176,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 161,
+              "CONTEXT_CLOSE": 9
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-1-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 518,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 182,
+              "HTML_LOAD": 162,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 143,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1331,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-1-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 719,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 179,
+              "HTML_LOAD": 196,
+              "ASSET_READY": 14,
+              "PDF_PRINT": 298,
+              "CONTEXT_CLOSE": 14
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-1-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 610,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 171,
+              "HTML_LOAD": 186,
+              "ASSET_READY": 14,
+              "PDF_PRINT": 213,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "short",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1324,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-2-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 960,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 477,
+              "PAGE_SETUP": 281,
+              "HTML_LOAD": 67,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 112,
+              "CONTEXT_CLOSE": 15
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-2-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 364,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 192,
+              "HTML_LOAD": 63,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 95,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1087,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-2-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 542,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 165,
+              "HTML_LOAD": 176,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 163,
+              "CONTEXT_CLOSE": 13
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-2-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 543,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 208,
+              "HTML_LOAD": 159,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 148,
+              "CONTEXT_CLOSE": 7
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "warmup": false,
+        "warmupMs": 0,
+        "pairMs": 1242,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-2-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 655,
+            "stages": {
+              "PREPARE": 10,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 170,
+              "HTML_LOAD": 175,
+              "ASSET_READY": 21,
+              "PDF_PRINT": 261,
+              "CONTEXT_CLOSE": 14
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-2-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 585,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "PAGE_SETUP": 210,
+              "HTML_LOAD": 162,
+              "ASSET_READY": 12,
+              "PDF_PRINT": 180,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "after-final": {
+    "node": "v24.13.0",
+    "warmup": true,
+    "records": [
+      {
+        "scenario": "short",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 714,
+        "pairMs": 588,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-1-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 296,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 20,
+              "PAGE_CREATE": 137,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 48,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 71,
+              "CONTEXT_CLOSE": 7
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-1-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 291,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 20,
+              "PAGE_CREATE": 126,
+              "PAGE_SECURITY": 9,
+              "HTML_LOAD": 48,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 72,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 714,
+        "pairMs": 846,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-1-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 471,
+            "stages": {
+              "PREPARE": 11,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 17,
+              "PAGE_CREATE": 123,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 179,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 119,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-1-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 373,
+            "stages": {
+              "PREPARE": 8,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 17,
+              "PAGE_CREATE": 115,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 112,
+              "ASSET_READY": 5,
+              "PDF_PRINT": 102,
+              "CONTEXT_CLOSE": 9
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "warmup": true,
+        "warmupMs": 714,
+        "pairMs": 951,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-1-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 464,
+            "stages": {
+              "PREPARE": 13,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 11,
+              "PAGE_CREATE": 109,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 132,
+              "ASSET_READY": 12,
+              "PDF_PRINT": 168,
+              "CONTEXT_CLOSE": 13
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-1-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 485,
+            "stages": {
+              "PREPARE": 9,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 16,
+              "PAGE_CREATE": 149,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 149,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 135,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "short",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 645,
+        "pairMs": 533,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "short-2-original.pdf",
+            "bytes": 20795,
+            "elapsedMs": 273,
+            "stages": {
+              "PREPARE": 0,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 22,
+              "PAGE_CREATE": 138,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 28,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 68,
+              "CONTEXT_CLOSE": 10
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "short-2-copy.pdf",
+            "bytes": 20966,
+            "elapsedMs": 260,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 24,
+              "PAGE_CREATE": 111,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 44,
+              "ASSET_READY": 2,
+              "PDF_PRINT": 63,
+              "CONTEXT_CLOSE": 11
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "logo",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 645,
+        "pairMs": 786,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "logo-2-original.pdf",
+            "bytes": 809080,
+            "elapsedMs": 378,
+            "stages": {
+              "PREPARE": 10,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 16,
+              "PAGE_CREATE": 116,
+              "PAGE_SECURITY": 2,
+              "HTML_LOAD": 116,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 100,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "logo-2-copy.pdf",
+            "bytes": 809251,
+            "elapsedMs": 406,
+            "stages": {
+              "PREPARE": 7,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 18,
+              "PAGE_CREATE": 128,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 120,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 112,
+              "CONTEXT_CLOSE": 8
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "warmup": true,
+        "warmupMs": 645,
+        "pairMs": 977,
+        "files": [
+          {
+            "kind": "original",
+            "filename": "allocated-multipage-2-original.pdf",
+            "bytes": 909689,
+            "elapsedMs": 469,
+            "stages": {
+              "PREPARE": 9,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 19,
+              "PAGE_CREATE": 134,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 144,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 140,
+              "CONTEXT_CLOSE": 8
+            }
+          },
+          {
+            "kind": "copy",
+            "filename": "allocated-multipage-2-copy.pdf",
+            "bytes": 909754,
+            "elapsedMs": 506,
+            "stages": {
+              "PREPARE": 7,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 14,
+              "PAGE_CREATE": 132,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 152,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 168,
+              "CONTEXT_CLOSE": 7
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "baselineCommit": "54cb0da4",
+  "baselineRendererSha256": "6105aed74fce99816a8614c5dde50ecc9d8006bf68184158153c1d8187eac863",
+  "finalRendererSha256": "36c921e9779f207df079308217294a1589980727a70e5398dea26c417e7a6157",
+  "outputChecks": [
+    {
+      "file": "allocated-multipage-1-copy.pdf",
+      "pages": 4,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "allocated-multipage-1-original.pdf",
+      "pages": 4,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "allocated-multipage-2-copy.pdf",
+      "pages": 4,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "allocated-multipage-2-original.pdf",
+      "pages": 4,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "logo-1-copy.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "logo-1-original.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "logo-2-copy.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "logo-2-original.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "short-1-copy.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "short-1-original.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "short-2-copy.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    },
+    {
+      "file": "short-2-original.pdf",
+      "pages": 1,
+      "contentMatchesBaseline": true
+    }
+  ],
+  "scope": "Synthetic Windows Chromium renderer only; no DB, signing, storage, email, real allocation request or full DEV issuance."
+}

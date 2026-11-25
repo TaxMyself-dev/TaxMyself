@@ -206,3 +206,23 @@ Allocation-number live UI remains unverified because authorized issuer is exempt
 and sandbox allocation requires its dedicated issuer. Queue remains off and SQL
 unapplied. Final 3004 backend restored to optimized after mode; 4204/3004 tabs
 remain open. No main integration, push or deployment was performed.
+
+
+## PDF startup follow-up (2026-11-25)
+
+User authorized implementing measured PDF preparation improvements. Added
+synthetic startup warmup before standalone production/local listener readiness,
+explicit opt-out, finer development page-preparation stages and bounded actual
+Chromium comparison harness. Kept fresh contexts and existing security/capacity/
+deadline behavior. Removed experimental page-security concurrency after noisy
+measurements; no steady-state speedup or full DEV SLA is claimed.
+
+Final checks: 27 service tests passed, service template build passed, four HTTP
+PDF cases and three numeric-layout cases passed, 12 final PDFs match baseline
+text/page counts, two visually inspected. Actual local entrypoint warms before
+ready. Earlier full DEV/signing evidence is not presented as verification of
+this new executable source. No DB/schema/mail/signature/cloud changes.
+
+See [startup evidence/report](../../features/pdf-startup-2026-11-25.md) for exact
+commands, batches, final/mixed revision distinction and cold-start cost caveat.
+Local feature commit only; awaiting separate main integration approval.

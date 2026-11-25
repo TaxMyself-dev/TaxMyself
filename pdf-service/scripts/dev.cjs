@@ -15,9 +15,8 @@ const render = createRenderer({
 });
 const server = createServer({ render });
 const port = Number(process.env.PDF_DEV_PORT || 8082);
-server.listen(port, "127.0.0.1", () => console.log(JSON.stringify({
-  event: "pdf_service_ready", node: process.version, port, local: true,
-})));
+require("../src/start.cjs").startServer({render, server, port, host:"127.0.0.1"})
+  .catch(() => { console.error(JSON.stringify({event:"pdf_startup_failed"})); process.exitCode = 1; });
 const stop = () => {
   const timer = setTimeout(() => process.exit(1), 8000); timer.unref();
   server.drain().then(() => render.close()).then(() => { clearTimeout(timer); process.exit(0); });

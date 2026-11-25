@@ -292,3 +292,18 @@ supplied on 2026-11-25 permits two parallel signature requests even on the same
 template, so this is now the default (`PDF_PARALLEL_SIGNING=false` opts out).
 Numeric quotas remain unspecified; no automatic signing retries are added. Outbox SQL is
 prepared only and its activation is separately gated.
+
+
+## Startup warmup
+
+Both production and local dev entrypoints complete one synthetic unsigned render
+before listening/announcing ready. It warms Chromium/fonts/printing and discards
+the bytes, closing its isolated context; customer jobs always get fresh contexts.
+Failure closes the renderer and fails startup. Set PDF_WARMUP=false to opt out.
+The ready event includes warmup and startupMs; development stage diagnostics
+separate context creation, page creation and security setup.
+
+Warmup adds startup work. Request-triggered cold starts still include that wait;
+an instance must already be ready to hide it from the first customer. No cloud
+minimum-instance or other deployment setting is changed by this code. See
+[measured results and limits](../docs/features/pdf-startup-2026-11-25.md).
