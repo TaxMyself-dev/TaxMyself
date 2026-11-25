@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/email-document-links-spec",
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/test.ts",
+    "src/polyfills.ts",
+    "src/app/pages/book-keeping/archived-documents/email-document-links.component.spec.ts"
+  ],
+  "include": ["src/**/*.d.ts"]
+}

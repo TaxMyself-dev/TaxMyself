@@ -365,7 +365,7 @@ export class GmailSyncService {
 
     if(this.durableRuns?.enabled()) {
       const after=Math.floor((integration.lastSuccessfulSyncAt.getTime()-NIGHTLY_SYNC_OVERLAP_MS)/1000);
-      await this.durableRuns.start(integration,{type:'NIGHTLY',query:'has:attachment after:'+after});
+      await this.durableRuns.start(integration,{type:'NIGHTLY',query:'after:'+after});
       return {outcome:'skipped',detail:'Durable scan queued; completion tracked separately'};
     }
     const windowEnd = new Date();
@@ -392,7 +392,7 @@ export class GmailSyncService {
         (integration.lastSuccessfulSyncAt.getTime() - NIGHTLY_SYNC_OVERLAP_MS) / 1000,
       );
       const result = await this.gmailDriveImportService.importFromGmail(integration, {
-        query: `has:attachment after:${afterEpochSeconds}`,
+        query: `after:${afterEpochSeconds}`,
         includeFileDetails: false,
         skipStats,
         pdfStats,
@@ -524,7 +524,7 @@ export class GmailSyncService {
     this.validateDateRange(fromDate, toDate);
     const after = fromDate.replace(/-/g, '/');
     const before = this.dayAfter(toDate).replace(/-/g, '/');
-    return `has:attachment after:${after} before:${before}`;
+    return `after:${after} before:${before}`;
   }
 
   /** YYYY-MM-DD → the following day, also YYYY-MM-DD (UTC math, no DST traps). */

@@ -17,6 +17,8 @@ import {
 import { UserIntegration } from '../integrations/entities/user-integration.entity';
 import { EmailRuleBlockedError, EmailRulesChangedError } from './email-routing.policy';
 import { EmailProviderError } from '../integrations/providers/email-provider.error';
+import { LinkDownloader } from './links/link-downloader.service';
+import { LinkDownloadError } from './links/link-policy';
 @Injectable()
 export class EmailIntakeRunsService implements OnModuleDestroy {
   private exclusiveRunner?: QueryRunner;
@@ -29,6 +31,7 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
     readonly importer: DocumentImportService,
     readonly storage: EmailIntakeStorage,
     @Optional() readonly routing?: EmailRoutingService,
+    @Optional() readonly links?: LinkDownloader,
   ) {}
   enabled() {
     return this.store.enabled();
@@ -59,7 +62,7 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
     const now = Math.floor(Date.now() / 1000);
     const frozenQuery =
       !suppliedQuery || suppliedQuery === DEFAULT_GMAIL_QUERY
-        ? 'has:attachment after:' + (now - 90 * 86400) + ' before:' + (now + 1)
+        ? 'after:' + (now - 90 * 86400) + ' before:' + (now + 1)
         : suppliedQuery +
           (options.type === 'NIGHTLY' ? ' before:' + (now + 1) : '');
     const mailboxBusiness = this.routing ? (await this.routing.initial(integration.firebaseId,integration.id)).initialBusiness : options.businessNumber;
@@ -256,6 +259,33 @@ export class EmailIntakeRunsService implements OnModuleDestroy {
         (
           await this.store.items(run.id, 'part', 2)
         ).map(async (item) => {
+          if(item.part_path.startsWith('link:')){
+            return this.store.withLinkLock(item.id,async()=>{
+            if(!await this.store.beginLink(run,token,item))return;
+            try{
+              if(!this.links)throw new LinkDownloadError('LINK_DOWNLOAD_UNAVAILABLE');
+              const url=await this.reader.assertLinkedSource(integration,item.message_id,item.part_path);
+              const assertAllowed=async()=>{
+                if(this.routing){const metadata=typeof item.source_metadata_json==='string'?JSON.parse(item.source_metadata_json):item.source_metadata_json||{};await this.routing.assertAllowed(run.firebase_id,run.integration_id,metadata.gmailFrom);}
+                const current=await this.integrations.findOwnedByIdOrThrow(run.integration_id,run.firebase_id);
+                if(current.status!==IntegrationStatus.ACTIVE)throw new LinkDownloadError('LINK_ACCESS_REQUIRED');
+              };
+              const downloaded=await this.links.download(url,{assertAllowed,reserveModel:async()=>{
+                await assertAllowed();
+                await this.store.linkTelemetry(run,token,item,{paidAttemptReserved:true});
+              }});
+              await this.store.linkTelemetry(run,token,item,{...downloaded.metrics,ms:downloaded.ms});
+              const result=await this.storage.accept(run,item,downloaded.bytes);
+              await this.store.finishItem(run,token,item,result.duplicate?'DUPLICATE':'IMPORTED',result.id);
+            }catch(error){
+              if(error instanceof EmailRuleBlockedError){await this.store.finishItem(run,token,item,'FILTERED');return;}
+              if(error?.metrics)await this.store.linkTelemetry(run,token,item,{...error.metrics,ms:error.ms});
+              // Never replay a possibly paid browser/model attempt after a crash or failure.
+              await this.store.finishItem(run,token,item,'BLOCKED',error?.intakeWorkId,error instanceof LinkDownloadError?error.code:'LINK_DOWNLOAD_UNAVAILABLE');
+            }
+            return;
+            });
+          }
           try {
             const result = await this.storage.accept(
               run,

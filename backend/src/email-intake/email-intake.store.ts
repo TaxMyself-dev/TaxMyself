@@ -256,6 +256,11 @@ export class EmailIntakeStore implements OnModuleInit {
     await this.transaction(async (m) => {
       await this.fencedRun(run, token, m);
       for (const part of parts) {
+        if(part.path.startsWith('link:')){
+          // A new date-window run must not repeat paid/ambiguous attempts for the same source.
+          const previous=await this.query("SELECT i.id FROM email_import_items i JOIN email_import_runs r ON r.id=i.run_id WHERE r.firebase_id=? AND r.integration_id=? AND i.message_id=? AND i.part_path=? AND i.state<>'FILTERED' AND i.run_id<>? LIMIT 1",[run.firebase_id,run.integration_id,message.message_id,part.path,run.id],m);
+          if(previous.length)continue;
+        }
         const known = part.skip
           ? []
           : await this.query(
@@ -307,6 +312,26 @@ export class EmailIntakeStore implements OnModuleInit {
         [state, importId || null, error || null, item.id, run.id],
         m,
       );
+    });
+  }
+  async beginLink(run:EmailRun,token:string,item:EmailItem){
+    return this.transaction(async m=>{
+      await this.fencedRun(run,token,m);
+      const result=await this.query("UPDATE email_import_items SET state='BLOCKED',error_code='LINK_ATTEMPT_INTERRUPTED',attempts=attempts+1 WHERE id=? AND run_id=? AND state IN ('DISCOVERED','RETRY') AND part_path LIKE 'link:%'",[item.id,run.id],m);
+      return result.affectedRows===1;
+    });
+  }
+  async withLinkLock<T>(id:string,operation:()=>Promise<T>):Promise<T|null>{
+    const runner=this.db.createQueryRunner();let held=false;await runner.connect();
+    try{
+      held=Number((await runner.query('SELECT GET_LOCK(?,0) AS acquired',['email-link-'+id]))[0]?.acquired)===1;
+      return held?await operation():null;
+    }finally{try{if(held)await runner.query('SELECT RELEASE_LOCK(?)',['email-link-'+id]);}finally{await runner.release();}}
+  }
+  async linkTelemetry(run:EmailRun,token:string,item:EmailItem,metrics:unknown){
+    await this.transaction(async m=>{
+      await this.fencedRun(run,token,m);
+      await this.query("UPDATE email_import_items SET source_metadata_json=JSON_SET(COALESCE(source_metadata_json,JSON_OBJECT()),'$.linkDownloadMetrics',CAST(? AS JSON)) WHERE id=? AND run_id=?",[JSON.stringify(metrics),item.id,run.id],m);
     });
   }
   async retryItem(

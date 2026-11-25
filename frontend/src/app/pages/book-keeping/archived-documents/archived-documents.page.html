@@ -11,6 +11,7 @@
     </h2>
 
     @if (canRetryDocuments()) {
+      <app-email-document-links [businessNumber]="selectedBusinessNumber()" (uploaded)="fetchArchivedItems(selectedBusinessNumber())" />
       <div class="retry-toolbar">
         <app-p-button [buttonText]="'נסה לעבד שוב מסמכים מסומנים (' + retrySelection().length + ')'"
           icon="pi pi-refresh" [disabled]="retryBusy() || !retrySelection().length || retrySelection().length > 100"

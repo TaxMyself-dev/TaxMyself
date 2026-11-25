@@ -16,6 +16,7 @@ import { extractPdfText, PdfTextExtractionOutcome } from '../utils/pdf-text-extr
 
 import { UserIntegrationsService } from './user-integrations.service';
 import { decideEmailIntake } from '../utils/email-intake-decision';
+import { extractDocumentLinks } from '../../email-intake/links/link-policy';
 
 /**
  * Default Gmail search when the caller does not pass one. Deliberately broad:
@@ -23,7 +24,7 @@ import { decideEmailIntake } from '../utils/email-intake-decision';
  * require receipt/invoice keywords — junk is filtered per-attachment below,
  * and the real receipt-vs-not decision belongs to the Claude analysis phase.
  */
-export const DEFAULT_GMAIL_QUERY = 'has:attachment newer_than:90d';
+export const DEFAULT_GMAIL_QUERY = 'newer_than:90d';
 
 /** Extensions we consider candidate receipt documents. */
 const DOCUMENT_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png'];
@@ -189,7 +190,20 @@ export class GmailReaderService {
       const header=(key:string)=>message.payload.headers?.find(h=>h.name?.toLowerCase()===key)?.value;
       parts.push({metadata:{gmailThreadId:message.threadId,gmailSubject:header('subject'),gmailFrom:header('from'),gmailDate:header('date')},path,filename:(part.filename||('attachment-'+path+'.'+format)).replace(/[\\/\x00-\x1f]/g,'-').slice(0,500),mimeType:format==='pdf'?'application/pdf':format==='png'?'image/png':'image/jpeg'});
     };
-    walk(message.payload,'root',0); return parts;
+    walk(message.payload,'root',0);
+    const header=(key:string)=>message.payload.headers?.find(h=>h.name?.toLowerCase()===key)?.value;
+    for(const link of extractDocumentLinks(message))parts.push({
+      path:link.path,filename:'linked-document.pdf',mimeType:'application/pdf',
+      metadata:{gmailThreadId:message.threadId,gmailSubject:header('subject'),gmailFrom:header('from'),gmailDate:header('date'),documentLink:link.url,documentLinkLabel:link.label},
+    });
+    return parts;
+  }
+  async assertLinkedSource(integration:UserIntegration,messageId:string,path:string):Promise<string>{
+    // Refetch through the existing provider boundary: current ownership/sender rules apply.
+    const parts=await this.durableParts(integration,messageId);
+    const part=parts.find(p=>p.path===path&&p.path.startsWith('link:'));
+    if(!part?.metadata?.documentLink)throw new EmailProviderError('CONTRACT');
+    return String(part.metadata.documentLink);
   }
   async durableDownload(integration: UserIntegration, messageId: string, path: string): Promise<Buffer> {
     this.assertUsableIntegration(integration);

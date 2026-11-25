@@ -32,6 +32,13 @@ programmatic hide that occurs during the transition.
 
 ## Main flows
 
+- The owner's archive has an `EmailDocumentLinksComponent` panel for linked email
+  documents that could not be downloaded. Opening the original link and uploading a
+  PDF use owner-only endpoints scoped to the current business/source item. Reset
+  selection on business change and ignore stale responses; preserve pending rows
+  after failures. No signed URLs belong in list responses or logs. See
+  ../../../../../docs/features/email-document-links.md.
+
 - Archive rows include the server's optional routingNote in a searchable 'שיוך
   לעסק' column. AI-driven business transfers retain source-mail identities and
   the existing Drive file ID; archive approval details show the same note.

@@ -82,7 +82,9 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 FROM node:22.22.3-alpine As production
 
-RUN apk add --no-cache chromium
+RUN apk add --no-cache chromium su-exec
+COPY scripts/link-browser.sh /usr/local/bin/keepintax-link-browser
+RUN chmod 0755 /usr/local/bin/keepintax-link-browser
 
 WORKDIR /usr/src/app
 

@@ -1,5 +1,14 @@
 # Durable Gmail intake
 
+## Linked email documents
+
+`links/` discovers and downloads public linked PDFs into the same source-item and
+storage pipeline. See ../../../docs/features/email-document-links.md. Preserve
+pre-attempt durable reservation, no automatic paid replay, owner/current sender
+checks, scoped manual upload, pinned public-only network sockets and the separate
+sandboxed browser. New scans include link-only mail; frozen historical queries do
+not change. The offline browser fixture never grants production loopback access.
+
 Owns persisted scan/work state. Pull, processing and confirmed-negative deletion are always available; no runtime feature switches or test-subject override. The reviewed schema must be present before starting this release. Schema preparation is not schema authorization. All claims, decisions and tombstones are owner/business scoped; never use attachment IDs as content identity. Only a complete explicit negative permits an exact-file deletion, after ownership/reference/race checks. Unknown AI outcomes are never replayed blindly. Do not start Nest, connect live databases, run imports/AI or delete files during development. No main integration, push or deploy.
 
 

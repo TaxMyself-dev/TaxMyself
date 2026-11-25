@@ -28,6 +28,11 @@ import { GmailReaderService } from './services/gmail-reader.service';
 import { GmailDriveImportService } from './services/gmail-drive-import.service';
 import { GmailSyncService } from './services/gmail-sync.service';
 import { GmailSyncCronService } from './services/gmail-sync-cron.service';
+import { LinkDownloader } from '../email-intake/links/link-downloader.service';
+import { LinkNetwork } from '../email-intake/links/link-network';
+import { LinkSelector } from '../email-intake/links/link-selector';
+import { LinkManualService } from '../email-intake/links/link-manual.service';
+import { LinkManualController } from '../email-intake/links/link-manual.controller';
 
 /**
  * Provider-agnostic integrations infrastructure (Phase A), the Google OAuth
@@ -49,8 +54,8 @@ import { GmailSyncCronService } from './services/gmail-sync-cron.service';
     // The shared intake pipeline every import source funnels through
     DocumentImportModule,
   ],
-  controllers: [IntegrationsController],
-  providers: [EmailIntakeRunsService, FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, ComposioGmailProvider, ComposioOutlookProvider, { provide: EmailProvider, useClass: ConnectedEmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
+  controllers: [IntegrationsController, LinkManualController],
+  providers: [LinkNetwork, LinkSelector, LinkDownloader, LinkManualService, EmailIntakeRunsService, FirebaseAuthGuard, UserIntegrationsService, OauthStateService, EmailConnectionsService, ComposioClientService, EmailAttachmentDownloadService, ComposioGmailProvider, ComposioOutlookProvider, { provide: EmailProvider, useClass: ConnectedEmailProvider }, GmailReaderService, GmailDriveImportService, GmailSyncService, GmailSyncCronService],
   exports: [UserIntegrationsService, GmailReaderService, GmailDriveImportService, GmailSyncService],
 })
 export class IntegrationsModule {}

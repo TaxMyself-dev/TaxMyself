@@ -10,9 +10,11 @@ import { FilterTabComponent } from "src/app/components/filter-tab/filter-tab.com
 import { ArchiveExpenseApprovalDialogComponent } from 'src/app/components/archive-expense-approval-dialog/archive-expense-approval-dialog.component';
 import { DialogModule } from 'primeng/dialog';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
+import { EmailDocumentLinksComponent } from './email-document-links.component';
 
 @NgModule({
   imports: [
+    EmailDocumentLinksComponent,
     CommonModule,
     ButtonComponent,
     FormsModule,

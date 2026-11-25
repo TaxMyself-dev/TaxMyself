@@ -1,5 +1,10 @@
 ## Purpose
 
+New default/date scans include messages without attachments to discover document
+links. Gmail full MIME and Outlook full body feed `email-intake/links`; no new tools
+or OAuth scopes. Existing frozen/custom queries are preserved. See
+../../../docs/features/email-document-links.md for budgets, manual upload and runtime.
+
 Gmail business routing: owner-only GET/POST google/:integrationId/routing manages
 a mailbox default and up to 100 exact sender rules. Provider read boundaries
 reload all current rules; blocked senders never reach attachment/AI calls. Query

@@ -43,6 +43,12 @@ describe('Outlook read adapter', () => {
     expect(await provider.downloadAttachment(account, 'm1', 'a1', 'receipt.pdf')).toEqual(Buffer.from('receipt'));
     expect(downloads.download).toHaveBeenCalledWith('https://allowed.example/file');
   });
+  it('normalizes the full HTML body so link-only Outlook messages enter discovery',async()=>{
+    client.execute.mockResolvedValueOnce({id:'m1',body:{contentType:'html',content:'<a href="https://docs.example.org/file.pdf">Invoice</a>'},from:{emailAddress:{address:'sender@example.com'}}}).mockResolvedValueOnce({value:[]});
+    const result=await provider.getMessage(account,'m1');
+    expect(client.execute.mock.calls[0][2].select).toContain('body');expect(result.payload.parts[0].mimeType).toBe('text/html');
+    expect(Buffer.from(result.payload.parts[0].body.data,'base64url').toString()).toContain('file.pdf');
+  });
   it('rejects a Google row or local revocation before reading', async () => {
     integrations.findByConnectedAccountId.mockResolvedValue({ provider: IntegrationProvider.GOOGLE, status: IntegrationStatus.ACTIVE, connectionBackend: 'COMPOSIO' });
     await expect(provider.getMessage(account, 'm1')).rejects.toMatchObject({category:'ACCESS'});

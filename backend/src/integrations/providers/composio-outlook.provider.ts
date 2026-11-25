@@ -58,7 +58,7 @@ export class ComposioOutlookProvider extends EmailProvider {
   }
 
   async getMessage(account: EmailAccountContext, messageId: string): Promise<EmailMessage> {
-    const message = await this.read(account, 'OUTLOOK_GET_MESSAGE', { message_id: messageId, select: ['id', 'subject', 'from', 'receivedDateTime', 'conversationId', 'bodyPreview'] });
+    const message = await this.read(account, 'OUTLOOK_GET_MESSAGE', { message_id: messageId, select: ['id', 'subject', 'from', 'receivedDateTime', 'conversationId', 'bodyPreview', 'body'] });
     if (message.id !== messageId) throw new EmailProviderError('CONTRACT');
     account={...account,senderEmail:message.from?.emailAddress?.address};
     await this.assertLocalAccount(account,true);
@@ -70,6 +70,9 @@ export class ComposioOutlookProvider extends EmailProvider {
       if (typeof item.id !== 'string' || !item.id) throw new EmailProviderError('CONTRACT');
       return { filename: typeof item.name === 'string' ? item.name : undefined, mimeType: item.contentType, body: { attachmentId: item.id, size: item.size }, headers: item.isInline ? [{ name: 'Content-Disposition', value: 'inline' }] : [] };
     });
+    if(typeof message.body?.content==='string'&&message.body.content.length<=350000){
+      parts.push({mimeType:message.body.contentType?.toLowerCase()==='html'?'text/html':'text/plain',body:{data:Buffer.from(message.body.content).toString('base64url')}} as any);
+    }
     return { id: messageId, threadId: message.conversationId, snippet: message.bodyPreview, payload: { parts, headers: [
       { name: 'Subject', value: message.subject }, { name: 'From', value: message.from?.emailAddress?.address }, { name: 'Date', value: message.receivedDateTime },
     ] } };

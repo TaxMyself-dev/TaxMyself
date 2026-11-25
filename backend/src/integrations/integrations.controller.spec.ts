@@ -81,7 +81,7 @@ describe('Manual Gmail date range', () => {
   });
   it('sends the inclusive date query to every selected account', async () => {
     await controller.gmailImport(owner, {integrationIds:[1,2],fromDate:'2025-01-01',toDate:'2026-11-21'});
-    expect(runs.startManual).toHaveBeenCalledWith('owner',[1,2],{businessNumber:undefined,query:'has:attachment after:2025/01/01 before:2026/11/22'});
+    expect(runs.startManual).toHaveBeenCalledWith('owner',[1,2],{businessNumber:undefined,query:'after:2025/01/01 before:2026/11/22'});
   });
   it.each([
     {fromDate:'2025-01-01'}, {toDate:'2026-11-21'},
@@ -99,7 +99,7 @@ describe('Manual Gmail date range', () => {
   it('uses identical range validation and query on the legacy path', async () => {
     runs.enabled = () => false;
     await controller.gmailImport(owner,{integrationIds:[1],fromDate:'2025-12-31',toDate:'2025-12-31'});
-    expect(fallback.importAllForUser).toHaveBeenCalledWith('owner',[1],expect.objectContaining({query:'has:attachment after:2025/12/31 before:2026/01/01'}));
+    expect(fallback.importAllForUser).toHaveBeenCalledWith('owner',[1],expect.objectContaining({query:'after:2025/12/31 before:2026/01/01'}));
   });
   it('preserves the no-date API fallback for existing clients', async () => {
     await controller.gmailImport(owner,{integrationIds:[1]});
