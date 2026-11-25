@@ -102,6 +102,7 @@ export class ShaamSecureController {
     @Res() response: Response,
     @Query('code') code: string,
     @Query('state') state: string,
+    @Query('error') authorizationError?: unknown,
   ) {
     const intent = await this.states.consume(state);
     const business = await this.businessService.getBusinessById(intent.businessId);
@@ -111,6 +112,38 @@ export class ShaamSecureController {
         environment: intent.environment,
       });
       throw new ForbiddenException('Only the business owner may connect to SHAAM');
+    }
+    if (
+      intent.product === ShaamProduct.UNIFORM_FILE &&
+      (authorizationError !== undefined || typeof code !== 'string' || !code.trim())
+    ) {
+      // Never echo provider descriptions or arbitrary query values. Validate and
+      // consume state, including owner revalidation, before reporting a result.
+      const messages = new Map([
+        ['access_denied', 'ההרשאה לא ניתנה באתר רשות המסים.'],
+        ['invalid_scope', 'רשות המסים דחתה את ההרשאות המבוקשות (invalid_scope). יש לבדוק את ה-scopes ואת הרשמות המוצרים.'],
+        ['invalid_request', 'רשות המסים דחתה את בקשת החיבור (invalid_request).'],
+        ['unauthorized_client', 'האפליקציה אינה מורשית לחיבור המבוקש (unauthorized_client).'],
+        ['unsupported_response_type', 'רשות המסים אינה תומכת בסוג בקשת החיבור (unsupported_response_type).'],
+        ['server_error', 'אירעה שגיאה בשירות ההזדהות של רשות המסים.'],
+        ['temporarily_unavailable', 'שירות ההזדהות של רשות המסים אינו זמין זמנית.'],
+      ]);
+      const error = authorizationError === undefined
+        ? 'missing_authorization_code'
+        : typeof authorizationError === 'string' && messages.has(authorizationError)
+        ? authorizationError
+        : 'authorization_failed';
+      const params = new URLSearchParams({
+        connected: 'false',
+        product: intent.product,
+        error,
+        error_description: messages.get(error) ??
+          (error === 'missing_authorization_code'
+            ? 'לא התקבל קוד הרשאה מרשות המסים. יש להתחיל חיבור חדש.'
+            : 'החיבור לרשות המסים לא אושר. יש לבדוק את הגדרות החיבור ולנסות מחדש.'),
+      });
+      const frontend = process.env.FRONTEND_URL || 'http://localhost:4200';
+      return response.redirect(`${frontend}/shaam/callback?${params.toString()}`);
     }
     const token =
       intent.product === ShaamProduct.UNIFORM_FILE

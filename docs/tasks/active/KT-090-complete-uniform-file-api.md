@@ -110,3 +110,52 @@ tokens or upload capabilities to the browser.
   interactive Daily Token authorization, confirm the comma-delimited scope
   assumption, and run controlled tsandbox acceptance with official/synthetic
   test data. Production remains fail-closed.
+
+## Sandbox continuation — 2026-11-25
+
+- Worktree: `C:/Users/harel/Elazar Harel/taxmyself/eharel-branch-0`, branch
+  `eharel-branch-0`, base `7cdc8580` (fast-forwarded from current main).
+- Elazar supplied current portal screenshots confirming both product
+  subscriptions and `http://localhost:3000/shaam/oauth/callback`. The Upload
+  Links and Files Status overview pages list the configured `ita-api` sandbox
+  API hosts and `openapi` Daily Token authorize/token endpoints. The initial
+  downloaded Swagger `host=t-ita-api` is not the only advertised gateway.
+- Reviewed supplied `unistructfileuploadlinksapi_v1.json` and
+  `FilesStatusApi-v1.json`. The latter lists all gateway alternatives and
+  requires `FilesStatus_scope`. Neither confirms comma-separated request
+  scopes or the sandbox upload artifact type; its status response has no
+  schema. Do not infer final acceptance from the mock sandbox status.
+- Local configuration presence was checked without exposing credentials:
+  Uniform File is enabled in tsandbox, callback matches, and the separate
+  production switch is off. No configuration was changed.
+- Existing local verification: 6 backend suites / 46 tests passed; the
+  dedicated frontend spec TypeScript program passed. This is not browser or
+  external API acceptance evidence.
+- Elazar generated the ledger-test fixture for business `222222226`, period
+  `2026-02-01` through `2026-03-31`, then reported a callback response saying
+  `Authorization code is required`. The provider error value and the stage
+  of the interactive failure are still needed; do not assume invalid_scope.
+
+### Callback diagnostic fix acceptance
+
+- Handle a provider error or missing code for UNIFORM_FILE only, after the
+  existing single-use state consumption and owner revalidation.
+- Redirect to the existing frontend error screen with an allowlisted OAuth
+  error and static message. Never forward provider descriptions, arbitrary
+  query values, authorization codes, state or tokens.
+- Do not exchange/save tokens on an unsuccessful callback. Preserve successful
+  Daily Token and invoice-allocation callback behavior.
+- No scope delimiter, credential, endpoint, schema, authorization policy or
+  production changes. Live cause resolution remains pending provider evidence.
+- Verification tier: backend controller; focused controller, Daily Token and
+  OAuth-state suites plus Nest build. No frontend code or report-generation
+  change; broader frontend/accounting suites are not required for this fix.
+- Verification result: `npm test -- --runInBand --silent --runTestsByPath
+  src/shaam/shaam-secure.controller.spec.ts
+  src/shaam/uniform-file/uniform-file-oauth.service.spec.ts
+  src/shaam/services/shaam-oauth-state.service.spec.ts` passed, 3 suites / 31
+  tests, exit 0. `npm run build` passed, exit 0. `git diff --check` passed.
+  Security-denial events in the test output are expected negative-test cases.
+- Delivery: local callback diagnostic fix only. Runtime restart/retry and the
+  actual authorization failure diagnosis remain pending; no external request,
+  main integration, push or production action was performed in this fix.

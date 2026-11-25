@@ -70,6 +70,7 @@ describe('ShaamSecureController', () => {
       states,
       connections,
       allocationOauth,
+      uniformOauth,
       documentAllocation,
       uniformSubmissions,
     };
@@ -247,6 +248,76 @@ describe('ShaamSecureController', () => {
     expect(response.redirect).not.toHaveBeenCalledWith(
       expect.stringContaining('connected=true'),
     );
+  });
+
+  describe('Daily Token callback failures', () => {
+    function callbackSetup() {
+      const context = setup();
+      context.states.consume.mockResolvedValue({
+        businessId: 7,
+        actorFirebaseId: 'effective-owner',
+        product: ShaamProduct.UNIFORM_FILE,
+        environment: ShaamEnvironment.TSANDBOX,
+      });
+      return { ...context, response: { redirect: jest.fn() } };
+    }
+
+    it.each([
+      [undefined, undefined, 'missing_authorization_code'],
+      ['', undefined, 'missing_authorization_code'],
+      [' ', undefined, 'missing_authorization_code'],
+      [undefined, 'invalid_scope', 'invalid_scope'],
+      [undefined, 'access_denied', 'access_denied'],
+      ['code-with-error', 'access_denied', 'access_denied'],
+      [undefined, 'sensitive-provider-text', 'authorization_failed'],
+      [undefined, ['invalid_scope', 'sensitive-provider-text'], 'authorization_failed'],
+    ])('handles code=%p and error=%p without exchanging a token', async (code, error, expected) => {
+      const { controller, states, response, uniformOauth, allocationOauth, connections } = callbackSetup();
+      await controller.callback(response as any, code as any, 'private-state', error);
+      expect(states.consume).toHaveBeenCalledWith('private-state');
+      expect(uniformOauth.exchangeCodeForDailyToken).not.toHaveBeenCalled();
+      expect(allocationOauth.exchangeCodeForToken).not.toHaveBeenCalled();
+      expect(connections.saveToken).not.toHaveBeenCalled();
+      const target = new URL(response.redirect.mock.calls[0][0]);
+      expect(target.searchParams.get('connected')).toBe('false');
+      expect(target.searchParams.get('product')).toBe(ShaamProduct.UNIFORM_FILE);
+      expect(target.searchParams.get('error')).toBe(expected);
+      expect(decodeURIComponent(target.search)).not.toMatch(/private-state|code-with-error|sensitive-provider-text/);
+    });
+
+    it('rejects invalid or reused state even when the provider returns an error', async () => {
+      const { controller, states, response, uniformOauth, connections } = callbackSetup();
+      states.consume.mockRejectedValue(new Error('Invalid or expired SHAAM OAuth state'));
+      await expect(controller.callback(response as any, undefined, 'used-state', 'access_denied'))
+        .rejects.toThrow('Invalid or expired SHAAM OAuth state');
+      expect(response.redirect).not.toHaveBeenCalled();
+      expect(uniformOauth.exchangeCodeForDailyToken).not.toHaveBeenCalled();
+      expect(connections.saveToken).not.toHaveBeenCalled();
+    });
+
+    it('revalidates ownership before redirecting a provider error', async () => {
+      const { controller, businessService, response, uniformOauth, connections } = callbackSetup();
+      businessService.getBusinessById.mockResolvedValue({ firebaseId: 'different-owner' });
+      await expect(controller.callback(response as any, undefined, 'state', 'access_denied'))
+        .rejects.toThrow(ForbiddenException);
+      expect(response.redirect).not.toHaveBeenCalled();
+      expect(uniformOauth.exchangeCodeForDailyToken).not.toHaveBeenCalled();
+      expect(connections.saveToken).not.toHaveBeenCalled();
+    });
+
+    it('preserves a successful Daily Token callback', async () => {
+      const { controller, response, uniformOauth, allocationOauth, connections } = callbackSetup();
+      const token = { access_token: 'server-only-token', expires_in: 3600 };
+      uniformOauth.exchangeCodeForDailyToken.mockResolvedValue(token);
+      await controller.callback(response as any, 'valid-code', 'state');
+      expect(uniformOauth.exchangeCodeForDailyToken).toHaveBeenCalledWith('valid-code');
+      expect(allocationOauth.exchangeCodeForToken).not.toHaveBeenCalled();
+      expect(connections.saveToken).toHaveBeenCalledWith(
+        7, 'effective-owner', ShaamProduct.UNIFORM_FILE, ShaamEnvironment.TSANDBOX, token,
+      );
+      expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('connected=true&product=UNIFORM_FILE'));
+      expect(response.redirect.mock.calls[0][0]).not.toContain('server-only-token');
+    });
   });
 
   it('rejects delegated or impersonated external SHAAM operations', async () => {

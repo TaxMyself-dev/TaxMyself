@@ -34,6 +34,13 @@ Integrates with the Israel Tax Authority's SHAAM OpenAPI — OAuth2 authorizatio
 
 ## Main flows
 - `POST /shaam/oauth/authorize` → `GET /shaam/oauth/callback` — authenticated owner-only initiation creates a hashed database state bound to actor/business/product; callback consumes it once, revalidates that the initiating actor still owns the business, and saves encrypted tokens.
+- Daily Token callbacks with an OAuth error or missing code return to the
+  existing frontend error screen only after state consumption and owner
+  revalidation. No token exchange/save occurs. Only allowlisted error codes
+  and static messages are forwarded; never forward provider descriptions,
+  arbitrary query values, state or codes. A new attempt must start from the
+  application because the previous state has already been consumed. This
+  diagnostic handling is scoped to UNIFORM_FILE; allocation behavior is unchanged.
 - Every route that can contact SHAAM is owner-only. Delegated-accountant and
   administrator-impersonation contexts may read safe local submission metadata,
   but cannot authorize, refresh/check a connection, submit an allocation or
