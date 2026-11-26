@@ -1,5 +1,29 @@
 # Primary manager state
 
+## KT-090 Uniform File sandbox and production preparation — 2026-11-26
+
+Elazar approved main integration and push of the five follow-up commits
+`d7edda60`, `ef4b603a`, `afe49ef1`, `f498428e`, and `7367ca22`. Candidate branch
+`codex/integration-kt090` is based on current main `7cdc8580`; it contains safe
+Daily Token callback errors, owner-bound restoration of report selection after
+OAuth, space-delimited Daily Token scopes in both environments, sandbox
+acceptance evidence and production configuration guidance. Invoice Long Time
+Token scope behavior is unchanged. Operator-supplied metadata verified the
+expected production table columns/indexes/business FK targets and exact
+submission-state enum; Codex did not access production or apply DDL.
+
+Main's local development configuration was checked before integration:
+frontend 4200, backend 3000 and API `http://localhost:3000/`, with no ignored
+worktree port override or relevant process override. The main checkout is clean;
+the feature worktree's pre-existing untracked `output/` is preserved and is not
+part of delivery. Both Uniform File activation switches remain false in the
+preparation instructions. Source delivery does not authorize deployment or
+activation; security/monitoring acceptance and the live canary remain open in
+KT-090. Verification and source-delivery state are recorded in that task.
+Combined verification passed: 55 focused backend tests, 12 focused
+ChromeHeadless tests, Nest build and Angular production build. Existing Angular
+unused-import, budget and CommonJS warnings remain; no failed check was bypassed.
+
 ## KT-127 admin demo subscription visibility — 2026-11-24
 
 Admin Billing now hides demo subscriptions by default and exposes them through

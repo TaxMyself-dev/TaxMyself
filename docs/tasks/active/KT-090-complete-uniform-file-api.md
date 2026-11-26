@@ -95,6 +95,40 @@ tokens or upload capabilities to the browser.
 
 ## Current verification / handoff
 
+- Main delivery approved by Elazar on 2026-11-26. Integration candidate:
+  `codex/integration-kt090`, containing the five local follow-up commits through
+  `7367ca22`, based on freshly fetched `origin/main` `7cdc8580`. This approval
+  is for source integration/push, not deployment or production activation.
+- Combined integration verification on the exact candidate application tree:
+  backend `npm test -- --runInBand --silent --runTestsByPath
+  src/shaam/shaam-secure.controller.spec.ts
+  src/shaam/services/shaam-oauth-state.service.spec.ts
+  src/shaam/uniform-file/uniform-file-oauth.service.spec.ts
+  src/shaam/uniform-file/uniform-file-oauth.config.spec.ts
+  src/shaam/uniform-file/uniform-file-api.config.spec.ts
+  src/shaam/services/shaam-oauth.service.spec.ts` passed, 6 suites / 55 tests,
+  exit 0; `npm run build` passed, exit 0. Expected negative-test denial logs
+  appeared. Frontend `npm test -- --watch=false --browsers=ChromeHeadless
+  --ts-config=tsconfig.uniform-file.spec.json
+  --include=src/app/pages/uniform-file/uniform-file.page.spec.ts` passed,
+  12 tests executed in ChromeHeadless, exit 0.
+- Frontend `npm run build -- --configuration=production` passed, exit 0.
+  Existing settings unused-import, SCSS/initial bundle budget and CommonJS
+  warnings remain. Full candidate diff and `git show --check` were reviewed;
+  no schema, environment file, credential, build artifact or dependency change
+  is included. No broader accounting tests were required for this scope.
+- Operator-supplied production metadata screenshots confirmed the three tables,
+  their expected columns/indexes and business foreign-key targets. The final
+  exact comparison of the full `uniform_file_submission.state` enum returned
+  `OK`. No schema change was identified from the supplied evidence. This was
+  operator-run read-only verification, not direct production access by Codex;
+  it does not verify runtime permissions, data or all FK update/delete actions.
+- Required pre-integration main port check passed: frontend startup defaults
+  4200, backend ignored local `.env` has `PORT=3000`, frontend development API is
+  `http://localhost:3000/`; no `.local-ai-dev/ports.json` or relevant process port
+  override was present. Main's tracked and untracked working tree was clean.
+  The integration worktree's pre-existing untracked `output/` is preserved and
+  excluded from delivery. No production environment settings were inspected.
 - Production preparation continuation (2026-11-26): Elazar supplied both
   production OpenAPI files, reported registering both products on the production
   application, and supplied its registered HTTPS callback. Authorized scope:
