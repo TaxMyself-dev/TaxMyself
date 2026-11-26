@@ -61,6 +61,10 @@ export class DocCreateService {
   }
 
 
+  preloadPdf(issuerBusinessNumber: string): Observable<unknown> {
+    return this.http.post(`${environment.apiUrl}documents/preload-pdf`, { issuerBusinessNumber });
+  }
+
   previewDoc(dataFile: any): Observable<Blob> {
     const url = `${environment.apiUrl}documents/preview-doc`;
     return this.http.post<Blob>(url, dataFile, { 

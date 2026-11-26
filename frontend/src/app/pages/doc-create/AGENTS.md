@@ -112,3 +112,11 @@ and pending-allocation finalization retain the snapshot. Business/type/reset
 changes clear the frontend form. PDF output escapes values and isolates account
 and branch identifiers LTR. Apply the additive nullable JSON column SQL before
 boot/deployment; see `docs/features/document-bank-details.md` from repository root.
+
+## Advisory PDF entry preload
+
+`setSelectedBusiness` starts the selected issuer preload once per business
+selection/page entry, including draft/opposite context restoration. It sends
+only issuer number, does not join documentRequestBusy, and silently tolerates
+failure. Subscription cancels on business change/destruction; backend current
+ownership remains authoritative. See docs/features/pdf-entry-logo-2026-11-26.md.

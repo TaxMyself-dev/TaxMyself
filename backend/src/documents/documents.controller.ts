@@ -69,6 +69,15 @@ export class DocumentsController {
   }
 
 
+  @Post('preload-pdf')
+  async preloadPdf(@Req() request: AuthenticatedRequest, @Body() body: { issuerBusinessNumber?: string }) {
+    const business = body?.issuerBusinessNumber;
+    if (!request.user?.firebaseId || typeof business !== 'string' || !business.trim() || business.length > 32)
+      throw new BadRequestException('issuerBusinessNumber is required');
+    await this.documentsService.preloadPdf(business.trim(), request.user.firebaseId);
+    return { accepted: true };
+  }
+
   @Get('get-docs')
   async getFilteredDocs(
     @Req() request: AuthenticatedRequest,

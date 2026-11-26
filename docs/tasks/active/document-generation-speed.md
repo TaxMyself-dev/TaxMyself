@@ -281,3 +281,18 @@ creation 4.626→4.060s. One baseline UI wait timed out with server commit compl
 missing HTTP total retained explicitly. No live allocation test, production or
 main integration. See [report](../../features/pdf-upload-overlap-2026-11-26.md)
 for exact commands, baseline revision, evidence, limitations and source hash.
+
+## Entry preload / PDF weight follow-up — 2026-11-26
+
+Implemented advisory entry/business-switch preload and selective opaque-logo
+JPEG compression (original assets unchanged). Baseline 5db0e1cd; see
+[report](../../features/pdf-entry-logo-2026-11-26.md) and source fingerprints.
+Local matrix 36 PDFs plus 6 cold/warm renders; actual read-only DEV integration
+8 unsigned outputs. All 22 compared pairs preserve text/page counts; final
+representative pages rendered/visually checked. No new signatures/documents/mail.
+Frontend 28 and PDF service 27 tests passed; both builds passed. Full UI check
+could not complete because browser control timed out; no UI pass claimed.
+No Belgium/cloud/production changes or main integration; local backend restored
+to after mode with queue active.
+
+Final backend focused checkpoint: 6 suites / 70 tests, exit 0, 80.522s. Backend root and PDF health returned 200; frontend 4204 compiled successfully.

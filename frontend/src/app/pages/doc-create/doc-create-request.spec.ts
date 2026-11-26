@@ -391,3 +391,17 @@ describe('SHAAM connection pre-flight', () => {
     );
   }));
 });
+
+describe('advisory document screen preload', () => {
+  it('starts once per selected business without locking issuance, switches and cleans up', () => {
+    const page:any=Object.create(DocCreatePage.prototype),requests:Subject<unknown>[]=[];
+    page.docCreateService={preloadPdf:jasmine.createSpy().and.callFake(()=>{const r=new Subject();requests.push(r);return r;})};
+    page.selectedBusinessNumber='first';page.preloadSelectedPdf();page.preloadSelectedPdf();
+    expect(page.docCreateService.preloadPdf).toHaveBeenCalledTimes(1);
+    page.selectedBusinessNumber='second';page.preloadSelectedPdf();
+    expect(requests[0].observers.length).toBe(0);expect(requests[1].observers.length).toBe(1);
+    requests[1].error(Error('offline')); // Background failure has no UI side effect.
+    page.selectedBusinessNumber='third';page.preloadSelectedPdf();page.ngOnDestroy();
+    expect(requests[2].observers.length).toBe(0);
+  });
+});

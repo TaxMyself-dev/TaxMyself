@@ -1,0 +1,1030 @@
+{
+  "baseline": "5db0e1cd057400759728da54c7e796f87c08f2e4",
+  "sourceSha256": {
+    "backend/src/documents/documents.controller.ts": "c026d6cb8781e762cd8c3651dd90f3b29e7639f40823a5e2c961c8448bee7de9",
+    "backend/src/documents/documents.service.ts": "c8a49a5029b772ed58c92384c8167230c3bb07bd4441d5ee0f3052761e1887d6",
+    "backend/src/documents/pdf/document-pdf-client.ts": "1b8c0257361d006029fada0f1841629b0870a2477d43f61a37f56be0613e77d3",
+    "backend/src/documents/pdf/document-pdf-renderer.service.ts": "924f00375a85a516f72b239227502db1b2c97e47de745dbadbaf9bcbf0ed2971",
+    "backend/src/identity-images/image-storage.service.ts": "207dcfa1438422b538cf9e4f00cbce1e3f09a31d81badbe6b9a233e28dd9da93",
+    "frontend/src/app/pages/doc-create/doc-create.page.ts": "b8e59d9aa2458bddca03a55ca67484303e22a9580df142770f4cab51d1dc28ce",
+    "frontend/src/app/pages/doc-create/doc-create.service.ts": "cef24fe8217f3c5f5ab995e6b0e432b4701cda72ed925df9706d505a651efcd3"
+  },
+  "local": {
+    "baseline": "5db0e1cd057400759728da54c7e796f87c08f2e4",
+    "scope": "Real local Chromium and current image normalization; no external I/O",
+    "sourceLogoBytes": 542771,
+    "logoBytes": {
+      "before": 735963,
+      "after": 102609
+    },
+    "imagePsnrDb": 42.85516956025919,
+    "startup": [
+      {
+        "repetition": 1,
+        "preload": false,
+        "warmupMs": 0,
+        "firstRenderMs": 1392
+      },
+      {
+        "repetition": 1,
+        "preload": true,
+        "warmupMs": 1328,
+        "firstRenderMs": 597
+      },
+      {
+        "repetition": 2,
+        "preload": true,
+        "warmupMs": 1230,
+        "firstRenderMs": 520
+      },
+      {
+        "repetition": 2,
+        "preload": false,
+        "warmupMs": 0,
+        "firstRenderMs": 1217
+      },
+      {
+        "repetition": 3,
+        "preload": false,
+        "warmupMs": 0,
+        "firstRenderMs": 1170
+      },
+      {
+        "repetition": 3,
+        "preload": true,
+        "warmupMs": 1283,
+        "firstRenderMs": 584
+      }
+    ],
+    "runs": [
+      {
+        "scenario": "no-logo",
+        "repetition": 1,
+        "variant": "before",
+        "pairMs": 865,
+        "files": [
+          {
+            "name": "no-logo-1-before-original.pdf",
+            "bytes": 20701,
+            "renderMs": 447,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 31,
+              "PAGE_CREATE": 193,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 93,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 113,
+              "CONTEXT_CLOSE": 8
+            }
+          },
+          {
+            "name": "no-logo-1-before-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 418,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 31,
+              "PAGE_CREATE": 157,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 46,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 159,
+              "CONTEXT_CLOSE": 10
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-logo",
+        "repetition": 1,
+        "variant": "after",
+        "pairMs": 774,
+        "files": [
+          {
+            "name": "no-logo-1-after-original.pdf",
+            "bytes": 20701,
+            "renderMs": 377,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 27,
+              "PAGE_CREATE": 144,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 48,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 137,
+              "CONTEXT_CLOSE": 8
+            }
+          },
+          {
+            "name": "no-logo-1-after-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 397,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 29,
+              "PAGE_CREATE": 166,
+              "PAGE_SECURITY": 4,
+              "HTML_LOAD": 64,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 114,
+              "CONTEXT_CLOSE": 14
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 1,
+        "variant": "before",
+        "pairMs": 1705,
+        "files": [
+          {
+            "name": "actual-logo-1-before-original.pdf",
+            "bytes": 756632,
+            "renderMs": 800,
+            "stages": {
+              "PREPARE": 29,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 8,
+              "PAGE_CREATE": 129,
+              "PAGE_SECURITY": 3,
+              "HTML_LOAD": 265,
+              "ASSET_READY": 14,
+              "PDF_PRINT": 331,
+              "CONTEXT_CLOSE": 14
+            }
+          },
+          {
+            "name": "actual-logo-1-before-copy.pdf",
+            "bytes": 756800,
+            "renderMs": 904,
+            "stages": {
+              "PREPARE": 36,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 28,
+              "PAGE_CREATE": 202,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 316,
+              "ASSET_READY": 18,
+              "PDF_PRINT": 270,
+              "CONTEXT_CLOSE": 20
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 1,
+        "variant": "after",
+        "pairMs": 1136,
+        "files": [
+          {
+            "name": "actual-logo-1-after-original.pdf",
+            "bytes": 124926,
+            "renderMs": 550,
+            "stages": {
+              "PREPARE": 5,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 38,
+              "PAGE_CREATE": 186,
+              "PAGE_SECURITY": 11,
+              "HTML_LOAD": 139,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 139,
+              "CONTEXT_CLOSE": 19
+            }
+          },
+          {
+            "name": "actual-logo-1-after-copy.pdf",
+            "bytes": 125094,
+            "renderMs": 586,
+            "stages": {
+              "PREPARE": 3,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 50,
+              "PAGE_CREATE": 190,
+              "PAGE_SECURITY": 5,
+              "HTML_LOAD": 143,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 164,
+              "CONTEXT_CLOSE": 21
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "variant": "before",
+        "pairMs": 2002,
+        "files": [
+          {
+            "name": "allocated-multipage-1-before-original.pdf",
+            "bytes": 857332,
+            "renderMs": 1053,
+            "stages": {
+              "PREPARE": 26,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 30,
+              "PAGE_CREATE": 214,
+              "PAGE_SECURITY": 13,
+              "HTML_LOAD": 324,
+              "ASSET_READY": 11,
+              "PDF_PRINT": 392,
+              "CONTEXT_CLOSE": 30
+            }
+          },
+          {
+            "name": "allocated-multipage-1-before-copy.pdf",
+            "bytes": 857397,
+            "renderMs": 949,
+            "stages": {
+              "PREPARE": 33,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 36,
+              "PAGE_CREATE": 204,
+              "PAGE_SECURITY": 5,
+              "HTML_LOAD": 309,
+              "ASSET_READY": 12,
+              "PDF_PRINT": 319,
+              "CONTEXT_CLOSE": 23
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 1,
+        "variant": "after",
+        "pairMs": 1585,
+        "files": [
+          {
+            "name": "allocated-multipage-1-after-original.pdf",
+            "bytes": 225626,
+            "renderMs": 764,
+            "stages": {
+              "PREPARE": 3,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 41,
+              "PAGE_CREATE": 172,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 119,
+              "ASSET_READY": 24,
+              "PDF_PRINT": 373,
+              "CONTEXT_CLOSE": 22
+            }
+          },
+          {
+            "name": "allocated-multipage-1-after-copy.pdf",
+            "bytes": 225691,
+            "renderMs": 821,
+            "stages": {
+              "PREPARE": 15,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 39,
+              "PAGE_CREATE": 241,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 154,
+              "ASSET_READY": 23,
+              "PDF_PRINT": 320,
+              "CONTEXT_CLOSE": 16
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-logo",
+        "repetition": 2,
+        "variant": "after",
+        "pairMs": 1304,
+        "files": [
+          {
+            "name": "no-logo-2-after-original.pdf",
+            "bytes": 20701,
+            "renderMs": 670,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 49,
+              "PAGE_CREATE": 288,
+              "PAGE_SECURITY": 12,
+              "HTML_LOAD": 107,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 188,
+              "CONTEXT_CLOSE": 18
+            }
+          },
+          {
+            "name": "no-logo-2-after-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 634,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 60,
+              "PAGE_CREATE": 237,
+              "PAGE_SECURITY": 12,
+              "HTML_LOAD": 100,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 191,
+              "CONTEXT_CLOSE": 22
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-logo",
+        "repetition": 2,
+        "variant": "before",
+        "pairMs": 1972,
+        "files": [
+          {
+            "name": "no-logo-2-before-original.pdf",
+            "bytes": 20701,
+            "renderMs": 637,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 59,
+              "PAGE_CREATE": 267,
+              "PAGE_SECURITY": 13,
+              "HTML_LOAD": 100,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 169,
+              "CONTEXT_CLOSE": 17
+            }
+          },
+          {
+            "name": "no-logo-2-before-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 1335,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 60,
+              "PAGE_CREATE": 239,
+              "PAGE_SECURITY": 12,
+              "HTML_LOAD": 102,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 886,
+              "CONTEXT_CLOSE": 18
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 2,
+        "variant": "after",
+        "pairMs": 1358,
+        "files": [
+          {
+            "name": "actual-logo-2-after-original.pdf",
+            "bytes": 124926,
+            "renderMs": 725,
+            "stages": {
+              "PREPARE": 8,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 59,
+              "PAGE_CREATE": 232,
+              "PAGE_SECURITY": 13,
+              "HTML_LOAD": 132,
+              "ASSET_READY": 13,
+              "PDF_PRINT": 243,
+              "CONTEXT_CLOSE": 22
+            }
+          },
+          {
+            "name": "actual-logo-2-after-copy.pdf",
+            "bytes": 125094,
+            "renderMs": 633,
+            "stages": {
+              "PREPARE": 12,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 69,
+              "PAGE_CREATE": 219,
+              "PAGE_SECURITY": 20,
+              "HTML_LOAD": 120,
+              "ASSET_READY": 16,
+              "PDF_PRINT": 157,
+              "CONTEXT_CLOSE": 18
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 2,
+        "variant": "before",
+        "pairMs": 2041,
+        "files": [
+          {
+            "name": "actual-logo-2-before-original.pdf",
+            "bytes": 756632,
+            "renderMs": 981,
+            "stages": {
+              "PREPARE": 36,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 15,
+              "PAGE_CREATE": 247,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 338,
+              "ASSET_READY": 13,
+              "PDF_PRINT": 303,
+              "CONTEXT_CLOSE": 16
+            }
+          },
+          {
+            "name": "actual-logo-2-before-copy.pdf",
+            "bytes": 756800,
+            "renderMs": 1060,
+            "stages": {
+              "PREPARE": 64,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 15,
+              "PAGE_CREATE": 225,
+              "PAGE_SECURITY": 14,
+              "HTML_LOAD": 345,
+              "ASSET_READY": 14,
+              "PDF_PRINT": 361,
+              "CONTEXT_CLOSE": 17
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "variant": "after",
+        "pairMs": 1288,
+        "files": [
+          {
+            "name": "allocated-multipage-2-after-original.pdf",
+            "bytes": 225626,
+            "renderMs": 656,
+            "stages": {
+              "PREPARE": 6,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 37,
+              "PAGE_CREATE": 196,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 146,
+              "ASSET_READY": 15,
+              "PDF_PRINT": 231,
+              "CONTEXT_CLOSE": 16
+            }
+          },
+          {
+            "name": "allocated-multipage-2-after-copy.pdf",
+            "bytes": 225691,
+            "renderMs": 632,
+            "stages": {
+              "PREPARE": 4,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 38,
+              "PAGE_CREATE": 194,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 130,
+              "ASSET_READY": 9,
+              "PDF_PRINT": 231,
+              "CONTEXT_CLOSE": 18
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 2,
+        "variant": "before",
+        "pairMs": 1913,
+        "files": [
+          {
+            "name": "allocated-multipage-2-before-original.pdf",
+            "bytes": 857332,
+            "renderMs": 1003,
+            "stages": {
+              "PREPARE": 21,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 44,
+              "PAGE_CREATE": 209,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 318,
+              "ASSET_READY": 10,
+              "PDF_PRINT": 376,
+              "CONTEXT_CLOSE": 15
+            }
+          },
+          {
+            "name": "allocated-multipage-2-before-copy.pdf",
+            "bytes": 857397,
+            "renderMs": 909,
+            "stages": {
+              "PREPARE": 40,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 27,
+              "PAGE_CREATE": 186,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 296,
+              "ASSET_READY": 16,
+              "PDF_PRINT": 314,
+              "CONTEXT_CLOSE": 16
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-logo",
+        "repetition": 3,
+        "variant": "before",
+        "pairMs": 990,
+        "files": [
+          {
+            "name": "no-logo-3-before-original.pdf",
+            "bytes": 20701,
+            "renderMs": 465,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 62,
+              "PAGE_CREATE": 172,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 61,
+              "ASSET_READY": 3,
+              "PDF_PRINT": 133,
+              "CONTEXT_CLOSE": 19
+            }
+          },
+          {
+            "name": "no-logo-3-before-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 525,
+            "stages": {
+              "PREPARE": 1,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 57,
+              "PAGE_CREATE": 214,
+              "PAGE_SECURITY": 6,
+              "HTML_LOAD": 86,
+              "ASSET_READY": 4,
+              "PDF_PRINT": 132,
+              "CONTEXT_CLOSE": 22
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "no-logo",
+        "repetition": 3,
+        "variant": "after",
+        "pairMs": 1168,
+        "files": [
+          {
+            "name": "no-logo-3-after-original.pdf",
+            "bytes": 20701,
+            "renderMs": 581,
+            "stages": {
+              "PREPARE": 2,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 64,
+              "PAGE_CREATE": 223,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 101,
+              "ASSET_READY": 8,
+              "PDF_PRINT": 153,
+              "CONTEXT_CLOSE": 21
+            }
+          },
+          {
+            "name": "no-logo-3-after-copy.pdf",
+            "bytes": 20868,
+            "renderMs": 587,
+            "stages": {
+              "PREPARE": 5,
+              "BROWSER_LAUNCH": 3,
+              "CONTEXT_CREATE": 62,
+              "PAGE_CREATE": 242,
+              "PAGE_SECURITY": 17,
+              "HTML_LOAD": 110,
+              "ASSET_READY": 6,
+              "PDF_PRINT": 126,
+              "CONTEXT_CLOSE": 14
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 3,
+        "variant": "before",
+        "pairMs": 1785,
+        "files": [
+          {
+            "name": "actual-logo-3-before-original.pdf",
+            "bytes": 756632,
+            "renderMs": 925,
+            "stages": {
+              "PREPARE": 12,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 66,
+              "PAGE_CREATE": 210,
+              "PAGE_SECURITY": 9,
+              "HTML_LOAD": 327,
+              "ASSET_READY": 11,
+              "PDF_PRINT": 268,
+              "CONTEXT_CLOSE": 17
+            }
+          },
+          {
+            "name": "actual-logo-3-before-copy.pdf",
+            "bytes": 756800,
+            "renderMs": 860,
+            "stages": {
+              "PREPARE": 16,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 26,
+              "PAGE_CREATE": 163,
+              "PAGE_SECURITY": 16,
+              "HTML_LOAD": 292,
+              "ASSET_READY": 13,
+              "PDF_PRINT": 312,
+              "CONTEXT_CLOSE": 17
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "actual-logo",
+        "repetition": 3,
+        "variant": "after",
+        "pairMs": 1121,
+        "files": [
+          {
+            "name": "actual-logo-3-after-original.pdf",
+            "bytes": 124926,
+            "renderMs": 537,
+            "stages": {
+              "PREPARE": 4,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 45,
+              "PAGE_CREATE": 176,
+              "PAGE_SECURITY": 14,
+              "HTML_LOAD": 141,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 139,
+              "CONTEXT_CLOSE": 11
+            }
+          },
+          {
+            "name": "actual-logo-3-after-copy.pdf",
+            "bytes": 125094,
+            "renderMs": 584,
+            "stages": {
+              "PREPARE": 3,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 64,
+              "PAGE_CREATE": 188,
+              "PAGE_SECURITY": 5,
+              "HTML_LOAD": 156,
+              "ASSET_READY": 7,
+              "PDF_PRINT": 137,
+              "CONTEXT_CLOSE": 19
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 3,
+        "variant": "before",
+        "pairMs": 1913,
+        "files": [
+          {
+            "name": "allocated-multipage-3-before-original.pdf",
+            "bytes": 857332,
+            "renderMs": 949,
+            "stages": {
+              "PREPARE": 51,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 15,
+              "PAGE_CREATE": 205,
+              "PAGE_SECURITY": 8,
+              "HTML_LOAD": 286,
+              "ASSET_READY": 13,
+              "PDF_PRINT": 334,
+              "CONTEXT_CLOSE": 27
+            }
+          },
+          {
+            "name": "allocated-multipage-3-before-copy.pdf",
+            "bytes": 857397,
+            "renderMs": 963,
+            "stages": {
+              "PREPARE": 40,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 18,
+              "PAGE_CREATE": 223,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 292,
+              "ASSET_READY": 15,
+              "PDF_PRINT": 342,
+              "CONTEXT_CLOSE": 16
+            }
+          }
+        ]
+      },
+      {
+        "scenario": "allocated-multipage",
+        "repetition": 3,
+        "variant": "after",
+        "pairMs": 1503,
+        "files": [
+          {
+            "name": "allocated-multipage-3-after-original.pdf",
+            "bytes": 225626,
+            "renderMs": 796,
+            "stages": {
+              "PREPARE": 12,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 52,
+              "PAGE_CREATE": 259,
+              "PAGE_SECURITY": 10,
+              "HTML_LOAD": 130,
+              "ASSET_READY": 25,
+              "PDF_PRINT": 284,
+              "CONTEXT_CLOSE": 18
+            }
+          },
+          {
+            "name": "allocated-multipage-3-after-copy.pdf",
+            "bytes": 225691,
+            "renderMs": 707,
+            "stages": {
+              "PREPARE": 5,
+              "BROWSER_LAUNCH": 0,
+              "CONTEXT_CREATE": 55,
+              "PAGE_CREATE": 250,
+              "PAGE_SECURITY": 7,
+              "HTML_LOAD": 129,
+              "ASSET_READY": 15,
+              "PDF_PRINT": 225,
+              "CONTEXT_CLOSE": 17
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "dev": {
+    "baseline": "5db0e1cd057400759728da54c7e796f87c08f2e4",
+    "scope": "Actual DEV Firebase logo + private loopback PDF service, read-only DEV SQL, actual preloadPdf method; synthetic preview models; no signing, uploads, mail, accounting or SHAAM",
+    "runs": [
+      {
+        "repetition": 1,
+        "variant": "before",
+        "preloadMs": 0,
+        "logoOnDemandMs": 2719,
+        "renderPairMs": 1404,
+        "onDemandMs": 4123,
+        "files": [
+          {
+            "name": "dev-1-before-original.pdf",
+            "bytes": 752624,
+            "renderMs": 806
+          },
+          {
+            "name": "dev-1-before-copy.pdf",
+            "bytes": 752695,
+            "renderMs": 599
+          }
+        ]
+      },
+      {
+        "repetition": 1,
+        "variant": "after",
+        "preloadMs": 1171,
+        "logoOnDemandMs": 0,
+        "renderPairMs": 721,
+        "onDemandMs": 721,
+        "files": [
+          {
+            "name": "dev-1-after-original.pdf",
+            "bytes": 120918,
+            "renderMs": 303
+          },
+          {
+            "name": "dev-1-after-copy.pdf",
+            "bytes": 120989,
+            "renderMs": 418
+          }
+        ]
+      },
+      {
+        "repetition": 2,
+        "variant": "after",
+        "preloadMs": 1551,
+        "logoOnDemandMs": 0,
+        "renderPairMs": 694,
+        "onDemandMs": 694,
+        "files": [
+          {
+            "name": "dev-2-after-original.pdf",
+            "bytes": 120918,
+            "renderMs": 309
+          },
+          {
+            "name": "dev-2-after-copy.pdf",
+            "bytes": 120989,
+            "renderMs": 385
+          }
+        ]
+      },
+      {
+        "repetition": 2,
+        "variant": "before",
+        "preloadMs": 0,
+        "logoOnDemandMs": 1226,
+        "renderPairMs": 1253,
+        "onDemandMs": 2479,
+        "files": [
+          {
+            "name": "dev-2-before-original.pdf",
+            "bytes": 752624,
+            "renderMs": 626
+          },
+          {
+            "name": "dev-2-before-copy.pdf",
+            "bytes": 752695,
+            "renderMs": 626
+          }
+        ]
+      }
+    ]
+  },
+  "checks": [
+    {
+      "file": "actual-logo-1-before-copy.pdf",
+      "beforeBytes": 756800,
+      "afterBytes": 125094,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "actual-logo-1-before-original.pdf",
+      "beforeBytes": 756632,
+      "afterBytes": 124926,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "actual-logo-2-before-copy.pdf",
+      "beforeBytes": 756800,
+      "afterBytes": 125094,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "actual-logo-2-before-original.pdf",
+      "beforeBytes": 756632,
+      "afterBytes": 124926,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "actual-logo-3-before-copy.pdf",
+      "beforeBytes": 756800,
+      "afterBytes": 125094,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "actual-logo-3-before-original.pdf",
+      "beforeBytes": 756632,
+      "afterBytes": 124926,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-1-before-copy.pdf",
+      "beforeBytes": 857397,
+      "afterBytes": 225691,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-1-before-original.pdf",
+      "beforeBytes": 857332,
+      "afterBytes": 225626,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-2-before-copy.pdf",
+      "beforeBytes": 857397,
+      "afterBytes": 225691,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-2-before-original.pdf",
+      "beforeBytes": 857332,
+      "afterBytes": 225626,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-3-before-copy.pdf",
+      "beforeBytes": 857397,
+      "afterBytes": 225691,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "allocated-multipage-3-before-original.pdf",
+      "beforeBytes": 857332,
+      "afterBytes": 225626,
+      "pages": 4,
+      "textMatches": true
+    },
+    {
+      "file": "dev-1-before-copy.pdf",
+      "beforeBytes": 752695,
+      "afterBytes": 120989,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "dev-1-before-original.pdf",
+      "beforeBytes": 752624,
+      "afterBytes": 120918,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "dev-2-before-copy.pdf",
+      "beforeBytes": 752695,
+      "afterBytes": 120989,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "dev-2-before-original.pdf",
+      "beforeBytes": 752624,
+      "afterBytes": 120918,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-1-before-copy.pdf",
+      "beforeBytes": 20868,
+      "afterBytes": 20868,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-1-before-original.pdf",
+      "beforeBytes": 20701,
+      "afterBytes": 20701,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-2-before-copy.pdf",
+      "beforeBytes": 20868,
+      "afterBytes": 20868,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-2-before-original.pdf",
+      "beforeBytes": 20701,
+      "afterBytes": 20701,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-3-before-copy.pdf",
+      "beforeBytes": 20868,
+      "afterBytes": 20868,
+      "pages": 1,
+      "textMatches": true
+    },
+    {
+      "file": "no-logo-3-before-original.pdf",
+      "beforeBytes": 20701,
+      "afterBytes": 20701,
+      "pages": 1,
+      "textMatches": true
+    }
+  ],
+  "pdfWeight": {
+    "totalBytes": 759876,
+    "imageStreamBytes": 734331,
+    "fontStreamBytes": 7959,
+    "otherStreamBytes": 9296
+  }
+}

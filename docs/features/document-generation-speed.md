@@ -154,3 +154,11 @@ Compare development `pdf_http_total`, `pdf_create_stages` and per-operation span
 for intentional successful documents, with/without logo and email, cold/warm.
 Do not sum overlapping parent/child spans. Measure successful signing separately to quantify the real saving; never create an extra numbered document solely to
 probe readiness. No new production speedup percentage is claimed.
+
+## Entry-screen preload and selective PDF image compression
+
+Business selection now starts advisory authorized logo preload and PDF readiness
+in parallel without blocking the form. Opaque PDF logos can use quality-92 JPEG
+when at least 20% smaller; alpha/efficient PNGs remain PNG and originals stay
+unchanged. See [implementation and before/after evidence](pdf-entry-logo-2026-11-26.md)
+for separate cold/warm rendering, actual DEV cache measurements and UI limitation.

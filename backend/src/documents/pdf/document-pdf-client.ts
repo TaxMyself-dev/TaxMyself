@@ -44,7 +44,11 @@ export class DocumentPdfClient {
     }
   }
 
-  async render(document: DocumentPdfModel): Promise<Buffer> {
+  async warmup(): Promise<void> { await this.request(); }
+
+  async render(document: DocumentPdfModel): Promise<Buffer> { return this.request(document); }
+
+  private async request(document?: DocumentPdfModel): Promise<Buffer> {
     const configured = process.env.PDF_SERVICE_URL;
     let base: URL;
     try {
@@ -83,6 +87,13 @@ export class DocumentPdfClient {
               (tokenHeaders as any).authorization;
         if (!authorization) throw new Error('Missing service identity');
         headers.Authorization = authorization;
+      }
+      if (!document) {
+        await axios.get(new URL('/healthz', base).href, {
+          headers, timeout: 60000, maxRedirects: 0, maxContentLength: 1024,
+          responseType: 'text', validateStatus: status => status === 200,
+        });
+        return Buffer.alloc(0);
       }
       const response = await measurePdfStage('SERVICE_HTTP', () => axios.post(new URL('/v1/render', base).href, job, {
         headers,

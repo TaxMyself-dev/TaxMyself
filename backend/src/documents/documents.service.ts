@@ -238,6 +238,23 @@ export class DocumentsService {
   isGeneralIncrement: boolean = false;
 
 
+  private readonly pendingPdfPreloads = new Map<string, Promise<void>>();
+
+  async preloadPdf(issuerBusinessNumber: string, firebaseId: string): Promise<void> {
+    // Re-authorize on every request before touching cached private assets.
+    const business = await this.businessService.getBusinessByNumber(issuerBusinessNumber, firebaseId);
+    if (!business) throw new HttpException('Business not found or not owned by user', HttpStatus.FORBIDDEN);
+    const key = `${firebaseId}:${issuerBusinessNumber}:${business.logoPath || ""}`;
+    const pending = this.pendingPdfPreloads.get(key);
+    if (pending) return pending;
+    const work = (async () => {
+      await Promise.allSettled([this.documentPdfRenderer.warmup(),
+        business.logoPath ? this.imageStorage.download(business.logoPath, 'pdf') : Promise.resolve()]);
+    })();
+    if (this.pendingPdfPreloads.size < 128) this.pendingPdfPreloads.set(key, work);
+    try { await work; } finally { if (this.pendingPdfPreloads.get(key) === work) this.pendingPdfPreloads.delete(key); }
+  }
+
   async getDocuments(
     issuerBusinessNumber: string,
     firebaseId: string,

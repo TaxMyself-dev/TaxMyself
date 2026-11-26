@@ -13,6 +13,22 @@ import {
 @Injectable()
 export class DocumentPdfRenderer implements OnModuleDestroy {
   constructor(private readonly remote: DocumentPdfClient = new DocumentPdfClient()) {}
+  private warmupWork?: Promise<void>;
+  private warmedAt = 0;
+
+  async warmup(): Promise<void> {
+    if (this.warmupWork) return this.warmupWork;
+    if (Date.now() - this.warmedAt < 60000) return;
+    const work = (async () => {
+      if (process.env.PDF_SERVICE_URL || process.env.K_SERVICE) await this.remote.warmup();
+      else await this.render({title: 'PDF warmup', date: '', documentType: '', preview: true,
+        items: [], totals: [], payments: [], paymentTotals: []});
+      this.warmedAt = Date.now();
+    })();
+    this.warmupWork = work;
+    try { await work; } finally { if (this.warmupWork === work) this.warmupWork = undefined; }
+  }
+
   private active = 0;
   private cachedFonts: string;
 

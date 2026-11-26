@@ -4,7 +4,7 @@ import { AbstractControl, FormBuilder, FormControl, FormGroup, ValidationErrors,
 import { Router } from '@angular/router';
 import { ConfirmationService, MenuItem, MessageService } from 'primeng/api';
 import { DialogService, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { catchError, defer, EMPTY, finalize, firstValueFrom, of, tap } from 'rxjs';
+import { Subscription, catchError, defer, EMPTY, finalize, firstValueFrom, of, tap } from 'rxjs';
 import { AddClientComponent } from 'src/app/components/add-client/add-client.component';
 import { ButtonColor, ButtonSize } from 'src/app/components/button/button.enum';
 import { DocSuccessDialogComponent } from 'src/app/components/create-doc-success-dialog/create-doc-success-dialog.component';
@@ -378,6 +378,18 @@ export class DocCreatePage implements OnInit, OnDestroy {
   }
 
 
+  private pdfPreloadSubscription?: Subscription;
+  private pdfPreloadBusiness?: string;
+
+  private preloadSelectedPdf(): void {
+    if (!this.selectedBusinessNumber || this.pdfPreloadBusiness === this.selectedBusinessNumber) return;
+    this.pdfPreloadSubscription?.unsubscribe();
+    this.pdfPreloadBusiness = this.selectedBusinessNumber;
+    // Advisory only: never joins the create/preview lock or displays an error toast.
+    this.pdfPreloadSubscription = this.docCreateService.preloadPdf(this.selectedBusinessNumber)
+      .subscribe({ error: () => {} });
+  }
+
   async ngOnInit() {
 
     this.userData = this.authService.getUserDataFromLocalStorage();
@@ -429,6 +441,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
 
 
   ngOnDestroy() {
+    this.pdfPreloadSubscription?.unsubscribe();
     if (this.dialogRef) {
       this.dialogRef.close();
     }
@@ -544,6 +557,7 @@ export class DocCreatePage implements OnInit, OnDestroy {
     this.selectedBusinessType.set(business.businessType);
     this.selectedBusinessPhone = business.businessPhone;
     this.selectedBusinessEmail = business.businessEmail;
+    this.preloadSelectedPdf();
     this.applyDocTypeFilterForBusiness();
     // this.selectedBankBeneficiary = business.bankBeneficiary;
     // this.selectedBankName = business.bankName;

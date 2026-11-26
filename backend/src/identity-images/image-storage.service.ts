@@ -61,6 +61,12 @@ export class ImageStorageService {
         .toBuffer();
       if (normalized.length > IMAGE_MAX_BYTES)
         throw new Error('Normalized image too large');
+      // Opaque photographic logos dominate PDF size with lossless RGB PNG.
+      // Preserve transparent artwork and small/flat PNGs; never rewrite storage.
+      if (forPdf && !metadata.hasAlpha) {
+        const jpeg = await sharp(normalized).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+        if (jpeg.length < normalized.length * 0.8) return jpeg;
+      }
       return normalized;
     } catch {
       throw new BadRequestException(
@@ -141,14 +147,9 @@ export class ImageStorageService {
       if (Number(metadata.size) > IMAGE_MAX_BYTES)
         throw new BadRequestException('Stored image too large');
       const [buffer] = await file.download();
-      return {
-        buffer: await this.normalize(
-          buffer,
-          path.startsWith('identity-images/business/') ? 'business' : 'user',
-          forPdf,
-        ),
-        contentType: 'image/png',
-      };
+      const normalized = await this.normalize(buffer,
+        path.startsWith('identity-images/business/') ? 'business' : 'user', forPdf);
+      return { buffer: normalized, contentType: normalized[0] === 0xff ? 'image/jpeg' : 'image/png' };
     } catch (error) {
       if (Number(error?.code) === 404)
         throw new NotFoundException('Image not found');
