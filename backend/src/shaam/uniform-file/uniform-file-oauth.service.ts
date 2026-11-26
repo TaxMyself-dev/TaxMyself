@@ -8,7 +8,7 @@ import {
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom, timeout } from 'rxjs';
 import { ShaamTokenResponseDto } from '../dto/shaam-token-response.dto';
-import { REQUEST_TIMEOUT_MS, ShaamEnvironment } from '../shaam.constants';
+import { REQUEST_TIMEOUT_MS } from '../shaam.constants';
 import {
   UNIFORM_FILE_OAUTH_CONFIG,
   UniformFileOauthConfig,
@@ -111,10 +111,8 @@ export class UniformFileOauthService {
   }
 
   private scopeParameter(): string {
-    // Approved tsandbox experiment after an invalid_scope callback. Keep the
-    // production contract unchanged until sandbox acceptance is reviewed.
-    return this.config.scopes.join(
-      this.config.environment === ShaamEnvironment.TSANDBOX ? ' ' : ',',
-    );
+    // Daily Token uses the sandbox-verified OAuth space delimiter in both
+    // environments. Invoice Long Time Token scopes are configured separately.
+    return this.config.scopes.join(' ');
   }
 }

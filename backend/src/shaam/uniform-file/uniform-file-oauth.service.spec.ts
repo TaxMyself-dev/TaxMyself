@@ -49,7 +49,7 @@ describe('UniformFileOauthService', () => {
 
   it.each([
     [ShaamEnvironment.TSANDBOX, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
-    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope,FilesStatus_scope'],
+    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
   ])('builds the exact authorization scopes for %s', (environment, scopes) => {
     const { service } = setup(undefined, environment as ShaamEnvironment);
     const url = new URL(service.buildAuthorizeUrl('signed-state'));
@@ -61,7 +61,7 @@ describe('UniformFileOauthService', () => {
 
   it.each([
     [ShaamEnvironment.TSANDBOX, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
-    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope,FilesStatus_scope'],
+    [ShaamEnvironment.PRODUCTION, 'UniStructFileUploadLinks_scope FilesStatus_scope'],
   ])('exchanges a code with the same scopes as authorization for %s', async (environment, scopes) => {
     const { service, httpService } = setup(undefined, environment as ShaamEnvironment);
 

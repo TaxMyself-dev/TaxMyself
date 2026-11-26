@@ -95,6 +95,22 @@ tokens or upload capabilities to the browser.
 
 ## Current verification / handoff
 
+- Production preparation continuation (2026-11-26): Elazar supplied both
+  production OpenAPI files, reported registering both products on the production
+  application, and supplied its registered HTTPS callback. Authorized scope:
+  align Daily Token request serialization with the successful space-delimited
+  sandbox flow; verify the supplied production endpoints and shared-credential
+  fallback in local tests. No deployment, production access, schema changes or
+  flag activation. Production OAuth success remains unverified.
+- Acceptance for this continuation: authorization and token exchange send the
+  same two space-delimited Daily Token scopes in both environments; invoice
+  `SHAAM_SCOPES` is neither modified nor included. Exact supplied `openapi`
+  production URLs load with the explicit activation switch, and missing URLs,
+  sandbox API endpoints/fixture overrides and a disabled production switch remain
+  blocked. Both switches remain false in the preparation instructions.
+- Verification tier: backend service/config; focused Daily Token service and
+  configuration suites, invoice OAuth regression suite and Nest build. No
+  frontend, accounting or schema behavior changes.
 - Sandbox stage accepted by Elazar on 2026-11-25. Daily Token with
   space-delimited scopes succeeded; the user-driven submission screen showed
   both files uploaded and the pair processing. Elazar confirmed that a
@@ -236,3 +252,57 @@ tokens or upload capabilities to the browser.
   unrelated settings unused import, SCSS/initial bundle budgets and CommonJS
   dependencies. `git diff --check` passed. Local fix only; no main integration,
   push, production deployment or external file submission was performed.
+
+### Production contract and local preparation — 2026-11-26
+
+- Base for this continuation: `f498428e` on `eharel-branch-0`.
+- Evidence supplied by Elazar: `UniStructFileUploadLinksApi-v1_prod.json`,
+  `FilesStatusApi-v1_prod.json`, production portal screenshots, product
+  registration confirmation and the callback below. The upload specification
+  advertises `openapi` only; the status specification explicitly includes
+  `openapi` among its gateways. Both advertise production Daily Token OAuth.
+- Request paths and payloads are supported by the existing client. The status
+  specification still has no response schema; real production response parsing
+  remains a canary verification item. No production response was captured.
+- Approved local change: send the two fixed Daily Token scopes with a space in
+  both environments, for authorization and code exchange. This supersedes the
+  earlier temporary production-comma boundary. It follows successful sandbox
+  authorization and OAuth scope syntax, not a claim of production acceptance.
+  Existing invoice `SHAAM_SCOPES` and Long Time Token serialization are unchanged.
+- Elazar is preparing the following backend variables. These are desired
+  configuration values, not evidence of deployment or effective live settings:
+
+```dotenv
+SHAAM_UNIFORM_FILE_ENV=production
+SHAAM_UNIFORM_FILE_REDIRECT_URI=https://taxmys16elf-prod-146140406969.me-west1.run.app/shaam/oauth/callback
+SHAAM_UNIFORM_FILE_AUTHORIZE_URL=https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/authorize
+SHAAM_UNIFORM_FILE_TOKEN_URL=https://openapi.taxes.gov.il/shaam/production/dailytoken/oauth2/token
+SHAAM_UNIFORM_FILE_UPLOAD_LINKS_URL=https://openapi.taxes.gov.il/shaam/production/UniStructFileUploadLinksApi/v1/UploadingFile/GetUrlsForUploadingFiles
+SHAAM_UNIFORM_FILE_STATUS_URL=https://openapi.taxes.gov.il/shaam/production/FilesStatusApi/v1/Files/get-file-status
+SHAAM_UNIFORM_FILE_ENABLED=false
+SHAAM_UNIFORM_FILE_PRODUCTION_ENABLED=false
+```
+
+- If both products use the existing production application, the loader can reuse
+  `SHAAM_CLIENT_ID` and `SHAAM_CLIENT_SECRET`. Different applications require
+  `SHAAM_UNIFORM_FILE_CLIENT_ID` / `SHAAM_UNIFORM_FILE_CLIENT_SECRET` overrides.
+  Never put credentials in documentation, Git or chat. Remove any
+  `SHAAM_UNIFORM_FILE_SANDBOX_CASE_NUMBER` from production. Preserve the existing
+  `SHAAM_TOKEN_ENC_KEY_B64`; verify the production `FRONTEND_URL` independently.
+- Both flags stay false until the remaining security, schema, activation and
+  canary gates are complete. Enabling only the general flag with environment
+  `production` fails startup deliberately. A fresh owner-initiated production
+  Daily Token connection will be required; sandbox grants are not reused.
+- Focused verification: `npm test -- --runInBand --silent --runTestsByPath
+  src/shaam/uniform-file/uniform-file-oauth.service.spec.ts
+  src/shaam/uniform-file/uniform-file-oauth.config.spec.ts
+  src/shaam/uniform-file/uniform-file-api.config.spec.ts
+  src/shaam/services/shaam-oauth.service.spec.ts` passed: 4 suites / 31 tests,
+  exit 0. Expected invoice OAuth negative-test logs appeared. Initial sandboxed
+  invocation could not resolve npm; the same focused command ran successfully
+  with the approved local tooling access. All HTTP calls in these tests are
+  mocked; no provider or database access occurred.
+- `npm run build` passed (Nest, exit 0). `git diff --cached --check` passed.
+  No frontend build or accounting suites were required for this isolated backend
+  OAuth serialization change. Local delivery only: no integration, push,
+  production deployment, credential change or switch activation.

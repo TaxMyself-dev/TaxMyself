@@ -151,27 +151,33 @@ them. Every new SHAAM product must use `ShaamConnection` and durable state.
 The uniform-file API must not reuse the current `/longtimetoken/` flow or
 literal `scope`: the active sandbox portal specifies a 12-hour Daily Token and
 separate `UniStructFileUploadLinks_scope` and `FilesStatus_scope` scopes. Send
-the complete Daily Token scope value space-delimited in tsandbox for both
-authorization and code exchange, as explicitly approved by Elazar on
-2026-11-25 after an `invalid_scope` callback. Elazar subsequently confirmed
-successful interactive authorization and a connected local status with spaces;
-upload/status acceptance is still pending. Production retains its existing comma
-serialization and stays disabled. The trial supersedes older sandbox comma
-instructions in KT-061 and the integration lessons; see KT-090. Invoice Long
-Time Token serialization is unchanged. It may reuse only hardened server-side HTTP, encryption and
-environment primitives. Uniform-file production remains disabled until
-verified portal configuration is provided; see KT-061 through KT-063.
+the complete Daily Token scope value space-delimited in both environments for
+authorization and code exchange. Elazar accepted the successful sandbox flow
+on 2026-11-25 and approved local production preparation on 2026-11-26 after
+supplying the production specifications and registered callback. This supersedes
+the earlier temporary production-comma boundary and older comma instructions
+in KT-061 and the integration lessons; see KT-090. Production authorization and
+status parsing remain unverified live. Invoice Long Time Token serialization
+and its `SHAAM_SCOPES` variable are unchanged; never add Daily Token scopes there.
+Uniform File may reuse only hardened server-side HTTP, encryption and environment
+primitives. Production stays disabled pending the remaining activation gates.
 
 The Uniform File boundary is enabled only with
 `SHAAM_UNIFORM_FILE_ENABLED=true`. It has product-specific environment,
 credential, callback and endpoint overrides; when those overrides are absent,
-the verified shared sandbox application may reuse `SHAAM_CLIENT_ID`,
+the same registered application may reuse `SHAAM_CLIENT_ID`,
 `SHAAM_CLIENT_SECRET` and `SHAAM_REDIRECT_URI`. Tokens remain separated by
 product. OAuth state is random, hashed, durable and single-use in
 `shaam_oauth_state`; there is no extra state secret. Production requires exact
 verified authorize/token/upload/status URLs plus the separate
 `SHAAM_UNIFORM_FILE_PRODUCTION_ENABLED=true` kill switch and never inherits
 tsandbox defaults.
+The supplied production specifications advertise `openapi.taxes.gov.il` for
+both API endpoints and Daily Token authorize/token. Use those explicit URLs
+from KT-090; its preparation block deliberately leaves both switches false.
+The status OpenAPI has no response schema, so production response compatibility
+must be checked during the approved canary. No extra scope or state-secret
+environment variable is needed for Uniform File.
 
 Invoice-allocation production configuration also requires
 `SHAAM_INVOICE_CONFIRMATION_URL` and `SHAAM_INVOICE_DETAILS_URL`. Each
