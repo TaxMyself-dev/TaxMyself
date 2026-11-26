@@ -270,3 +270,14 @@ No production/cloud/scheduler configuration or main integration. Early upload
 overlap was explained, not implemented. Entry-screen preloading remains pending.
 Feature-branch push is authorized under Elazar's replacement AGENTS instructions;
 main remains untouched.
+
+## Upload overlap follow-up — 2026-11-26
+
+Implemented independent signed-file upload chains for issuance/allocation, with
+all-settled draining and cleanup before rollback. Final focused run: 7 suites /
+99 tests, 42.279s, exit 0; backend build exit 0. Controlled comparison 24 runs
+passed. Full DEV comparison 8 documents / 16 signatures, no email, mean service
+creation 4.626→4.060s. One baseline UI wait timed out with server commit complete;
+missing HTTP total retained explicitly. No live allocation test, production or
+main integration. See [report](../../features/pdf-upload-overlap-2026-11-26.md)
+for exact commands, baseline revision, evidence, limitations and source hash.

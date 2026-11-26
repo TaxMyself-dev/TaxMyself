@@ -66,7 +66,7 @@ describe('document bank transfer instructions', () => {
     service.shaamAllocationAttemptRepo = {findOne: jest.fn().mockResolvedValue(null)};
     service.docLinesRepo = service.docPaymentsRepo = {find: jest.fn().mockResolvedValue([])};
     service.dataSource = {createQueryRunner: () => runner};
-    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy') });
+    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy'), originalFilePath: 'original-path', copyFilePath: 'copy-path' });
     service.uploadToFirebase = jest.fn().mockResolvedValueOnce('original').mockResolvedValueOnce('copy');
     service.deleteFromFirebase = jest.fn();
     await service.finalizeAllocation('owner', {issuerBusinessNumber: '123456789', docType: DocumentType.TAX_INVOICE,

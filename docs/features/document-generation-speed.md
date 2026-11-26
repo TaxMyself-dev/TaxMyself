@@ -108,7 +108,10 @@ HTTP cache headers. First requests and separate instances can still miss it.
 
 Allocation finalization now uses the same shared original/copy model preparation,
 original-sign/copy-render overlap and parallel signed-file uploads as regular
-manual issuance. The shared upload helper waits for both outcomes and cleans a
+manual issuance. Each upload now starts as soon as its own signature is ready,
+while the other PDF can still render/sign. See the
+[overlap verification](pdf-upload-overlap-2026-11-26.md). The shared upload helper
+waits for both complete chains and cleans a
 successful sibling before propagating failure. Existing allocation, journal,
 parent-document and transaction behavior is retained.
 

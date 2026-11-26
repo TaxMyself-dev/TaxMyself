@@ -145,7 +145,7 @@ describe('DocumentsService draft issuance', () => {
       getBusinessByNumber: jest.fn().mockResolvedValue({ businessType: 'LICENSED' }),
     };
     service.dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
-    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy') });
+    service.generatePdfPair = jest.fn().mockResolvedValue({ original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy'), originalFilePath: 'original-path', copyFilePath: 'copy-path' });
     service.uploadToFirebase = jest.fn()
       .mockResolvedValueOnce('original-path')
       .mockResolvedValueOnce('copy-path');
@@ -187,7 +187,9 @@ describe('DocumentsService draft issuance', () => {
     service.deleteDraft = jest.fn();
     service.saveDocInfo = jest.fn().mockResolvedValue({id: 1});
     service.saveLinesInfo = jest.fn(); service.savePaymentsInfo = jest.fn();
-    service.generatePdfPair = jest.fn().mockResolvedValue({original: Buffer.from('signed-original'), copy: Buffer.from('signed-copy')});
+    service.preparePdfModel = jest.fn().mockResolvedValue({});
+    service.documentPdfRenderer = {render: jest.fn().mockResolvedValue(Buffer.from('%PDF-rendered'))};
+    service.fillFasterSigner = {sign: jest.fn().mockResolvedValue(Buffer.from('%PDF-signed'))};
     service.uploadToFirebase = jest.fn().mockResolvedValueOnce('uploaded-original')
       .mockRejectedValueOnce(new Error('copy upload failed'));
     service.deleteFromFirebase = jest.fn().mockResolvedValue(undefined);

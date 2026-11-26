@@ -754,7 +754,7 @@ export class DocumentsService {
     return measurePdfStage(isCopy ? 'COPY_RENDER' : 'ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
   }
 
-  private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer }> {
+  private async generatePdfPair(data: any): Promise<{ original: Buffer; copy: Buffer; originalFilePath: string; copyFilePath: string }> {
     const model = await measurePdfStage('SHARED_PREPARE', () => this.preparePdfModel(data, false, false));
     const originalPdf = await measurePdfStage('ORIGINAL_RENDER', () => this.documentPdfRenderer.render(model));
     // Provider confirmed two parallel signing requests, including the same template.
@@ -763,31 +763,28 @@ export class DocumentsService {
     const originalSigning = measurePdfStage('ORIGINAL_SIGN', () => this.fillFasterSigner.sign(originalPdf));
     const copyWork = async () => {
       const rendered = await measurePdfStage('COPY_RENDER', () => this.documentPdfRenderer.render({ ...model, documentType: 'העתק נאמן למקור' }));
-      if (parallelSigning) {
-        return measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(rendered));
-      }
-      return rendered;
+      // Serial signing waits for the original signature, never its upload.
+      if (!parallelSigning) await originalSigning;
+      return measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(rendered));
     };
-    const [original, copyResult] = await Promise.allSettled([originalSigning, copyWork()]);
-    if (original.status === 'rejected') throw original.reason;
-    if (copyResult.status === 'rejected') throw copyResult.reason;
-    const copy = parallelSigning ? copyResult.value
-      : await measurePdfStage('COPY_SIGN', () => this.fillFasterSigner.sign(copyResult.value));
-    return { original: original.value, copy };
+    const copySigning = copyWork();
+    // Attach both chains immediately: each signed PDF uploads independently.
+    // The helper drains both chains and cleans successful files on ANY failure.
+    const [originalFilePath, copyFilePath] = await this.uploadPdfPair(data, originalSigning, copySigning);
+    return { original: await originalSigning, copy: await copySigning, originalFilePath, copyFilePath };
   }
 
-  private async uploadPdfPair(data: any, original: Buffer, copy: Buffer): Promise<[string, string]> {
-    const outcomes = await Promise.allSettled([
-      measurePdfStage('UPLOAD_ORIGINAL', () => this.uploadToFirebase(original,
-        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
-        data.docData.docType, data.docData.docDescription, 'original')),
-      measurePdfStage('UPLOAD_COPY', () => this.uploadToFirebase(copy,
-        data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
-        data.docData.docType, data.docData.docDescription, 'copy')),
-    ]);
+  private async uploadPdfPair(data: any, original: Buffer | Promise<Buffer>, copy: Buffer | Promise<Buffer>): Promise<[string, string]> {
+    const upload = async (signed: Buffer | Promise<Buffer>, kind: 'original' | 'copy') => {
+      const bytes = await signed;
+      return measurePdfStage(kind === 'original' ? 'UPLOAD_ORIGINAL' : 'UPLOAD_COPY', () =>
+        this.uploadToFirebase(bytes, data.docData.issuerBusinessNumber, data.docData.generalDocIndex,
+          data.docData.docType, data.docData.docDescription, kind));
+    };
+    const outcomes = await Promise.allSettled([upload(original, 'original'), upload(copy, 'copy')]);
     const failure = outcomes.find(outcome => outcome.status === 'rejected');
     if (failure?.status === 'rejected') {
-      // Wait for both uploads, then remove every successful sibling before rollback.
+      // Wait for both render/sign/upload chains, then remove every successful file before rollback.
       // Preserve the triggering error even if cleanup itself fails.
       await Promise.allSettled(outcomes.filter((outcome): outcome is PromiseFulfilledResult<string> =>
         outcome.status === 'fulfilled').map(outcome => this.deleteFromFirebase(outcome.value)));
@@ -1371,10 +1368,12 @@ export class DocumentsService {
 
       if (generatePdf) {
         try {
-          const { original: originalBuffer, copy: copyBuffer } = await this.generatePdfPair(data);
-          pdfTimings.mark('SHARED_PREPARE_RENDER_SIGN_PAIR');
-          [originalFilePath, copyFilePath] = await this.uploadPdfPair(data, originalBuffer, copyBuffer);
-          pdfTimings.mark('UPLOAD_PAIR');
+          const pair = await this.generatePdfPair(data);
+          const originalBuffer = pair.original;
+          originalFilePath = pair.originalFilePath;
+          copyFilePath = pair.copyFilePath;
+          // One wall-clock phase: upload now overlaps signing/rendering.
+          pdfTimings.mark('PREPARE_RENDER_SIGN_UPLOAD_PAIR');
 
           // 9. Update document with Firebase paths
           const documentsRepo = queryRunner.manager.getRepository(Documents);
@@ -1622,8 +1621,9 @@ export class DocumentsService {
     let copyFilePath: string | null = null;
 
     try {
-      const { original, copy } = await this.generatePdfPair(dataForPdf);
-      [originalFilePath, copyFilePath] = await this.uploadPdfPair(dataForPdf, original, copy);
+      const pair = await this.generatePdfPair(dataForPdf);
+      originalFilePath = pair.originalFilePath;
+      copyFilePath = pair.copyFilePath;
 
       // Persist file paths, allocation #. For pending docs flip status to
       // OPEN/CLOSE; for already-issued docs leave the existing status alone.

@@ -1,0 +1,1860 @@
+{
+  "baseline": "566daff5bd516221635ede69522103367e7869c5",
+  "sourceSha256": {
+    "backend\\src\\documents\\documents.service.ts": "709759f63fd3a56c22a5d3da99869d6cea6b81f823dbe88314499bcb440df344"
+  },
+  "fullDev": [
+    {
+      "variant": "before",
+      "requestId": "e855c19f-b0d5-4fbb-8da5-694e0ec9cb3a",
+      "serviceMs": 4287,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 98,
+        "RESERVE_DOCUMENT_NUMBER": 69,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 85,
+        "LINES_SAVE": 56,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2372,
+        "UPLOAD_PAIR": 1486,
+        "FILE_PATHS_SAVE": 70,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 29,
+        "RELEASE_OR_ERROR_CLEANUP": 3
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "e855c19f-b0d5-4fbb-8da5-694e0ec9cb3a",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 4365
+      }
+    },
+    {
+      "variant": "before",
+      "requestId": "420e7f7f-653a-4b21-a002-99cdcee82a9a",
+      "serviceMs": 4701,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 95,
+        "RESERVE_DOCUMENT_NUMBER": 82,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 105,
+        "LINES_SAVE": 68,
+        "PAYMENTS_SAVE": 58,
+        "JOURNAL": 386,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2450,
+        "UPLOAD_PAIR": 1369,
+        "FILE_PATHS_SAVE": 43,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 23,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "420e7f7f-653a-4b21-a002-99cdcee82a9a",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 4809
+      }
+    },
+    {
+      "variant": "before",
+      "requestId": "60e568f6-4ae6-46fa-9642-0b1327a5ebc2",
+      "serviceMs": 4163,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 91,
+        "RESERVE_DOCUMENT_NUMBER": 76,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 88,
+        "LINES_SAVE": 42,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 2527,
+        "UPLOAD_PAIR": 1255,
+        "FILE_PATHS_SAVE": 45,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 19,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "60e568f6-4ae6-46fa-9642-0b1327a5ebc2",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 4258
+      }
+    },
+    {
+      "variant": "before",
+      "requestId": "98462854-0d51-4bec-a53e-aa34bd557999",
+      "serviceMs": 5354,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 90,
+        "RESERVE_DOCUMENT_NUMBER": 121,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 86,
+        "LINES_SAVE": 42,
+        "PAYMENTS_SAVE": 20,
+        "JOURNAL": 373,
+        "SHARED_PREPARE_RENDER_SIGN_PAIR": 3144,
+        "UPLOAD_PAIR": 1389,
+        "FILE_PATHS_SAVE": 42,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 26,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": null
+    },
+    {
+      "variant": "after",
+      "requestId": "efa9b2b4-f573-4623-b01a-23a46381d1bf",
+      "serviceMs": 3890,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 17,
+        "RESERVE_GENERAL_INDEX": 101,
+        "RESERVE_DOCUMENT_NUMBER": 67,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 77,
+        "LINES_SAVE": 43,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 1,
+        "PREPARE_RENDER_SIGN_UPLOAD_PAIR": 3476,
+        "FILE_PATHS_SAVE": 83,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 23,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "efa9b2b4-f573-4623-b01a-23a46381d1bf",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 3948
+      }
+    },
+    {
+      "variant": "after",
+      "requestId": "3ad6cd9e-a6b2-480b-8906-386d99d3d123",
+      "serviceMs": 4310,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 18,
+        "RESERVE_GENERAL_INDEX": 79,
+        "RESERVE_DOCUMENT_NUMBER": 91,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 94,
+        "LINES_SAVE": 37,
+        "PAYMENTS_SAVE": 27,
+        "JOURNAL": 316,
+        "PREPARE_RENDER_SIGN_UPLOAD_PAIR": 3502,
+        "FILE_PATHS_SAVE": 113,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 31,
+        "RELEASE_OR_ERROR_CLEANUP": 2
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "3ad6cd9e-a6b2-480b-8906-386d99d3d123",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 4386
+      }
+    },
+    {
+      "variant": "after",
+      "requestId": "10d3edb7-f752-405a-97d8-6c5505127bae",
+      "serviceMs": 3795,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 19,
+        "RESERVE_GENERAL_INDEX": 94,
+        "RESERVE_DOCUMENT_NUMBER": 97,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 123,
+        "LINES_SAVE": 48,
+        "PAYMENTS_SAVE": 1,
+        "JOURNAL": 0,
+        "PREPARE_RENDER_SIGN_UPLOAD_PAIR": 3342,
+        "FILE_PATHS_SAVE": 47,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 24,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "10d3edb7-f752-405a-97d8-6c5505127bae",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 3859
+      }
+    },
+    {
+      "variant": "after",
+      "requestId": "495d3a16-bd2a-456c-af30-fc3ff840ee7d",
+      "serviceMs": 4246,
+      "stagesMs": {
+        "DB_CONNECT_BEGIN": 17,
+        "RESERVE_GENERAL_INDEX": 84,
+        "RESERVE_DOCUMENT_NUMBER": 85,
+        "DRAFT_CLEANUP_DOCUMENT_SAVE": 64,
+        "LINES_SAVE": 37,
+        "PAYMENTS_SAVE": 23,
+        "JOURNAL": 284,
+        "PREPARE_RENDER_SIGN_UPLOAD_PAIR": 3591,
+        "FILE_PATHS_SAVE": 42,
+        "PARENT_STATUS_UPDATE": 0,
+        "OPTIONAL_EMAIL": 0,
+        "COMMIT": 19,
+        "RELEASE_OR_ERROR_CLEANUP": 1
+      },
+      "http": {
+        "event": "pdf_http_total",
+        "requestId": "495d3a16-bd2a-456c-af30-fc3ff840ee7d",
+        "operation": "create",
+        "status": 201,
+        "totalMs": 4316
+      }
+    }
+  ],
+  "controlled": {
+    "baseline": "566daff5bd516221635ede69522103367e7869c5",
+    "scope": "Controlled render/sign/upload delays; no external I/O",
+    "runs": [
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "before",
+        "repetition": 1,
+        "elapsedMs": 560,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 1
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 20
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 21
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 21
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 42
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 43
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 156
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 356
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 356
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 357
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 469
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 557
+          }
+        ]
+      },
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "after",
+        "repetition": 1,
+        "elapsedMs": 476,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 1
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 29
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 30
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 30
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 62
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 62
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 162
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 162
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 363
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 363
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 363
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 475
+          }
+        ]
+      },
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "after",
+        "repetition": 2,
+        "elapsedMs": 467,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 21
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 21
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 21
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 55
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 55
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 155
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 155
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 356
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 356
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 356
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 467
+          }
+        ]
+      },
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "before",
+        "repetition": 2,
+        "elapsedMs": 569,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 157
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 368
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 369
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 369
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 470
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 569
+          }
+        ]
+      },
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "before",
+        "repetition": 3,
+        "elapsedMs": 605,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 56
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 57
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 152
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 385
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 385
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 385
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 494
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 605
+          }
+        ]
+      },
+      {
+        "scenario": "original-fast-copy-slow",
+        "variant": "after",
+        "repetition": 3,
+        "elapsedMs": 479,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 64
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 64
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 157
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 157
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 375
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 375
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 375
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 478
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "before",
+        "repetition": 1,
+        "elapsedMs": 650,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 33
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 33
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 33
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 69
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 69
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 177
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 396
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 396
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 396
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 478
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 650
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "after",
+        "repetition": 1,
+        "elapsedMs": 474,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 33
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 33
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 33
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 55
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 55
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 158
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 159
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 413
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 474
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "after",
+        "repetition": 2,
+        "elapsedMs": 464,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 28
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 28
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 28
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 60
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 60
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 164
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 164
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 415
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 464
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "before",
+        "repetition": 2,
+        "elapsedMs": 630,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 25
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 26
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 26
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 47
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 47
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 148
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 380
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 380
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 380
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 464
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 630
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "before",
+        "repetition": 3,
+        "elapsedMs": 639,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 64
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 64
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 172
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 383
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 383
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 465
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 639
+          }
+        ]
+      },
+      {
+        "scenario": "copy-fast-original-slow",
+        "variant": "after",
+        "repetition": 3,
+        "elapsedMs": 475,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 34
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 34
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 35
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 77
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 77
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 193
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 193
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 390
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 390
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 443
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 475
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "before",
+        "repetition": 1,
+        "elapsedMs": 393,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 141
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 377
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 377
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 377
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 393
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 393
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "after",
+        "repetition": 1,
+        "elapsedMs": 382,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 59
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 59
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 141
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 141
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 157
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 368
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 368
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 382
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "after",
+        "repetition": 2,
+        "elapsedMs": 375,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 24
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 24
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 24
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 44
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 45
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 127
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 127
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 143
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 356
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 356
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 375
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "before",
+        "repetition": 2,
+        "elapsedMs": 398,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 143
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 367
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 367
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 367
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 398
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 398
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "before",
+        "repetition": 3,
+        "elapsedMs": 382,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 31
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 63
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 170
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 369
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 369
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 369
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 382
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 382
+          }
+        ]
+      },
+      {
+        "scenario": "little-overlap-opportunity",
+        "variant": "after",
+        "repetition": 3,
+        "elapsedMs": 365,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 22
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 22
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 22
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 45
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 45
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 122
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 122
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 137
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 350
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 350
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 365
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "before",
+        "repetition": 1,
+        "elapsedMs": 528,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 23
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 23
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 24
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 43
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 143
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 144
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 327
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 327
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 327
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 432
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 528
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "after",
+        "repetition": 1,
+        "elapsedMs": 443,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 23
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 24
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 24
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 53
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 149
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 150
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 150
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 334
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 334
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 365
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 443
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "after",
+        "repetition": 2,
+        "elapsedMs": 436,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 20
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 20
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 20
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 52
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 149
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 149
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 150
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 335
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 335
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 353
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 436
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "before",
+        "repetition": 2,
+        "elapsedMs": 548,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 31
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 31
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 66
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 163
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 163
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 348
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 348
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 348
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 451
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 548
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "before",
+        "repetition": 3,
+        "elapsedMs": 552,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 32
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 32
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 65
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 165
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 166
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 349
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 349
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 349
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 452
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 552
+          }
+        ]
+      },
+      {
+        "scenario": "serial-signing-switch",
+        "variant": "after",
+        "repetition": 3,
+        "elapsedMs": 447,
+        "events": [
+          {
+            "phase": "render-start",
+            "kind": "original",
+            "ms": 0
+          },
+          {
+            "phase": "render-end",
+            "kind": "original",
+            "ms": 24
+          },
+          {
+            "phase": "sign-start",
+            "kind": "original",
+            "ms": 24
+          },
+          {
+            "phase": "render-start",
+            "kind": "copy",
+            "ms": 24
+          },
+          {
+            "phase": "render-end",
+            "kind": "copy",
+            "ms": 50
+          },
+          {
+            "phase": "sign-end",
+            "kind": "original",
+            "ms": 153
+          },
+          {
+            "phase": "upload-start",
+            "kind": "original",
+            "ms": 153
+          },
+          {
+            "phase": "sign-start",
+            "kind": "copy",
+            "ms": 153
+          },
+          {
+            "phase": "sign-end",
+            "kind": "copy",
+            "ms": 336
+          },
+          {
+            "phase": "upload-start",
+            "kind": "copy",
+            "ms": 336
+          },
+          {
+            "phase": "upload-end",
+            "kind": "original",
+            "ms": 366
+          },
+          {
+            "phase": "upload-end",
+            "kind": "copy",
+            "ms": 447
+          }
+        ]
+      }
+    ]
+  }
+}

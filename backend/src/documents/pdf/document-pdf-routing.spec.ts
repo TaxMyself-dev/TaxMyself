@@ -18,6 +18,8 @@ describe('local PDF document routing', () => {
     service.fillFasterSigner = {
       sign: jest.fn().mockResolvedValue(Buffer.from('%PDF-signed')),
     };
+    service.uploadToFirebase = jest.fn(async (...args) => args[5] + '-path');
+    service.deleteFromFirebase = jest.fn().mockResolvedValue(undefined);
     service.imageStorage = {
       download: jest.fn().mockResolvedValue({
         buffer: Buffer.from('logo'),

@@ -33,10 +33,8 @@ describe('recipient email issuance transaction', () => {
       .mockResolvedValue({
         original: Buffer.from('signed-original'),
         copy: Buffer.from('signed-copy'),
+        originalFilePath: 'original-path', copyFilePath: 'copy-path',
       });
-    service.uploadPdfPair = jest
-      .fn()
-      .mockResolvedValue(['original-path', 'copy-path']);
     service.deleteFromFirebase = jest.fn();
     service.businessService = {
       getBusinessByNumber: jest
@@ -83,6 +81,27 @@ describe('recipient email issuance transaction', () => {
     );
     expect(service.mailService.sendMailWithAttachment).not.toHaveBeenCalled();
     expect(service.downloadFromFirebase).not.toHaveBeenCalled();
+  });
+  it('does not enqueue or commit while the copy upload is still in flight', async () => {
+    delete service.generatePdfPair;
+    service.preparePdfModel = jest.fn().mockResolvedValue({});
+    service.documentPdfRenderer = {render:jest.fn().mockResolvedValue(Buffer.from('%PDF-rendered'))};
+    service.fillFasterSigner = {sign:jest.fn().mockResolvedValue(Buffer.from('signed-original'))};
+    let releaseCopy: (value: string) => void;
+    let markCopyStarted: () => void;
+    const copyStarted = new Promise<void>(resolve => {markCopyStarted=resolve;});
+    service.uploadToFirebase = jest.fn(async (...args) => {
+      if(args[5]==='original')return 'original-path';
+      markCopyStarted();return new Promise<string>(resolve => {releaseCopy=resolve;});
+    });
+    const operation=service.createDoc(payload,'owner');
+    await copyStarted;
+    expect(service.documentEmailQueue.enqueue).not.toHaveBeenCalled();
+    expect(runner.commitTransaction).not.toHaveBeenCalled();
+    expect(service.documentEmailQueue.kick).not.toHaveBeenCalled();
+    releaseCopy('copy-path');await operation;
+    expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
+    expect(service.documentEmailQueue.kick).toHaveBeenCalledWith(7,Buffer.from('signed-original'));
   });
   it.each(['not-selected', 'no-recipient', 'pending-allocation'])(
     'does not queue/send when %s',
