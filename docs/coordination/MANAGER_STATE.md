@@ -23,6 +23,10 @@ KT-090. Verification and source-delivery state are recorded in that task.
 Combined verification passed: 55 focused backend tests, 12 focused
 ChromeHeadless tests, Nest build and Angular production build. Existing Angular
 unused-import, budget and CommonJS warnings remain; no failed check was bypassed.
+Delivery `7375109b` was fast-forwarded to clean local main and pushed atomically
+with `codex/integration-kt090`; both live remote refs were verified equal to local
+main. This follow-up records source delivery only. GitHub's repository dependency
+advisories remain outside this fix and require the separate security audit.
 
 ## KT-127 admin demo subscription visibility — 2026-11-24
 

@@ -1,6 +1,9 @@
 # KT-090 - Complete the SHAAM Uniform File API
 
 - Status: `SANDBOX_ACCEPTED_BY_ELAZAR_PRODUCTION_BLOCKED`
+- Source delivery: `PUSHED` — application changes through `7367ca22` delivered
+  with integration verification commit `7375109b` on 2026-11-26. Live remote
+  refs for `main` and `codex/integration-kt090` matched local main after push.
 - Task manager: Codex primary chat
 - Worker: unassigned
 - Worktree: `C:/Users/harel/Elazar Harel/taxmyself/eharel-branch-0`
@@ -95,6 +98,9 @@ tokens or upload capabilities to the browser.
 
 ## Current verification / handoff
 
+- Source delivery completed; production activation remains blocked. GitHub
+  reported repository dependency advisories during push; they were not assessed
+  or resolved by this OAuth task. Keep the existing security audit gate open.
 - Main delivery approved by Elazar on 2026-11-26. Integration candidate:
   `codex/integration-kt090`, containing the five local follow-up commits through
   `7367ca22`, based on freshly fetched `origin/main` `7cdc8580`. This approval
