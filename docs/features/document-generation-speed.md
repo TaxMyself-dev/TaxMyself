@@ -1,8 +1,10 @@
 # Document generation speed
 
 Implemented on `codex/document-generation-speed`, based on `c46490a7`.
-Schema SQL is prepared only. No database application, production access, live
-mail or deployment was performed. A later user-authorized comparison consumed
+SQL was originally prepared only. On 2026-11-26 the user explicitly authorized
+[local DEV queue activation](document-email-dev-activation-2026-11-26.md): its table
+was applied to keepintax-dev and the isolated port-3004 worker enabled. No
+production access, live verification email or deployment was performed. A later user-authorized comparison consumed
 exactly 24 synthetic FillFaster signature calls; see the
 [before/after report](document-generation-speed-benchmark-2026-11-25.md).
 
@@ -26,8 +28,9 @@ The new table is accessed using parameterized SQL and has no TypeORM entity.
 It is not implicitly created by synchronize. Apply the separately approved
 [SQL](../../backend/scripts/migrations/2026-11-25_document-email-outbox.sql)
 before opting in. The same statements appear in
-[cutover.sql](../redesign/cutover.sql); use one execution path only. This task
-authorizes preparing those files, not running them on any database.
+[cutover.sql](../redesign/cutover.sql); use one execution path only. The original approval
+was preparation-only; the later explicit activation request authorized applying
+this table to keepintax-dev only. Other databases remain separately gated.
 
 ## Dispatch and recovery
 

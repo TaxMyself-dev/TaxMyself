@@ -249,3 +249,24 @@ small-sample/provider-noise limits and remaining integration boundaries.
 
 Final 3004 backend restored to optimized source, 4204/8082 unchanged and healthy.
 Local feature only; no main integration, push, deployment or cloud cost change.
+
+
+## DEV email queue activation (2026-11-26)
+
+User explicitly requested activation, superseding prior prep-only DDL scope for
+keepintax-dev only. Applied prepared outbox CREATE TABLE; verified transaction
+rollback, fresh-worker recovery, competing claims, invalid-file cancellation and
+pre-send retry against real MySQL with fake attachment/mail transport. Three
+synthetic test jobs retained as CANCELLED; zero pending work/external mail.
+
+Enabled queue on isolated local backend 3004 and its queue-only ten-second timer
+while preserving disabled unrelated schedulers, synchronize and seeds. Startup
+worker marker and health 200 verified. No source-code behavior change; original
+6906f809 build evidence reused. Three focused suites / 39 tests passed, 44.206s.
+See [activation report](../../features/document-email-dev-activation-2026-11-26.md)
+for exact command, transport/restart limitations and applied-DDL evidence.
+
+No production/cloud/scheduler configuration or main integration. Early upload
+overlap was explained, not implemented. Entry-screen preloading remains pending.
+Feature-branch push is authorized under Elazar's replacement AGENTS instructions;
+main remains untouched.

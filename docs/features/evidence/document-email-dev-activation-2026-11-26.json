@@ -1,0 +1,16 @@
+{
+  "database": "keepintax-dev",
+  "ddlApplied": true,
+  "externalMails": 0,
+  "transactionRollback": true,
+  "noSendDuringEnqueue": true,
+  "freshWorkerRecovery": true,
+  "competingClaimsSingleDelivery": true,
+  "invalidDocumentCancelled": true,
+  "preSendFailureRetries": true,
+  "noPendingJobs": true,
+  "date": "2026-11-26",
+  "sourceCommit": "6906f809",
+  "ddlSha256": "5b3a7cba3edf54a340472281880888f5769a1b0eb10da62f2a7d04f044eab923",
+  "testTransport": "Fake attachment bytes and fake mail; real MySQL and queue class. Fresh queue instance recovery, not a live provider/restart-delivery test."
+}
